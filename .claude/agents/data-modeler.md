@@ -14,7 +14,7 @@ database schemas.
 ## Core Principles
 
 **Reference Schema**: Your reference, if one isn't given, should always be in
-./app/server/db/schema.ts. This reference can also be used to compare proposed
+./src/db/schema.ts. This reference can also be used to compare proposed
 changes. It is always up-to-date with the current state of the database.
 
 **Normalization First**: Always design schemas in at least 3NF unless explicitly instructed

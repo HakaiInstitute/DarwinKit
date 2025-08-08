@@ -1,0 +1,229 @@
+// Folder-specific settings for DarwinKit
+//
+// For a full list of overridable settings, and general information on folder-specific settings,
+// see the documentation: https://zed.dev/docs/configuring-zed#settings-files
+{
+  // Enable format on save
+  "format_on_save": "on",
+
+  // Configure ESLint to run fixes on save
+  "code_actions_on_format": {
+    "source.fixAll.eslint": true,
+    "source.organizeImports": true
+  },
+
+  "context_servers": {
+    "postgres-context-server": {
+      "source": "extension",
+      "enabled": true,
+      "settings": {
+        "database_url": "postgresql://darwin:U1tr4.M3g4@localhost:5432/darwin_kit"
+      }
+    }
+  },
+
+  // Language-specific configurations
+  "languages": {
+    "TypeScript": {
+      // Use Prettier as the formatter for TypeScript files
+      "formatter": {
+        "external": {
+          "command": "node_modules/.bin/prettier",
+          "arguments": [
+            "--stdin-filepath",
+            "{buffer_path}"
+          ]
+        }
+      },
+      // Run ESLint fixes and organize imports on format
+      "code_actions_on_format": {
+        "source.fixAll.eslint": true,
+        "source.organizeImports": true
+      },
+      // Use vtsls for better TypeScript support
+      "language_servers": ["vtsls", "eslint"]
+    },
+    "TSX": {
+      // Use Prettier as the formatter for TSX files
+      "formatter": {
+        "external": {
+          "command": "node_modules/.bin/prettier",
+          "arguments": [
+            "--stdin-filepath",
+            "{buffer_path}"
+          ]
+        }
+      },
+      // Run ESLint fixes and organize imports on format
+      "code_actions_on_format": {
+        "source.fixAll.eslint": true,
+        "source.organizeImports": true
+      },
+      // Use vtsls for better TypeScript support
+      "language_servers": ["vtsls", "eslint"]
+    },
+    "JavaScript": {
+      // Use Prettier as the formatter for JavaScript files
+      "formatter": {
+        "external": {
+          "command": "node_modules/.bin/prettier",
+          "arguments": [
+            "--stdin-filepath",
+            "{buffer_path}"
+          ]
+        }
+      },
+      // Run ESLint fixes on format
+      "code_actions_on_format": {
+        "source.fixAll.eslint": true,
+        "source.organizeImports": true
+      },
+      // Language servers for JavaScript
+      "language_servers": ["vtsls", "eslint"]
+    }
+    // "JSX": {
+    //   // Use Prettier as the formatter for JSX files
+    //   "formatter": {
+    //     "external": {
+    //       "command": "node_modules/.bin/prettier",
+    //       "arguments": [
+    //         "--stdin-filepath",
+    //         "{buffer_path}"
+    //       ]
+    //     }
+    //   },
+    //   // Run ESLint fixes on format
+    //   "code_actions_on_format": {
+    //     "source.fixAll.eslint": true,
+    //     "source.organizeImports": true
+    //   },
+    //   // Language servers for JSX
+    //   "language_servers": ["vtsls", "eslint"]
+    // }
+  },
+
+  // LSP (Language Server Protocol) configurations
+  "lsp": {
+    // vtsls configuration (Vue/TypeScript Language Server - faster than typescript-language-server)
+    "vtsls": {
+      "settings": {
+        "typescript": {
+          // Enable inlay hints for better code readability
+          "inlayHints": {
+            "parameterNames": {
+              "enabled": "literals"
+            },
+            "parameterTypes": {
+              "enabled": false
+            },
+            "variableTypes": {
+              "enabled": false
+            },
+            "propertyDeclarationTypes": {
+              "enabled": false
+            },
+            "functionLikeReturnTypes": {
+              "enabled": true
+            },
+            "enumMemberValues": {
+              "enabled": true
+            }
+          },
+          // Preferences
+          "preferences": {
+            "includePackageJsonAutoImports": "auto",
+            "importModuleSpecifier": "relative"
+          },
+          // Memory limit for TypeScript server (16GB for large projects)
+          "tsserver": {
+            "maxTsServerMemory": 8192
+          },
+          // Update imports on file move
+          "updateImportsOnFileMove": {
+            "enabled": "always"
+          }
+        },
+        "javascript": {
+          // Enable inlay hints for JavaScript too
+          "inlayHints": {
+            "parameterNames": {
+              "enabled": "literals"
+            },
+            "parameterTypes": {
+              "enabled": false
+            },
+            "variableTypes": {
+              "enabled": false
+            },
+            "propertyDeclarationTypes": {
+              "enabled": false
+            },
+            "functionLikeReturnTypes": {
+              "enabled": true
+            },
+            "enumMemberValues": {
+              "enabled": true
+            }
+          },
+          // Preferences
+          "preferences": {
+            "includePackageJsonAutoImports": "auto",
+            "importModuleSpecifier": "relative"
+          },
+          // Update imports on file move
+          "updateImportsOnFileMove": {
+            "enabled": "always"
+          }
+        }
+      }
+    },
+
+    // ESLint configuration
+    "eslint": {
+      "settings": {
+        // Auto-fix on save
+        "codeActionOnSave": {
+          "mode": "all"
+        },
+        // Enable ESLint for these file types
+        "probe": [
+          "javascript",
+          "javascriptreact",
+          "typescript",
+          "typescriptreact"
+        ],
+        // Use the project's ESLint configuration
+        "workingDirectory": {
+          "mode": "auto"
+        },
+        // Validate on save
+        "validate": "on",
+        // Use flat config (ESLint 9+)
+        "experimental": {
+          "useFlatConfig": true
+        }
+      }
+    }
+  },
+
+  // Tab and indentation settings
+  "tab_size": 2,
+  "hard_tabs": false,
+
+  // File exclude patterns (don't show these in file tree)
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.svn",
+    "**/.hg",
+    "**/CVS",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/node_modules",
+    "**/.vinxi",
+    "**/.output",
+    "**/dist",
+    "**/build",
+    "**/.next",
+    "**/coverage"
+  ]
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 
 // Demo script for DarwinKit mapping system
+import logger from "~/utils/test-logger";
 // Run with: tsx demo/mapping-demo.ts
 
 // ==============================================================================
@@ -242,13 +243,8 @@ interface RowResult {
 }
 
 // Find canonical term in vocabulary (handles synonyms)
-function findCanonicalTerm(
-  vocabularyName: string,
-  inputValue: unknown
-): string | null {
-  if (inputValue === null || inputValue === undefined) {
-    inputValue = "";
-  }
+function findCanonicalTerm(vocabularyName: string, inputValue: unknown): string | null {
+  inputValue ??= "";
 
   const vocab = MOCK_VOCABULARIES[vocabularyName];
   if (!vocab) return null;
@@ -273,19 +269,13 @@ function findCanonicalTerm(
 }
 
 // Transform value using controlled vocabulary
-function transformControlledVocabulary(
-  value: unknown,
-  vocabularyName: string
-): string | null | unknown {
+function transformControlledVocabulary(value: string, vocabularyName: string): string {
   const canonicalTerm = findCanonicalTerm(vocabularyName, value);
-  return canonicalTerm || value; // Return original if no match found
+  return canonicalTerm ?? value; // Return original if no match found
 }
 
 // Validate value using controlled vocabulary
-function validateControlledVocabulary(
-  value: unknown,
-  vocabularyName: string
-): ValidationResult {
+function validateControlledVocabulary(value: string, vocabularyName: string): ValidationResult {
   const vocab = MOCK_VOCABULARIES[vocabularyName];
   if (!vocab) {
     return {
@@ -342,14 +332,8 @@ function processField(rowData: RowData, mapping: FieldMapping): FieldResult {
     transformedValue = originalValue;
   } else if (mapping.vocabularyName) {
     // Controlled vocabulary field
-    transformedValue = transformControlledVocabulary(
-      originalValue,
-      mapping.vocabularyName
-    );
-    validation = validateControlledVocabulary(
-      transformedValue,
-      mapping.vocabularyName
-    );
+    transformedValue = transformControlledVocabulary(String(originalValue), mapping.vocabularyName);
+    validation = validateControlledVocabulary(String(transformedValue), mapping.vocabularyName);
   }
 
   return {
@@ -363,9 +347,7 @@ function processField(rowData: RowData, mapping: FieldMapping): FieldResult {
 
 // Process a single row
 function processRow(rowData: RowData, rowIndex: number): RowResult {
-  const fields = MAPPING_CONFIG.fieldMappings.map((mapping) =>
-    processField(rowData, mapping)
-  );
+  const fields = MAPPING_CONFIG.fieldMappings.map((mapping) => processField(rowData, mapping));
 
   const isValid = fields.every((f) => f.validation.isValid);
   const hasWarnings = fields.some((f) => f.validation.warnings.length > 0);
@@ -383,16 +365,16 @@ function processRow(rowData: RowData, rowIndex: number): RowResult {
 // ==============================================================================
 
 function runDemo() {
-  console.log("🧬 DarwinKit Mapping Demo");
-  console.log("========================\\n");
+  logger.log("🧬 DarwinKit Mapping Demo");
+  logger.log("========================\\n");
 
-  console.log("📋 Configuration:");
-  console.log(`Name: ${MAPPING_CONFIG.name}`);
-  console.log(`Standard: ${MAPPING_CONFIG.standardName}`);
-  console.log(`Field mappings: ${MAPPING_CONFIG.fieldMappings.length}\\n`);
+  logger.log("📋 Configuration:");
+  logger.log(`Name: ${MAPPING_CONFIG.name}`);
+  logger.log(`Standard: ${MAPPING_CONFIG.standardName}`);
+  logger.log(`Field mappings: ${MAPPING_CONFIG.fieldMappings.length}\\n`);
 
-  console.log("📊 Processing Results:");
-  console.log("======================\\n");
+  logger.log("📊 Processing Results:");
+  logger.log("======================\\n");
 
   const results = SOURCE_DATA.map((row, index) => processRow(row, index));
 
@@ -400,14 +382,14 @@ function runDemo() {
   const validRows = results.filter((r) => r.isValid).length;
   const rowsWithWarnings = results.filter((r) => r.hasWarnings).length;
 
-  console.log(`Total rows processed: ${results.length}`);
-  console.log(`Valid rows: ${validRows}`);
-  console.log(`Invalid rows: ${results.length - validRows}`);
-  console.log(`Rows with warnings: ${rowsWithWarnings}\\n`);
+  logger.log(`Total rows processed: ${results.length}`);
+  logger.log(`Valid rows: ${validRows}`);
+  logger.log(`Invalid rows: ${results.length - validRows}`);
+  logger.log(`Rows with warnings: ${rowsWithWarnings}\\n`);
 
   // Detailed results for each row
   results.forEach((result, index) => {
-    console.log(
+    logger.log(
       `🔍 Row ${index + 1} (${result.isValid ? "✅ Valid" : "❌ Invalid"}${
         result.hasWarnings ? " ⚠️ Warnings" : ""
       }):`
@@ -419,27 +401,25 @@ function runDemo() {
         field.validation.warnings.length > 0 ||
         field.originalValue !== field.transformedValue
       ) {
-        console.log(`  ${field.sourceColumn} → ${field.targetField}:`);
-        console.log(`    Original: "${field.originalValue}"`);
-        console.log(`    Transformed: "${field.transformedValue}"`);
+        logger.log(`  ${field.sourceColumn} → ${field.targetField}:`);
+        logger.log(`    Original: "${String(field.originalValue)}"`);
+        logger.log(`    Transformed: "${String(field.transformedValue)}"`);
 
         if (field.validation.errors.length > 0) {
-          console.log(`    ❌ Errors: ${field.validation.errors.join("; ")}`);
+          logger.log(`    ❌ Errors: ${field.validation.errors.join("; ")}`);
         }
 
         if (field.validation.warnings.length > 0) {
-          console.log(
-            `    ⚠️  Warnings: ${field.validation.warnings.join("; ")}`
-          );
+          logger.log(`    ⚠️  Warnings: ${field.validation.warnings.join("; ")}`);
         }
       }
     });
-    console.log();
+    logger.log();
   });
 
   // Show transformed output
-  console.log("✨ Transformed Output (Valid Rows Only):");
-  console.log("========================================\\n");
+  logger.log("✨ Transformed Output (Valid Rows Only):");
+  logger.log("========================================\\n");
 
   const transformedData = results
     .filter((result) => result.isValid)
@@ -451,7 +431,7 @@ function runDemo() {
       return transformedRow;
     });
 
-  console.log(JSON.stringify(transformedData, null, 2));
+  logger.log(JSON.stringify(transformedData, null, 2));
 }
 
 // Run the demo

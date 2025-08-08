@@ -1,0 +1,40 @@
+# Build outputs
+.vinxi/
+.output/
+dist/
+build/
+.next/
+coverage/
+
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# IDE
+.zed/
+.vscode/
+.idea/
+
+# Generated files
+**/*.gen.ts
+**/routeTree.gen.ts
+
+# Database
+*.db
+*.sqlite
+drizzle/
+
+# Environment
+.env*
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Markdown
+*.md

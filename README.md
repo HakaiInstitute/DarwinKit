@@ -2,15 +2,76 @@
 
 WIP
 
-DarwinKit is a tool for mapping tabular biodiversity data to the Darwin Core standard.
+DarwinKit is a tool for mapping and/or validating tabular biodiversity data with the Darwin Core standard (DwC).
 
-The core features are a mapping component, a transforming component, and a validating component. The underlying system utilizes declarative configuration which describes the mapping, transforming, and validation steps.
+The core features are a mapping component, a transforming component, and a validating component. The underlying system utilizes declarative, deterministic configuration which describes the mapping, transforming, and validation procedures.
 
 The configuration allows for using each component independently. Mapping can produce pass-through outputs if desired, directly mapping the source fields to target fields. Transformation can also occur on given fields without them needing to be mapped. Finally, Mapping could be defined which is than validated, without a transformation step. Although the components can be defined with interdependent values and behaviours (column A implies conditions for column B during validation), they can operate with entirely isolated behaviours.
 
+## Why?
+
+### We work with DwC data
+
+Our team works with biodiversity and genomics data. When we collect our data, we're collecting data which typically adheres to DwC.
+
+### However, we don't record it as DwC data
+
+Unfortunately, we tend to collect this data using labels and formats which aren't quite compatible with DwC; at least, not directly. They need mild re-labelling and coercion to adhere to the standard.
+
+### DwC is a large, complex standard with hundreds of fields
+
+I believe part of why we don't work off of the standard is because it's a non-trivial task to learn it, retain what you've learned, and apply it. This tool aims to address that problem by using several strategies to reduce this innate friction.
+
+### Common problems we encounter
+
+Biodiversity and genomics teams face recurring data challenges:
+
+- **Coordinate inconsistencies**: GPS data recorded as "45.5231 N, 74.0060 W" instead of decimal degrees, breaking downstream GIS analysis
+- **Taxonomic ambiguity**: Species names like "Atlantic salmon" or local names that don't validate against authoritative registries like WoRMS
+- **Date format chaos**: Collection dates as "June 15th, 2023", "15/6/23", or "2023-165" (Julian) requiring manual parsing
+- **Measurement unit confusion**: Depths in meters vs fathoms, temperatures in Celsius vs Fahrenheit, without clear metadata
+- **Sample metadata gaps**: Missing or inconsistent specimen preparation methods, preservation protocols, or collection instruments
+
+### Adhering to standards lets us work cleaner, better, and faster
+
+At the moment, we write bespoke scripts which are tailored to specific datasets. We face issues such as:
+
+- These datasets come from study designs which are not based on DwC. Many of the outputs are not as clean as they could be, but improvements require extensive scripting
+- Modifying the script requires someone very technical with a programming environment configured
+- Scripts become unmaintainable as team members leave or priorities shift
+- Each new dataset requires starting from scratch, even when similar to previous work
+
+Ensuring we stay close to the DwC standard provides us with many advantages with little investment.
+
+1. **Clear communication**: When we all speak the same language, we communicate better and make fewer mistakes
+2. **Automatic compatibility**: Datasets become compatible with each other without manual intervention
+3. **Reusable analysis**: R scripts for biodiversity analysis work across projects when data follows the same structure  
+4. **Tool interoperability**: GBIF, iNaturalist, and other platforms can directly ingest standardized data
+5. **Quality assurance**: Validation catches errors before they propagate through analysis pipelines
+
+### Collaboration and data sharing benefits
+
+Working with standardized data transforms how science teams collaborate:
+
+- **Cross-project integration**: Combine data from multiple field seasons or research groups without custom merge scripts
+- **Publication readiness**: Journals increasingly expect data in standard formats for supplementary materials
+- **Grant compliance**: Funding agencies require data management plans that often specify standard formats
+- **Global contribution**: Data can be contributed to international databases like GBIF, Ocean Biogeographic Information System, and GenBank seamlessly
+
+### Preventing downstream analysis failures
+
+Validation catches problems that would otherwise surface as:
+
+- **Statistical analysis errors**: Mixed coordinate systems causing incorrect distance calculations in species distribution models
+- **Visualization failures**: Malformed dates breaking temporal plots in biodiversity trend analysis  
+- **Database import rejections**: Invalid taxonomic names preventing upload to repository systems
+- **Reproducibility issues**: Undocumented transformations making published analyses impossible to replicate
+- **Collaboration bottlenecks**: Data quality questions consuming weeks of back-and-forth communication
+
+
 ## Workflow
 
-There are multiple ways of using this logic. Fundametnally, it operates on files containing tabular data. A source file with a corresponding configuration file can be deterministically mapped, transformed, and validated.
+There are multiple ways of using this logic. Fundamentally, it operates on files containing tabular data. A source file with a corresponding configuration file can be deterministically mapped, transformed, and validated.
 
 One abstraction on this concept is a GUI which defines projects containing files. These files can each have respective configurations.
 
