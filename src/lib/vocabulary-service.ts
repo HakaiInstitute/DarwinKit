@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { db } from "~/db/index";
-import { controlledVocabularies, vocabularyTerms } from "~/db/schema";
+import { db } from "~/db/index.ts";
+import { controlledVocabularies, vocabularyTerms } from "~/db/schema.ts";
 
 // Cached vocabularies to avoid repeated database queries
 const vocabularyCache = new Map<string, VocabularyData>();
@@ -99,7 +99,7 @@ export async function getCanonicalTerms(vocabularyName: string): Promise<string[
 export async function findCanonicalTerm(
   vocabularyName: string,
   inputTerm: string,
-  caseSensitive = false
+  caseSensitive = false,
 ): Promise<string | null> {
   const vocabulary = await getVocabulary(vocabularyName);
 

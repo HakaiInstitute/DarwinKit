@@ -1,4 +1,4 @@
-import { Icon } from "./icon";
+import { Icon } from "./icon.tsx";
 
 export function NewProject() {
   return (

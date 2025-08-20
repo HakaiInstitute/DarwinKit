@@ -1,6 +1,7 @@
-import logger from "../utils/test-logger";
-import { db } from "./index";
-import { controlledVocabularies, standardFields, standards, vocabularyTerms } from "./schema";
+import logger from "~/utils/test-logger.ts";
+import { db } from "~/db/index.ts";
+import { controlledVocabularies, standardFields, standards, vocabularyTerms } from "./schema.ts";
+import process from "node:process";
 
 export async function seedVocabularies() {
   logger.log("🌱 Seeding Darwin Core vocabularies...");

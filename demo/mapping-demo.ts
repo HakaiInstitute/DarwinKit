@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 // Demo script for DarwinKit mapping system
-import logger from "~/utils/test-logger";
+import logger from "~/utils/test-logger.ts";
 // Run with: tsx demo/mapping-demo.ts
 
 // ==============================================================================
@@ -295,9 +295,11 @@ function validateControlledVocabulary(value: string, vocabularyName: string): Va
       return {
         isValid: false,
         errors: [
-          `Value "${value}" is not in controlled vocabulary "${vocabularyName}". Allowed: ${allTerms.join(
-            ", "
-          )}`,
+          `Value "${value}" is not in controlled vocabulary "${vocabularyName}". Allowed: ${
+            allTerms.join(
+              ", ",
+            )
+          }`,
         ],
         warnings: [],
       };
@@ -306,9 +308,11 @@ function validateControlledVocabulary(value: string, vocabularyName: string): Va
         isValid: true, // Valid with warnings for non-strict vocabularies
         errors: [],
         warnings: [
-          `Value "${value}" is not in recommended vocabulary "${vocabularyName}". Recommended: ${allTerms.join(
-            ", "
-          )}`,
+          `Value "${value}" is not in recommended vocabulary "${vocabularyName}". Recommended: ${
+            allTerms.join(
+              ", ",
+            )
+          }`,
         ],
       };
     }
@@ -392,7 +396,7 @@ function runDemo() {
     logger.log(
       `🔍 Row ${index + 1} (${result.isValid ? "✅ Valid" : "❌ Invalid"}${
         result.hasWarnings ? " ⚠️ Warnings" : ""
-      }):`
+      }):`,
     );
 
     result.fields.forEach((field) => {

@@ -1,7 +1,7 @@
 import * as Headless from "@headlessui/react";
 import clsx from "clsx";
 import type React from "react";
-import { Link } from "./link";
+import { Link } from "./link.tsx";
 
 const styles = {
   base: [
@@ -158,19 +158,26 @@ const styles = {
   },
 };
 
-type ButtonProps = (
-  | { color?: keyof typeof styles.colors; outline?: never; plain?: never }
-  | { color?: never; outline: true; plain?: never }
-  | { color?: never; outline?: never; plain: true }
-) & {
-  className?: string;
-  children: React.ReactNode;
-  ref?: React.Ref<HTMLElement>;
-} & (
-    | ({ as?: React.ElementType } & Omit<
+type ButtonProps =
+  & (
+    | { color?: keyof typeof styles.colors; outline?: never; plain?: never }
+    | { color?: never; outline: true; plain?: never }
+    | { color?: never; outline?: never; plain: true }
+  )
+  & {
+    className?: string;
+    children: React.ReactNode;
+    ref?: React.Ref<HTMLElement>;
+  }
+  & (
+    | (
+      & { as?: React.ElementType }
+      & Omit<
         Headless.ButtonProps,
         "className" | "href" | "to" | "as"
-      > & { href?: never; to?: never })
+      >
+      & { href?: never; to?: never }
+    )
     | ({ as?: never } & Omit<React.ComponentPropsWithoutRef<typeof Link>, "className">)
   );
 
@@ -190,19 +197,21 @@ export function Button({
     outline
       ? styles.outline
       : plain
-        ? styles.plain
-        : clsx(styles.solid, styles.colors[color ?? "dark/zinc"])
+      ? styles.plain
+      : clsx(styles.solid, styles.colors[color ?? "dark/zinc"]),
   );
 
-  return "href" in props || "to" in props ? (
-    <Link {...props} className={classes} ref={ref as React.RefObject<HTMLAnchorElement>}>
-      <TouchTarget>{children}</TouchTarget>
-    </Link>
-  ) : (
-    <Headless.Button {...props} as={as} className={clsx(classes, "cursor-default")} ref={ref}>
-      <TouchTarget>{children}</TouchTarget>
-    </Headless.Button>
-  );
+  return "href" in props || "to" in props
+    ? (
+      <Link {...props} className={classes} ref={ref as React.RefObject<HTMLAnchorElement>}>
+        <TouchTarget>{children}</TouchTarget>
+      </Link>
+    )
+    : (
+      <Headless.Button {...props} as={as} className={clsx(classes, "cursor-default")} ref={ref}>
+        <TouchTarget>{children}</TouchTarget>
+      </Headless.Button>
+    );
 }
 
 /**

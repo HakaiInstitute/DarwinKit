@@ -1,8 +1,8 @@
 import "dotenv/config";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import logger from "../utils/test-logger";
-import { db } from "./index";
-import { seedDatabase } from "./seed";
+import logger from "~/utils/test-logger.ts";
+import { db } from "./index.ts";
+import { seedDatabase } from "./seed.ts";
 
 export const handler = async () => {
   try {

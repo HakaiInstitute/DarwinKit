@@ -2,10 +2,9 @@
 
 import * as Headless from "@headlessui/react";
 import clsx from "clsx";
-import { LayoutGroup, motion } from "framer-motion";
-import { type ComponentPropsWithRef, useId } from "react";
-import { TouchTarget } from "./button";
-import { Link } from "./link";
+import { type ComponentPropsWithRef } from "react";
+import { TouchTarget } from "./button.tsx";
+import { Link } from "./link.tsx";
 
 export function Sidebar({ className, ...props }: React.ComponentProps<"nav">) {
   return <nav {...props} className={clsx(className, "flex h-full min-h-0 flex-col")} />;
@@ -17,7 +16,7 @@ export function SidebarHeader({ className, ...props }: React.ComponentProps<"div
       {...props}
       className={clsx(
         className,
-        "flex flex-col border-b border-zinc-950/5 p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5"
+        "flex flex-col border-b border-zinc-950/5 p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5",
       )}
     />
   );
@@ -29,7 +28,7 @@ export function SidebarBody({ className, ...props }: React.ComponentProps<"div">
       {...props}
       className={clsx(
         className,
-        "flex flex-1 flex-col overflow-y-auto p-4 [&>[data-slot=section]+[data-slot=section]]:mt-8"
+        "flex flex-1 flex-col overflow-y-auto p-4 [&>[data-slot=section]+[data-slot=section]]:mt-8",
       )}
     />
   );
@@ -41,19 +40,19 @@ export function SidebarFooter({ className, ...props }: React.ComponentProps<"div
       {...props}
       className={clsx(
         className,
-        "flex flex-col border-t border-zinc-950/5 p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5"
+        "flex flex-col border-t border-zinc-950/5 p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5",
       )}
     />
   );
 }
 
 export function SidebarSection({ className, ...props }: React.ComponentProps<"div">) {
-  const id = useId();
-
   return (
-    <LayoutGroup id={id}>
-      <div {...props} data-slot="section" className={clsx(className, "flex flex-col gap-0.5")} />
-    </LayoutGroup>
+    <div
+      {...props}
+      data-slot="section"
+      className={clsx(className, "flex flex-col gap-0.5")}
+    />
   );
 }
 
@@ -76,16 +75,19 @@ export function SidebarHeading({ className, ...props }: React.ComponentProps<"h3
       {...props}
       className={clsx(
         className,
-        "mb-1 px-2 text-xs/6 font-medium text-zinc-500 dark:text-zinc-400"
+        "mb-1 px-2 text-xs/6 font-medium text-zinc-500 dark:text-zinc-400",
       )}
     />
   );
 }
 
-type SidebarItemProps = ComponentPropsWithRef<"button"> & {
-  current?: boolean;
-  ellipsis?: boolean;
-} & (
+type SidebarItemProps =
+  & ComponentPropsWithRef<"button">
+  & {
+    current?: boolean;
+    ellipsis?: boolean;
+  }
+  & (
     | Omit<Headless.ButtonProps, "as" | "className">
     | Omit<Headless.ButtonProps<typeof Link>, "as" | "className">
   );
@@ -118,37 +120,36 @@ export const SidebarItem = ({
     "dark:data-hover:bg-white/5 dark:data-hover:*:data-[slot=icon]:fill-white",
     "dark:data-active:bg-white/5 dark:data-active:*:data-[slot=icon]:fill-white",
     "dark:data-current:*:data-[slot=icon]:fill-white",
-    ellipsis && "text-ellipsis"
+    ellipsis && "text-ellipsis",
   );
 
   return (
     <span className={clsx(className, "relative")}>
       {current && (
-        <motion.span
-          layoutId="current-indicator"
-          className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-zinc-950 dark:bg-white"
-        />
+        <span className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-zinc-950 dark:bg-white" />
       )}
-      {"to" in props ? (
-        <Headless.CloseButton
-          as={Link}
-          {...props}
-          className={classes}
-          data-current={current ? "true" : undefined}
-          ref={ref}
-        >
-          <TouchTarget>{children}</TouchTarget>
-        </Headless.CloseButton>
-      ) : (
-        <Headless.Button
-          {...props}
-          className={clsx("cursor-default", classes)}
-          data-current={current ? "true" : undefined}
-          ref={ref}
-        >
-          <TouchTarget>{children}</TouchTarget>
-        </Headless.Button>
-      )}
+      {"to" in props
+        ? (
+          <Headless.CloseButton
+            as={Link}
+            {...props}
+            className={classes}
+            data-current={current ? "true" : undefined}
+            ref={ref}
+          >
+            <TouchTarget>{children}</TouchTarget>
+          </Headless.CloseButton>
+        )
+        : (
+          <Headless.Button
+            {...props}
+            className={clsx("cursor-default", classes)}
+            data-current={current ? "true" : undefined}
+            ref={ref}
+          >
+            <TouchTarget>{children}</TouchTarget>
+          </Headless.Button>
+        )}
     </span>
   );
 };

@@ -1,5 +1,5 @@
-import logger from "../utils/test-logger";
-import { db } from "./";
+import logger from "~/utils/test-logger.ts";
+import { db } from "./index.ts";
 import {
   type ProjectInsert,
   projects,
@@ -7,7 +7,7 @@ import {
   sourceFiles,
   type UserInsert,
   users,
-} from "./schema";
+} from "./schema.ts";
 
 const seedData: {
   user: UserInsert;

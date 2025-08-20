@@ -4,21 +4,21 @@
  * Executes modular configurations with selective component usage
  */
 
-import { type IntegratedExecutionResult } from "./integrated-configuration.js";
-import { executeIntegratedConfiguration } from "./integrated-executor.js";
+import { type IntegratedExecutionResult } from "./integrated-configuration.ts";
+import { executeIntegratedConfiguration } from "./integrated-executor.ts";
 import {
-  type ModularConfiguration,
   convertToIntegratedConfiguration,
+  type ModularConfiguration,
   validateModularConfiguration,
-} from "./modular-configuration.js";
-import { type SomePrimitive } from "./validations.js";
+} from "./modular-configuration.ts";
+import { type DataValue } from "./types/index.ts";
 
 /**
  * Execute a modular configuration
  */
 export function executeModularConfiguration(
-  sourceData: Record<string, SomePrimitive>[],
-  modularConfig: ModularConfiguration
+  sourceData: Record<string, DataValue>[],
+  modularConfig: ModularConfiguration,
 ): IntegratedExecutionResult {
   // Validate the modular configuration first
   const validationResult = validateModularConfiguration(modularConfig);
@@ -50,11 +50,11 @@ export function executeModularConfiguration(
  * Execute mapping-only pipeline (just field renaming)
  */
 export function executeMappingOnly(
-  sourceData: Record<string, SomePrimitive>[],
-  mappings: { sourceColumn: string; targetField: string }[]
-): Record<string, SomePrimitive>[] {
+  sourceData: Record<string, DataValue>[],
+  mappings: { sourceColumn: string; targetField: string }[],
+): Record<string, DataValue>[] {
   return sourceData.map((row) => {
-    const mappedRow: Record<string, SomePrimitive> = {};
+    const mappedRow: Record<string, DataValue> = {};
 
     for (const mapping of mappings) {
       mappedRow[mapping.targetField] = row[mapping.sourceColumn];
@@ -68,8 +68,8 @@ export function executeMappingOnly(
  * Execute transformation and validation pipeline (no mapping)
  */
 export function executeTransformValidate(
-  data: Record<string, SomePrimitive>[],
-  config: ModularConfiguration
+  data: Record<string, DataValue>[],
+  config: ModularConfiguration,
 ): IntegratedExecutionResult {
   if (config.mode !== "transform-validate") {
     throw new Error("Configuration must be in transform-validate mode");
@@ -82,8 +82,8 @@ export function executeTransformValidate(
  * Execute mapping and validation pipeline (skip transformations)
  */
 export function executeMappingValidate(
-  sourceData: Record<string, SomePrimitive>[],
-  config: ModularConfiguration
+  sourceData: Record<string, DataValue>[],
+  config: ModularConfiguration,
 ): IntegratedExecutionResult {
   if (config.mode !== "mapping-validate") {
     throw new Error("Configuration must be in mapping-validate mode");
@@ -96,8 +96,8 @@ export function executeMappingValidate(
  * Execute mapping and transformation pipeline (skip validations)
  */
 export function executeMappingTransform(
-  sourceData: Record<string, SomePrimitive>[],
-  config: ModularConfiguration
+  sourceData: Record<string, DataValue>[],
+  config: ModularConfiguration,
 ): IntegratedExecutionResult {
   if (config.mode !== "mapping-transform") {
     throw new Error("Configuration must be in mapping-transform mode");
@@ -111,11 +111,14 @@ export function executeMappingTransform(
  */
 export function createAndExecuteMappingOnly(params: {
   name: string;
-  sourceData: Record<string, SomePrimitive>[];
+  sourceData: Record<string, DataValue>[];
   mappings: { sourceColumn: string; targetField: string }[];
-}): { transformedData: Record<string, SomePrimitive>[]; success: boolean } {
+}): { transformedData: Record<string, DataValue>[]; success: boolean } {
   try {
-    const transformedData = executeMappingOnly(params.sourceData, params.mappings);
+    const transformedData = executeMappingOnly(
+      params.sourceData,
+      params.mappings,
+    );
     return { transformedData, success: true };
   } catch (error) {
     console.error(`Mapping execution failed: ${String(error)}`);
@@ -124,4 +127,4 @@ export function createAndExecuteMappingOnly(params: {
 }
 
 // Export all modular configuration functions for easy access
-export * from "./modular-configuration.js";
+export * from "./modular-configuration.ts";

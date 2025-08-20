@@ -1,7 +1,7 @@
 import { relations } from "drizzle-orm";
 import { boolean, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
-import { type z } from "zod/v4";
+import * as z from "zod/v4";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "npm:drizzle-zod";
 
 const idColumn = (name = "id") => integer(name).primaryKey().generatedAlwaysAsIdentity();
 
@@ -18,12 +18,12 @@ export const users = pgTable("user", {
   password: varchar({ length: 255 }).notNull(),
 });
 
-export const userSchema = createSelectSchema(users);
-export const createUserSchema = createInsertSchema(users);
+export const userSelectSchema = createSelectSchema(users);
+export const userInsertSchema = createInsertSchema(users);
 export const updateUserSchema = createUpdateSchema(users);
 
-export type User = z.infer<typeof userSchema>;
-export type UserInsert = z.infer<typeof createUserSchema>;
+export type User = z.infer<typeof userSelectSchema>;
+export type UserInsert = z.infer<typeof userInsertSchema>;
 export type UserUpdate = z.infer<typeof updateUserSchema>;
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -50,12 +50,6 @@ export const sourceFiles = pgTable("source_file", {
   ...timestamps,
 });
 
-export const sourceFileSchema = createSelectSchema(sourceFiles);
-export const createFileSchema = createInsertSchema(sourceFiles);
-
-export type SourceFile = z.infer<typeof sourceFileSchema>;
-export type SourceFileInsert = z.infer<typeof createFileSchema>;
-
 export const sourceFilesRelations = relations(sourceFiles, ({ one }) => ({
   project: one(projects, {
     fields: [sourceFiles.projectId],
@@ -63,16 +57,24 @@ export const sourceFilesRelations = relations(sourceFiles, ({ one }) => ({
   }),
 }));
 
-export const projectSchema = createSelectSchema(projects);
-export const projectWithFilesSchema = projectSchema.extend({
-  files: sourceFileSchema.array(),
+export const selectSourceFileSchema = createSelectSchema(sourceFiles);
+export const createSourceFileSchema = createInsertSchema(sourceFiles);
+export const updateSourceFileSchema = createUpdateSchema(sourceFiles);
+
+export type SourceFile = z.infer<typeof selectSourceFileSchema>;
+export type SourceFileInsert = z.infer<typeof createSourceFileSchema>;
+export type SourceFileUpdate = z.infer<typeof updateSourceFileSchema>;
+
+export const selectProjectSchema = createSelectSchema(projects);
+export const projectWithFilesSchema = selectProjectSchema.extend({
+  files: selectSourceFileSchema.array(),
 });
-export const createProjectSchema = createInsertSchema(projects);
+export const insertProjectSchema = createInsertSchema(projects);
 export const updateProjectSchema = createUpdateSchema(projects);
 
-export type Project = z.infer<typeof projectSchema>;
+export type Project = z.infer<typeof selectProjectSchema>;
 export type ProjectWithFiles = z.infer<typeof projectWithFilesSchema>;
-export type ProjectInsert = z.infer<typeof createProjectSchema>;
+export type ProjectInsert = z.infer<typeof insertProjectSchema>;
 export type ProjectUpdate = z.infer<typeof updateProjectSchema>;
 
 export const projectRelations = relations(projects, ({ one, many }) => ({
@@ -136,7 +138,7 @@ export const standardFields = pgTable("standard_field", {
   required: boolean("required").default(false).notNull(),
   // Reference to controlled vocabulary (if applicable)
   controlledVocabularyId: integer("controlled_vocabulary_id").references(
-    () => controlledVocabularies.id
+    () => controlledVocabularies.id,
   ),
   // Optional override of vocabulary's default strictness (null = use vocabulary default)
   vocabularyStrictOverride: boolean("vocabulary_strict_override"),
@@ -217,54 +219,66 @@ export const controlledVocabulariesRelations = relations(
     }),
     terms: many(vocabularyTerms),
     fields: many(standardFields),
-  })
+  }),
 );
 
-export const vocabularyTermsRelations = relations(vocabularyTerms, ({ one }) => ({
-  vocabulary: one(controlledVocabularies, {
-    fields: [vocabularyTerms.vocabularyId],
-    references: [controlledVocabularies.id],
+export const vocabularyTermsRelations = relations(
+  vocabularyTerms,
+  ({ one }) => ({
+    vocabulary: one(controlledVocabularies, {
+      fields: [vocabularyTerms.vocabularyId],
+      references: [controlledVocabularies.id],
+    }),
   }),
-}));
+);
 
-export const standardFieldsRelations = relations(standardFields, ({ one, many }) => ({
-  standard: one(standards, {
-    fields: [standardFields.standardId],
-    references: [standards.id],
+export const standardFieldsRelations = relations(
+  standardFields,
+  ({ one, many }) => ({
+    standard: one(standards, {
+      fields: [standardFields.standardId],
+      references: [standards.id],
+    }),
+    controlledVocabulary: one(controlledVocabularies, {
+      fields: [standardFields.controlledVocabularyId],
+      references: [controlledVocabularies.id],
+    }),
+    mappings: many(fieldMappings),
   }),
-  controlledVocabulary: one(controlledVocabularies, {
-    fields: [standardFields.controlledVocabularyId],
-    references: [controlledVocabularies.id],
-  }),
-  mappings: many(fieldMappings),
-}));
+);
 
 export const functionsRelations = relations(functions, ({ many }) => ({
   parameters: many(functionParameters),
 }));
 
-export const functionParametersRelations = relations(functionParameters, ({ one }) => ({
-  function: one(functions, {
-    fields: [functionParameters.functionId],
-    references: [functions.id],
+export const functionParametersRelations = relations(
+  functionParameters,
+  ({ one }) => ({
+    function: one(functions, {
+      fields: [functionParameters.functionId],
+      references: [functions.id],
+    }),
   }),
-}));
+);
 
-export const configurationsRelations = relations(configurations, ({ one, many }) => ({
-  project: one(projects, {
-    fields: [configurations.projectId],
-    references: [projects.id],
+export const configurationsRelations = relations(
+  configurations,
+  ({ one, many }) => ({
+    project: one(projects, {
+      fields: [configurations.projectId],
+      references: [projects.id],
+    }),
+    sourceFile: one(sourceFiles, {
+      fields: [configurations.sourceFileId],
+      references: [sourceFiles.id],
+    }),
+    standard: one(standards, {
+      fields: [configurations.standardId],
+      references: [standards.id],
+    }),
+    fieldMappings: many(fieldMappings),
   }),
-  sourceFile: one(sourceFiles, {
-    fields: [configurations.sourceFileId],
-    references: [sourceFiles.id],
-  }),
-  standard: one(standards, {
-    fields: [configurations.standardId],
-    references: [standards.id],
-  }),
-  fieldMappings: many(fieldMappings),
-}));
+);
 
 export const fieldMappingsRelations = relations(fieldMappings, ({ one }) => ({
   configuration: one(configurations, {
@@ -278,42 +292,151 @@ export const fieldMappingsRelations = relations(fieldMappings, ({ one }) => ({
 }));
 
 // Schemas and types
-export const standardSchema = createSelectSchema(standards);
-export const createStandardSchema = createInsertSchema(standards);
+export const standardSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  version: z.string(),
+  description: z.string().nullable(),
+  updatedAt: z.date(),
+  createdAt: z.date(),
+});
+export const createStandardSchema = standardSchema.omit({
+  id: true,
+  updatedAt: true,
+  createdAt: true,
+});
 export type Standard = z.infer<typeof standardSchema>;
 export type StandardInsert = z.infer<typeof createStandardSchema>;
 
-export const standardFieldSchema = createSelectSchema(standardFields);
-export const createStandardFieldSchema = createInsertSchema(standardFields);
+export const standardFieldSchema = z.object({
+  id: z.number().int(),
+  standardId: z.number().int(),
+  name: z.string(),
+  displayName: z.string(),
+  description: z.string().nullable(),
+  primitiveType: z.string(),
+  semanticType: z.string(),
+  required: z.boolean(),
+  controlledVocabularyId: z.number().int().nullable(),
+  vocabularyStrictOverride: z.boolean().nullable(),
+  updatedAt: z.date(),
+  createdAt: z.date(),
+});
+export const createStandardFieldSchema = standardFieldSchema.omit({
+  id: true,
+  updatedAt: true,
+  createdAt: true,
+});
 export type StandardField = z.infer<typeof standardFieldSchema>;
 export type StandardFieldInsert = z.infer<typeof createStandardFieldSchema>;
 
-export const functionSchema = createSelectSchema(functions);
-export const createFunctionSchema = createInsertSchema(functions);
+export const functionSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  type: z.string(),
+  description: z.string().nullable(),
+  updatedAt: z.date(),
+  createdAt: z.date(),
+});
+export const createFunctionSchema = functionSchema.omit({
+  id: true,
+  updatedAt: true,
+  createdAt: true,
+});
 export type Function = z.infer<typeof functionSchema>;
 export type FunctionInsert = z.infer<typeof createFunctionSchema>;
 
-export const functionParameterSchema = createSelectSchema(functionParameters);
-export const createFunctionParameterSchema = createInsertSchema(functionParameters);
+export const functionParameterSchema = z.object({
+  id: z.number().int(),
+  functionId: z.number().int(),
+  name: z.string(),
+  type: z.string(),
+  required: z.boolean(),
+  defaultValue: z.any().nullable(),
+  description: z.string().nullable(),
+  validationRules: z.any().nullable(),
+  sortOrder: z.number().int(),
+  updatedAt: z.date(),
+  createdAt: z.date(),
+});
+export const createFunctionParameterSchema = functionParameterSchema.omit({
+  id: true,
+  updatedAt: true,
+  createdAt: true,
+});
 export type FunctionParameter = z.infer<typeof functionParameterSchema>;
 export type FunctionParameterInsert = z.infer<typeof createFunctionParameterSchema>;
 
-export const configurationSchema = createSelectSchema(configurations);
-export const createConfigurationSchema = createInsertSchema(configurations);
+export const configurationSchema = z.object({
+  id: z.number().int(),
+  projectId: z.number().int(),
+  sourceFileId: z.number().int(),
+  standardId: z.number().int(),
+  name: z.string(),
+  updatedAt: z.date(),
+  createdAt: z.date(),
+});
+export const createConfigurationSchema = configurationSchema.omit({
+  id: true,
+  updatedAt: true,
+  createdAt: true,
+});
 export type Configuration = z.infer<typeof configurationSchema>;
 export type ConfigurationInsert = z.infer<typeof createConfigurationSchema>;
 
-export const fieldMappingSchema = createSelectSchema(fieldMappings);
-export const createFieldMappingSchema = createInsertSchema(fieldMappings);
+export const fieldMappingSchema = z.object({
+  id: z.number().int(),
+  configurationId: z.number().int(),
+  sourceColumnName: z.string(),
+  targetFieldId: z.number().int(),
+  transformations: z.any(),
+  validations: z.any(),
+  updatedAt: z.date(),
+  createdAt: z.date(),
+});
+export const createFieldMappingSchema = fieldMappingSchema.omit({
+  id: true,
+  updatedAt: true,
+  createdAt: true,
+});
 export type FieldMapping = z.infer<typeof fieldMappingSchema>;
 export type FieldMappingInsert = z.infer<typeof createFieldMappingSchema>;
 
-export const controlledVocabularySchema = createSelectSchema(controlledVocabularies);
-export const createControlledVocabularySchema = createInsertSchema(controlledVocabularies);
+export const controlledVocabularySchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  displayName: z.string(),
+  description: z.string().nullable(),
+  version: z.string(),
+  strict: z.boolean(),
+  standardId: z.number().int().nullable(),
+  updatedAt: z.date(),
+  createdAt: z.date(),
+});
+export const createControlledVocabularySchema = controlledVocabularySchema.omit({
+  id: true,
+  updatedAt: true,
+  createdAt: true,
+});
 export type ControlledVocabulary = z.infer<typeof controlledVocabularySchema>;
 export type ControlledVocabularyInsert = z.infer<typeof createControlledVocabularySchema>;
 
-export const vocabularyTermSchema = createSelectSchema(vocabularyTerms);
-export const createVocabularyTermSchema = createInsertSchema(vocabularyTerms);
+export const vocabularyTermSchema = z.object({
+  id: z.number().int(),
+  vocabularyId: z.number().int(),
+  term: z.string(),
+  displayName: z.string().nullable(),
+  description: z.string().nullable(),
+  synonyms: z.any(),
+  deprecated: z.boolean(),
+  sortOrder: z.number().int(),
+  updatedAt: z.date(),
+  createdAt: z.date(),
+});
+export const createVocabularyTermSchema = vocabularyTermSchema.omit({
+  id: true,
+  updatedAt: true,
+  createdAt: true,
+});
 export type VocabularyTerm = z.infer<typeof vocabularyTermSchema>;
 export type VocabularyTermInsert = z.infer<typeof createVocabularyTermSchema>;

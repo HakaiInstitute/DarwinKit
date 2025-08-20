@@ -4,8 +4,8 @@
  * Performance optimizations and efficiency improvements for the type system.
  */
 
-import type { SomePrimitive } from "./core";
-import type { ValidationResult, TransformationResult } from "./results";
+import type { DataValue } from "./core.ts";
+import type { TransformationResult, ValidationResult } from "./results.ts";
 
 // Optimized result types using branded types for better type inference
 export interface BrandedSuccess {
@@ -19,28 +19,28 @@ export interface BrandedFailure {
 
 // More efficient result types using discriminated unions
 export type OptimizedValidationResult =
-  | (BrandedSuccess & { errors: []; warnings: string[]; value: SomePrimitive })
-  | (BrandedFailure & { errors: [string, ...string[]]; warnings: string[]; value: SomePrimitive });
+  | (BrandedSuccess & { errors: []; warnings: string[]; value: DataValue })
+  | (BrandedFailure & { errors: [string, ...string[]]; warnings: string[]; value: DataValue });
 
 export type OptimizedTransformationResult =
-  | (BrandedSuccess & { errors: []; warnings: string[]; value: SomePrimitive })
-  | (BrandedFailure & { errors: [string, ...string[]]; warnings: string[]; value: SomePrimitive });
+  | (BrandedSuccess & { errors: []; warnings: string[]; value: DataValue })
+  | (BrandedFailure & { errors: [string, ...string[]]; warnings: string[]; value: DataValue });
 
 // Efficient type guards
 export const isValidationSuccess = (
-  result: ValidationResult
+  result: ValidationResult,
 ): result is ValidationResult & { success: true } => result.success === true;
 
 export const isValidationFailure = (
-  result: ValidationResult
+  result: ValidationResult,
 ): result is ValidationResult & { success: false } => result.success === false;
 
 export const isTransformationSuccess = (
-  result: TransformationResult
+  result: TransformationResult,
 ): result is TransformationResult & { success: true } => result.success === true;
 
 export const isTransformationFailure = (
-  result: TransformationResult
+  result: TransformationResult,
 ): result is TransformationResult & { success: false } => result.success === false;
 
 // Readonly variants for immutable operations
@@ -48,10 +48,10 @@ export type ReadonlyValidationResult = Readonly<ValidationResult>;
 export type ReadonlyTransformationResult = Readonly<TransformationResult>;
 
 // Utility types for common patterns
-export type NonNullablePrimitive = NonNullable<SomePrimitive>;
+export type NonNullablePrimitive = NonNullable<DataValue>;
 
 // Generic constraint helpers
-export type ValidatableValue<T extends SomePrimitive = SomePrimitive> = T extends null | undefined
+export type ValidatableValue<T extends DataValue = DataValue> = T extends null | undefined
   ? never
   : T;
 
@@ -79,7 +79,7 @@ export type VocabularyName = string; // Any vocabulary name including dwc:sex, d
 // Performance-optimized cache types
 export interface ValidationCache {
   readonly vocabulary: ReadonlyMap<string, ReadonlyMap<string, boolean>>;
-  readonly transformations: ReadonlyMap<string, SomePrimitive>;
+  readonly transformations: ReadonlyMap<string, DataValue>;
 }
 
 // Type-safe error handling
@@ -106,9 +106,9 @@ export interface ConfigurationError {
 export type PipelineError = ValidationError | TransformationError | ConfigurationError;
 
 // Efficient result builders
-export const createSuccessResult = <T extends SomePrimitive>(
+export const createSuccessResult = <T extends DataValue>(
   value: T,
-  warnings: string[] = []
+  warnings: string[] = [],
 ): ValidationResult => ({
   success: true,
   errors: [],
@@ -116,10 +116,10 @@ export const createSuccessResult = <T extends SomePrimitive>(
   value,
 });
 
-export const createFailureResult = <T extends SomePrimitive>(
+export const createFailureResult = <T extends DataValue>(
   value: T,
   errors: string[],
-  warnings: string[] = []
+  warnings: string[] = [],
 ): ValidationResult => ({
   success: false,
   errors,
@@ -140,5 +140,5 @@ export interface BatchProcessingOptions {
 
 export type BatchProcessor<TInput, TOutput> = (
   inputs: readonly TInput[],
-  options?: BatchProcessingOptions
+  options?: BatchProcessingOptions,
 ) => Promise<readonly TOutput[]>;

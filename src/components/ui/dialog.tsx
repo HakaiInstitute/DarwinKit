@@ -1,7 +1,7 @@
 import * as Headless from "@headlessui/react";
 import clsx from "clsx";
 import type React from "react";
-import { Text } from "./text";
+import { Text } from "./text.tsx";
 
 const sizes = {
   xs: "sm:max-w-xs",
@@ -40,7 +40,7 @@ export function Dialog({
               className,
               sizes[size],
               "row-start-2 w-full min-w-0 rounded-t-3xl bg-white p-(--gutter) shadow-lg ring-1 ring-zinc-950/10 [--gutter:--spacing(8)] sm:mb-auto sm:rounded-2xl dark:bg-zinc-900 dark:ring-white/10 forced-colors:outline",
-              "transition duration-100 will-change-transform data-closed:translate-y-12 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:data-closed:translate-y-0 sm:data-closed:data-enter:scale-95"
+              "transition duration-100 will-change-transform data-closed:translate-y-12 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:data-closed:translate-y-0 sm:data-closed:data-enter:scale-95",
             )}
           >
             {children}
@@ -60,7 +60,7 @@ export function DialogTitle({
       {...props}
       className={clsx(
         className,
-        "text-lg/6 font-semibold text-balance text-zinc-950 sm:text-base/6 dark:text-white"
+        "text-lg/6 font-semibold text-balance text-zinc-950 sm:text-base/6 dark:text-white",
       )}
     />
   );
@@ -85,7 +85,7 @@ export function DialogActions({ className, ...props }: React.ComponentPropsWitho
       {...props}
       className={clsx(
         className,
-        "mt-8 flex flex-col-reverse items-center justify-end gap-3 *:w-full sm:flex-row sm:*:w-auto"
+        "mt-8 flex flex-col-reverse items-center justify-end gap-3 *:w-full sm:flex-row sm:*:w-auto",
       )}
     />
   );

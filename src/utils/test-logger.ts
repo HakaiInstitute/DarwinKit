@@ -5,9 +5,6 @@
  * This should ONLY be used in demo/ and test/ directories.
  */
 
-/* eslint-disable no-console */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 export interface TestLoggerOptions {
   prefix?: string;
   enableColors?: boolean;
@@ -25,7 +22,7 @@ class TestLogger {
     this.enableTimestamps = options.enableTimestamps ?? false;
   }
 
-  private formatMessage(level: string, ...args: any[]): any[] {
+  private formatMessage(level: string, ...args: unknown[]): unknown[] {
     const timestamp = this.enableTimestamps ? `[${new Date().toISOString()}] ` : "";
     const prefix = this.prefix ? `[${this.prefix}] ` : "";
     const levelStr = this.enableColors ? this.colorize(level, level) : `[${level}]`;
@@ -55,38 +52,31 @@ class TestLogger {
     return `${color}[${text}]\x1b[0m`;
   }
 
-  log(...args: any[]): void {
-    // eslint-disable-next-line
+  log(...args: unknown[]): void {
     console.log(...this.formatMessage("LOG", ...args));
   }
 
-  info(...args: any[]): void {
-    // eslint-disable-next-line
+  info(...args: unknown[]): void {
     console.info(...this.formatMessage("INFO", ...args));
   }
 
-  success(...args: any[]): void {
-    // eslint-disable-next-line
+  success(...args: unknown[]): void {
     console.log(...this.formatMessage("SUCCESS", ...args));
   }
 
-  warn(...args: any[]): void {
-    // eslint-disable-next-line
+  warn(...args: unknown[]): void {
     console.warn(...this.formatMessage("WARN", ...args));
   }
 
-  error(...args: any[]): void {
-    // eslint-disable-next-line
+  error(...args: unknown[]): void {
     console.error(...this.formatMessage("ERROR", ...args));
   }
 
-  debug(...args: any[]): void {
-    // eslint-disable-next-line
+  debug(...args: unknown[]): void {
     console.debug(...this.formatMessage("DEBUG", ...args));
   }
 
-  group(...args: any[]): void {
-    // eslint-disable-next-line
+  group(...args: unknown[]): void {
     console.group(...args);
   }
 
@@ -94,7 +84,7 @@ class TestLogger {
     console.groupEnd();
   }
 
-  table(data: any, columns?: string[]): void {
+  table(data: unknown, columns?: string[]): void {
     console.table(data, columns);
   }
 
@@ -124,11 +114,11 @@ class TestLogger {
     this.log(`${"-".repeat(40)}`);
   }
 
-  json(obj: any, indent = 2): void {
+  json(obj: unknown, indent = 2): void {
     this.log(JSON.stringify(obj, null, indent));
   }
 
-  list(items: any[], bullet = "•"): void {
+  list(items: unknown[], bullet = "•"): void {
     items.forEach((item) => {
       this.log(`  ${bullet} ${item}`);
     });

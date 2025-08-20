@@ -2,7 +2,7 @@
 // import {
 //   getCanonicalTerms,
 //   findCanonicalTerm,
-// } from "./vocabulary-service";
+// } from "./vocabulary-service.ts";
 
 // // Base validation result interface
 // export interface ValidationResult {

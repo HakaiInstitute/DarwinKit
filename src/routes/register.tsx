@@ -1,21 +1,21 @@
 import { type AnyFieldApi, useForm } from "@tanstack/react-form";
 import { createFileRoute } from "@tanstack/react-router";
-import { AuthLayout } from "~/components/ui/auth-layout";
-import { Button } from "~/components/ui/button";
-import { Field, Fieldset, Label } from "~/components/ui/fieldset";
-import { Heading } from "~/components/ui/heading";
-import { Input } from "~/components/ui/input";
-import { Strong, Text, TextLink } from "~/components/ui/text";
-import { type UserInsert } from "~/db/schema";
-import { NewUserSchema } from "../schemas/user";
-import logger from "../utils/test-logger";
+import { AuthLayout } from "~/components/ui/auth-layout.tsx";
+import { Button } from "~/components/ui/button.tsx";
+import { Field, Fieldset, Label } from "~/components/ui/fieldset.tsx";
+import { Heading } from "~/components/ui/heading.tsx";
+import { Input } from "~/components/ui/input.tsx";
+import { Strong, Text, TextLink } from "~/components/ui/text.tsx";
+import { type UserInsert } from "~/db/schema.ts";
+import { NewUserSchema } from "~/schemas/user.ts";
+import logger from "~/utils/test-logger.ts";
 
 function FieldInfo({ field }: { field: AnyFieldApi }) {
   return (
     <>
-      {field.state.meta.isTouched && !field.state.meta.isValid ? (
-        <em>{field.state.meta.errors.join(", ")}</em>
-      ) : null}
+      {field.state.meta.isTouched && !field.state.meta.isValid
+        ? <em>{field.state.meta.errors.join(", ")}</em>
+        : null}
       {field.state.meta.isValidating ? "Validating..." : null}
     </>
   );
@@ -23,7 +23,7 @@ function FieldInfo({ field }: { field: AnyFieldApi }) {
 
 const registerUser = async (data: UserInsert) => {
   // Simulate an API call
-  return new Promise((resolve) => {
+  return await new Promise((resolve) => {
     setTimeout(() => {
       logger.log(`Creating new user with data:`, data);
       resolve(true);

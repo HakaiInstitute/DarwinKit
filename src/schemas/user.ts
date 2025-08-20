@@ -1,4 +1,3 @@
-import { JSON_SCHEMA_REGISTRY } from "@orpc/zod/zod4";
 import * as z from "zod/v4";
 
 export type NewUser = z.infer<typeof NewUserSchema>;
@@ -15,28 +14,8 @@ export const NewUserSchema = z
     path: ["passwordConfirm"],
   });
 
-JSON_SCHEMA_REGISTRY.add(NewUserSchema, {
-  examples: [
-    {
-      email: "john@doe.com",
-      password: "123456",
-      passwordConfirm: "123456",
-    },
-  ],
-});
-
 export const UserSchema = z.object({
   id: z.number(),
   email: z.email(),
   password: z.string(),
-});
-
-JSON_SCHEMA_REGISTRY.add(UserSchema, {
-  examples: [
-    {
-      id: 1,
-      email: "john@doe.com",
-      password: "123456",
-    },
-  ],
 });

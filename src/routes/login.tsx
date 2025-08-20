@@ -1,13 +1,13 @@
 import { type AnyFieldApi, useForm } from "@tanstack/react-form";
 import { createFileRoute } from "@tanstack/react-router";
-import { AuthLayout } from "~/components/ui/auth-layout";
-import { Button } from "~/components/ui/button";
-import { Field, Fieldset, Label } from "~/components/ui/fieldset";
-import { Heading } from "~/components/ui/heading";
-import { Input } from "~/components/ui/input";
-import { Link } from "~/components/ui/link";
-import { Strong, Text, TextLink } from "~/components/ui/text";
-import { useAuth } from "../hooks/useAuth";
+import { AuthLayout } from "~/components/ui/auth-layout.tsx";
+import { Button } from "~/components/ui/button.tsx";
+import { Field, Fieldset, Label } from "~/components/ui/fieldset.tsx";
+import { Heading } from "~/components/ui/heading.tsx";
+import { Input } from "~/components/ui/input.tsx";
+import { Link } from "~/components/ui/link.tsx";
+import { Strong, Text, TextLink } from "~/components/ui/text.tsx";
+import { useAuth } from "~/hooks/useAuth.ts";
 
 export const Route = createFileRoute("/login")({
   component: LoginComponent,
@@ -16,9 +16,9 @@ export const Route = createFileRoute("/login")({
 function FieldInfo({ field }: { field: AnyFieldApi }) {
   return (
     <>
-      {field.state.meta.isTouched && !field.state.meta.isValid ? (
-        <em>{field.state.meta.errors.join(", ")}</em>
-      ) : null}
+      {field.state.meta.isTouched && !field.state.meta.isValid
+        ? <em>{field.state.meta.errors.join(", ")}</em>
+        : null}
       {field.state.meta.isValidating ? "Validating..." : null}
     </>
   );
@@ -52,24 +52,24 @@ export function LoginComponent() {
       >
         {/* <Logo className="h-6 text-zinc-950 dark:text-white forced-colors:text-[CanvasText]" /> */}
 
-        {user ? (
-          <Text>
-            <span className="text-xl">
-              You&apos;re already logged in as <strong>{user.email}</strong>.
-            </span>
-            <br />
-            <br />
-            <span>
-              You can{" "}
-              <Link className="text-blue-600 hover:text-blue-800" to="/logout">
-                click here to log out
-              </Link>
-            </span>
-            .
-          </Text>
-        ) : (
-          <Heading>Sign in to your account</Heading>
-        )}
+        {user
+          ? (
+            <Text>
+              <span className="text-xl">
+                You&apos;re already logged in as <strong>{user.email}</strong>.
+              </span>
+              <br />
+              <br />
+              <span>
+                You can{" "}
+                <Link className="text-blue-600 hover:text-blue-800" to="/logout">
+                  click here to log out
+                </Link>
+              </span>
+              .
+            </Text>
+          )
+          : <Heading>Sign in to your account</Heading>}
 
         <Fieldset className="space-y-4">
           <form.Field

@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { Button } from "./ui/button.tsx";
 
 export function NotFound({ data }: { data: unknown }) {
   return (
@@ -7,12 +8,12 @@ export function NotFound({ data }: { data: unknown }) {
         {String(data) || <p>The page you are looking for does not exist.</p>}
       </div>
       <p className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => window.history.back()}
+        <Button
+          onClick={() => globalThis.history.back()}
           className="bg-emerald-500 text-white px-2 py-1 rounded uppercase font-black text-sm"
         >
           Go back
-        </button>
+        </Button>
         <Link
           to="/"
           className="bg-cyan-600 text-white px-2 py-1 rounded uppercase font-black text-sm"

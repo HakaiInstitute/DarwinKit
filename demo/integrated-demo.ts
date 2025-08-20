@@ -4,13 +4,13 @@
  * Demonstrates unified mapping + transformation + validation pipeline
  */
 
-import { type IntegratedConfiguration } from "~/lib/configurator/integrated-configuration";
 import {
   executeIntegratedConfiguration,
   validateIntegratedConfiguration,
-} from "~/lib/configurator/integrated-executor";
-import logger from "~/utils/test-logger";
-import { MOCK_VOCABULARIES } from "./mapping-demo.js";
+} from "~/lib/configurator/integrated-executor.ts";
+import type { IntegratedConfiguration } from "~/lib/configurator/types/configuration.ts";
+import logger from "~/utils/test-logger.ts";
+import { MOCK_VOCABULARIES } from "./mapping-demo.ts";
 
 // Sample source data (raw CSV-like data)
 const SAMPLE_SOURCE_DATA = [
@@ -64,6 +64,7 @@ const INTEGRATED_CONFIG: IntegratedConfiguration = {
   fieldMappings: [
     // Sex field: mapping + vocabulary transformation
     {
+      fieldName: "sex",
       sourceColumn: "organism_sex",
       targetField: "sex",
       transformations: [
@@ -80,6 +81,7 @@ const INTEGRATED_CONFIG: IntegratedConfiguration = {
 
     // Life stage field: mapping + vocabulary transformation
     {
+      fieldName: "lifeStage",
       sourceColumn: "life_stage",
       targetField: "lifeStage",
       transformations: [
@@ -96,6 +98,7 @@ const INTEGRATED_CONFIG: IntegratedConfiguration = {
 
     // Latitude extraction: mapping + coordinate parsing
     {
+      fieldName: "decimalLatitude",
       sourceColumn: "lat_long",
       targetField: "decimalLatitude",
       transformations: [
@@ -111,6 +114,7 @@ const INTEGRATED_CONFIG: IntegratedConfiguration = {
 
     // Longitude extraction: mapping + coordinate parsing
     {
+      fieldName: "decimalLongitude",
       sourceColumn: "lat_long",
       targetField: "decimalLongitude",
       transformations: [
@@ -126,6 +130,7 @@ const INTEGRATED_CONFIG: IntegratedConfiguration = {
 
     // Date standardization: mapping + date parsing
     {
+      fieldName: "eventDate",
       sourceColumn: "date_collected",
       targetField: "eventDate",
       transformations: [
@@ -141,20 +146,24 @@ const INTEGRATED_CONFIG: IntegratedConfiguration = {
 
     // Simple mappings (no transformation needed)
     {
+      fieldName: "catalogNumber",
       sourceColumn: "specimen_id",
       targetField: "catalogNumber",
     },
     {
+      fieldName: "scientificName",
       sourceColumn: "species",
       targetField: "scientificName",
     },
     {
+      fieldName: "recordedBy",
       sourceColumn: "collector",
       targetField: "recordedBy",
     },
 
     // Notes field: mapping + string cleaning
     {
+      fieldName: "occurrenceRemarks",
       sourceColumn: "notes",
       targetField: "occurrenceRemarks",
       transformations: [
@@ -192,10 +201,15 @@ export function runIntegratedDemo() {
 
   // 2. Execute integrated pipeline
   logger.log("2. Executing integrated pipeline...");
-  const result = executeIntegratedConfiguration(SAMPLE_SOURCE_DATA, INTEGRATED_CONFIG);
+  const result = executeIntegratedConfiguration(
+    SAMPLE_SOURCE_DATA,
+    INTEGRATED_CONFIG,
+  );
 
   logger.success("Pipeline execution completed");
-  logger.info(`📊 Results: ${result.validRows}/${result.totalRows} rows processed successfully`);
+  logger.info(
+    `📊 Results: ${result.validRows}/${result.totalRows} rows processed successfully`,
+  );
 
   if (result.globalErrors.length > 0) {
     logger.log("");
@@ -218,9 +232,16 @@ export function runIntegratedDemo() {
 
     // Show field-by-field transformations
     logger.log("  🔄 Field transformations:");
-    for (const [fieldName, fieldResult] of Object.entries(rowResult.fieldResults)) {
+    for (
+      const [fieldName, fieldResult] of Object.entries(
+        rowResult.fieldResults,
+      )
+    ) {
       const _fieldStatus = fieldResult.success ? "✅" : "❌";
-      logger.status(fieldResult.success, `  ${fieldResult.sourceColumn} → ${fieldName}:`);
+      logger.status(
+        fieldResult.success,
+        `  ${fieldResult.sourceColumn} → ${fieldName}:`,
+      );
       logger.log(`      Original: "${String(fieldResult.originalValue)}"`);
       logger.log(`      Final: "${String(fieldResult.finalValue)}"`);
 
@@ -231,7 +252,9 @@ export function runIntegratedDemo() {
           const _stepStatus = step.success ? "✅" : "❌";
           logger.status(
             step.success,
-            `      ${step.functionName}: "${String(step.inputValue)}" → "${String(step.outputValue)}"`
+            `      ${step.functionName}: "${String(step.inputValue)}" → "${
+              String(step.outputValue)
+            }"`,
           );
           if (step.error) {
             logger.error(`          Error: ${step.error}`);
@@ -256,7 +279,11 @@ export function runIntegratedDemo() {
   logger.log(`   Total rows: ${result.totalRows}`);
   logger.log(`   Valid rows: ${result.validRows}`);
   logger.log(`   Invalid rows: ${result.invalidRows}`);
-  logger.check(result.success, `   Overall success: true`, `   Overall success: false`);
+  logger.check(
+    result.success,
+    `   Overall success: true`,
+    `   Overall success: false`,
+  );
   logger.log("");
 
   // 5. Field statistics

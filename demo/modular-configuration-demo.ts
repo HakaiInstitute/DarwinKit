@@ -1,4 +1,4 @@
-import logger from "~/utils/test-logger";
+import logger from "~/utils/test-logger.ts";
 /**
  * Modular Configuration Demonstration
  *
@@ -17,7 +17,8 @@ import {
   createTransformValidateConfig,
   executeMappingOnly,
   executeModularConfiguration,
-} from "~/lib/configurator/modular-executor";
+} from "~/lib/configurator/modular-executor.ts";
+import process from "node:process";
 
 // Sample biodiversity data
 const sampleData = [
@@ -96,7 +97,7 @@ export function demonstrateMappingOnly() {
         sourceColumn: config.sourceColumn,
         targetField: config.targetField,
       };
-    })
+    }),
   );
 
   logger.log("Original columns:", Object.keys(sampleData[0]));

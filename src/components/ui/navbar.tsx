@@ -2,10 +2,9 @@
 
 import * as Headless from "@headlessui/react";
 import clsx from "clsx";
-import { LayoutGroup, motion } from "framer-motion";
-import { type ComponentPropsWithRef, useId } from "react";
-import { TouchTarget } from "./button";
-import { Link } from "./link";
+import { type ComponentPropsWithRef } from "react";
+import { TouchTarget } from "./button.tsx";
+import { Link } from "./link.tsx";
 
 export function Navbar({ className, ...props }: React.ComponentPropsWithoutRef<"nav">) {
   return <nav {...props} className={clsx(className, "flex flex-1 items-center gap-4 py-2.5")} />;
@@ -22,26 +21,21 @@ export function NavbarDivider({ className, ...props }: React.ComponentPropsWitho
 }
 
 export function NavbarSection({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
-  const id = useId();
-
-  return (
-    <LayoutGroup id={id}>
-      <div {...props} className={clsx(className, "flex items-center gap-3")} />
-    </LayoutGroup>
-  );
+  return <div {...props} className={clsx(className, "flex items-center gap-3")} />;
 }
 
 export function NavbarSpacer({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   return <div aria-hidden="true" {...props} className={clsx(className, "-ml-4 flex-1")} />;
 }
 
-type NavbarItemProps<T extends "link" | "button"> = (T extends "link"
-  ? ComponentPropsWithRef<typeof Link>
-  : ComponentPropsWithRef<typeof Headless.Button>) & {
-  current?: boolean;
-  // className?: string;
-  children: React.ReactNode;
-};
+type NavbarItemProps<T extends "link" | "button"> =
+  & (T extends "link" ? ComponentPropsWithRef<typeof Link>
+    : ComponentPropsWithRef<typeof Headless.Button>)
+  & {
+    current?: boolean;
+    // className?: string;
+    children: React.ReactNode;
+  };
 
 export function NavbarItem<T extends "link" | "button">({
   current,
@@ -65,35 +59,31 @@ export function NavbarItem<T extends "link" | "button">({
     // Dark mode
     "dark:text-white dark:*:data-[slot=icon]:fill-zinc-400",
     "dark:data-hover:bg-white/5 dark:data-hover:*:data-[slot=icon]:fill-white",
-    "dark:data-active:bg-white/5 dark:data-active:*:data-[slot=icon]:fill-white"
+    "dark:data-active:bg-white/5 dark:data-active:*:data-[slot=icon]:fill-white",
   );
 
   return (
     // TODO: Why is className any here?
     <span className={clsx(className as string, "relative")}>
-      {current && (
-        <motion.span
-          layoutId="current-indicator"
-          className="absolute inset-x-2 -bottom-2.5 h-0.5 rounded-full bg-zinc-950 dark:bg-white"
-        />
-      )}
-      {"href" in props || "to" in props ? (
-        <Link
-          {...(props as ComponentPropsWithRef<typeof Link>)}
-          className={classes}
-          data-current={current ? "true" : undefined}
-        >
-          <TouchTarget>{children}</TouchTarget>
-        </Link>
-      ) : (
-        <Headless.Button
-          {...(props as ComponentPropsWithRef<typeof Headless.Button>)}
-          className={clsx("cursor-default", classes)}
-          data-current={current ? "true" : undefined}
-        >
-          <TouchTarget>{children}</TouchTarget>
-        </Headless.Button>
-      )}
+      {"href" in props || "to" in props
+        ? (
+          <Link
+            {...(props as ComponentPropsWithRef<typeof Link>)}
+            className={classes}
+            data-current={current ? "true" : undefined}
+          >
+            <TouchTarget>{children}</TouchTarget>
+          </Link>
+        )
+        : (
+          <Headless.Button
+            {...(props as ComponentPropsWithRef<typeof Headless.Button>)}
+            className={clsx("cursor-default", classes)}
+            data-current={current ? "true" : undefined}
+          >
+            <TouchTarget>{children}</TouchTarget>
+          </Headless.Button>
+        )}
     </span>
   );
 }

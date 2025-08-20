@@ -5,7 +5,7 @@
  * standardized error handling across all pipeline operations.
  */
 
-import type { SomePrimitive } from "./core";
+import type { DataValue, DataRow } from "./core.ts";
 
 // Base result interface - standardized across all operations
 export interface BaseResult {
@@ -16,11 +16,11 @@ export interface BaseResult {
 
 // Function execution results
 export interface ValidationResult extends BaseResult {
-  value: SomePrimitive; // The value being validated (pass-through)
+  value: DataValue; // The value being validated (pass-through)
 }
 
 export interface TransformationResult extends BaseResult {
-  value: SomePrimitive; // The transformed output value
+  value: DataValue; // The transformed output value
 }
 
 // Configuration validation results
@@ -32,24 +32,24 @@ export interface ConfigurationValidationResult extends BaseResult {
 export interface StepExecutionResult extends BaseResult {
   step: number;
   functionName: string;
-  inputValue: SomePrimitive;
-  outputValue: SomePrimitive;
+  inputValue: DataValue;
+  outputValue: DataValue;
 }
 
 // Field-level execution results
 export interface FieldExecutionResult extends BaseResult {
   fieldName: string;
   sourceColumn: string;
-  originalValue: SomePrimitive;
-  finalValue: SomePrimitive;
+  originalValue: DataValue;
+  finalValue: DataValue;
   steps: StepExecutionResult[];
 }
 
 // Row-level execution results
 export interface RowExecutionResult extends BaseResult {
   rowIndex: number;
-  sourceRow: Record<string, SomePrimitive>;
-  transformedRow: Record<string, SomePrimitive>;
+  sourceRow: Record<string, DataValue>;
+  transformedRow: Record<string, DataValue>;
   fieldResults: Record<string, FieldExecutionResult>;
 }
 
@@ -59,7 +59,7 @@ export interface DatasetExecutionResult extends BaseResult {
   totalRows: number;
   validRows: number;
   invalidRows: number;
-  transformedData: Record<string, SomePrimitive>[];
+  transformedData: Record<string, DataValue>[];
   rowResults: RowExecutionResult[];
   globalErrors: string[];
 
@@ -78,12 +78,12 @@ export interface DatasetExecutionResult extends BaseResult {
 // Validation-specific result types
 export interface ValidationStepResult extends BaseResult {
   functionName: string;
-  value: SomePrimitive;
+  value: DataValue;
 }
 
 export interface FieldValidationResult extends BaseResult {
   fieldName: string;
-  value: SomePrimitive;
+  value: DataValue;
   steps: ValidationStepResult[];
 }
 
@@ -109,4 +109,33 @@ export interface DatasetValidationResult extends BaseResult {
       mostCommonErrors: string[];
     }
   >;
+}
+
+// Simplified result types (from simplified.ts)
+export interface ExecutionResult {
+  success: boolean;
+  processedRows: number;
+  validRows: number;
+  invalidRows: number;
+  transformedData: DataRow[];
+  errors: string[];
+  warnings: string[];
+}
+
+export interface FieldResult {
+  field: string;
+  originalValue: DataValue;
+  finalValue: DataValue;
+  success: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface RowResult {
+  rowIndex: number;
+  success: boolean;
+  fieldResults: Record<string, FieldResult>;
+  transformedRow: DataRow;
+  errors: string[];
+  warnings: string[];
 }

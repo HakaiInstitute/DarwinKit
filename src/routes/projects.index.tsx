@@ -1,8 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { match, P } from "ts-pattern";
-import { orpc } from "~/lib/orpc";
-import { useAuth } from "../hooks/useAuth";
+import { useProjects } from "~/hooks/useApi.ts";
+import { useAuth } from "~/hooks/useAuth.ts";
 
 export const Route = createFileRoute("/projects/")({
   component: ProjectsComponent,
@@ -10,11 +9,7 @@ export const Route = createFileRoute("/projects/")({
 
 export default function ProjectsComponent() {
   const { user } = useAuth();
-  const projects = useQuery(
-    orpc.project.list.queryOptions({
-      input: { limit: 50, offset: 0 },
-    })
-  );
+  const projects = useProjects({ limit: 50, offset: 0 });
 
   return (
     <main className="relative">
@@ -61,10 +56,12 @@ export default function ProjectsComponent() {
                   <div className="mt-4">
                     <p>No projects found. Start by creating one!</p>
                   </div>
-                )
+                ),
               )
               .with({ error: P.not(undefined) }, ({ error }) => (
-                <p className="mt-4 text-red-500">Error loading projects: {String(error)}</p>
+                <p className="mt-4 text-red-500">
+                  Error loading projects: {String(error)}
+                </p>
               ))
               .exhaustive()}
           </div>

@@ -8,7 +8,9 @@ export default function SupportComponent() {
   return (
     <main className="relative">
       <div className="relative mx-auto flex max-w-5xl flex-col px-6 py-8 sm:py-12 lg:px-0">
-        <h1 className="text-4xl font-bold tracking-tight lg:text-6xl">Support</h1>
+        <h1 className="text-4xl font-bold tracking-tight lg:text-6xl">
+          Support
+        </h1>
         <h2 className="mt-4 text-2xl">Learn to use DarwinKit</h2>
         {/* FAQ */}
         <ul>
@@ -23,7 +25,9 @@ export default function SupportComponent() {
             </p>
           </li>
           <li className="mt-4">
-            <h3 className="text-xl font-semibold">Where can I find the API docs?</h3>
+            <h3 className="text-xl font-semibold">
+              Where can I find the API docs?
+            </h3>
             <p className="mt-2">
               Our API documentation is available{" "}
               <Link to="/" className="text-blue-600 hover:underline">

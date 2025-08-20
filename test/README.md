@@ -5,6 +5,7 @@ This directory contains comprehensive tests for the DarwinKit mapping system, co
 ## Test Coverage
 
 ### Vocabulary Tests (`vocabulary.test.ts`)
+
 - **28 tests** covering vocabulary lookup and validation functions
 - Tests cover:
   - Canonical term lookup with exact matches and synonyms
@@ -14,7 +15,8 @@ This directory contains comprehensive tests for the DarwinKit mapping system, co
   - Strict vs. non-strict vocabulary validation
   - Edge cases (empty strings, numbers, booleans)
 
-### Mapping Tests (`mapping.test.ts`)  
+### Mapping Tests (`mapping.test.ts`)
+
 - **17 tests** covering field and row processing
 - Tests cover:
   - Pass-through field processing
@@ -27,23 +29,26 @@ This directory contains comprehensive tests for the DarwinKit mapping system, co
 ## Key Test Scenarios
 
 ### Vocabulary Behavior
-✅ **Synonym Resolution**: 'M' → 'male', 'F' → 'female', 'juv' → 'juvenile'  
-✅ **Case Insensitivity**: 'MALE' → 'male', 'Female' → 'female'  
-✅ **Null/Empty Handling**: null/undefined/'' → 'unknown'  
-✅ **Strict Validation**: Invalid terms in strict vocabularies cause errors  
-✅ **Non-Strict Validation**: Invalid terms in recommended vocabularies cause warnings  
+
+✅ **Synonym Resolution**: 'M' → 'male', 'F' → 'female', 'juv' → 'juvenile'\
+✅ **Case Insensitivity**: 'MALE' → 'male', 'Female' → 'female'\
+✅ **Null/Empty Handling**: null/undefined/'' → 'unknown'\
+✅ **Strict Validation**: Invalid terms in strict vocabularies cause errors\
+✅ **Non-Strict Validation**: Invalid terms in recommended vocabularies cause warnings
 
 ### Field Processing
-✅ **Pass-Through Fields**: Values preserved without transformation  
-✅ **Vocabulary Fields**: Synonyms transformed, validation applied  
-✅ **Missing Source Data**: Handled gracefully with defaults  
-✅ **Mixed Valid/Invalid**: Proper error and warning aggregation  
+
+✅ **Pass-Through Fields**: Values preserved without transformation\
+✅ **Vocabulary Fields**: Synonyms transformed, validation applied\
+✅ **Missing Source Data**: Handled gracefully with defaults\
+✅ **Mixed Valid/Invalid**: Proper error and warning aggregation
 
 ### Dataset Processing
-✅ **Valid Row Filtering**: Only valid rows included by default  
-✅ **Include Invalid Option**: All rows preserved when requested  
-✅ **Empty Dataset**: Handled correctly  
-✅ **All Invalid Dataset**: Returns empty result  
+
+✅ **Valid Row Filtering**: Only valid rows included by default\
+✅ **Include Invalid Option**: All rows preserved when requested\
+✅ **Empty Dataset**: Handled correctly\
+✅ **All Invalid Dataset**: Returns empty result
 
 ## Running Tests
 
@@ -67,12 +72,13 @@ pnpm test test/mapping.test.ts
 The tests use mock vocabularies that mirror the Darwin Core standard:
 
 - **`dwc:sex`** (strict): male, female, hermaphrodite, unknown + synonyms
-- **`dwc:life_stage`** (non-strict): adult, juvenile, larva, egg, unknown + synonyms  
+- **`dwc:life_stage`** (non-strict): adult, juvenile, larva, egg, unknown + synonyms
 - **`dwc:basis_of_record`** (strict): HumanObservation, PreservedSpecimen, etc. + synonyms
 
 ## Integration Test
 
 The `real-world fish survey mapping scenario` test validates the complete pipeline:
+
 1. Source data with mixed valid/invalid values
 2. Multiple vocabulary fields + pass-through fields
 3. Synonym transformations

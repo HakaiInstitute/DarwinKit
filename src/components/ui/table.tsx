@@ -2,15 +2,12 @@
 
 import clsx from "clsx";
 import type React from "react";
-import { createContext, useContext, useState } from "react";
-import { Link } from "./link";
+import { createContext, useContext } from "react";
+import { Link } from "./link.tsx";
 
-const TableContext = createContext<{
-  bleed: boolean;
-  dense: boolean;
-  grid: boolean;
-  striped: boolean;
-}>({
+const TableContext = createContext<
+  { bleed: boolean; dense: boolean; grid: boolean; striped: boolean }
+>({
   bleed: false,
   dense: false,
   grid: false,
@@ -25,12 +22,9 @@ export function Table({
   className,
   children,
   ...props
-}: {
-  bleed?: boolean;
-  dense?: boolean;
-  grid?: boolean;
-  striped?: boolean;
-} & React.ComponentPropsWithoutRef<"div">) {
+}:
+  & { bleed?: boolean; dense?: boolean; grid?: boolean; striped?: boolean }
+  & React.ComponentPropsWithoutRef<"div">) {
   return (
     <TableContext.Provider
       value={{ bleed, dense, grid, striped } as React.ContextType<typeof TableContext>}
@@ -61,11 +55,7 @@ export function TableBody(props: React.ComponentPropsWithoutRef<"tbody">) {
   return <tbody {...props} />;
 }
 
-const TableRowContext = createContext<{
-  href?: string;
-  target?: string;
-  title?: string;
-}>({
+const TableRowContext = createContext<{ href?: string; target?: string; title?: string }>({
   href: undefined,
   target: undefined,
   title: undefined,
@@ -77,11 +67,7 @@ export function TableRow({
   title,
   className,
   ...props
-}: {
-  href?: string;
-  target?: string;
-  title?: string;
-} & React.ComponentPropsWithoutRef<"tr">) {
+}: { href?: string; target?: string; title?: string } & React.ComponentPropsWithoutRef<"tr">) {
   const { striped } = useContext(TableContext);
 
   return (
@@ -96,7 +82,7 @@ export function TableRow({
             "has-[[data-row-link][data-focus]]:outline-2 has-[[data-row-link][data-focus]]:-outline-offset-2 has-[[data-row-link][data-focus]]:outline-blue-500 dark:focus-within:bg-white/[2.5%]",
           striped && "even:bg-zinc-950/[2.5%] dark:even:bg-white/[2.5%]",
           href && striped && "hover:bg-zinc-950/5 dark:hover:bg-white/5",
-          href && !striped && "hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]"
+          href && !striped && "hover:bg-zinc-950/[2.5%] dark:hover:bg-white/[2.5%]",
         )}
       />
     </TableRowContext.Provider>
@@ -113,7 +99,7 @@ export function TableHeader({ className, ...props }: React.ComponentPropsWithout
         className,
         "border-b border-b-zinc-950/10 px-4 py-2 font-medium first:pl-(--gutter,--spacing(2)) last:pr-(--gutter,--spacing(2)) dark:border-b-white/10",
         grid && "border-l border-l-zinc-950/5 first:border-l-0 dark:border-l-white/5",
-        !bleed && "sm:first:pl-1 sm:last:pr-1"
+        !bleed && "sm:first:pl-1 sm:last:pr-1",
       )}
     />
   );
@@ -122,11 +108,11 @@ export function TableHeader({ className, ...props }: React.ComponentPropsWithout
 export function TableCell({ className, children, ...props }: React.ComponentPropsWithoutRef<"td">) {
   const { bleed, dense, grid, striped } = useContext(TableContext);
   const { href, target, title } = useContext(TableRowContext);
-  const [cellRef, setCellRef] = useState<HTMLElement | null>(null);
+  // const [cellRef, setCellRef] = useState<HTMLElement | null>(null);
 
   return (
     <td
-      ref={href ? setCellRef : undefined}
+      ref={href}
       {...props}
       className={clsx(
         className,
@@ -134,7 +120,7 @@ export function TableCell({ className, children, ...props }: React.ComponentProp
         !striped && "border-b border-zinc-950/5 dark:border-white/5",
         grid && "border-l border-l-zinc-950/5 first:border-l-0 dark:border-l-white/5",
         dense ? "py-2.5" : "py-4",
-        !bleed && "sm:first:pl-1 sm:last:pr-1"
+        !bleed && "sm:first:pl-1 sm:last:pr-1",
       )}
     >
       {href && (
@@ -143,7 +129,7 @@ export function TableCell({ className, children, ...props }: React.ComponentProp
           href={href}
           target={target}
           aria-label={title}
-          tab-index={cellRef?.previousElementSibling === null ? 0 : -1}
+          // tabIndex={cellRef?.previousElementSibling === null ? 0 : -1}
           className="absolute inset-0 focus:outline-hidden"
         />
       )}

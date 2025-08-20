@@ -5,24 +5,24 @@
  * Validations return validation results (pass/fail + messages) rather than transformed values
  */
 
-import type { SomePrimitive, GlobalParameters, VocabularyTerm, MockVocabulary } from "./types";
+import type { DataValue, GlobalParameters, MockVocabulary } from "./types/index.ts";
 
 // Use centralized ValidationResult but map 'success' to 'valid' for backward compatibility
 interface ValidationResult {
   valid: boolean; // Maps to success in centralized type
   errors: string[];
   warnings: string[];
-  value: SomePrimitive; // Original value passed through unchanged
+  value: DataValue; // Original value passed through unchanged
 }
 
 // Dataset validation context for row-level validations
 export interface DatasetValidationContext {
   // Current row being validated
-  currentRow: Record<string, SomePrimitive>;
+  currentRow: Record<string, DataValue>;
   currentRowIndex: number;
 
   // Full dataset access
-  dataset: Record<string, SomePrimitive>[];
+  dataset: Record<string, DataValue>[];
   totalRows: number;
 
   // Validation state tracking
@@ -33,38 +33,38 @@ export interface DatasetValidationContext {
   };
 
   // Utility functions for dataset queries
-  getFieldValue: (fieldName: string) => SomePrimitive;
+  getFieldValue: (fieldName: string) => DataValue;
   getRowsWhere: (
-    predicate: (row: Record<string, SomePrimitive>) => boolean
-  ) => Record<string, SomePrimitive>[];
-  getPreviousRows: () => Record<string, SomePrimitive>[];
-  getRowsByFieldValue: (fieldName: string, value: SomePrimitive) => Record<string, SomePrimitive>[];
+    predicate: (row: Record<string, DataValue>) => boolean,
+  ) => Record<string, DataValue>[];
+  getPreviousRows: () => Record<string, DataValue>[];
+  getRowsByFieldValue: (fieldName: string, value: DataValue) => Record<string, DataValue>[];
 
   // Caching for performance
-  cache: Map<string, SomePrimitive>;
-  wormsData?: Record<string, SomePrimitive>[]; // Example external dataset
-  getWormsRecord?: (id: string) => Record<string, SomePrimitive> | null;
+  cache: Map<string, DataValue>;
+  wormsData?: Record<string, DataValue>[]; // Example external dataset
+  getWormsRecord?: (id: string) => Record<string, DataValue> | null;
 }
 
 // Row-level validation function type
 type RowValidationFunction = (
-  input: SomePrimitive,
+  input: DataValue,
   params: GlobalParameters,
-  context: DatasetValidationContext
+  context: DatasetValidationContext,
 ) => ValidationResult | Promise<ValidationResult>;
 
 // Vocabulary types now imported from centralized types
 
 // Controlled vocabulary validation
 export function validateControlledVocabulary(
-  input: SomePrimitive,
+  input: DataValue,
   params: {
     vocabularyName: string;
     vocabularies: Record<string, MockVocabulary>;
     strict?: boolean; // Override vocabulary's default strictness
     allowEmpty?: boolean;
     caseSensitive?: boolean;
-  }
+  },
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -143,7 +143,7 @@ export function validateDataType(
   params: {
     expectedType: "string" | "number" | "boolean" | "date" | "integer";
     allowEmpty?: boolean;
-  }
+  },
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -234,7 +234,7 @@ export function validateRange(
     min?: number;
     max?: number;
     allowEmpty?: boolean;
-  }
+  },
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -282,7 +282,7 @@ export function validateLength(
     maxLength?: number;
     exactLength?: number;
     allowEmpty?: boolean;
-  }
+  },
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -332,7 +332,7 @@ export function validatePattern(
     flags?: string;
     allowEmpty?: boolean;
     description?: string;
-  }
+  },
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -374,7 +374,7 @@ export function validateCoordinates(
   params: {
     type: "latitude" | "longitude";
     allowEmpty?: boolean;
-  }
+  },
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -418,13 +418,13 @@ export function validateCoordinates(
 
 // Date range validation (with sophisticated date handling)
 export function validateDateRange(
-  input: SomePrimitive,
+  input: DataValue,
   params: {
     allowFuture?: boolean;
     minDate?: string;
     maxDate?: string;
     allowEmpty?: boolean;
-  } = {}
+  } = {},
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -492,8 +492,8 @@ export function validateDateRange(
 
 // Required field validation
 export function validateRequired(
-  input: SomePrimitive,
-  params: { allowEmpty?: boolean } = {}
+  input: DataValue,
+  params: { allowEmpty?: boolean } = {},
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -523,9 +523,9 @@ export function validateRequired(
 
 // Validate uniqueness across the dataset
 export function validateUnique(
-  input: SomePrimitive,
+  input: DataValue,
   params: { fieldName?: string; message?: string },
-  context: DatasetValidationContext
+  context: DatasetValidationContext,
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -556,12 +556,12 @@ export function validateUnique(
   if (duplicateRows.length > 0) {
     const duplicateIndices = duplicateRows
       .map(
-        (row) => context.dataset.indexOf(row) + 1 // 1-based row numbers
+        (row) => context.dataset.indexOf(row) + 1, // 1-based row numbers
       )
       .join(", ");
 
-    const message =
-      params.message ?? `Duplicate value "${input.toString()}" found in rows: ${duplicateIndices}`;
+    const message = params.message ??
+      `Duplicate value "${input.toString()}" found in rows: ${duplicateIndices}`;
 
     result.valid = false;
     result.errors.push(message);
@@ -572,13 +572,13 @@ export function validateUnique(
 
 // Validate referential integrity within the dataset
 export function validateReferentialIntegrity(
-  input: SomePrimitive,
+  input: DataValue,
   params: {
     referenceField: string;
     referenceValue?: string;
     message?: string;
   },
-  context: DatasetValidationContext
+  context: DatasetValidationContext,
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -599,8 +599,8 @@ export function validateReferentialIntegrity(
   const referencedRows = context.getRowsByFieldValue(referenceField, referenceValue);
 
   if (referencedRows.length === 0) {
-    const message =
-      params.message ?? `Reference "${input.toString()}" not found in field "${referenceField}"`;
+    const message = params.message ??
+      `Reference "${input.toString()}" not found in field "${referenceField}"`;
 
     result.valid = false;
     result.errors.push(message);
@@ -611,13 +611,13 @@ export function validateReferentialIntegrity(
 
 // Validate consistency across related records
 export function validateConsistentWithRelated(
-  input: SomePrimitive,
+  input: DataValue,
   params: {
     groupByField: string;
     consistentFields: string[];
     message?: string;
   },
-  context: DatasetValidationContext
+  context: DatasetValidationContext,
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -647,8 +647,7 @@ export function validateConsistentWithRelated(
         .map((row) => context.dataset.indexOf(row) + 1)
         .join(", ");
 
-      const message =
-        params.message ??
+      const message = params.message ??
         `Field "${field}" should be consistent across records with same ${params.groupByField}. ` +
           `Inconsistent values found in rows: ${inconsistentIndices}`;
 
@@ -662,14 +661,14 @@ export function validateConsistentWithRelated(
 
 // Validate sequential order within the dataset
 export function validateSequentialOrder(
-  input: SomePrimitive,
+  input: DataValue,
   params: {
     orderField: string;
     direction?: "asc" | "desc";
     allowEqual?: boolean;
     message?: string;
   },
-  context: DatasetValidationContext
+  context: DatasetValidationContext,
 ): ValidationResult {
   const result: ValidationResult = {
     valid: true,
@@ -706,8 +705,7 @@ export function validateSequentialOrder(
   }
 
   if (!isValid) {
-    const message =
-      params.message ??
+    const message = params.message ??
       `Sequential order violation: expected ${direction}ending order, but ` +
         `"${currentValue.toString()}" ${
           direction === "asc" ? "<=" : ">="
@@ -738,7 +736,7 @@ export const VALIDATION_FUNCTIONS = {
 };
 
 // Generic validation function type (for backward compatibility)
-type ValidationFunction = (input: SomePrimitive, params?: GlobalParameters) => ValidationResult;
+type ValidationFunction = (input: DataValue, params?: GlobalParameters) => ValidationResult;
 
 // Dataset-aware validation functions that need context
 const DATASET_AWARE_FUNCTIONS = new Set([
@@ -751,8 +749,8 @@ const DATASET_AWARE_FUNCTIONS = new Set([
 // Execute validation function by name (backward compatible version)
 export function executeValidation(
   functionName: string,
-  input: SomePrimitive,
-  parameters: GlobalParameters = {}
+  input: DataValue,
+  parameters: GlobalParameters = {},
 ): ValidationResult {
   return executeValidationWithContext(functionName, input, parameters);
 }
@@ -760,9 +758,9 @@ export function executeValidation(
 // Execute validation function with optional dataset context
 export function executeValidationWithContext(
   functionName: string,
-  input: SomePrimitive,
+  input: DataValue,
   parameters: GlobalParameters = {},
-  context?: DatasetValidationContext
+  context?: DatasetValidationContext,
 ): ValidationResult {
   const func = VALIDATION_FUNCTIONS[functionName as keyof typeof VALIDATION_FUNCTIONS];
 

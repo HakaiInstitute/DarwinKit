@@ -8,7 +8,9 @@ const defaultUser = {
 };
 
 export const useAuth = (defaultAuthenticated = true) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => defaultAuthenticated);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
+    () => defaultAuthenticated,
+  );
   const login = async (_email: string, _password: string) => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
 

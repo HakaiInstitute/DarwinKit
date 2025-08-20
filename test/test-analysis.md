@@ -8,23 +8,24 @@
 
 ```typescript
 // WRONG: This tests 'unknown' validation, not null handling
-test('handles null values', () => {
-  const result = validateControlledVocabulary('unknown', 'dwc:sex'); 
+test("handles null values", () => {
+  const result = validateControlledVocabulary("unknown", "dwc:sex");
   expect(result.isValid).toBe(true);
 });
 
 // RIGHT: This tests the complete null handling pipeline
-test('handles null values', () => {
-  const transformed = transformControlledVocabulary(null, 'dwc:sex');
-  const result = validateControlledVocabulary(transformed, 'dwc:sex');
-  expect(transformed).toBe('unknown'); // Test transformation
-  expect(result.isValid).toBe(true);   // Test validation
+test("handles null values", () => {
+  const transformed = transformControlledVocabulary(null, "dwc:sex");
+  const result = validateControlledVocabulary(transformed, "dwc:sex");
+  expect(transformed).toBe("unknown"); // Test transformation
+  expect(result.isValid).toBe(true); // Test validation
 });
 ```
 
 ### 2. **Missing Error Condition Coverage**
 
 **No tests for:**
+
 - Invalid vocabulary names in field mappings
 - Circular vocabulary references
 - Malformed vocabulary data structures
@@ -34,6 +35,7 @@ test('handles null values', () => {
 ### 3. **Insufficient Boundary Testing**
 
 **Missing:**
+
 - Empty vocabulary (no terms)
 - Vocabulary with only synonyms, no canonical terms
 - Very long input strings (performance/memory)
@@ -42,42 +44,45 @@ test('handles null values', () => {
 ## 🔍 **Specific Missing Test Cases**
 
 ### **Vocabulary Edge Cases**
+
 ```typescript
 // Missing: Empty vocabulary
-const emptyVocab = { name: 'test:empty', strict: true, terms: [] };
+const emptyVocab = { name: "test:empty", strict: true, terms: [] };
 
 // Missing: Vocabulary with duplicate synonyms across terms
 const conflictVocab = {
   terms: [
-    { term: 'male', synonyms: ['M'] },
-    { term: 'female', synonyms: ['M'] } // Conflict!
-  ]
+    { term: "male", synonyms: ["M"] },
+    { term: "female", synonyms: ["M"] }, // Conflict!
+  ],
 };
 
 // Missing: Case sensitivity edge cases
-expect(findCanonicalTerm('dwc:sex', 'mAlE')).toBe('male');
-expect(findCanonicalTerm('dwc:sex', 'MALE ')).toBe('male'); // trailing space
+expect(findCanonicalTerm("dwc:sex", "mAlE")).toBe("male");
+expect(findCanonicalTerm("dwc:sex", "MALE ")).toBe("male"); // trailing space
 ```
 
 ### **Field Mapping Logic Gaps**
+
 ```typescript
 // Missing: Field mapping without vocabulary or passThrough flag
-const invalidMapping = { sourceColumn: 'test', targetField: 'test' }; // What happens?
+const invalidMapping = { sourceColumn: "test", targetField: "test" }; // What happens?
 
 // Missing: Multiple transformations on same field
 const multiMapping = {
-  sourceColumn: 'test',
-  targetField: 'test',
-  vocabularyName: 'dwc:sex',
-  passThrough: true // Conflicting flags!
+  sourceColumn: "test",
+  targetField: "test",
+  vocabularyName: "dwc:sex",
+  passThrough: true, // Conflicting flags!
 };
 ```
 
 ### **Performance & Scalability**
+
 ```typescript
 // Missing: Large dataset processing
-const largeDataset = Array(10000).fill().map((_, i) => ({ 
-  organism_sex: i % 2 === 0 ? 'M' : 'F' 
+const largeDataset = Array(10000).fill().map((_, i) => ({
+  organism_sex: i % 2 === 0 ? "M" : "F",
 }));
 
 // Missing: Memory usage with cached vocabularies
@@ -91,16 +96,16 @@ const largeDataset = Array(10000).fill().map((_, i) => ({
 1. **Redundant Validation Tests**
    ```typescript
    // These 3 tests all test the same thing:
-   test('validates canonical terms as valid', () => { /* same logic */ });
-   test('validates synonyms as valid after transformation', () => { /* same logic */ });
-   test('validates empty strings', () => { /* same logic */ });
+   test("validates canonical terms as valid", () => {/* same logic */});
+   test("validates synonyms as valid after transformation", () => {/* same logic */});
+   test("validates empty strings", () => {/* same logic */});
    ```
 
 2. **Trivial Getter Tests**
    ```typescript
    // This doesn't test business logic:
-   expect(result.sourceColumn).toBe('organism_sex');
-   expect(result.targetField).toBe('sex');
+   expect(result.sourceColumn).toBe("organism_sex");
+   expect(result.targetField).toBe("sex");
    ```
 
 3. **Configuration Tests Without Behavior**
@@ -162,28 +167,33 @@ const largeDataset = Array(10000).fill().map((_, i) => ({
 ## 🔧 **Recommendations for Improvement**
 
 ### **1. Fix Existing Flawed Tests**
+
 - Replace transformation result tests with actual transformation tests
 - Test the complete pipeline, not just final states
 - Add proper isolation between transformation and validation testing
 
 ### **2. Add Missing Critical Coverage**
+
 - Unicode and special character handling
 - Performance boundaries (large datasets, long strings)
 - Error conditions and graceful failures
 - Memory usage and caching behavior
 
 ### **3. Add Business Value Tests**
+
 - Real-world data quality scenarios
 - User experience flows (error reporting, warnings)
 - Performance benchmarks for production use
 - Integration with actual Darwin Core standard updates
 
 ### **4. Remove/Consolidate Weak Tests**
+
 - Merge redundant validation tests
 - Remove trivial property assignment tests
 - Focus on behavior, not structure
 
 ### **5. Add Property-Based Testing**
+
 - Use fuzzing to test with random inputs
 - Test invariants (e.g., transformation should never make valid data invalid)
 - Stress test with generated edge cases

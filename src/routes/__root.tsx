@@ -1,13 +1,14 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
   createRootRouteWithContext,
   type ErrorComponentProps,
-  HeadContent,
   Outlet,
-  Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { StackedLayout } from "../components/ui/stacked-layout.tsx";
+import { Navbar, NavbarItem, NavbarSection, NavbarSpacer } from "../components/ui/navbar.tsx";
+import { Sidebar, SidebarBody, SidebarItem, SidebarSection } from "../components/ui/sidebar.tsx";
+import { Link } from "../components/ui/link.tsx";
 import "../app.css";
 
 export const Route = createRootRouteWithContext<{
@@ -15,12 +16,11 @@ export const Route = createRootRouteWithContext<{
 }>()({
   errorComponent: (props: ErrorComponentProps) => {
     return (
-      <RootDocument>
+      <div>
         <p>
-          Error:
-          {props.error.message}
+          Error: {props.error.message}
         </p>
-      </RootDocument>
+      </div>
     );
   },
   notFoundComponent: () => <p>Not Found</p>,
@@ -29,24 +29,37 @@ export const Route = createRootRouteWithContext<{
 
 function RootComponent() {
   return (
-    <RootDocument>
+    <StackedLayout
+      navbar={
+        <Navbar>
+          <NavbarSection>
+            <Link to="/" className="text-xl font-semibold">
+              DarwinKit
+            </Link>
+          </NavbarSection>
+          <NavbarSpacer />
+          <NavbarSection>
+            <NavbarItem to="/projects">Projects</NavbarItem>
+            <NavbarItem to="/support">Support</NavbarItem>
+          </NavbarSection>
+        </Navbar>
+      }
+      sidebar={
+        <Sidebar>
+          <SidebarBody>
+            <SidebarSection>
+              <SidebarItem to="/">Home</SidebarItem>
+              <SidebarItem to="/projects">Projects</SidebarItem>
+              <SidebarItem to="/support">Support</SidebarItem>
+              <SidebarItem to="/login">Login</SidebarItem>
+              <SidebarItem to="/register">Register</SidebarItem>
+            </SidebarSection>
+          </SidebarBody>
+        </Sidebar>
+      }
+    >
       <Outlet />
-    </RootDocument>
-  );
-}
-
-function RootDocument({ children }: { children: React.ReactNode }) {
-  return (
-    <html>
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <TanStackRouterDevtools position="bottom-right" />
-        <ReactQueryDevtools buttonPosition="bottom-left" />
-        <Scripts />
-      </body>
-    </html>
+      <TanStackRouterDevtools position="bottom-right" />
+    </StackedLayout>
   );
 }

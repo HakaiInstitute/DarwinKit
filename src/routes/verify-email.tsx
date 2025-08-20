@@ -2,15 +2,14 @@ import { type AnyFieldApi, useForm } from "@tanstack/react-form";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod/v4";
-import { AuthLayout } from "~/components/ui/auth-layout";
-import { Button } from "~/components/ui/button";
-import { Field, Label } from "~/components/ui/fieldset";
-import { Heading } from "~/components/ui/heading";
-import { Input } from "~/components/ui/input";
-import { Strong, Text, TextLink } from "~/components/ui/text";
-import { useAuth } from "../hooks/useAuth";
-import logger from "../utils/test-logger";
-// import { Logo } from './logo'
+import { AuthLayout } from "~/components/ui/auth-layout.tsx";
+import { Button } from "~/components/ui/button.tsx";
+import { Field, Label } from "~/components/ui/fieldset.tsx";
+import { Heading } from "~/components/ui/heading.tsx";
+import { Input } from "~/components/ui/input.tsx";
+import { Strong, Text, TextLink } from "~/components/ui/text.tsx";
+import { useAuth } from "~/hooks/useAuth.ts";
+import logger from "~/utils/test-logger.ts";
 
 const verifyTokenSearchSchema = z.object({
   token: z.string().optional(),
@@ -38,25 +37,24 @@ export const Route = createFileRoute("/verify-email")({
 function FieldInfo({ field }: { field: AnyFieldApi }) {
   return (
     <>
-      {field.state.meta.isTouched && !field.state.meta.isValid ? (
-        <em>{field.state.meta.errors.join(", ")}</em>
-      ) : null}
+      {field.state.meta.isTouched && !field.state.meta.isValid
+        ? <em>{field.state.meta.errors.join(", ")}</em>
+        : null}
       {field.state.meta.isValidating ? "Validating..." : null}
     </>
   );
 }
 
 export function VerifyEmailComponent() {
-  const { token } = Route.useSearch();
   const { user } = useAuth();
   const [verified, setVerified] = useState<VerificationState>("unknown");
 
   const form = useForm({
     defaultValues: {
       email: user?.email ?? "",
-      token: token ?? "",
+      token: "",
     },
-    onSubmit: async ({ value }) => {
+    onSubmit: ({ value }) => {
       logger.log(`Submitting form with values:`, value);
       const result = true;
       // const result = await verifyEmailByToken(value.token);
@@ -87,13 +85,19 @@ export function VerifyEmailComponent() {
 
         {verified === "pending" && <Text>Verifying...</Text>}
         {verified === "verified" && (
-          <Text>Your email has been successfully verified! You can now log in.</Text>
+          <Text>
+            Your email has been successfully verified! You can now log in.
+          </Text>
         )}
         {verified === "error" && (
-          <Text>There was an error verifying your email. Please try again or contact support.</Text>
+          <Text>
+            There was an error verifying your email. Please try again or contact support.
+          </Text>
         )}
         {verified === "unknown" && (
-          <Text>Please enter your email and the verification token you received.</Text>
+          <Text>
+            Please enter your email and the verification token you received.
+          </Text>
         )}
 
         <form.Field

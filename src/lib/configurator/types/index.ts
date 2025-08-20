@@ -5,114 +5,109 @@
  * and provide a single source of truth for type definitions.
  */
 
-// Core types
+import { ConfigurationValidationResult } from "../integrated-configuration.ts";
+import { TransformationResult, ValidationResult } from "./results.ts";
+
+// Core types (shared pipeline interfaces)
 export type {
-  SomePrimitive,
-  StringableObject,
-  VocabularyTerm,
-  MockVocabulary,
-  VocabularyData,
-  GlobalParameters,
+  // Core configuration types
+  BaseConfiguration,
+  BaseFieldConfiguration,
+  ComponentMode,
+  DataRow,
   DatasetValidationContext,
-} from "./core";
+  DatasetValidationFunction,
+  DataValue,
+  ExecutionMode,
+  // Simplified API types
+  FieldOperation,
+  FieldValidationConfig,
+  FullPipelineFieldConfig,
+  FunctionParameters as Parameters,
+  GlobalParameters,
+  // Cross-component orchestration
+  IntegratedConfiguration,
+  IntegratedFieldConfiguration,
+  MappingOnlyFieldConfig,
+  MappingTransformFieldConfig,
+  MappingValidateFieldConfig,
+  MockVocabulary,
+  ModularConfiguration,
+  ModularFieldConfiguration,
+  PipelineConfiguration,
+  RowValidationFunction,
+  // Function signatures
+  TransformationFunction,
+  TransformationStep,
+  TransformValidateFieldConfig,
+  ValidationFunction,
+  ValidationStep,
+  VocabularyData,
+  VocabularyTerm,
+} from "./core.ts";
 
 // Result types
 export type {
   BaseResult,
-  ValidationResult,
-  TransformationResult,
   ConfigurationValidationResult,
-  StepExecutionResult,
-  FieldExecutionResult,
-  RowExecutionResult,
   DatasetExecutionResult,
-  ValidationStepResult,
-  FieldValidationResult,
-  RowValidationResult,
   DatasetValidationResult,
-} from "./results";
+  // Simplified result types (moved from simplified.ts)
+  ExecutionResult,
+  FieldExecutionResult,
+  FieldResult,
+  FieldValidationResult,
+  RowExecutionResult,
+  RowResult,
+  RowValidationResult,
+  StepExecutionResult,
+  TransformationResult,
+  ValidationResult,
+  ValidationStepResult,
+} from "./results.ts";
 
-// Pipeline types
-export type {
-  TransformationStep,
-  ValidationStep,
-  TransformationFunction,
-  ValidationFunction,
-  RowValidationFunction,
-  ComponentMode,
-  ExecutionMode,
-} from "./pipeline";
+// Mapping component types
+export type { MappingConfiguration } from "./mapping.ts";
 
-// Configuration types
-export type {
-  BaseConfiguration,
-  BaseFieldConfiguration,
-  IntegratedFieldConfiguration,
-  IntegratedConfiguration,
-  MappingConfiguration,
-  TransformConfiguration,
-  ValidateConfiguration,
-  MappingOnlyFieldConfig,
-  MappingTransformFieldConfig,
-  MappingValidateFieldConfig,
-  TransformValidateFieldConfig,
-  FullPipelineFieldConfig,
-  ModularFieldConfiguration,
-  ModularConfiguration,
-  FieldValidationConfig,
-  ValidationConfiguration,
-} from "./configuration";
+// Transformation component types
+export type { TransformConfiguration } from "./transformation.ts";
+
+// Validation component types
+export type { ValidateConfiguration, ValidationConfiguration } from "./validation.ts";
 
 // Performance optimizations
 export type {
-  OptimizedValidationResult,
-  OptimizedTransformationResult,
-  BrandedSuccess,
-  BrandedFailure,
-  ReadonlyValidationResult,
-  ReadonlyTransformationResult,
-  NonNullablePrimitive,
-  ValidatableValue,
-  DarwinCoreField,
-  VocabularyName,
-  ValidationCache,
-  ValidationError,
-  TransformationError,
-  ConfigurationError,
-  PipelineError,
-  FieldMapping,
-  FieldMappings,
   BatchProcessingOptions,
   BatchProcessor,
-} from "./optimizations";
+  BrandedFailure,
+  BrandedSuccess,
+  ConfigurationError,
+  DarwinCoreField,
+  FieldMapping,
+  FieldMappings,
+  NonNullablePrimitive,
+  OptimizedTransformationResult,
+  OptimizedValidationResult,
+  PipelineError,
+  ReadonlyTransformationResult,
+  ReadonlyValidationResult,
+  TransformationError,
+  ValidatableValue,
+  ValidationCache,
+  ValidationError,
+  VocabularyName,
+} from "./optimizations.ts";
 
 export {
-  isValidationSuccess,
-  isValidationFailure,
-  isTransformationSuccess,
-  isTransformationFailure,
-  createSuccessResult,
   createFailureResult,
-} from "./optimizations";
+  createSuccessResult,
+  isTransformationFailure,
+  isTransformationSuccess,
+  isValidationFailure,
+  isValidationSuccess,
+} from "./optimizations.ts";
 
-export {
-  OptimizedVocabulary,
-  VocabularyCache,
-  vocabularyCache,
-  ResultAccumulator,
-  StringInterner,
-  fieldNameInterner,
-  isPrimitive,
-  isNonEmptyString,
-  isNumeric,
-  processBatch,
-  getProperty,
-  setProperty,
-  getMemoryStats,
-  clearAllCaches,
-} from "./performance";
-
-export type { MemoryStats } from "./performance";
+// Note: performance.ts not found - these exports have been removed
 
 // Legacy type aliases for backward compatibility during migration
 // These can be removed after all files are updated

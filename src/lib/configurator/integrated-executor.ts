@@ -15,17 +15,18 @@ import {
   type StepResult,
   type TransformationStep,
   type ValidationStep,
-} from "./integrated-configuration.js";
-import { executeTransformation } from "./transformations.js";
-import { executeValidation, type SomePrimitive } from "./validations.js";
+} from "./integrated-configuration.ts";
+import { executeTransformation } from "./transformations.ts";
+import { executeValidation } from "./validations.ts";
+import type { DataValue } from "./types/index.ts";
 
 /**
  * Execute mapping step: sourceColumn → targetField
  */
 function executeFieldMapping(
-  sourceRow: Record<string, SomePrimitive>,
-  fieldConfig: IntegratedFieldConfiguration
-): { targetField: string; mappedValue: SomePrimitive } {
+  sourceRow: Record<string, DataValue>,
+  fieldConfig: IntegratedFieldConfiguration,
+): { targetField: string; mappedValue: DataValue } {
   const sourceValue = sourceRow[fieldConfig.sourceColumn];
   return {
     targetField: fieldConfig.targetField,
@@ -37,11 +38,11 @@ function executeFieldMapping(
  * Execute transformation steps on a single field
  */
 function executeFieldTransformations(
-  inputValue: SomePrimitive,
+  inputValue: DataValue,
   transformations: TransformationStep[],
-  globalParameters: GlobalParameters
+  globalParameters: GlobalParameters,
 ): {
-  transformedValue: SomePrimitive;
+  transformedValue: DataValue;
   steps: StepResult[];
   success: boolean;
   errors: string[];
@@ -56,9 +57,16 @@ function executeFieldTransformations(
     const stepNumber = i + 1;
 
     // Merge step parameters with global parameters
-    const mergedParams: GlobalParameters = { ...globalParameters, ...step.parameters };
+    const mergedParams: GlobalParameters = {
+      ...globalParameters,
+      ...step.parameters,
+    };
 
-    const result = executeTransformation(step.functionName, currentValue, mergedParams);
+    const result = executeTransformation(
+      step.functionName,
+      currentValue,
+      mergedParams,
+    );
 
     steps.push({
       step: stepNumber,
@@ -71,7 +79,9 @@ function executeFieldTransformations(
 
     if (!result.success) {
       success = false;
-      errors.push(`Transformation step ${stepNumber} (${step.functionName}): ${result.error}`);
+      errors.push(
+        `Transformation step ${stepNumber} (${step.functionName}): ${result.error}`,
+      );
     }
 
     currentValue = result.value;
@@ -89,11 +99,11 @@ function executeFieldTransformations(
  * Execute validation steps on a single field
  */
 function executeFieldValidations(
-  inputValue: SomePrimitive,
+  inputValue: DataValue,
   validations: ValidationStep[],
-  globalParameters: GlobalParameters
+  globalParameters: GlobalParameters,
 ): {
-  finalValue: SomePrimitive;
+  finalValue: DataValue;
   steps: StepResult[];
   success: boolean;
   errors: string[];
@@ -109,9 +119,16 @@ function executeFieldValidations(
     const stepNumber = i + 1;
 
     // Merge step parameters with global parameters
-    const mergedParams: GlobalParameters = { ...globalParameters, ...step.parameters };
+    const mergedParams: GlobalParameters = {
+      ...globalParameters,
+      ...step.parameters,
+    };
 
-    const result = executeValidation(step.functionName, inputValue, mergedParams);
+    const result = executeValidation(
+      step.functionName,
+      inputValue,
+      mergedParams,
+    );
 
     steps.push({
       step: stepNumber,
@@ -126,15 +143,15 @@ function executeFieldValidations(
       success = false;
       errors.push(
         ...result.errors.map(
-          (err) => `Validation step ${stepNumber} (${step.functionName}): ${err}`
-        )
+          (err) => `Validation step ${stepNumber} (${step.functionName}): ${err}`,
+        ),
       );
     }
 
     warnings.push(
       ...result.warnings.map(
-        (warn) => `Validation step ${stepNumber} (${step.functionName}): ${warn}`
-      )
+        (warn) => `Validation step ${stepNumber} (${step.functionName}): ${warn}`,
+      ),
     );
   }
 
@@ -151,9 +168,9 @@ function executeFieldValidations(
  * Execute complete pipeline for a single field
  */
 function executeIntegratedField(
-  sourceRow: Record<string, SomePrimitive>,
+  sourceRow: Record<string, DataValue>,
   fieldConfig: IntegratedFieldConfiguration,
-  globalParameters: GlobalParameters
+  globalParameters: GlobalParameters,
 ): FieldExecutionResult {
   const result: FieldExecutionResult = {
     sourceColumn: fieldConfig.sourceColumn,
@@ -180,7 +197,7 @@ function executeIntegratedField(
       const transformationResult = executeFieldTransformations(
         result.mappedValue,
         fieldConfig.transformations,
-        globalParameters
+        globalParameters,
       );
 
       result.transformedValue = transformationResult.transformedValue;
@@ -197,7 +214,7 @@ function executeIntegratedField(
       const validationResult = executeFieldValidations(
         result.transformedValue,
         fieldConfig.validations,
-        globalParameters
+        globalParameters,
       );
 
       result.finalValue = validationResult.finalValue;
@@ -214,7 +231,11 @@ function executeIntegratedField(
   } catch (error) {
     result.success = false;
     result.errors.push(
-      `Unexpected error processing field ${fieldConfig.sourceColumn}: ${String(error)}`
+      `Unexpected error processing field ${fieldConfig.sourceColumn}: ${
+        String(
+          error,
+        )
+      }`,
     );
     result.finalValue = result.originalValue; // Fallback
   }
@@ -226,9 +247,9 @@ function executeIntegratedField(
  * Execute pipeline for a single row
  */
 function executeIntegratedRow(
-  sourceRow: Record<string, SomePrimitive>,
+  sourceRow: Record<string, DataValue>,
   rowIndex: number,
-  config: IntegratedConfiguration
+  config: IntegratedConfiguration,
 ): RowExecutionResult {
   const result: RowExecutionResult = {
     rowIndex,
@@ -241,7 +262,11 @@ function executeIntegratedRow(
 
   // Execute each field mapping
   for (const fieldConfig of config.fieldMappings) {
-    const fieldResult = executeIntegratedField(sourceRow, fieldConfig, config.globalParameters);
+    const fieldResult = executeIntegratedField(
+      sourceRow,
+      fieldConfig,
+      config.globalParameters,
+    );
 
     result.fieldResults[fieldConfig.targetField] = fieldResult;
 
@@ -252,12 +277,16 @@ function executeIntegratedRow(
     if (!fieldResult.success) {
       result.success = false;
       result.errors.push(
-        ...fieldResult.errors.map((err) => `Field ${fieldConfig.targetField}: ${err}`)
+        ...fieldResult.errors.map(
+          (err) => `Field ${fieldConfig.targetField}: ${err}`,
+        ),
       );
     }
 
     result.warnings.push(
-      ...fieldResult.warnings.map((warn) => `Field ${fieldConfig.targetField}: ${warn}`)
+      ...fieldResult.warnings.map(
+        (warn) => `Field ${fieldConfig.targetField}: ${warn}`,
+      ),
     );
   }
 
@@ -268,8 +297,8 @@ function executeIntegratedRow(
  * Main integrated executor
  */
 export function executeIntegratedConfiguration(
-  sourceData: Record<string, SomePrimitive>[],
-  config: IntegratedConfiguration
+  sourceData: Record<string, DataValue>[],
+  config: IntegratedConfiguration,
 ): IntegratedExecutionResult {
   const result: IntegratedExecutionResult = {
     configurationName: config.name,
@@ -314,7 +343,11 @@ export function executeIntegratedConfiguration(
       }
 
       // Update field statistics
-      for (const [fieldName, fieldResult] of Object.entries(rowResult.fieldResults)) {
+      for (
+        const [fieldName, fieldResult] of Object.entries(
+          rowResult.fieldResults,
+        )
+      ) {
         const stats = result.fieldStatistics[fieldName];
         stats.totalProcessed++;
 
@@ -327,7 +360,9 @@ export function executeIntegratedConfiguration(
     } catch (error) {
       result.success = false;
       result.invalidRows++;
-      result.globalErrors.push(`Row ${i + 1}: Unexpected error - ${String(error)}`);
+      result.globalErrors.push(
+        `Row ${i + 1}: Unexpected error - ${String(error)}`,
+      );
     }
   }
 
@@ -366,7 +401,7 @@ export function executeIntegratedConfiguration(
  * Validate integrated configuration before execution
  */
 export function validateIntegratedConfiguration(
-  config: IntegratedConfiguration
+  config: IntegratedConfiguration,
 ): ConfigurationValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -403,7 +438,7 @@ export function validateIntegratedConfiguration(
         const step = fieldConfig.transformations[j];
         if (!step.functionName) {
           errors.push(
-            `Field mapping ${i + 1}, transformation step ${j + 1}: functionName is required`
+            `Field mapping ${i + 1}, transformation step ${j + 1}: functionName is required`,
           );
         }
       }
@@ -414,7 +449,9 @@ export function validateIntegratedConfiguration(
       for (let j = 0; j < fieldConfig.validations.length; j++) {
         const step = fieldConfig.validations[j];
         if (!step.functionName) {
-          errors.push(`Field mapping ${i + 1}, validation step ${j + 1}: functionName is required`);
+          errors.push(
+            `Field mapping ${i + 1}, validation step ${j + 1}: functionName is required`,
+          );
         }
       }
     }
@@ -422,10 +459,14 @@ export function validateIntegratedConfiguration(
 
   // Check for duplicate target fields
   const targetFields = config.fieldMappings.map((f) => f.targetField);
-  const duplicates = targetFields.filter((field, index) => targetFields.indexOf(field) !== index);
+  const duplicates = targetFields.filter(
+    (field, index) => targetFields.indexOf(field) !== index,
+  );
 
   if (duplicates.length > 0) {
-    errors.push(`Duplicate target fields found: ${[...new Set(duplicates)].join(", ")}`);
+    errors.push(
+      `Duplicate target fields found: ${[...new Set(duplicates)].join(", ")}`,
+    );
   }
 
   return {

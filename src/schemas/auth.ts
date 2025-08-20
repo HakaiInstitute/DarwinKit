@@ -1,7 +1,7 @@
 import * as z from "zod/v4";
 
 export const CredentialSchema = z.object({
-  email: z.email(),
+  email: z.string().email(),
   password: z.string(),
 });
 

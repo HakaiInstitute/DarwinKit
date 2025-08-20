@@ -45,18 +45,18 @@ export type ConfigurationMachineEvent =
   | { type: "ADD_TRANSFORMATION"; field: string; transformation: string }
   | { type: "REMOVE_TRANSFORMATION"; field: string; transformation: string }
   | {
-      type: "REFINE_VALIDATION";
-      field: string;
-      validation: string;
-      parameters: Record<string, unknown>;
-    }
+    type: "REFINE_VALIDATION";
+    field: string;
+    validation: string;
+    parameters: Record<string, unknown>;
+  }
   | {
-      type: "ADD_DERIVED_OUTPUT";
-      source_field: string;
-      target_field: string;
-      derivation_strategy: string;
-      parameters: Record<string, unknown>;
-    }
+    type: "ADD_DERIVED_OUTPUT";
+    source_field: string;
+    target_field: string;
+    derivation_strategy: string;
+    parameters: Record<string, unknown>;
+  }
   | { type: "GENERATE_CONFIGURATION" }
   | { type: "MODIFY" }
   | { type: "RESET" };

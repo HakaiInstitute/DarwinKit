@@ -1,9 +1,10 @@
 import { createEnv } from "@t3-oss/env-core";
-import { z } from "zod/v4";
+import process from "node:process";
+import * as z from "zod/v4";
 
 export const env = createEnv({
   server: {
-    DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.url(),
   },
 
   clientPrefix: "VITE_",

@@ -4,11 +4,11 @@
  * Implements actual transformation functions that can be executed with parameters
  */
 
-import type { SomePrimitive, GlobalParameters, VocabularyTerm, MockVocabulary } from "./types";
+import type { DataValue, GlobalParameters, MockVocabulary } from "./types/index.ts";
 
 // Use centralized TransformationResult but maintain backward compatibility
 interface TransformationResult {
-  value: SomePrimitive;
+  value: DataValue | { latitude: number; longitude: number };
   success: boolean;
   error?: string; // Single error for backward compatibility
   errors?: string[]; // Array for consistency with centralized type
@@ -17,13 +17,13 @@ interface TransformationResult {
 
 // Controlled vocabulary transformation
 export function normalizeControlledVocabulary(
-  input: SomePrimitive,
+  input: DataValue,
   params: {
     vocabularyName: string;
     vocabularies: Record<string, MockVocabulary>;
     defaultValue?: string;
     caseSensitive?: boolean;
-  }
+  },
 ): TransformationResult {
   if (input === null || input === undefined || input === "") {
     return { value: input, success: true };
@@ -70,8 +70,8 @@ export function normalizeControlledVocabulary(
 
 // String transformation functions
 export function trimWhitespace(
-  input: SomePrimitive,
-  params: { sides?: "both" | "left" | "right" } = {}
+  input: DataValue,
+  params: { sides?: "both" | "left" | "right" } = {},
 ): TransformationResult {
   if (input === null || input === undefined) {
     return { value: input, success: true };
@@ -97,7 +97,7 @@ export function trimWhitespace(
   return { value: result, success: true };
 }
 
-export function toLowerCase(input: SomePrimitive): TransformationResult {
+export function toLowerCase(input: DataValue): TransformationResult {
   if (input === null || input === undefined || input === "") {
     return { value: input, success: true };
   }
@@ -108,12 +108,12 @@ export function toLowerCase(input: SomePrimitive): TransformationResult {
 
 // Coordinate transformation functions
 export function parseCoordinates(
-  input: SomePrimitive,
+  input: DataValue,
   params: {
     inputFormat?: "auto" | "decimal" | "dms" | "combined";
     precision?: number;
     component?: "latitude" | "longitude" | "both";
-  } = {}
+  } = {},
 ): TransformationResult {
   if (input === null || input === undefined || input === "") {
     return { value: null, success: true };
@@ -183,11 +183,11 @@ export function parseCoordinates(
 
 // Date transformation functions
 export function parseDate(
-  input: SomePrimitive,
+  input: DataValue,
   params: {
     inputFormat?: "auto" | "iso" | "us" | "uk" | "verbose";
     outputFormat?: "iso" | "us" | "uk";
-  } = {}
+  } = {},
 ): TransformationResult {
   if (input === null || input === undefined || input === "") {
     return { value: input, success: true };
@@ -264,15 +264,15 @@ export const TRANSFORMATION_FUNCTIONS = {
 
 // Generic transformation function type
 type TransformationFunction = (
-  input: SomePrimitive,
-  params?: GlobalParameters
+  input: DataValue,
+  params?: GlobalParameters,
 ) => TransformationResult;
 
 // Execute transformation function by name
 export function executeTransformation(
   functionName: string,
-  input: SomePrimitive,
-  parameters: GlobalParameters = {}
+  input: DataValue,
+  parameters: GlobalParameters = {},
 ): TransformationResult {
   const func = TRANSFORMATION_FUNCTIONS[
     functionName as keyof typeof TRANSFORMATION_FUNCTIONS
@@ -294,7 +294,9 @@ export function executeTransformation(
     return {
       value: input,
       success: false,
-      error: `Transformation execution error in '${functionName}': ${error instanceof Error ? error.message : String(error)}`,
+      error: `Transformation execution error in '${functionName}': ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     };
   }
 }

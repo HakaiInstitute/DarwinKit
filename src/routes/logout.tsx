@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AuthLayout } from "~/components/ui/auth-layout";
-import { Button } from "~/components/ui/button";
-import { Heading } from "~/components/ui/heading";
-import { Text } from "~/components/ui/text";
+import { AuthLayout } from "~/components/ui/auth-layout.tsx";
+import { Button } from "~/components/ui/button.tsx";
+import { Heading } from "~/components/ui/heading.tsx";
+import { Text } from "~/components/ui/text.tsx";
 
 export const Route = createFileRoute("/logout")({
   component: LogoutComponent,

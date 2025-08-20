@@ -8,9 +8,9 @@ import {
   executeDatasetValidationWithContext,
   validateValidationConfiguration,
   type ValidationConfiguration,
-} from "~/lib/configurator/validation-executor";
-import logger from "~/utils/test-logger";
-import { type Dataset } from "../test/validations.test";
+} from "~/lib/configurator/validation-executor.ts";
+import logger from "~/utils/test-logger.ts";
+import { type DataRow } from "../src/lib/configurator/types/core.ts";
 
 // import {
 //   executeDatasetValidationWithContext,
@@ -18,7 +18,7 @@ import { type Dataset } from "../test/validations.test";
 // } from '../lib/validation-executor.js';
 
 // Sample dataset with various cross-row validation scenarios
-const DATASET_VALIDATION_TEST_DATA: Dataset = [
+const DATASET_VALIDATION_TEST_DATA: DataRow[] = [
   // Survey parent events (these are what other events reference)
   {
     catalogNumber: null, // Survey events don't have specimens
@@ -195,7 +195,9 @@ export function runDatasetValidationDemo() {
 
   // 1. Validate configuration
   logger.log("1. Validating dataset validation configuration...");
-  const configValidation = validateValidationConfiguration(DATASET_VALIDATION_CONFIG);
+  const configValidation = validateValidationConfiguration(
+    DATASET_VALIDATION_CONFIG,
+  );
 
   if (!configValidation.valid) {
     logger.error("❌ Configuration validation failed:");
@@ -209,7 +211,7 @@ export function runDatasetValidationDemo() {
   logger.subsection("2. Dataset structure");
   logger.log(`   Total rows: ${DATASET_VALIDATION_TEST_DATA.length}`);
   logger.log(
-    "   Fields: catalogNumber, eventID, parentEventID, scientificName, kingdom, collectionDate, decimalLatitude, recordedBy"
+    "   Fields: catalogNumber, eventID, parentEventID, scientificName, kingdom, collectionDate, decimalLatitude, recordedBy",
   );
   logger.log("   Expected validation issues:");
   VALIDATION_TEST_SCENARIOS.forEach((scenario, i) => {
@@ -221,11 +223,17 @@ export function runDatasetValidationDemo() {
   logger.log("3. Executing dataset-aware validations...");
   const result = executeDatasetValidationWithContext(
     DATASET_VALIDATION_TEST_DATA,
-    DATASET_VALIDATION_CONFIG
+    DATASET_VALIDATION_CONFIG,
   );
 
-  logger.info(`📊 Validation Results: ${result.validRows}/${result.totalRows} rows are valid`);
-  logger.check(result.success, "Overall validation: PASSED", "Overall validation: FAILED");
+  logger.info(
+    `📊 Validation Results: ${result.validRows}/${result.totalRows} rows are valid`,
+  );
+  logger.check(
+    result.success,
+    "Overall validation: PASSED",
+    "Overall validation: FAILED",
+  );
   logger.log("");
 
   // 4. Show detailed row-by-row results
@@ -239,13 +247,22 @@ export function runDatasetValidationDemo() {
     // Show source data for context
     const sourceRow = DATASET_VALIDATION_TEST_DATA[rowResult.rowIndex];
     logger.log(
-      `   Data: catalogNumber="${String(sourceRow.catalogNumber)}", parentEventID="${String(sourceRow.parentEventID)}", kingdom="${String(sourceRow.kingdom)}", date="${String(sourceRow.collectionDate)}"`
+      `   Data: catalogNumber="${String(sourceRow.catalogNumber)}", parentEventID="${
+        String(sourceRow.parentEventID)
+      }", kingdom="${String(sourceRow.kingdom)}", date="${String(sourceRow.collectionDate)}"`,
     );
 
     // Show field-by-field validation results
-    for (const [fieldName, fieldResult] of Object.entries(rowResult.fieldResults)) {
+    for (
+      const [fieldName, fieldResult] of Object.entries(
+        rowResult.fieldResults,
+      )
+    ) {
       const _fieldStatus = fieldResult.valid ? "✅" : "❌";
-      logger.status(fieldResult.valid, `   ${fieldName}: "${String(fieldResult.value)}"`);
+      logger.status(
+        fieldResult.valid,
+        `   ${fieldName}: "${String(fieldResult.value)}"`,
+      );
 
       // Show validation steps with details
       for (const step of fieldResult.steps) {
@@ -267,41 +284,41 @@ export function runDatasetValidationDemo() {
 
   // Analyze uniqueness violations
   const uniquenessFails = result.rowResults.filter(
-    (row) => row.fieldResults.catalogNumber && !row.fieldResults.catalogNumber.valid
+    (row) => row.fieldResults.catalogNumber && !row.fieldResults.catalogNumber.valid,
   );
   if (uniquenessFails.length > 0) {
     logger.warning(
-      `🔍 Uniqueness violations: ${uniquenessFails.length} rows have duplicate catalog numbers`
+      `🔍 Uniqueness violations: ${uniquenessFails.length} rows have duplicate catalog numbers`,
     );
   }
 
   // Analyze referential integrity
   const referentialFails = result.rowResults.filter(
-    (row) => row.fieldResults.parentEventID && !row.fieldResults.parentEventID.valid
+    (row) => row.fieldResults.parentEventID && !row.fieldResults.parentEventID.valid,
   );
   if (referentialFails.length > 0) {
     logger.warning(
-      `🔗 Referential integrity issues: ${referentialFails.length} rows reference invalid parent events`
+      `🔗 Referential integrity issues: ${referentialFails.length} rows reference invalid parent events`,
     );
   }
 
   // Analyze consistency issues
   const consistencyFails = result.rowResults.filter(
-    (row) => row.fieldResults.kingdom && !row.fieldResults.kingdom.valid
+    (row) => row.fieldResults.kingdom && !row.fieldResults.kingdom.valid,
   );
   if (consistencyFails.length > 0) {
     logger.warning(
-      `📊 Consistency issues: ${consistencyFails.length} rows have inconsistent data within their groups`
+      `📊 Consistency issues: ${consistencyFails.length} rows have inconsistent data within their groups`,
     );
   }
 
   // Analyze sequential order issues
   const orderFails = result.rowResults.filter(
-    (row) => row.fieldResults.collectionDate && !row.fieldResults.collectionDate.valid
+    (row) => row.fieldResults.collectionDate && !row.fieldResults.collectionDate.valid,
   );
   if (orderFails.length > 0) {
     logger.warning(
-      `📅 Sequential order issues: ${orderFails.length} rows break chronological ordering`
+      `📅 Sequential order issues: ${orderFails.length} rows break chronological ordering`,
     );
   }
 
@@ -311,7 +328,9 @@ export function runDatasetValidationDemo() {
   logger.subsection("6. Field-level validation statistics");
   for (const [fieldName, stats] of Object.entries(result.fieldStatistics)) {
     const successRate = Math.round((stats.valid / stats.totalProcessed) * 100);
-    logger.log(`   ${fieldName}: ${stats.valid}/${stats.totalProcessed} valid (${successRate}%)`);
+    logger.log(
+      `   ${fieldName}: ${stats.valid}/${stats.totalProcessed} valid (${successRate}%)`,
+    );
 
     if (stats.mostCommonErrors.length > 0) {
       logger.warn(`     Common errors: ${stats.mostCommonErrors[0]}`);

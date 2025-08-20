@@ -15,6 +15,7 @@ DarwinKit now supports **selective component usage** through a modular configura
 5. **`full-pipeline`** - Complete processing with all components (default)
 
 ### Modular Files
+
 - **`modular-configuration.ts`** - Configuration interfaces and factory functions for selective component usage
 - **`modular-executor.ts`** - Execution engine for modular configurations
 - **`../demo/modular-configuration-demo.ts`** - Complete working demo of all modular modes
@@ -23,6 +24,7 @@ DarwinKit now supports **selective component usage** through a modular configura
 ## Core Files
 
 ### Configuration & Execution
+
 - **`integrated-configuration.ts`** - Unified configuration schema for mapping + transformation + validation pipeline
 - **`integrated-executor.ts`** - Main execution engine that processes integrated configurations
 - **`transformations.ts`** - Core transformation functions (vocabulary normalization, coordinate parsing, date parsing, etc.)
@@ -30,10 +32,12 @@ DarwinKit now supports **selective component usage** through a modular configura
 - **`validation-executor.ts`** - Standalone validation executor for validation-only workflows
 
 ### Supporting Libraries
+
 - **`vocabulary-service.ts`** - Database-backed vocabulary functionality with caching
 - **`zAsyncIterable.ts`** - tRPC async iterable utilities for streaming operations
 
 ### Demo & Testing
+
 - **`../demo/integrated-demo.ts`** - Complete working demo of the integrated pipeline
 - **`../demo/validation-demo.ts`** - Comprehensive validation demos (standalone + integrated)
 - **`../demo/dataset-validation-demo.ts`** - Dataset-aware validation examples
@@ -44,11 +48,13 @@ DarwinKit now supports **selective component usage** through a modular configura
 The system supports both unified pipeline and modular approaches:
 
 ### Full Pipeline (Traditional)
+
 ```
 Source CSV Data → Field Mapping → Transformations → Validation → Clean Output
 ```
 
 ### Modular Pipeline (New)
+
 ```
 Choose Components: [Mapping] [Transform] [Validate] → Selective Processing
 ```
@@ -58,38 +64,38 @@ Choose Components: [Mapping] [Transform] [Validate] → Selective Processing
 ```typescript
 import {
   createMappingOnlyConfig,
-  createTransformValidateConfig,
   createMappingValidateConfig,
-  executeModularConfiguration
-} from './modular-executor.js';
+  createTransformValidateConfig,
+  executeModularConfiguration,
+} from "./modular-executor.js";
 
 // Example 1: Mapping-only (just field renaming)
 const mappingConfig = createMappingOnlyConfig({
-  name: 'Darwin Core Field Mapping',
+  name: "Darwin Core Field Mapping",
   mappings: [
-    { sourceColumn: 'organism_sex', targetField: 'sex' },
-    { sourceColumn: 'latitude_dd', targetField: 'decimalLatitude' }
-  ]
+    { sourceColumn: "organism_sex", targetField: "sex" },
+    { sourceColumn: "latitude_dd", targetField: "decimalLatitude" },
+  ],
 });
 
 // Example 2: Transform + validate (no mapping needed)
 const transformValidateConfig = createTransformValidateConfig({
-  name: 'Data Quality Processing',
+  name: "Data Quality Processing",
   fields: [{
-    fieldName: 'sex',
-    transformations: [{ functionName: 'normalize', parameters: {} }],
-    validations: [{ functionName: 'validate', parameters: {} }]
-  }]
+    fieldName: "sex",
+    transformations: [{ functionName: "normalize", parameters: {} }],
+    validations: [{ functionName: "validate", parameters: {} }],
+  }],
 });
 
 // Example 3: Mapping + validate (skip transformations)
 const mappingValidateConfig = createMappingValidateConfig({
-  name: 'Quick Quality Check',
+  name: "Quick Quality Check",
   mappings: [{
-    sourceColumn: 'latitude_dd',
-    targetField: 'decimalLatitude',
-    validations: [{ functionName: 'validateCoordinates', parameters: { type: 'latitude' } }]
-  }]
+    sourceColumn: "latitude_dd",
+    targetField: "decimalLatitude",
+    validations: [{ functionName: "validateCoordinates", parameters: { type: "latitude" } }],
+  }],
 });
 
 // Execute any configuration
@@ -97,6 +103,7 @@ const result = executeModularConfiguration(sourceData, config);
 ```
 
 ### Key Features
+
 - **Component Selection**: Choose only needed pipeline stages
 - **Performance Optimized**: Skip unnecessary processing steps
 - **Clear Separation**: Each component has specific responsibilities
@@ -109,12 +116,14 @@ const result = executeModularConfiguration(sourceData, config);
 ## Benefits of Modular Architecture
 
 ### Performance Benefits
+
 - **Selective execution** - Only run needed components
 - **Reduced memory usage** - Skip unnecessary processing steps
 - **Faster execution** - Mapping-only mode is extremely fast
 - **Optimizable** - Each mode can be optimized independently
 
 ### Development Benefits
+
 - **Clear separation of concerns** - Each component has specific responsibilities
 - **Easier debugging** - Isolate issues to specific pipeline stages
 - **Flexible configuration** - Mix and match components as needed
@@ -122,13 +131,13 @@ const result = executeModularConfiguration(sourceData, config);
 
 ### Use Case Examples
 
-| Mode | Use Case | Performance | Best For |
-|------|----------|-------------|----------|
-| `mapping-only` | CSV column renaming | ⚡ Fastest | Simple field mapping |
-| `transform-validate` | Data quality control | 🔄 Medium | Cleaning pre-mapped data |
-| `mapping-validate` | Quick quality checks | ✅ Fast | Direct validation of CSV |
-| `mapping-transform` | Data normalization | 🔄 Fast | Standardize without validation |
-| `full-pipeline` | Complete processing | 🔄 Comprehensive | Production workflows |
+| Mode                 | Use Case             | Performance      | Best For                       |
+| -------------------- | -------------------- | ---------------- | ------------------------------ |
+| `mapping-only`       | CSV column renaming  | ⚡ Fastest       | Simple field mapping           |
+| `transform-validate` | Data quality control | 🔄 Medium        | Cleaning pre-mapped data       |
+| `mapping-validate`   | Quick quality checks | ✅ Fast          | Direct validation of CSV       |
+| `mapping-transform`  | Data normalization   | 🔄 Fast          | Standardize without validation |
+| `full-pipeline`      | Complete processing  | 🔄 Comprehensive | Production workflows           |
 
 ## Usage
 
@@ -151,6 +160,7 @@ node --import tsx demo/dataset-validation-demo.ts
 The system includes comprehensive validation functions:
 
 ### Core Validations
+
 - **`validateControlledVocabulary`** - Validates against controlled vocabularies with strict/loose modes
 - **`validateDataType`** - Validates data types (string, number, boolean, date, integer)
 - **`validateRange`** - Validates numeric ranges (min/max values)
@@ -160,6 +170,7 @@ The system includes comprehensive validation functions:
 - **`validateRequired`** - Validates required fields
 
 ### Flexible Usage
+
 - **Standalone**: Validate arbitrary datasets without modifications
 - **With Transformations**: Validate after transforming data
 - **Integrated Pipeline**: Full mapping → transformation → validation workflow
@@ -168,11 +179,13 @@ The system includes comprehensive validation functions:
 ## Database Schema
 
 The normalized function parameter system is defined in:
+
 - `../app/server/db/schema.ts` - Database tables for functions and parameters
 
 ## Superseded Files
 
 The following files contain only deprecation notices pointing to current implementations:
+
 - `vocabulary.ts`, `mapping.ts`, `transformation-executor.ts` - Superseded by integrated approach
 - `../test/*.test.ts` - Superseded by integrated demo testing
 - `../demo/transformation-demo.ts` - Superseded by integrated demo

@@ -1,25 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { match, P } from "ts-pattern";
-import { z } from "zod/v4";
-import { Spinner } from "~/components/Spinner";
-import { orpc } from "../lib/orpc";
+import * as z from "zod/v4";
+import { Spinner } from "~/components/Spinner.tsx";
+import { useProject } from "~/hooks/useApi.ts";
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: ProjectIndexComponent,
 });
 
-function ProjectIndexComponent() {
+export function ProjectIndexComponent() {
   const projectId = Route.useParams({
     select: ({ projectId }) => {
       return z.coerce.number().parse(projectId);
     },
   });
-  const projectQuery = useQuery(
-    orpc.project.find.queryOptions({
-      input: { id: projectId },
-    })
-  );
+  const projectQuery = useProject(projectId);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh h-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">

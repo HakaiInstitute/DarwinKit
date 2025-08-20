@@ -1,5 +1,7 @@
 import type { ErrorComponentProps } from "@tanstack/react-router";
-import { ErrorComponent, Link, rootRouteId, useMatch, useRouter } from "@tanstack/react-router";
+import { ErrorComponent, rootRouteId, useMatch, useRouter } from "@tanstack/react-router";
+import { Button } from "./ui/button.tsx";
+import { Link } from "./ui/link.tsx";
 
 export function DefaultCatchBoundary({ error }: ErrorComponentProps) {
   const router = useRouter();
@@ -14,33 +16,34 @@ export function DefaultCatchBoundary({ error }: ErrorComponentProps) {
     <div className="min-w-0 flex-1 p-4 flex flex-col items-center justify-center gap-6">
       <ErrorComponent error={error} />
       <div className="flex gap-2 items-center flex-wrap">
-        <button
+        <Button
           onClick={() => {
             void router.invalidate();
           }}
           className={`px-2 py-1 bg-gray-600 dark:bg-gray-700 rounded text-white uppercase font-extrabold`}
         >
           Try Again
-        </button>
-        {isRoot ? (
-          <Link
-            to="/"
-            className={`px-2 py-1 bg-gray-600 dark:bg-gray-700 rounded text-white uppercase font-extrabold`}
-          >
-            Home
-          </Link>
-        ) : (
-          <Link
-            to="/"
-            className={`px-2 py-1 bg-gray-600 dark:bg-gray-700 rounded text-white uppercase font-extrabold`}
-            onClick={(e: React.MouseEvent) => {
-              e.preventDefault();
-              window.history.back();
-            }}
-          >
-            Go Back
-          </Link>
-        )}
+        </Button>
+        {isRoot
+          ? (
+            <Link
+              to="/"
+              className={`px-2 py-1 bg-gray-600 dark:bg-gray-700 rounded text-white uppercase font-extrabold`}
+            >
+              Home
+            </Link>
+          )
+          : (
+            <Button
+              className={`px-2 py-1 bg-gray-600 dark:bg-gray-700 rounded text-white uppercase font-extrabold`}
+              onClick={(e: React.MouseEvent) => {
+                e.preventDefault();
+                globalThis.history.back();
+              }}
+            >
+              Go Back
+            </Button>
+          )}
       </div>
     </div>
   );

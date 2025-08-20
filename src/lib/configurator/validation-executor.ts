@@ -4,13 +4,13 @@
  * Executes validation configurations on data with proper error handling and result tracking
  */
 
-import { type GlobalParameters } from "./integrated-configuration.js";
+import { type GlobalParameters } from "./integrated-configuration.ts";
 import {
   type DatasetValidationContext,
   executeValidation,
   executeValidationWithContext,
-  type SomePrimitive,
-} from "./validations.js";
+} from "./validations.ts";
+import type { DataValue } from "./types/index.ts";
 
 interface ValidationStep {
   functionName: string;
@@ -31,7 +31,7 @@ export interface ValidationConfiguration {
 interface ValidationStepResult {
   step: number;
   functionName: string;
-  inputValue: SomePrimitive;
+  inputValue: DataValue;
   valid: boolean;
   errors: string[];
   warnings: string[];
@@ -39,7 +39,7 @@ interface ValidationStepResult {
 
 interface FieldValidationResult {
   field: string;
-  value: SomePrimitive;
+  value: DataValue;
   valid: boolean;
   errors: string[];
   warnings: string[];
@@ -84,31 +84,31 @@ interface DatasetValidationResult {
 
 // Dataset validation context interface (imported from validations.ts conceptually)
 // interface DatasetValidationContext {
-//   currentRow: Record<string, SomePrimitive>;
+//   currentRow: Record<string, DataValue>;
 //   currentRowIndex: number;
-//   dataset: Record<string, SomePrimitive>[];
+//   dataset: Record<string, DataValue>[];
 //   totalRows: number;
 //   validationMetadata: {
 //     processedRows: number;
 //     validRows: number;
 //     invalidRows: number;
 //   };
-//   getFieldValue: (fieldName: string) => SomePrimitive;
+//   getFieldValue: (fieldName: string) => DataValue;
 //   getRowsWhere: (
-//     predicate: (row: Record<string, SomePrimitive>) => boolean
-//   ) => Record<string, SomePrimitive>[];
-//   getPreviousRows: () => Record<string, SomePrimitive>[];
-//   getRowsByFieldValue: (fieldName: string, value: SomePrimitive) => Record<string, SomePrimitive>[];
-//   cache: Map<string, SomePrimitive>;
+//     predicate: (row: Record<string, DataValue>) => boolean
+//   ) => Record<string, DataValue>[];
+//   getPreviousRows: () => Record<string, DataValue>[];
+//   getRowsByFieldValue: (fieldName: string, value: DataValue) => Record<string, DataValue>[];
+//   cache: Map<string, DataValue>;
 // }
 
 /**
  * Execute validations for a single field value
  */
 export function executeFieldValidation(
-  fieldValue: SomePrimitive,
+  fieldValue: DataValue,
   fieldConfig: FieldValidationConfig,
-  globalParameters: GlobalParameters = {}
+  globalParameters: GlobalParameters = {},
 ): FieldValidationResult {
   const result: FieldValidationResult = {
     field: fieldConfig.field,
@@ -124,9 +124,16 @@ export function executeFieldValidation(
     const stepNumber = i + 1;
 
     // Merge step parameters with global parameters
-    const mergedParams: GlobalParameters = { ...globalParameters, ...step.parameters };
+    const mergedParams: GlobalParameters = {
+      ...globalParameters,
+      ...step.parameters,
+    };
 
-    const validationResult = executeValidation(step.functionName, fieldValue, mergedParams);
+    const validationResult = executeValidation(
+      step.functionName,
+      fieldValue,
+      mergedParams,
+    );
 
     const stepResult: ValidationStepResult = {
       step: stepNumber,
@@ -143,14 +150,16 @@ export function executeFieldValidation(
     if (!validationResult.valid) {
       result.valid = false;
       result.errors.push(
-        ...validationResult.errors.map((err) => `Step ${stepNumber} (${step.functionName}): ${err}`)
+        ...validationResult.errors.map(
+          (err) => `Step ${stepNumber} (${step.functionName}): ${err}`,
+        ),
       );
     }
 
     result.warnings.push(
       ...validationResult.warnings.map(
-        (warn) => `Step ${stepNumber} (${step.functionName}): ${warn}`
-      )
+        (warn) => `Step ${stepNumber} (${step.functionName}): ${warn}`,
+      ),
     );
   }
 
@@ -161,9 +170,9 @@ export function executeFieldValidation(
  * Execute validations for a single data row
  */
 export function executeRowValidation(
-  dataRow: Record<string, SomePrimitive>,
+  dataRow: Record<string, DataValue>,
   config: ValidationConfiguration,
-  globalParameters: GlobalParameters = {}
+  globalParameters: GlobalParameters = {},
 ): RowValidationResult {
   const result: RowValidationResult = {
     rowIndex: 0, // Will be set by caller
@@ -175,18 +184,26 @@ export function executeRowValidation(
 
   for (const fieldConfig of config.validations) {
     const fieldValue = dataRow[fieldConfig.field];
-    const fieldResult = executeFieldValidation(fieldValue, fieldConfig, globalParameters);
+    const fieldResult = executeFieldValidation(
+      fieldValue,
+      fieldConfig,
+      globalParameters,
+    );
 
     result.fieldResults[fieldConfig.field] = fieldResult;
 
     // Aggregate field-level results
     if (!fieldResult.valid) {
       result.valid = false;
-      result.errors.push(...fieldResult.errors.map((err) => `Field ${fieldConfig.field}: ${err}`));
+      result.errors.push(
+        ...fieldResult.errors.map((err) => `Field ${fieldConfig.field}: ${err}`),
+      );
     }
 
     result.warnings.push(
-      ...fieldResult.warnings.map((warn) => `Field ${fieldConfig.field}: ${warn}`)
+      ...fieldResult.warnings.map(
+        (warn) => `Field ${fieldConfig.field}: ${warn}`,
+      ),
     );
   }
 
@@ -197,8 +214,8 @@ export function executeRowValidation(
  * Create dataset validation context with utility functions
  */
 function createDatasetValidationContext(
-  dataset: Record<string, SomePrimitive>[],
-  currentRowIndex: number
+  dataset: Record<string, DataValue>[],
+  currentRowIndex: number,
 ): DatasetValidationContext {
   const currentRow = dataset[currentRowIndex];
 
@@ -216,12 +233,13 @@ function createDatasetValidationContext(
 
     getFieldValue: (fieldName: string) => currentRow[fieldName],
 
-    getRowsWhere: (predicate: (row: Record<string, SomePrimitive>) => boolean) =>
-      dataset.filter(predicate),
+    getRowsWhere: (
+      predicate: (row: Record<string, DataValue>) => boolean,
+    ) => dataset.filter(predicate),
 
     getPreviousRows: () => dataset.slice(0, currentRowIndex),
 
-    getRowsByFieldValue: (fieldName: string, value: SomePrimitive) =>
+    getRowsByFieldValue: (fieldName: string, value: DataValue) =>
       dataset.filter((row) => row[fieldName] === value),
   };
 }
@@ -230,10 +248,10 @@ function createDatasetValidationContext(
  * Execute validations for a single field value with dataset context
  */
 export function executeFieldValidationWithContext(
-  fieldValue: SomePrimitive,
+  fieldValue: DataValue,
   fieldConfig: FieldValidationConfig,
   globalParameters: GlobalParameters = {},
-  context?: DatasetValidationContext
+  context?: DatasetValidationContext,
 ): FieldValidationResult {
   const result: FieldValidationResult = {
     field: fieldConfig.field,
@@ -249,13 +267,16 @@ export function executeFieldValidationWithContext(
     const stepNumber = i + 1;
 
     // Merge step parameters with global parameters
-    const mergedParams: GlobalParameters = { ...globalParameters, ...step.parameters };
+    const mergedParams: GlobalParameters = {
+      ...globalParameters,
+      ...step.parameters,
+    };
 
     const validationResult = executeValidationWithContext(
       step.functionName,
       fieldValue,
       mergedParams,
-      context
+      context,
     );
 
     const stepResult: ValidationStepResult = {
@@ -273,14 +294,16 @@ export function executeFieldValidationWithContext(
     if (!validationResult.valid) {
       result.valid = false;
       result.errors.push(
-        ...validationResult.errors.map((err) => `Step ${stepNumber} (${step.functionName}): ${err}`)
+        ...validationResult.errors.map(
+          (err) => `Step ${stepNumber} (${step.functionName}): ${err}`,
+        ),
       );
     }
 
     result.warnings.push(
       ...validationResult.warnings.map(
-        (warn) => `Step ${stepNumber} (${step.functionName}): ${warn}`
-      )
+        (warn) => `Step ${stepNumber} (${step.functionName}): ${warn}`,
+      ),
     );
   }
 
@@ -291,9 +314,9 @@ export function executeFieldValidationWithContext(
  * Execute validations for an entire dataset (original version for backward compatibility)
  */
 export function executeDatasetValidation(
-  dataset: Record<string, SomePrimitive>[],
+  dataset: Record<string, DataValue>[],
   config: ValidationConfiguration,
-  globalParameters: GlobalParameters = {}
+  globalParameters: GlobalParameters = {},
 ): DatasetValidationResult {
   return executeDatasetValidationWithContext(dataset, config, globalParameters);
 }
@@ -302,9 +325,9 @@ export function executeDatasetValidation(
  * Execute validations for an entire dataset with full context support
  */
 export function executeDatasetValidationWithContext(
-  dataset: Record<string, SomePrimitive>[],
+  dataset: Record<string, DataValue>[],
   config: ValidationConfiguration,
-  globalParameters: GlobalParameters = {}
+  globalParameters: GlobalParameters = {},
 ): DatasetValidationResult {
   const result: DatasetValidationResult = {
     configurationName: config.name,
@@ -353,7 +376,7 @@ export function executeDatasetValidationWithContext(
           fieldValue,
           fieldConfig,
           globalParameters,
-          context
+          context,
         );
 
         rowResult.fieldResults[fieldConfig.field] = fieldResult;
@@ -362,12 +385,16 @@ export function executeDatasetValidationWithContext(
         if (!fieldResult.valid) {
           rowResult.valid = false;
           rowResult.errors.push(
-            ...fieldResult.errors.map((err) => `Field ${fieldConfig.field}: ${err}`)
+            ...fieldResult.errors.map(
+              (err) => `Field ${fieldConfig.field}: ${err}`,
+            ),
           );
         }
 
         rowResult.warnings.push(
-          ...fieldResult.warnings.map((warn) => `Field ${fieldConfig.field}: ${warn}`)
+          ...fieldResult.warnings.map(
+            (warn) => `Field ${fieldConfig.field}: ${warn}`,
+          ),
         );
       }
 
@@ -382,7 +409,11 @@ export function executeDatasetValidationWithContext(
       }
 
       // Update field statistics
-      for (const [fieldName, fieldResult] of Object.entries(rowResult.fieldResults)) {
+      for (
+        const [fieldName, fieldResult] of Object.entries(
+          rowResult.fieldResults,
+        )
+      ) {
         const stats = result.fieldStatistics[fieldName];
         stats.totalProcessed++;
 
@@ -395,7 +426,9 @@ export function executeDatasetValidationWithContext(
     } catch (error) {
       result.success = false;
       result.invalidRows++;
-      result.globalErrors.push(`Row ${i + 1}: Unexpected error - ${error as Error}`);
+      result.globalErrors.push(
+        `Row ${i + 1}: Unexpected error - ${error as Error}`,
+      );
     }
   }
 
@@ -433,7 +466,9 @@ export function executeDatasetValidationWithContext(
 /**
  * Validate configuration before execution
  */
-export function validateValidationConfiguration(config: ValidationConfiguration): {
+export function validateValidationConfiguration(
+  config: ValidationConfiguration,
+): {
   valid: boolean;
   errors: string[];
 } {
@@ -464,11 +499,15 @@ export function validateValidationConfiguration(config: ValidationConfiguration)
       const step = fieldConfig.validations[j];
 
       if (!step.functionName) {
-        errors.push(`Validation ${i + 1}, Step ${j + 1}: Missing function name`);
+        errors.push(
+          `Validation ${i + 1}, Step ${j + 1}: Missing function name`,
+        );
       }
 
       if (!step.parameters || typeof step.parameters !== "object") {
-        errors.push(`Validation ${i + 1}, Step ${j + 1}: Missing or invalid parameters`);
+        errors.push(
+          `Validation ${i + 1}, Step ${j + 1}: Missing or invalid parameters`,
+        );
       }
     }
   }
@@ -516,7 +555,11 @@ export function generateValidationSummary(result: DatasetValidationResult): {
     >,
   };
 
-  for (const [fieldName, fieldStats] of Object.entries(result.fieldStatistics)) {
+  for (
+    const [fieldName, fieldStats] of Object.entries(
+      result.fieldStatistics,
+    )
+  ) {
     if (fieldStats.invalid === 0) {
       summary.validFields++;
     } else {

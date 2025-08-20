@@ -10,7 +10,7 @@ import {
   type IntegratedFieldConfiguration,
   type TransformationStep,
   type ValidationStep,
-} from "./integrated-configuration.js";
+} from "./integrated-configuration.ts";
 
 // Component selection options
 export type ComponentMode =
@@ -193,7 +193,7 @@ export function createMappingTransformConfig(params: {
  * Convert modular configuration to integrated configuration for execution
  */
 export function convertToIntegratedConfiguration(
-  modularConfig: ModularConfiguration
+  modularConfig: ModularConfiguration,
 ): IntegratedConfiguration {
   // Convert modular fields back to integrated format
   const fieldMappings: IntegratedFieldConfiguration[] = [];
@@ -204,6 +204,7 @@ export function convertToIntegratedConfiguration(
     switch (field.mode) {
       case "mapping-only":
         integratedField = {
+          fieldName: field.config.targetField,
           sourceColumn: field.config.sourceColumn,
           targetField: field.config.targetField,
         };
@@ -213,6 +214,7 @@ export function convertToIntegratedConfiguration(
         // For transform-validate mode, use fieldName as both source and target
         const config = field.config;
         integratedField = {
+          fieldName: config.fieldName,
           sourceColumn: config.fieldName,
           targetField: config.fieldName,
           transformations: config.transformations,
@@ -224,6 +226,7 @@ export function convertToIntegratedConfiguration(
       case "mapping-validate": {
         const config = field.config;
         integratedField = {
+          fieldName: config.targetField,
           sourceColumn: config.sourceColumn,
           targetField: config.targetField,
           validations: config.validations,
@@ -234,6 +237,7 @@ export function convertToIntegratedConfiguration(
       case "mapping-transform": {
         const config = field.config;
         integratedField = {
+          fieldName: config.targetField,
           sourceColumn: config.sourceColumn,
           targetField: config.targetField,
           transformations: config.transformations,
@@ -244,6 +248,7 @@ export function convertToIntegratedConfiguration(
       case "full-pipeline": {
         const config = field.config;
         integratedField = {
+          fieldName: config.targetField,
           sourceColumn: config.sourceColumn,
           targetField: config.targetField,
           transformations: config.transformations,
@@ -273,7 +278,7 @@ export interface ModularConfigurationValidationResult {
 }
 
 export function validateModularConfiguration(
-  config: ModularConfiguration
+  config: ModularConfiguration,
 ): ModularConfigurationValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -295,10 +300,14 @@ export function validateModularConfiguration(
       case "mapping-only": {
         const config = field.config;
         if (!config.sourceColumn) {
-          errors.push(`Field ${fieldNum}: sourceColumn is required for mapping-only mode`);
+          errors.push(
+            `Field ${fieldNum}: sourceColumn is required for mapping-only mode`,
+          );
         }
         if (!config.targetField) {
-          errors.push(`Field ${fieldNum}: targetField is required for mapping-only mode`);
+          errors.push(
+            `Field ${fieldNum}: targetField is required for mapping-only mode`,
+          );
         }
         break;
       }
@@ -306,13 +315,19 @@ export function validateModularConfiguration(
       case "transform-validate": {
         const config = field.config;
         if (!config.fieldName) {
-          errors.push(`Field ${fieldNum}: fieldName is required for transform-validate mode`);
+          errors.push(
+            `Field ${fieldNum}: fieldName is required for transform-validate mode`,
+          );
         }
         if (!config.transformations || config.transformations.length === 0) {
-          warnings.push(`Field ${fieldNum}: No transformations defined in transform-validate mode`);
+          warnings.push(
+            `Field ${fieldNum}: No transformations defined in transform-validate mode`,
+          );
         }
         if (!config.validations || config.validations.length === 0) {
-          warnings.push(`Field ${fieldNum}: No validations defined in transform-validate mode`);
+          warnings.push(
+            `Field ${fieldNum}: No validations defined in transform-validate mode`,
+          );
         }
         break;
       }
@@ -320,13 +335,19 @@ export function validateModularConfiguration(
       case "mapping-validate": {
         const config = field.config;
         if (!config.sourceColumn) {
-          errors.push(`Field ${fieldNum}: sourceColumn is required for mapping-validate mode`);
+          errors.push(
+            `Field ${fieldNum}: sourceColumn is required for mapping-validate mode`,
+          );
         }
         if (!config.targetField) {
-          errors.push(`Field ${fieldNum}: targetField is required for mapping-validate mode`);
+          errors.push(
+            `Field ${fieldNum}: targetField is required for mapping-validate mode`,
+          );
         }
         if (!config.validations || config.validations.length === 0) {
-          warnings.push(`Field ${fieldNum}: No validations defined in mapping-validate mode`);
+          warnings.push(
+            `Field ${fieldNum}: No validations defined in mapping-validate mode`,
+          );
         }
         break;
       }
@@ -334,13 +355,19 @@ export function validateModularConfiguration(
       case "mapping-transform": {
         const config = field.config;
         if (!config.sourceColumn) {
-          errors.push(`Field ${fieldNum}: sourceColumn is required for mapping-transform mode`);
+          errors.push(
+            `Field ${fieldNum}: sourceColumn is required for mapping-transform mode`,
+          );
         }
         if (!config.targetField) {
-          errors.push(`Field ${fieldNum}: targetField is required for mapping-transform mode`);
+          errors.push(
+            `Field ${fieldNum}: targetField is required for mapping-transform mode`,
+          );
         }
         if (!config.transformations || config.transformations.length === 0) {
-          warnings.push(`Field ${fieldNum}: No transformations defined in mapping-transform mode`);
+          warnings.push(
+            `Field ${fieldNum}: No transformations defined in mapping-transform mode`,
+          );
         }
         break;
       }

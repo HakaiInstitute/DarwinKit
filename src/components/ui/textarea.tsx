@@ -6,8 +6,10 @@ export function Textarea({
   className,
   resizable = true,
   ...props
-}: { className?: string; resizable?: boolean } & Omit<Headless.TextareaProps, "as" | "className"> &
-  ComponentPropsWithRef<"textarea">) {
+}:
+  & { className?: string; resizable?: boolean }
+  & Omit<Headless.TextareaProps, "as" | "className">
+  & ComponentPropsWithRef<"textarea">) {
   return (
     <span
       data-slot="control"

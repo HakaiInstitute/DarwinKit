@@ -1,21 +1,21 @@
-import logger from "~/utils/test-logger";
+import logger from "~/utils/test-logger.ts";
 /**
  * Validation Demo
  *
  * Demonstrates validation functions working in isolation, with transformations, and integrated pipeline
  */
 
-import { type IntegratedConfiguration } from "~/lib/configurator/integrated-configuration";
+import { type IntegratedConfiguration } from "~/lib/configurator/integrated-configuration.ts";
 import {
   executeIntegratedConfiguration,
   validateIntegratedConfiguration,
-} from "~/lib/configurator/integrated-executor";
+} from "~/lib/configurator/integrated-executor.ts";
 import {
   executeDatasetValidation,
   generateValidationSummary,
   validateValidationConfiguration,
-} from "~/lib/configurator/validation-executor";
-import { MOCK_VOCABULARIES } from "./mapping-demo.js";
+} from "~/lib/configurator/validation-executor.ts";
+import { MOCK_VOCABULARIES } from "./mapping-demo.ts";
 
 // Sample data with various validation scenarios
 const VALIDATION_TEST_DATA = [
@@ -207,6 +207,7 @@ const INTEGRATED_WITH_VALIDATION_CONFIG: IntegratedConfiguration = {
 
   fieldMappings: [
     {
+      fieldName: "sex",
       sourceColumn: "organism_sex",
       targetField: "sex",
       transformations: [
@@ -231,6 +232,7 @@ const INTEGRATED_WITH_VALIDATION_CONFIG: IntegratedConfiguration = {
       ],
     },
     {
+      fieldName: "decimalLatitude",
       sourceColumn: "lat_long",
       targetField: "decimalLatitude",
       transformations: [
@@ -253,6 +255,7 @@ const INTEGRATED_WITH_VALIDATION_CONFIG: IntegratedConfiguration = {
       ],
     },
     {
+      fieldName: "catalogNumber",
       sourceColumn: "specimen_id",
       targetField: "catalogNumber",
       validations: [
@@ -377,7 +380,7 @@ export function runIntegratedValidationDemo() {
   const result = executeIntegratedConfiguration(sourceData, INTEGRATED_WITH_VALIDATION_CONFIG);
 
   logger.log(
-    `📊 Pipeline Results: ${result.validRows}/${result.totalRows} rows processed successfully`
+    `📊 Pipeline Results: ${result.validRows}/${result.totalRows} rows processed successfully`,
   );
 
   // 3. Show detailed results
@@ -387,7 +390,7 @@ export function runIntegratedValidationDemo() {
 
     logger.log(
       "  📥 Source:",
-      JSON.stringify(sourceData[rowResult.rowIndex], null, 4).replace(/\n/g, "\n    ")
+      JSON.stringify(sourceData[rowResult.rowIndex], null, 4).replace(/\n/g, "\n    "),
     );
 
     logger.log("  🔄 Pipeline steps:");
@@ -403,7 +406,9 @@ export function runIntegratedValidationDemo() {
         for (const step of fieldResult.transformationSteps) {
           const stepStatus = step.success ? "✅" : "❌";
           logger.log(
-            `        ${stepStatus} ${step.functionName}: "${String(step.inputValue)}" → "${String(step.outputValue)}"`
+            `        ${stepStatus} ${step.functionName}: "${String(step.inputValue)}" → "${
+              String(step.outputValue)
+            }"`,
           );
         }
       }
@@ -427,7 +432,7 @@ export function runIntegratedValidationDemo() {
 
     logger.log(
       "  📤 Output:",
-      JSON.stringify(rowResult.transformedRow, null, 4).replace(/\n/g, "\n    ")
+      JSON.stringify(rowResult.transformedRow, null, 4).replace(/\n/g, "\n    "),
     );
   }
 

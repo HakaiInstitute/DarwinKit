@@ -1,20 +1,19 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { match, P } from "ts-pattern";
-import { Button } from "~/components/ui/button";
+import { Button } from "~/components/ui/button.tsx";
 import {
   Dialog,
   DialogActions,
   DialogBody,
   DialogDescription,
   DialogTitle,
-} from "~/components/ui/dialog";
-import { Icon } from "~/components/ui/icon";
-import { Input } from "~/components/ui/input";
-import { Textarea } from "~/components/ui/textarea";
-import { orpc } from "~/lib/orpc";
-import { useAuth } from "../hooks/useAuth";
+} from "~/components/ui/dialog.tsx";
+import { Icon } from "~/components/ui/icon.tsx";
+import { Input } from "~/components/ui/input.tsx";
+import { Textarea } from "~/components/ui/textarea.tsx";
+import { useCreateProject, useProjects } from "~/hooks/useApi.ts";
+import { useAuth } from "../hooks/useAuth.ts";
 
 export const Route = createFileRoute("/projects/create")({
   component: ProjectsCreateComponent,
@@ -22,17 +21,16 @@ export const Route = createFileRoute("/projects/create")({
 
 export default function ProjectsCreateComponent() {
   const { user } = useAuth();
-  const projects = useQuery(
-    orpc.project.list.queryOptions({
-      input: { limit: 10, offset: 0 },
-    })
-  );
+  const projects = useProjects({ limit: 10, offset: 0 });
 
   if (user === null) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <h1 className="text-4xl font-bold mb-4">Welcome to DarwinKit</h1>
-        <Link to="/login" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+        <Link
+          to="/login"
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
           Log In
         </Link>
       </div>
@@ -51,7 +49,9 @@ export default function ProjectsCreateComponent() {
               >
                 ← Back to Projects
               </Link>
-              <h1 className="text-3xl font-bold text-slate-900">Create New Project</h1>
+              <h1 className="text-3xl font-bold text-slate-900">
+                Create New Project
+              </h1>
               <p className="mt-2 text-slate-600">
                 Create a new data mapping project to transform your scientific datasets
               </p>
@@ -59,7 +59,9 @@ export default function ProjectsCreateComponent() {
 
             {projects.data && projects.data.length > 0 && (
               <div className="mb-8">
-                <h2 className="text-lg font-medium text-slate-900 mb-4">Recent Projects</h2>
+                <h2 className="text-lg font-medium text-slate-900 mb-4">
+                  Recent Projects
+                </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {projects.data.slice(0, 6).map((project) => (
                     <Link
@@ -68,7 +70,9 @@ export default function ProjectsCreateComponent() {
                       params={{ projectId: project.id.toString() }}
                       className="p-4 border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-sm transition-all"
                     >
-                      <h3 className="font-medium text-slate-900 truncate">{project.title}</h3>
+                      <h3 className="font-medium text-slate-900 truncate">
+                        {project.title}
+                      </h3>
                       <p className="text-sm text-slate-500 mt-1">
                         Updated {new Date(project.updatedAt).toLocaleDateString()}
                       </p>
@@ -95,19 +99,6 @@ export default function ProjectsCreateComponent() {
     </main>
   );
 }
-
-const useCreateProject = () => {
-  return useMutation(
-    orpc.project.create.mutationOptions({
-      onSuccess: (_data) => {
-        // Project created successfully
-      },
-      onError: (error) => {
-        console.error("Error creating project:", error);
-      },
-    })
-  );
-};
 
 const NewProject = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -208,10 +199,17 @@ const NewProject = () => {
         </DialogBody>
 
         <DialogActions>
-          <Button outline onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>
+          <Button
+            outline
+            onClick={() => setIsDialogOpen(false)}
+            disabled={isSubmitting}
+          >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!projectTitle.trim() || isSubmitting}>
+          <Button
+            onClick={handleSubmit}
+            disabled={!projectTitle.trim() || isSubmitting}
+          >
             {isSubmitting ? "Creating..." : "Create Project"}
           </Button>
         </DialogActions>

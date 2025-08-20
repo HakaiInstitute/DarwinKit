@@ -5,45 +5,32 @@
  */
 
 import type {
-  SomePrimitive,
+  DataValue,
   GlobalParameters,
+  IntegratedConfiguration,
+  IntegratedFieldConfiguration,
   TransformationStep,
   ValidationStep,
-  IntegratedFieldConfiguration,
-  IntegratedConfiguration,
-} from "./types";
+} from "./types/index.ts";
 
 // Re-export commonly used types for backward compatibility
 export type {
-  SomePrimitive,
+  DataValue,
   GlobalParameters,
+  IntegratedFieldConfiguration,
   TransformationStep,
   ValidationStep,
-  IntegratedFieldConfiguration,
 };
 
 // Use centralized configuration type
 export type { IntegratedConfiguration };
 
-// Legacy interface maintained for backward compatibility
-interface _LegacyIntegratedConfiguration {
-  name: string;
-  sourceFile: string;
-  standard: string; // "Darwin Core"
-
-  // Global parameters available to all functions
-  globalParameters: GlobalParameters;
-
-  // Field-level configurations
-  fieldMappings: IntegratedFieldConfiguration[];
-}
-
 // Execution result tracking
 export interface StepResult {
   step: number;
   functionName: string;
-  inputValue: SomePrimitive;
-  outputValue: SomePrimitive;
+  inputValue: DataValue;
+  outputValue: DataValue;
   success: boolean;
   error?: string;
 }
@@ -51,10 +38,10 @@ export interface StepResult {
 export interface FieldExecutionResult {
   sourceColumn: string;
   targetField: string;
-  originalValue: SomePrimitive;
-  mappedValue: SomePrimitive;
-  transformedValue: SomePrimitive;
-  finalValue: SomePrimitive;
+  originalValue: DataValue;
+  mappedValue: DataValue;
+  transformedValue: DataValue;
+  finalValue: DataValue;
 
   // Step-by-step execution tracking
   transformationSteps: StepResult[];
@@ -69,7 +56,7 @@ export interface RowExecutionResult {
   rowIndex: number;
   success: boolean;
   fieldResults: Record<string, FieldExecutionResult>;
-  transformedRow: Record<string, SomePrimitive>;
+  transformedRow: Record<string, DataValue>;
   errors: string[];
   warnings: string[];
 }
@@ -98,7 +85,7 @@ export interface IntegratedExecutionResult {
   >;
 
   // Output data (valid rows only)
-  transformedData: Record<string, SomePrimitive>[];
+  transformedData: Record<string, DataValue>[];
 
   // Overall errors and warnings
   globalErrors: string[];
