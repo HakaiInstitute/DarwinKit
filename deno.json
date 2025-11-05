@@ -1,4 +1,11 @@
 {
+  "workspace": [
+    "./packages/domain",
+    "./packages/core",
+    "./packages/cli",
+    "./packages/api",
+    "./packages/gui"
+  ],
   "nodeModulesDir": "auto",
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "deno.ns"],
@@ -6,13 +13,19 @@
     "jsxImportSource": "react"
   },
   "imports": {
+    "@dwkt/domain": "./packages/domain/mod.ts",
+    "@dwkt/core": "./packages/core/mod.ts",
+    "@dwkt/api": "./packages/api/mod.ts",
+    "@duckdb/node-api": "npm:@duckdb/node-api@^1.3.2-alpha.26",
     "@tanstack/query-core": "npm:@tanstack/query-core@^5.85.3",
     "@tanstack/query-devtools": "npm:@tanstack/query-devtools@^5.84.0",
     "@tanstack/router-cli": "npm:@tanstack/router-cli@^1.131.7",
     "drizzle-kit": "npm:drizzle-kit@^0.31.4",
+    "effect": "npm:effect@^3.17.8",
+    "uuid": "npm:uuid@^11.1.0",
     "xstate": "npm:xstate@^5.20.2",
-    "~/": "./src/",
     "@std/assert": "jsr:@std/assert@^1.0.6",
+    "@std/path": "jsr:@std/path@^1.0.8",
     "@t3-oss/env-core": "npm:@t3-oss/env-core@^0.13.8",
     "@tanstack/react-router-devtools": "npm:@tanstack/react-router-devtools@^1.131.5",
     "@tanstack/router-plugin": "npm:@tanstack/router-plugin@^1.131.5",
@@ -33,7 +46,6 @@
     "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^4.3.4",
     "@tanstack/react-form": "npm:@tanstack/react-form@^1.19.1",
     "ts-pattern": "npm:ts-pattern@^5.5.1",
-    "drizzle-zod": "npm:drizzle-zod@^0.8.3",
     "dotenv/config": "npm:dotenv@^16.4.7/config",
     "clsx": "npm:clsx@^2.1.1",
     "@types/react": "npm:@types/react@^18.3.1",
@@ -44,24 +56,26 @@
     "hono/cors": "npm:hono@^4.6.9/cors",
     "hono/logger": "npm:hono@^4.6.9/logger",
     "@hono/node-server": "npm:@hono/node-server@^1.13.8",
-    "@hono/zod-validator": "npm:@hono/zod-validator@^0.7.2"
+    "playwright": "npm:playwright@^1.48.0",
+    "@playwright/test": "npm:@playwright/test@^1.48.0"
   },
   "tasks": {
     "dev": {
-      "dependencies":[
-        "dev:client",
-        "dev:server"
-      ]
+      "dependencies": ["dev:api", "dev:gui"]
     },
-    "dev:client": "deno run -A npm:vite",
-    "dev:server": "deno run -A server.ts",
-    "build": "deno run -A npm:vite build",
-    "preview": "deno run -A npm:vite preview",
-    "lint": "deno lint src/",
-    "fmt": "deno fmt src/",
-    "check": "deno check --no-check=remote src/",
-    "check:no-router": "deno check --no-check=remote --skip-type-check src/",
-    "test": "deno test --allow-all --no-check",
+    "dev:api": "cd packages/api && deno task dev",
+    "dev:gui": "cd packages/gui && deno task dev",
+    "dev:cli": "cd packages/cli && deno task dev",
+    "build": "cd packages/gui && deno task build",
+    "preview": "cd packages/gui && deno task preview",
+    "test": "deno test --allow-all",
+    "test:domain": "deno test packages/domain/",
+    "test:core": "deno test packages/core/",
+    "test:cli": "deno test packages/cli/",
+    "test:api": "deno test packages/api/",
+    "test:gui": "deno test packages/gui/",
+    "test:e2e": "deno task test:e2e --workers=1",
+    "test:integration": "deno test packages/cli/src/integration.test.ts --allow-all",
     "tsr-gen": "tsr generate",
     "drizzle:push": "deno run -A npm:drizzle-kit push",
     "drizzle:studio": "deno run -A npm:drizzle-kit studio"
@@ -78,7 +92,7 @@
   },
   "lint": {
     "rules": {
-      "exclude": ["jsx-no-children-prop"]
+      "exclude": ["jsx-no-children-prop", "no-slow-types"]
     },
     "include": ["src/", "test/", "demo/"]
   }

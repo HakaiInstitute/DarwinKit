@@ -1,0 +1,407 @@
+{
+  "id": "fc2022-complete-test-fixture",
+  "name": "FC2022 Marine Biodiversity Dataset",
+  "version": "1.0.0",
+  "description": "Hakai Institute Fish Creek 2022 survey data validation configuration",
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2025-01-22T00:00:00.000Z",
+  "validation": {
+    "nullValues": [
+      "NA",
+      "N/A",
+      "",
+      "NULL",
+      "null"
+    ],
+    "failFast": false,
+    "outputDir": "./validation_results"
+  },
+  "datasets": [
+    {
+      "name": "event_data",
+      "spec": "dwc-event",
+      "path": "data/FC2022_event.csv",
+      "description": "Event data containing sampling locations and metadata",
+      "fieldMappings": [
+        {
+          "originName": "eventID",
+          "targetName": "eventID",
+          "isRequired": true
+        },
+        {
+          "originName": "language",
+          "targetName": "language"
+        },
+        {
+          "originName": "license",
+          "targetName": "license"
+        },
+        {
+          "originName": "bibliographicCitation",
+          "targetName": "bibliographicCitation"
+        },
+        {
+          "originName": "rightsHolder",
+          "targetName": "rightsHolder"
+        },
+        {
+          "originName": "modified",
+          "targetName": "modified"
+        },
+        {
+          "originName": "country",
+          "targetName": "country",
+          "isRequired": true
+        },
+        {
+          "originName": "countryCode",
+          "targetName": "countryCode",
+          "isRequired": true
+        },
+        {
+          "originName": "geodeticDatum",
+          "targetName": "geodeticDatum"
+        },
+        {
+          "originName": "stateProvince",
+          "targetName": "stateProvince"
+        },
+        {
+          "originName": "county",
+          "targetName": "county"
+        },
+        {
+          "originName": "verbatimEventDate",
+          "targetName": "verbatimEventDate"
+        },
+        {
+          "originName": "decimalLatitude",
+          "targetName": "decimalLatitude"
+        },
+        {
+          "originName": "decimalLongitude",
+          "targetName": "decimalLongitude"
+        },
+        {
+          "originName": "verbatimLocality",
+          "targetName": "verbatimLocality"
+        },
+        {
+          "originName": "parentEventID",
+          "targetName": "parentEventID"
+        },
+        {
+          "originName": "eventType",
+          "targetName": "eventType"
+        },
+        {
+          "originName": "month",
+          "targetName": "month"
+        },
+        {
+          "originName": "day",
+          "targetName": "day"
+        },
+        {
+          "originName": "year",
+          "targetName": "year"
+        },
+        {
+          "originName": "eventDate",
+          "targetName": "eventDate"
+        },
+        {
+          "originName": "minimumDepthInMeters",
+          "targetName": "minimumDepthInMeters"
+        },
+        {
+          "originName": "maximumDepthInMeters",
+          "targetName": "maximumDepthInMeters"
+        },
+        {
+          "originName": "institutionCode",
+          "targetName": "institutionCode"
+        },
+        {
+          "originName": "institutionID",
+          "targetName": "institutionID"
+        },
+        {
+          "originName": "samplingProtocol",
+          "targetName": "samplingProtocol"
+        },
+        {
+          "originName": "habitat",
+          "targetName": "habitat"
+        },
+        {
+          "originName": "collectionCode",
+          "targetName": "collectionCode"
+        },
+        {
+          "originName": "municipality",
+          "targetName": "municipality"
+        },
+        {
+          "originName": "fieldNotes",
+          "targetName": "fieldNotes"
+        },
+        {
+          "originName": "eventRemarks",
+          "targetName": "eventRemarks"
+        }
+      ]
+    },
+    {
+      "name": "occurrence_data",
+      "spec": "dwc-occurrence",
+      "path": "data/FC2022_occ.csv",
+      "description": "Species occurrence records from eDNA analysis",
+      "fieldMappings": [
+        {
+          "originName": "eventID",
+          "targetName": "eventID",
+          "isRequired": true
+        },
+        {
+          "originName": "occurrenceID",
+          "targetName": "occurrenceID",
+          "isRequired": true
+        },
+        {
+          "originName": "basisOfRecord",
+          "targetName": "basisOfRecord",
+          "isRequired": true
+        },
+        {
+          "originName": "scientificName",
+          "targetName": "scientificName",
+          "isRequired": true
+        },
+        {
+          "originName": "scientificNameID",
+          "targetName": "scientificNameID"
+        },
+        {
+          "originName": "taxonRank",
+          "targetName": "taxonRank"
+        },
+        {
+          "originName": "scientificNameAuthorship",
+          "targetName": "scientificNameAuthorship"
+        },
+        {
+          "originName": "kingdom",
+          "targetName": "kingdom"
+        },
+        {
+          "originName": "phylum",
+          "targetName": "phylum"
+        },
+        {
+          "originName": "class",
+          "targetName": "class"
+        },
+        {
+          "originName": "order",
+          "targetName": "order"
+        },
+        {
+          "originName": "family",
+          "targetName": "family"
+        },
+        {
+          "originName": "genus",
+          "targetName": "genus"
+        },
+        {
+          "originName": "organismQuantity",
+          "targetName": "organismQuantity"
+        },
+        {
+          "originName": "organismQuantityType",
+          "targetName": "organismQuantityType"
+        },
+        {
+          "originName": "sampleSizeValue",
+          "targetName": "sampleSizeValue"
+        },
+        {
+          "originName": "sampleSizeUnit",
+          "targetName": "sampleSizeUnit"
+        },
+        {
+          "originName": "verbatimIdentification",
+          "targetName": "verbatimIdentification"
+        },
+        {
+          "originName": "samplingProtocol",
+          "targetName": "samplingProtocol"
+        },
+        {
+          "originName": "associatedSequences",
+          "targetName": "associatedSequences"
+        },
+        {
+          "originName": "identificationRemarks",
+          "targetName": "identificationRemarks"
+        },
+        {
+          "originName": "materialSampleID",
+          "targetName": "materialSampleID"
+        },
+        {
+          "originName": "occurrenceStatus",
+          "targetName": "occurrenceStatus"
+        },
+        {
+          "originName": "identificationQualifier",
+          "targetName": "identificationQualifier"
+        },
+        {
+          "originName": "recordNumber",
+          "targetName": "recordNumber"
+        },
+        {
+          "originName": "catalogNumber",
+          "targetName": "catalogNumber"
+        },
+        {
+          "originName": "subfamily",
+          "targetName": "subfamily"
+        },
+        {
+          "originName": "tribe",
+          "targetName": "tribe"
+        },
+        {
+          "originName": "identifiedBy",
+          "targetName": "identifiedBy"
+        },
+        {
+          "originName": "lifeStage",
+          "targetName": "lifeStage"
+        },
+        {
+          "originName": "organismRemarks",
+          "targetName": "organismRemarks"
+        },
+        {
+          "originName": "typeStatus",
+          "targetName": "typeStatus"
+        },
+        {
+          "originName": "recordedBy",
+          "targetName": "recordedBy"
+        }
+      ]
+    },
+    {
+      "name": "emof_data",
+      "spec": "dwc-extendedMeasurementOrFacts",
+      "path": "data/FC2022_eMOF.csv",
+      "description": "Extended measurement or fact data",
+      "fieldMappings": [
+        {
+          "originName": "eventID",
+          "targetName": "eventID",
+          "isRequired": true
+        },
+        {
+          "originName": "occurrenceID",
+          "targetName": "occurrenceID"
+        },
+        {
+          "originName": "DNA_sequence",
+          "targetName": "DNA_sequence"
+        },
+        {
+          "originName": "sop",
+          "targetName": "sop"
+        },
+        {
+          "originName": "samp_collect_device",
+          "targetName": "samp_collect_device"
+        },
+        {
+          "originName": "target_gene",
+          "targetName": "target_gene"
+        },
+        {
+          "originName": "target_subfragment",
+          "targetName": "target_subfragment"
+        },
+        {
+          "originName": "sample_vol_we_dna_ext",
+          "targetName": "sample_vol_we_dna_ext"
+        },
+        {
+          "originName": "pcr_primer_forward",
+          "targetName": "pcr_primer_forward"
+        },
+        {
+          "originName": "pcr_primer_reverse",
+          "targetName": "pcr_primer_reverse"
+        },
+        {
+          "originName": "pcr_primer_name_forward",
+          "targetName": "pcr_primer_name_forward"
+        },
+        {
+          "originName": "pcr_primer_name_reverse",
+          "targetName": "pcr_primer_name_reverse"
+        },
+        {
+          "originName": "env_broad_scale",
+          "targetName": "env_broad_scale"
+        },
+        {
+          "originName": "env_local_scale",
+          "targetName": "env_local_scale"
+        },
+        {
+          "originName": "env_medium",
+          "targetName": "env_medium"
+        },
+        {
+          "originName": "lib_layout",
+          "targetName": "lib_layout"
+        },
+        {
+          "originName": "seq_meth",
+          "targetName": "seq_meth"
+        },
+        {
+          "originName": "otu_class_appr",
+          "targetName": "otu_class_appr"
+        },
+        {
+          "originName": "otu_seq_comp_appr",
+          "targetName": "otu_seq_comp_appr"
+        },
+        {
+          "originName": "otu_db",
+          "targetName": "otu_db"
+        }
+      ]
+    }
+  ],
+  "crossDatasetRules": [
+    {
+      "ruleType": "foreignKey",
+      "sourceDataset": "occurrence_data",
+      "sourceField": "eventID",
+      "targetDataset": "event_data",
+      "targetField": "eventID",
+      "description": "Each occurrence must reference an existing event"
+    },
+    {
+      "ruleType": "foreignKey",
+      "sourceDataset": "emof_data",
+      "sourceField": "eventID",
+      "targetDataset": "event_data",
+      "targetField": "eventID",
+      "description": "Each eMOF record must reference an existing event"
+    }
+  ]
+}

@@ -1,6 +1,5 @@
 import { createEnv } from "@t3-oss/env-core";
-import process from "node:process";
-import * as z from "zod/v4";
+import * as z from "zod";
 
 export const env = createEnv({
   server: {
@@ -9,10 +8,10 @@ export const env = createEnv({
 
   clientPrefix: "VITE_",
   client: {},
-  // runtimeEnv: process.env,
+  // runtimeEnv: Deno.env.toObject(),
   emptyStringAsUndefined: true,
 
   runtimeEnvStrict: {
-    DATABASE_URL: process.env.DATABASE_URL,
+    DATABASE_URL: Deno.env.get("DATABASE_URL"),
   },
 });

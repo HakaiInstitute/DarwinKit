@@ -25,52 +25,31 @@
   // Language-specific configurations
   "languages": {
     "TypeScript": {
-      // Use Prettier as the formatter for TypeScript files
-      "formatter": {
-        "external": {
-          "command": "node_modules/.bin/prettier",
-          "arguments": [
-            "--stdin-filepath",
-            "{buffer_path}"
-          ]
-        }
-      },
-      // Run ESLint fixes and organize imports on format
+      // Use Deno's built-in formatter for TypeScript files
+      "formatter": "language_server",
+      // Run Deno fixes and organize imports on format
       "code_actions_on_format": {
-        "source.fixAll.eslint": true,
         "source.organizeImports": true
       },
-      // Use vtsls for better TypeScript support
-      "language_servers": ["vtsls", "eslint"]
+      // Use Deno language server for TypeScript support
+      "language_servers": ["deno", "!vtsls", "!typescript-language-server"]
     },
     "TSX": {
-      // Use Prettier as the formatter for TSX files
-      "formatter": {
-        "external": {
-          "command": "node_modules/.bin/prettier",
-          "arguments": [
-            "--stdin-filepath",
-            "{buffer_path}"
-          ]
-        }
-      },
-      // Run ESLint fixes and organize imports on format
+      // Use Deno's built-in formatter for TSX files
+      "formatter": "language_server",
+      // Run Deno fixes and organize imports on format
       "code_actions_on_format": {
-        "source.fixAll.eslint": true,
         "source.organizeImports": true
       },
-      // Use vtsls for better TypeScript support
-      "language_servers": ["vtsls", "eslint"]
+      // Use Deno language server for TSX support
+      "language_servers": ["deno", "!vtsls", "!typescript-language-server"]
     },
     "JavaScript": {
       // Use Prettier as the formatter for JavaScript files
       "formatter": {
         "external": {
           "command": "node_modules/.bin/prettier",
-          "arguments": [
-            "--stdin-filepath",
-            "{buffer_path}"
-          ]
+          "arguments": ["--stdin-filepath", "{buffer_path}"]
         }
       },
       // Run ESLint fixes on format

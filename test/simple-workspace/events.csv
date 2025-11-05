@@ -1,0 +1,4 @@
+eventID,country,countryCode,decimalLatitude,decimalLongitude,eventDate
+E001,Canada,CA,49.2827,-123.1207,2024-06-15
+E002,Canada,CA,49.2500,-123.1000,2024-06-16
+E003,Canada,CA,49.3000,-123.2000,2024-06-17

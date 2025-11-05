@@ -1,0 +1,141 @@
+/**
+ * Test Fixtures Validation
+ *
+ * Ensures that migrated test fixture configurations are valid and can be used
+ * by the validation system. These fixtures serve as test cases for various
+ * validation scenarios.
+ */
+
+import { assertEquals, assertExists } from "@std/assert";
+import * as Effect from "effect/Effect";
+import { WorkspaceConfigService } from "../packages/core/src/workspace/workspace-config-service.ts";
+
+Deno.test("Test fixtures - fc2022-complete config loads successfully", async () => {
+  const configPath = "./packages/cli/test-fixtures/valid-datasets/fc2022-complete";
+
+  // Test that config can be discovered and loaded
+  const result = await Effect.runPromise(
+    WorkspaceConfigService.discoverAndLoad(configPath),
+  );
+
+  assertExists(result);
+  assertExists(result.config);
+  assertExists(result.configPath);
+
+  // Verify structure
+  assertEquals(result.config.id, "fc2022-complete-test-fixture");
+  assertEquals(result.config.name, "FC2022 Marine Biodiversity Dataset");
+  assertEquals(result.config.datasets.length, 3);
+
+  // Verify datasets are present
+  const datasetNames = result.config.datasets.map((d) => d.name);
+  assertEquals(datasetNames.includes("event_data"), true);
+  assertEquals(datasetNames.includes("occurrence_data"), true);
+  assertEquals(datasetNames.includes("emof_data"), true);
+
+  // Verify specs are correct
+  const eventDataset = result.config.datasets.find((d) => d.name === "event_data");
+  assertExists(eventDataset);
+  assertEquals(eventDataset.spec, "dwc-event");
+
+  const occurrenceDataset = result.config.datasets.find((d) => d.name === "occurrence_data");
+  assertExists(occurrenceDataset);
+  assertEquals(occurrenceDataset.spec, "dwc-occurrence");
+
+  const emofDataset = result.config.datasets.find((d) => d.name === "emof_data");
+  assertExists(emofDataset);
+  assertEquals(emofDataset.spec, "dwc-extendedMeasurementOrFacts");
+
+  // Verify cross-dataset rules
+  assertEquals(result.config.crossDatasetRules?.length, 2);
+
+  console.log("\n✅ fc2022-complete config loaded successfully");
+  console.log(`   - ${result.config.datasets.length} datasets`);
+  console.log(`   - ${result.config.crossDatasetRules?.length} cross-dataset rules`);
+});
+
+Deno.test("Test fixtures - mixed-validity config loads successfully", async () => {
+  const configPath = "./packages/cli/test-fixtures/invalid-datasets/mixed-validity";
+
+  // Test that config can be discovered and loaded
+  const result = await Effect.runPromise(
+    WorkspaceConfigService.discoverAndLoad(configPath),
+  );
+
+  assertExists(result);
+  assertExists(result.config);
+
+  // Verify structure
+  assertEquals(result.config.id, "mixed-validity-test-fixture");
+  assertEquals(result.config.name, "Mixed Valid/Invalid Dataset");
+  assertEquals(result.config.datasets.length, 1);
+
+  // Verify dataset
+  const dataset = result.config.datasets[0];
+  assertEquals(dataset.name, "occurrence_data");
+  assertEquals(dataset.spec, "dwc-occurrence");
+  assertEquals(dataset.path, "data/mixed_occ.csv");
+
+  console.log("\n✅ mixed-validity config loaded successfully");
+  console.log(`   - Purpose: Test mixed valid/invalid records`);
+});
+
+Deno.test("Test fixtures - na-type-failures config loads successfully", async () => {
+  const configPath = "./packages/cli/test-fixtures/invalid-datasets/na-type-failures";
+
+  // Test that config can be discovered and loaded
+  const result = await Effect.runPromise(
+    WorkspaceConfigService.discoverAndLoad(configPath),
+  );
+
+  assertExists(result);
+  assertExists(result.config);
+
+  // Verify structure
+  assertEquals(result.config.id, "na-type-failures-test-fixture");
+  assertEquals(result.config.name, "Invalid Dataset - NA Type Failures");
+  assertEquals(result.config.datasets.length, 1);
+
+  // Verify validation settings - NA should NOT be in nullValues
+  assertEquals(result.config.validation.nullValues.includes("NA"), false);
+  assertEquals(result.config.validation.nullValues.includes("N/A"), false);
+  assertEquals(result.config.validation.nullValues.includes(""), true);
+  assertEquals(result.config.validation.nullValues.includes("NULL"), true);
+
+  console.log("\n✅ na-type-failures config loaded successfully");
+  console.log(`   - Purpose: Test NA values cause failures when not in nullValues`);
+  console.log(`   - nullValues: ${result.config.validation.nullValues.join(", ")}`);
+});
+
+Deno.test("Test fixtures - all configs use datasets array format", async () => {
+  const configs = [
+    "./packages/cli/test-fixtures/valid-datasets/fc2022-complete",
+    "./packages/cli/test-fixtures/invalid-datasets/mixed-validity",
+    "./packages/cli/test-fixtures/invalid-datasets/na-type-failures",
+  ];
+
+  for (const configPath of configs) {
+    const result = await Effect.runPromise(
+      WorkspaceConfigService.discoverAndLoad(configPath),
+    );
+
+    // Verify datasets is an array
+    assertEquals(Array.isArray(result.config.datasets), true);
+
+    // Verify each dataset has required fields
+    for (const dataset of result.config.datasets) {
+      assertExists(dataset.name, `Dataset should have name in ${configPath}`);
+      assertExists(dataset.spec, `Dataset should have spec in ${configPath}`);
+      assertExists(dataset.path, `Dataset should have path in ${configPath}`);
+      assertExists(dataset.fieldMappings, `Dataset should have fieldMappings in ${configPath}`);
+      assertEquals(
+        Array.isArray(dataset.fieldMappings),
+        true,
+        `fieldMappings should be array in ${configPath}`,
+      );
+    }
+  }
+
+  console.log("\n✅ All test fixture configs use datasets array format");
+  console.log(`   - Verified ${configs.length} configurations`);
+});

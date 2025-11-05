@@ -1,0 +1,144 @@
+{
+  "name": "Example Darwin Core Dataset",
+  "version": "1.0.0",
+  "description": "Example workspace configuration for validating Darwin Core datasets",
+  "validation": {
+    "nullValues": [
+      "",
+      "NA",
+      "N/A",
+      "NULL",
+      "null",
+      "n/a"
+    ],
+    "failFast": false,
+    "outputDir": "./validation_results"
+  },
+  "datasets": [
+    {
+      "name": "event_data",
+      "spec": "dwc-event",
+      "path": "./test/data/FC2022_event.csv",
+      "description": "Event data containing sampling locations and metadata",
+      "fieldMappings": [
+        {
+          "originName": "eventID",
+          "targetName": "eventID",
+          "isRequired": true
+        },
+        {
+          "originName": "country",
+          "targetName": "country",
+          "isRequired": true
+        },
+        {
+          "originName": "countryCode",
+          "targetName": "countryCode",
+          "isRequired": true
+        },
+        {
+          "originName": "decimalLatitude",
+          "targetName": "decimalLatitude"
+        },
+        {
+          "originName": "decimalLongitude",
+          "targetName": "decimalLongitude"
+        },
+        {
+          "originName": "eventDate",
+          "targetName": "eventDate"
+        },
+        {
+          "originName": "year",
+          "targetName": "year"
+        },
+        {
+          "originName": "month",
+          "targetName": "month"
+        },
+        {
+          "originName": "day",
+          "targetName": "day"
+        }
+      ]
+    },
+    {
+      "name": "occurrence_data",
+      "spec": "dwc-occurrence",
+      "path": "./test/data/FC2022_occ.csv",
+      "description": "Species occurrence records from eDNA analysis",
+      "fieldMappings": [
+        {
+          "originName": "eventID",
+          "targetName": "eventID",
+          "isRequired": true
+        },
+        {
+          "originName": "occurrenceID",
+          "targetName": "occurrenceID",
+          "isRequired": true
+        },
+        {
+          "originName": "basisOfRecord",
+          "targetName": "basisOfRecord",
+          "isRequired": true
+        },
+        {
+          "originName": "scientificName",
+          "targetName": "scientificName",
+          "isRequired": true
+        },
+        {
+          "originName": "scientificNameID",
+          "targetName": "scientificNameID"
+        },
+        {
+          "originName": "taxonRank",
+          "targetName": "taxonRank"
+        },
+        {
+          "originName": "kingdom",
+          "targetName": "kingdom"
+        },
+        {
+          "originName": "phylum",
+          "targetName": "phylum"
+        },
+        {
+          "originName": "class",
+          "targetName": "class"
+        },
+        {
+          "originName": "order",
+          "targetName": "order"
+        },
+        {
+          "originName": "family",
+          "targetName": "family"
+        },
+        {
+          "originName": "genus",
+          "targetName": "genus"
+        },
+        {
+          "originName": "occurrenceStatus",
+          "targetName": "occurrenceStatus"
+        },
+        {
+          "originName": "lifeStage",
+          "targetName": "lifeStage"
+        }
+      ]
+    }
+  ],
+  "crossDatasetRules": [
+    {
+      "ruleType": "foreignKey",
+      "sourceDataset": "occurrence_data",
+      "sourceField": "eventID",
+      "targetDataset": "event_data",
+      "targetField": "eventID",
+      "description": "Each occurrence must reference an existing event"
+    }
+  ]
+}

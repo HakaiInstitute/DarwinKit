@@ -1,0 +1,203 @@
+{
+  "name": "FC2022_occurrence_schema",
+  "version": "1.0",
+  "description": "Species occurrence records from eDNA analysis",
+
+  "fields": {
+    "eventID": {
+      "type": "VARCHAR",
+      "required": true,
+      "description": "Reference to the event"
+    },
+    "occurrenceID": {
+      "type": "VARCHAR",
+      "required": true,
+      "description": "Unique identifier for the occurrence"
+    },
+    "basisOfRecord": {
+      "type": "VARCHAR",
+      "required": true,
+      "description": "Basis of record",
+      "constraints": {
+        "allowedValues": [
+          "PreservedSpecimen",
+          "FossilSpecimen",
+          "LivingSpecimen",
+          "HumanObservation",
+          "MachineObservation",
+          "MaterialSample"
+        ]
+      }
+    },
+    "scientificName": {
+      "type": "VARCHAR",
+      "required": true,
+      "description": "Scientific name of the species"
+    },
+    "scientificNameID": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Identifier for the scientific name"
+    },
+    "taxonRank": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Taxonomic rank"
+    },
+    "scientificNameAuthorship": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Scientific name authorship"
+    },
+    "kingdom": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Kingdom classification"
+    },
+    "phylum": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Phylum classification"
+    },
+    "class": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Class classification"
+    },
+    "order": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Order classification"
+    },
+    "family": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Family classification"
+    },
+    "genus": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Genus classification"
+    },
+    "organismQuantity": {
+      "type": "DOUBLE",
+      "required": false,
+      "description": "Quantity of organisms",
+      "constraints": {
+        "minValue": 0
+      }
+    },
+    "organismQuantityType": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Type of quantity measurement"
+    },
+    "sampleSizeValue": {
+      "type": "DOUBLE",
+      "required": false,
+      "description": "Sample size value",
+      "constraints": {
+        "minValue": 0
+      }
+    },
+    "sampleSizeUnit": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Unit of sample size"
+    },
+    "verbatimIdentification": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Identification as originally recorded"
+    },
+    "samplingProtocol": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Sampling protocol used"
+    },
+    "associatedSequences": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Associated sequence data"
+    },
+    "identificationRemarks": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Remarks about identification"
+    },
+    "materialSampleID": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Material sample identifier"
+    },
+    "occurrenceStatus": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Occurrence status",
+      "constraints": {
+        "allowedValues": ["present", "absent"]
+      }
+    },
+    "identificationQualifier": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Qualification of identification"
+    },
+    "recordNumber": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Record number"
+    },
+    "catalogNumber": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Catalog number"
+    },
+    "subfamily": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Subfamily classification"
+    },
+    "tribe": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Tribe classification"
+    },
+    "identifiedBy": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Person who identified the specimen"
+    },
+    "lifeStage": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Life stage of organism",
+      "constraints": {
+        "allowedValues": ["adult", "juvenile", "larva", "embryo", "zygote", "egg", "nymph", "pupa"]
+      }
+    },
+    "organismRemarks": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Remarks about the organism"
+    },
+    "typeStatus": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Type status"
+    },
+    "recordedBy": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Person who recorded the specimen"
+    }
+  },
+
+  "darwinCore": {
+    "requiredFields": ["eventID", "occurrenceID", "basisOfRecord", "scientificName"],
+    "vocabularyValidation": {
+      "enabled": true,
+      "strictMode": false
+    }
+  }
+}

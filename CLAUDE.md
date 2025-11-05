@@ -4,191 +4,391 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-- **Development server**: `pnpm dev` - Starts the Vinxi development server
-- **Build**: `pnpm build` - Creates production build using Vinxi
-- **Start production**: `pnpm start` - Starts the production server
-- **Testing**: `pnpm test` - Runs the comprehensive test suite using Vitest
-- **Linting**: `pnpm lint` - Runs ESLint on JS/JSX/TS/TSX files
-- **Database schema push**: `pnpm drizzle:push` - Pushes schema changes to database
-- **Database studio**: `pnpm drizzle:studio` - Opens Drizzle Studio for database management
+- **Development (all)**: `deno task dev` - Starts both API server (port 3001) and GUI (port 3000)
+- **API server only**: `deno task dev:api` - Starts just the API server
+- **GUI server only**: `deno task dev:gui` - Starts just the GUI development server
+- **CLI**: `deno task dev:cli` - Run CLI commands interactively
+- **Build**: `deno task build` - Creates production build of GUI
+- **Preview**: `deno task preview` - Serves production build
+- **Testing**: `deno test` - Runs comprehensive test suite
+- **Linting**: `deno lint` - Lints TypeScript files
+- **Formatting**: `deno fmt` - Formats code according to Deno standards
+- **E2E Testing**: `deno task test:e2e` - Runs Playwright end-to-end tests
+- **Database schema push**: `deno task drizzle:push` - Pushes schema changes to database
+- **Database studio**: `deno task drizzle:studio` - Opens Drizzle Studio for database management
 
 ## Architecture Overview
 
-DarwinKit is a full-stack TypeScript application for mapping tabular biodiversity data to the Darwin Core standard. The application has three core components: mapping, transforming, and validating biodiversity data through declarative configuration.
+DarwinKit is a modular TypeScript application organized as a Deno workspace for mapping tabular biodiversity data to the Darwin Core standard. The application has five core packages that work together to provide mapping, transforming, and validating biodiversity data.
 
 ### Tech Stack
-- **Framework**: TanStack Start (React-based full-stack framework)
-- **Build Tool**: Vinxi
-- **Database**: PostgreSQL with Drizzle ORM
-- **API Layer**: tRPC for type-safe client-server communication
-- **State Management**: XState for complex state machines, React Query for server state
-- **UI**: Tailwind CSS + Headless UI components
-- **Forms**: TanStack React Form with Zod validation
-- **Routing**: TanStack React Router
+
+- **Runtime**: Deno 2.0+ with workspace support
+- **CLI**: Cliffy CLI with Effect for data, schema, and error handling
+- **Validation**: Effect Data and Schema with custom biodiversity validators
+- **Testing**: Deno test runner with Playwright for E2E
+- **THE FOLLOWING CURRENTLY UNIMPLEMENTED:**
+  - **Backend**: Hono web framework with Effect for functional error handling
+  - **Database**: PostgreSQL with Drizzle ORM, DuckDB for CSV analysis
+  - **Frontend**: React with Vite, TanStack Router, and TanStack Query
+  - **UI**: Tailwind CSS + Headless UI components
+  - **Forms**: TanStack React Form
 
 ### Project Structure
 
 ```
-app/
-├── client/          # Frontend React application
-│   ├── routes/      # File-based routing with TanStack Router
-│   ├── components/  # Reusable UI components (using Headless UI)
-│   ├── machine/     # XState state machines
-│   ├── hooks/       # Custom React hooks
-│   └── schemas/     # Zod validation schemas
-├── server/          # Backend server code
-│   ├── db/          # Database schema and configuration
-│   └── router.ts    # tRPC router with API endpoints
-├── util/            # DEPRECATED - Consolidated into lib/ (see app/util/README.md)
-lib/                 # Core validation and transformation libraries
-├── validations.ts          # Dataset-aware validation functions  
-├── validation-executor.ts  # Validation pipeline execution engine
-├── transformations.ts      # Data transformation functions
-├── transformation-executor.ts # Transformation pipeline executor
-├── integrated-*.ts         # Unified pipeline configuration and execution
-├── vocabulary-service.ts   # Database-backed vocabulary functionality
-├── zAsyncIterable.ts       # tRPC async iterable utilities
-└── README.md              # Library documentation
-demo/                # Working demonstrations and examples
-├── dataset-validation-demo.ts # Dataset-aware validation examples
-├── integrated-demo.ts      # Complete pipeline demonstration
-└── validation-demo.ts      # Comprehensive validation examples
-test/                # Comprehensive test suite
-├── validations.test.ts     # Core validation function tests (36 tests)
-├── validation-executor.test.ts # Validation executor tests (13 tests)
-├── worms-validation.test.ts # WoRMS taxonomic validation scenarios (9 tests)
-└── *.test.ts              # Additional test files
+packages/
+├── domain/          # Domain layer: types, schemas, and business rules
+│   ├── types/       # TypeScript interfaces and type definitions
+│   ├── schemas/     # Effect validation schemas
+│   ├── errors/      # Error codes and error type definitions
+│   ├── specs/       # Darwin Core field definitions and validation profiles
+│   └── constants/   # Darwin Core vocabularies and constants
+│
+├── core/            # Core functionality: workspace operations, validation, transformation
+│   ├── workspace/   # Workspace management with file system operations
+│   ├── parsing/     # CSV parsing using DuckDB for schema inference
+│   ├── validation/  # DuckDB-powered validation operations
+│   └── database/    # PostgreSQL client and database utilities
+│
+├── cli/             # Command-line interface
+│   ├── commands/    # CLI commands for workspace management
+│   └── formatters/  # Terminal output formatting utilities
+│
+├── api/             # HTTP API server (Hono-based)
+│   └── routes/      # API routes for workspaces, authentication
+│
+└── gui/             # Web interface (React + Vite)
+    ├── components/  # Reusable React components
+    ├── routes/      # Frontend routes using TanStack Router
+    ├── hooks/       # Custom React hooks for API integration
+    └── api/         # HTTP client for API communication
 ```
 
-### Database Schema
-Uses Drizzle ORM with PostgreSQL. Key entities:
-- **Users**: Basic user authentication
-- **Projects**: User-owned projects containing multiple files
-- **Source Files**: CSV/tabular data files within projects
+### Package Architecture
+
+**Workspace Dependencies:**
+
+- **@dwkt/domain** - Domain layer: types, schemas, field definitions, business rules (lightweight, no heavy dependencies)
+- **@dwkt/core** - Core functionality: workspace operations, validation, transformation (uses DuckDB for data operations)
+- **@dwkt/cli** - Command-line interface (imports domain + core)
+- **@dwkt/api** - HTTP server (imports domain + core)
+- **@dwkt/gui** - Web interface (imports domain only, talks to API via HTTP)
+
+**Data Storage:**
+
+- **File-based workspaces** - Each workspace stored as JSON files with parsed CSV metadata
+- **PostgreSQL** - User authentication and project organization (optional)
+- **DuckDB** - Schema inference and CSV parsing for data analysis
 
 ### API Architecture
-tRPC provides end-to-end type safety between client and server:
-- All API calls are defined in `app/server/router.ts`
-- Client-side tRPC setup in `app/client/trpc.ts`
-- Automatic type inference for request/response data
+
+Hono-based HTTP API with Effect Schema validation:
+
+- RESTful routes defined in `packages/api/src/routes/`
+- Domain schemas ensure type safety between client and server
+- Effect library provides functional error handling throughout the stack
 
 ### State Management
-- **Server State**: React Query (via tRPC) for API data
-- **Complex Local State**: XState machines for multi-step workflows
-- **Form State**: TanStack React Form with Zod validation
+
+- **Server State**: TanStack Query for HTTP API calls and caching
+- **Form State**: TanStack React Form with Effect Schema validation
+- **Local State**: React hooks and context for UI state
 
 ### Key Development Patterns
-- File-based routing with route-level code splitting
-- Strict TypeScript with Zod schema validation
-- Database-first approach with Drizzle schema generation
-- Component composition using Headless UI primitives
+
+- **Workspace modularity** - Each package has a specific, well-defined responsibility
+- **Domain-driven design** - Business rules and schemas in domain layer, implementations in core
+- **Type safety** - Effect schemas ensure consistency across packages
+- **Clean architecture** - Domain logic separated from infrastructure (DuckDB, file system)
+- **Effect-based error handling** - Functional approach to error management
+- **File-based routing** - TanStack Router for type-safe frontend routing
+- **Component composition** - Headless UI primitives for consistent design
 
 ### Environment Setup
-Requires `DATABASE_URL` environment variable for PostgreSQL connection. Environment validation handled by `@t3-oss/env-core` in `env.ts`.
+
+- **Deno 2.0+** required for workspace support
+- **PostgreSQL** optional for user authentication (workspace functionality works without it)
+- **No package installation** - Deno handles dependencies automatically
 
 ### Core Workflow
-1. Users create projects to organize their biodiversity datasets
-2. Upload CSV files to projects for processing
-3. Configure mapping between source columns and Darwin Core fields
-4. Apply transformations to normalize data formats
-5. Validate transformed data against Darwin Core standards
 
-## Validation System
+1. **Create workspaces** from CSV files with automatic schema inference
+2. **Analyze data structure** using DuckDB for type detection and sampling
+3. **Configure mappings** between source columns and Darwin Core fields
+4. **Apply transformations** to normalize data formats
+5. **Validate data quality** against Darwin Core standards and controlled vocabularies
 
-DarwinKit includes a comprehensive, dataset-aware validation system designed for biodiversity data quality assurance.
+## Workspace System
 
-### Core Validation Capabilities
+DarwinKit's core functionality revolves around **workspaces** - self-contained environments for processing biodiversity datasets.
 
-**Basic Validations:**
-- **Controlled vocabularies** with strict/loose modes and synonym matching
-- **Data type validation** (string, number, boolean, date, integer) with type coercion
-- **Date range validation** with future date restrictions and min/max date constraints
-- **Coordinate validation** with proper latitude/longitude range checking
-- **Pattern validation** using regular expressions
-- **Range and length validation** for numeric and string data
-- **Required field validation** with configurable empty value handling
+### Workspace Features
 
-**Dataset-Aware Validations:**
-- **Uniqueness validation** - Detects duplicate values across entire datasets
-- **Referential integrity** - Validates foreign key relationships within datasets
-- **Cross-row consistency** - Ensures related records have consistent values
-- **Sequential order validation** - Validates chronological or ordered data sequences
+**File Analysis:**
 
-### WoRMS Integration Support
+- **Schema inference** - Automatically detects column types using DuckDB
+- **Sample data** - Extracts representative values for each field
+- **Metadata tracking** - Records parsing time, file format, and row counts
+- **Darwin Core mapping** - Tools for mapping source columns to standard fields
 
-The validation system is architected to support taxonomic validation against external registries:
+**Data Validation:**
 
-- **Scientific Name ID validation** against WoRMS (World Register of Marine Species)
-- **Taxonomic consistency checks** across related fields (kingdom, family, genus, etc.)
-- **Field dependency validation** ensuring taxonomic fields match authoritative records
-- **Extensible architecture** for additional taxonomic registries
+- **Type validation** - Ensures data matches expected formats (dates, coordinates, etc.)
+- **Controlled vocabularies** - Validates against Darwin Core standard terms
+- **Referential integrity** - Checks relationships between related fields
+- **Custom rules** - Biodiversity-specific validation logic
 
-### Testing & Quality Assurance
+**Workspace Storage:**
 
-**Comprehensive Test Suite:**
-- 63 tests across 8 test files covering all validation scenarios
-- Dataset-aware validation context testing
-- WoRMS-specific validation scenarios
-- Validation executor pipeline testing
-- Error handling and edge case coverage
-
-**Key Test Files:**
-- `test/validations.test.ts` - Core validation functions (36 tests)
-- `test/validation-executor.test.ts` - Pipeline execution (13 tests) 
-- `test/worms-validation.test.ts` - Taxonomic validation scenarios (9 tests)
+- **File-based** - Each workspace stored as structured JSON files
+- **Portable** - Workspaces can be shared and moved between systems
+- **Incremental** - Sample data and metadata cached for performance
 
 ### Usage Patterns
 
-**Standalone Validation:**
-```typescript
-import { validateControlledVocabulary, executeValidation } from './lib/validations.js';
+**CLI Workspace Management:**
 
-const result = validateControlledVocabulary('male', {
-  vocabularyName: 'sex',
-  vocabularies: mockVocabularies
+```bash
+# Create workspace from CSV
+deno task dev:cli workspace create "Marine Survey 2024" ./survey-data.csv
+
+# List all workspaces
+deno task dev:cli workspace list
+
+# Show workspace details
+deno task dev:cli workspace show <workspace-id>
+```
+
+**API Access:**
+
+```typescript
+// Create workspace via API
+const response = await fetch("http://localhost:3001/workspaces", {
+  method: "POST",
+  body: JSON.stringify({
+    name: "Marine Survey 2024",
+    filePath: "./survey-data.csv",
+  }),
 });
 ```
 
-**Dataset-Aware Validation:**
-```typescript
-import { executeDatasetValidationWithContext } from './lib/validation-executor.js';
+**Programmatic Usage:**
 
-const results = executeDatasetValidationWithContext(dataset, validationConfig);
+```typescript
+import { WorkspaceService } from "@dwkt/core";
+
+const service = new WorkspaceService();
+const result = await Effect.runPromise(
+  service.createFromFile({
+    name: "Marine Survey 2024",
+    filePath: "./survey-data.csv",
+  }),
+);
 ```
 
-**Integrated Pipeline:**
-```typescript
-import { executeIntegratedPipeline } from './lib/integrated-executor.js';
+## Config-Based Validation
 
-const results = executeIntegratedPipeline(sourceData, integratedConfig);
+DarwinKit supports configuration-driven validation for multi-dataset projects using `darwinkit.json` files.
+
+### Configuration Format
+
+```json
+{
+  "name": "Marine Biodiversity Dataset",
+  "version": "1.0.0",
+  "description": "Survey data validation configuration",
+
+  "validation": {
+    "nullValues": ["NA", "N/A", "", "NULL", "null"],
+    "failFast": false,
+    "outputDir": "./validation_results"
+  },
+
+  "datasets": [
+    {
+      "name": "event_data",
+      "spec": "dwc-event",
+      "path": "../data/FC2022_event.csv",
+      "description": "Sampling events",
+
+      "fieldMappings": [
+        {"originName": "eventID", "targetName": "eventID", "isRequired": true},
+        {"originName": "country", "targetName": "country", "isRequired": true}
+      ]
+    }
+  ],
+
+  "crossDatasetRules": [
+    {
+      "ruleType": "foreignKey",
+      "sourceDataset": "occurrence_data",
+      "sourceField": "eventID",
+      "targetDataset": "event_data",
+      "targetField": "eventID"
+    }
+  ]
+}
+```
+
+### CLI Validation Workflow
+
+```bash
+# Auto-discover darwinkit.json in current or parent directories
+deno task dev:cli validate
+
+# Specify config directory
+deno task dev:cli validate --config /path/to/workspace
+
+# Output results as JSON
+deno task dev:cli validate --format json
+```
+
+### Validation Features
+
+- **Field Mappings** - Map CSV columns to Darwin Core fields, leveraging the Darwin Core specification registry
+- **Cross-Dataset Rules** - Enforce referential integrity across multiple CSV files (foreign keys)
+- **Controlled Vocabularies** - Automatic validation against Darwin Core controlled vocabularies
+- **Type Validation** - Ensures dates, coordinates, and other typed fields match expected formats
+- **Range Constraints** - Validates numeric values are within valid ranges (e.g., latitude -90 to +90)
+- **Uniqueness Validation** - Detects duplicate identifiers across datasets
+
+### Programmatic Validation
+
+```typescript
+import { WorkspaceValidator } from "@dwkt/core";
+
+const validator = new WorkspaceValidator();
+const result = await Effect.runPromise(
+  validator.validateFromConfig("./path/to/darwinkit.json")
+);
+```
+
+### Example Configuration
+
+A working example configuration is available at `test/example-config/darwinkit.json` with corresponding test data in `test/data/`. This example uses real marine biodiversity survey data (FC2022) and demonstrates:
+
+- Multi-dataset validation (events + occurrences)
+- Field mappings to Darwin Core
+- Cross-dataset foreign key validation
+- Date/temporal field validation (year, month, day, eventDate)
+- Geographic coordinate validation
+- Controlled vocabulary validation
+- Uniqueness constraint checking
+
+Run the example test to see validation output:
+```bash
+deno test test/example-config.test.ts --allow-all
+```
+
+For a focused example of date validation:
+```bash
+deno test test/date-validation.test.ts --allow-all
 ```
 
 ## Development Guidelines
 
-### Key Development Patterns
-- File-based routing with route-level code splitting
-- Strict TypeScript with comprehensive type safety
-- Dataset-aware validation with full context access
-- Modular validation functions that can work in isolation or as pipelines
-- Database-first approach with Drizzle schema generation
-- Component composition using Headless UI primitives
+### Error Handling with Effect
+
+DarwinKit uses Effect's two-error-types model to distinguish between expected and unexpected errors:
+
+**Expected Errors (Effect.fail)** - Recoverable domain errors:
+- File not found (user-provided paths)
+- Invalid CSV data
+- Workspace not found
+- Validation failures (field mappings, Darwin Core violations)
+- Configuration errors
+
+```typescript
+// Example: User-provided file not found
+yield* _(
+  Effect.tryPromise({
+    try: () => fs.access(userFilePath),
+    catch: () => new ParseError({
+      message: `File not found: ${userFilePath}`,
+      code: ErrorCode.FILE_NOT_FOUND,
+    })
+  })
+);
+```
+
+**Unexpected Errors / Defects (Effect.die)** - System failures:
+- Database connection failures
+- Infrastructure queries (schema, row count)
+- File operations on our workspace directories
+- JSON parsing failures on self-generated data
+- Programming assertions
+
+```typescript
+// Example: Infrastructure query should always work
+const schema = yield* _(
+  Effect.tryPromise(() => connection.runAndReadAll(schemaQuery)).pipe(
+    Effect.orDie  // Query failure is a defect, not a user error
+  )
+);
+```
+
+**Decision Framework:**
+- Can the user fix this? → Expected error (Effect.fail)
+- Is this a system failure or bug? → Defect (Effect.die)
+- Is this normal program flow? → Expected error
+- Would this indicate a programming error? → Defect
+
+See `docs/error-handling-guide.md` for comprehensive guidelines.
+
+### Workspace Development Patterns
+
+- **Package-first design** - Choose the appropriate package for new functionality
+- **Domain-first types** - Define interfaces and schemas in `@dwkt/domain` for cross-package consistency
+- **Effect-based errors** - Use Effect library for functional error handling in core business logic
+- **File-based routing** - TanStack Router provides type-safe navigation in the GUI
+- **API-first integration** - GUI communicates with backend only via HTTP API
+
+### Package Guidelines
+
+**@dwkt/domain:**
+
+- Domain layer containing business rules, types, and schemas
+- Effect schemas for validation
+- Darwin Core field definitions and validation profiles
+- Lightweight, no heavy dependencies (no DuckDB, no native modules)
+- Must work in both browser and Node.js environments
+
+**@dwkt/core:**
+
+- Core DarwinKit functionality: workspace operations, validation, transformation, mapping
+- Uses DuckDB for data operations and CSV analysis
+- Effect-based error handling and functional patterns
+- File system operations and external service integrations
+- Can import from @dwkt/domain
+
+**@dwkt/gui:**
+
+- React components and frontend logic
+- Only imports from @dwkt/domain (never from core)
+- Communicates with backend via HTTP API calls
+- Uses TanStack Query for state management
 
 ### Testing Requirements
-- All validation functions must have comprehensive test coverage
-- Dataset-aware validations require context testing
-- WoRMS and taxonomic scenarios need specific test cases
-- Pipeline execution must be tested end-to-end
-- Error handling and edge cases must be covered
+
+- `deno test` runs all package tests from workspace root
+- Each package should have comprehensive test coverage
+- E2E tests using Playwright for full workflow testing
+- Test both individual package functionality and cross-package integration
 
 ### Code Quality Standards
-- Run `pnpm test` before committing changes
-- Ensure `pnpm lint` passes without errors
-- Follow existing patterns for validation function implementation
+
+- Run `deno test` before committing changes
+- Ensure `deno lint` and `deno fmt` pass without errors
+- Follow existing patterns within each package
 - Use TypeScript strictly - avoid `any` types
-- Document complex validation logic and WoRMS integration patterns
+- Document workspace-specific functionality and cross-package interactions
 
 ### Code Organization
-- **New functionality goes in `lib/`** - The core library directory for all validation, transformation, and utility functions
-- **`app/util/` is deprecated** - Has been consolidated into `lib/` for better organization (see `app/util/README.md` for migration details)
-- **Use `demo/` for examples** - Working demonstrations and test cases go in the demo directory
-- **Comprehensive testing in `test/`** - All functionality must have corresponding test coverage
+
+- **Domain types and schemas** go in `packages/domain/src/types/` and `packages/domain/src/schemas/`
+- **Darwin Core specifications** go in `packages/domain/src/specs/`
+- **Business logic implementations** go in `packages/core/src/`
+- **API endpoints** go in `packages/api/src/routes/`
+- **UI components** go in `packages/gui/src/components/`
+- **CLI commands** go in `packages/cli/src/commands/`
