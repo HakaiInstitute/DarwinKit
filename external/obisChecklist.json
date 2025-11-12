@@ -1,0 +1,2022 @@
+[
+  {
+    "Term": "eventDate",
+    "OBIS Required": "required",
+    "Term's DarwinCore Class": "�event",
+    "Event Table": "�x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "eventID",
+    "OBIS Required": "required",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "",
+    "Occurrence Extension": "x",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "decimalLatitude",
+    "OBIS Required": "required",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "decimalLongitude",
+    "OBIS Required": "required",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "occurrenceID",
+    "OBIS Required": "required",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "x",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "occurrenceStatus",
+    "OBIS Required": "required",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "basisOfRecord",
+    "OBIS Required": "required",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "scientificName",
+    "OBIS Required": "required",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "scientificNameID",
+    "OBIS Required": "�strongly recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "DNA_sequence",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "env_broad_scale",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "env_local scale",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "env_medium",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "lib_layout",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "nucl_acid_amp",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "nucl_acid_ext",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "otu_class_appr",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "otu_db",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "otu_seq_comp_appr",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "pcr_primer_forward",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "pcr_primer_name_forward",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "pcr_primer_name_reverse",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "pcr_primer_reference",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "�",
+    "Occurrence Extension": "",
+    "eMoF Table": "",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "pcr_primer_reverse",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "samp_name",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "samp_vol_we_dna_ext",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "seq_meth",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "sop",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "target_gene",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "target_subfragment",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "dna",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "x"
+  },
+  {
+    "Term": "day",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "endDayOfYear",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "eventType",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "eventRemarks",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "eventTime",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "fieldNotes",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "fieldNumber",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "habitat",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "month",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "parentEventID",
+    "OBIS Required": "required (if exists)",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "�",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": ""
+  },
+  {
+    "Term": "sampleSizeUnit",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x1",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "�",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "sampleSizeValue",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x1",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "�",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "samplingEffort",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x1",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "�",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "samplingProtocol",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x1",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "�",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "startDayOfYear",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimEventDate",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "year",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "event",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "bed",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "earliestAgeOrLowestStage",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "earliestEonOrLowestEonothem",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "earliestEpochOrLowestSeries",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "earliestEraOrLowestErathem",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "earliestPeriodOrLowestSystem",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "formation",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "group",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "highestBiostratigraphicZone",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "latestAgeOrHighestStage",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "latestEonOrHighestEonothem",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "latestEpochOrHighestSeries",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "latestEraOrHighestErathem",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "latestPeriodOrHighestSystem",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "lithostratigraphicTerms",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "lowestBiostratigraphicZone",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "member",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "geologicalContext",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "dateIdentified",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "identificationID",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "identificationQualifier",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "identificationReferences",
+    "OBIS Required": "optional (required for imaging data)",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "identificationRemarks",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "identificationVerificationStatus",
+    "OBIS Required": "optional (required for imaging data)",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "identifiedBy",
+    "OBIS Required": "optional (required for imaging data)",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "identifiedByID",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "typeStatus",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "continent",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "coordinatePrecision",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "coordinateUncertaintyInMeters",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "country",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "countryCode",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "county",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "footprintSpatialFit",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "footprintSRS",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "footprintWKT",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "geodeticDatum",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "georeferencedBy",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "georeferencedDate",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "georeferenceProtocol",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "georeferenceSources",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "higherGeography",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "higherGeographyID",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "island",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "islandGroup",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "locality",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "locationAccordingTo",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "locationID",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "locationRemarks",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "maximumDepthInMeters",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "maximumDistanceAboveSurfaceInMeters",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "maximumElevationInMeters",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "minimumDepthInMeters",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "minimumDistanceAboveSurfaceInMeters",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "minimumElevationInMeters",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "municipality",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "pointRadiusSpatialFit",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "stateProvince",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimCoordinates",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimCoordinateSystem",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimDepth",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimElevation",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimLatitude",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimLocality",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimLongitude",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimSRS",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "waterBody",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "location",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "materialSampleID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "materialSample",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementAccuracy",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementDeterminedBy",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementDeterminedDate",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementMethod",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementRemarks",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementType",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementTypeID",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementUnit",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementUnitID",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementValue",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "measurementValueID",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "measurementOrFact",
+    "Event Table": "�",
+    "Occurrence Core": "",
+    "Occurrence Extension": "",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "associatedMedia",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "associatedReferences",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "associatedSequences",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "associatedTaxa",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "behavior",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "x1",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "catalogNumber",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "disposition",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "establishmentMeans",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "georeferenceVerificationStatus",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "organismQuantity (preferred over individualCount)",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "x1",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "organismQuantityType (preferred over individualCount)",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "x1",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "individualCount",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "x1",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "lifeStage",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "x1",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "occurrenceRemarks",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "otherCatalogNumbers",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "preparations",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "recordedBy",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "recordedByID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "recordNumber",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "reproductiveCondition",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "x1",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "sex",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "occurrence",
+    "Event Table": "�",
+    "Occurrence Core": "x1",
+    "Occurrence Extension": "x1",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "associatedOccurrences",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "organsim",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "associatedOrganisms",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "organsim",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "organismID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "organsim",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "organismName",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "organsim",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "organismRemarks",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "organsim",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "organismScope",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "organsim",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "previousIdentifications",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "organsim",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "accessRights",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "bibliographicCitation",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "�",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "collectionCode",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "collectionID",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "dataGeneralizations",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "datasetID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "datasetName",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "dynamicProperties",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "informationWithheld",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "institutionCode",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "institutionID",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "language",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "license",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "modified",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "ownerInstitutionCode",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "references",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "rightsHolder",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "type",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "record",
+    "Event Table": "x",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "x",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "acceptedNameUsage",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "acceptedNameUsageID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "higherClassification",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "infraspecificEpithet",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "nameAccordingToID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "namePublishedInID",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "namePublishedInYear",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "nomenclaturalCode",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "nomenclaturalStatus",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimIdentification",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "identification",
+    "Event Table": "",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "",
+    "DNA Table �": ""
+  },
+  {
+    "Term": "originalNameUsage",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "originalNameUsageID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "parentNameUsage",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "parentNameUsageID",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "phylum",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "scientificNameAuthorship",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "specificEpithet",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "subgenus",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "taxonConceptID",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "taxonID",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "taxonomicStatus",
+    "OBIS Required": "optional",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "taxonRank",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "taxonRemarks",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "verbatimTaxonRank",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "vernacularName",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "class",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "family",
+    "OBIS Required": "recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "genus",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "kingdom",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  },
+  {
+    "Term": "order",
+    "OBIS Required": "strongly recommended",
+    "Term's DarwinCore Class": "taxon",
+    "Event Table": "�",
+    "Occurrence Core": "x",
+    "Occurrence Extension": "x",
+    "eMoF Table": "�",
+    "DNA Table �": "�"
+  }
+]

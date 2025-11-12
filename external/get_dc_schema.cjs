@@ -1,5 +1,7 @@
 const fs = require('fs');
 const txml = require('txml');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const csv = require('csvtojson');
 
 // Read the XML file content
 const exMoFxml = './external/rs_gbif/extension/obis/extended_measurement_or_fact_2023-08-28.xml';
@@ -8,6 +10,7 @@ const occurrenceXml = './external/rs_gbif/core/dwc_occurrence_2025-07-10.xml';
 const taxonXml = './external/rs_gbif/core/dwc_taxon_2025-07-10.xml';
 const DNAXml = './external/rs_gbif/extension/gbif/1.0/dna_derived_data_2024-07-11.xml';
 
+const obisChecklistUrl = 'https://raw.githubusercontent.com/iobis/manual/master/docs/OBIS-termchecklist.csv';
 
 const xmlThesaurusToJson = (inputID) => {
 
@@ -41,7 +44,8 @@ const xmlThesaurusToJson = (inputID) => {
     return simplifiedJson.thesaurus
 }
 
-const xmlSchemaToJson = (filePath,group) => {
+const xmlSchemaToJson = (filePath,options) => {
+    const { group, idFieldName } = options;
     console.log(`Reading Schema file ${filePath}`,)
 
     const inputXML = fs.readFileSync(filePath, 'utf8');
@@ -54,10 +58,14 @@ const xmlSchemaToJson = (filePath,group) => {
 
     simplifiedJson.extension[0].property = 
         simplifiedJson.extension[0].property.reduce((acc, prop) => {
-            const { name, thesaurus, ...rest } = prop._attributes;
+            const { name, thesaurus, required, "group": propGroup, ...rest } = prop._attributes;
+            let unique = "false";
+            if (name == idFieldName){
+                unique = "true";
+            }
             let collection = {
                 ...acc,
-                [name]: {...rest}
+                [name]: { "group": propGroup, ...rest, "gbif_required": required, unique }
             }
             if (group){
                 collection[name].group = group;
@@ -81,16 +89,42 @@ const xmlSchemaToJson = (filePath,group) => {
     return simplifiedJson.extension;
 }
 
-exMoFjson = xmlSchemaToJson(exMoFxml, 'ExtMoF');
-eventJson = xmlSchemaToJson(eventXml);
-occurrenceJson = xmlSchemaToJson(occurrenceXml);
-taxonJson = xmlSchemaToJson(taxonXml);
-DNAJson = xmlSchemaToJson(DNAXml, 'DnaDD');
 
-schemaJson = {...exMoFjson, ...eventJson, ...occurrenceJson, ...taxonJson};
+async function main() {
 
-// Log the JSON output to the console
-// console.log(JSON.stringify(schemaJson, null, 2));
+    exMoFjson = xmlSchemaToJson(exMoFxml, { group: 'ExtendedMeasurementOrFact', idFieldName:"measurementID"});
+    eventJson = xmlSchemaToJson(eventXml, { idFieldName:"eventID"});
+    occurrenceJson = xmlSchemaToJson(occurrenceXml, { idFieldName:"occurrenceID"});
+    taxonJson = xmlSchemaToJson(taxonXml, { idFieldName:"taxonID"});
+    DNAJson = xmlSchemaToJson(DNAXml, { group: 'dnaDerivedData', idFieldName:"samp_name"});
 
-fs.writeFileSync("./external/dwcSchema.json", JSON.stringify(schemaJson, null, 2));
+    const schemaJson = { ...exMoFjson, ...eventJson, ...occurrenceJson, ...taxonJson, ...DNAJson };
 
+    console.log('Fetching OBIS checklist...');
+    const response = await fetch(obisChecklistUrl);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ${obisChecklistUrl}: ${response.statusText}`);
+    }
+    const csvText = await response.text();
+    const obisChecklist = await csv().fromString(csvText);
+
+    fs.writeFileSync("./external/obisChecklist.json", JSON.stringify(obisChecklist, null, 2));
+
+    console.log('Joining OBIS checklist with schema...');
+    obisChecklist.forEach(item => {
+        const term = item.Term;
+        Object.keys(schemaJson).forEach(key => {
+            const table = schemaJson[key];
+            if (table.property[term]) {
+                table.property[term] = { ...table.property[term], "obis_required": item["OBIS Required"] };
+            }
+        })
+    });
+
+    // Log the JSON output to the console
+    // console.log(JSON.stringify(schemaJson, null, 2));
+    fs.writeFileSync("./external/dwcSchema.json", JSON.stringify(schemaJson, null, 2));
+    console.log('Schema with OBIS checklist written to ./external/dwcSchema.json');
+}
+
+main().catch(console.error);
