@@ -1,3 +1,8 @@
+// Convert Darwin Core xml schemas to json
+//
+// Run from the repo root:
+//  deno run external/get_dc_schema.cjs
+//
 const fs = require('fs');
 const txml = require('txml');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
@@ -12,6 +17,8 @@ const DNAXml = './external/rs_gbif/extension/gbif/1.0/dna_derived_data_2024-07-1
 
 const obisChecklistUrl = 'https://raw.githubusercontent.com/iobis/manual/master/docs/OBIS-termchecklist.csv';
 
+// map thesaurus urls to local files, parse out their values, and return the new array to be 
+// added to the relevent schema field
 const xmlThesaurusToJson = (inputID) => {
 
     thesaurusPath = inputID.replace('http://rs.gbif.org/', './external/rs_gbif/').replace('https://rs.gbif.org/', './external/rs_gbif/');
@@ -23,13 +30,16 @@ const xmlThesaurusToJson = (inputID) => {
     simplifiedJson.thesaurus[0].concept = simplifiedJson.thesaurus[0].concept.reduce((acc, concept) => {
         const { _attributes, preferred, alternative, } = concept;
         AltRepresentations = []
+        // Each value has a perfered and alternative in multiple languages. The number of languages are not 
+        // consistent and may not contain an english version
         preferred?.forEach(alt => {
             AltRepresentations = AltRepresentations.concat(alt.term?.filter(term => term._attributes["xml:lang"] === 'en'));
         });
         alternative?.forEach(alt => {
             AltRepresentations = AltRepresentations.concat(alt.term?.filter(term => term._attributes["xml:lang"] === 'en'));
         });
-        AltRepresentations = AltRepresentations.map(alt => alt?._attributes["dc:title"]);
+        // some alternatives are empty lists  so when geting dc:title we need to filter out nulls 
+        AltRepresentations = AltRepresentations.map(alt => alt?._attributes["dc:title"]).filter(x  => x);
         const { "dc:identifier": identifier, ...restAttrs } = _attributes;
         return { ...acc, [identifier]: { ...restAttrs, "names": AltRepresentations }, };
     }, {});
@@ -44,6 +54,7 @@ const xmlThesaurusToJson = (inputID) => {
     return simplifiedJson.thesaurus
 }
 
+// convert darwin core xml schemas into json
 const xmlSchemaToJson = (filePath,options) => {
     const { group, idFieldName } = options;
     console.log(`Reading Schema file ${filePath}`,)
@@ -59,16 +70,13 @@ const xmlSchemaToJson = (filePath,options) => {
     simplifiedJson.extension[0].property = 
         simplifiedJson.extension[0].property.reduce((acc, prop) => {
             const { name, thesaurus, required, "group": propGroup, ...rest } = prop._attributes;
-            let unique = "false";
-            if (name == idFieldName){
-                unique = "true";
-            }
+
             let label = name.split(/(?<![A-Z])(?=[A-Z])/).join(" ");
             label = label[0].toUpperCase() + label.slice(1); 
 
             let collection = {
                 ...acc,
-                [name]: { "group": propGroup, name, label, ...rest, "gbif_required": required, unique }
+                [name]: { "group": propGroup, name, label, ...rest, "gbif_required": required}
             }
             if (group){
                 collection[name].group = group;
@@ -76,6 +84,15 @@ const xmlSchemaToJson = (filePath,options) => {
             if (thesaurus){
                 thesaurusJson = xmlThesaurusToJson(thesaurus)
                 collection[name] = { ...collection[name], thesaurus, "values": thesaurusJson.concept }
+                if (!collection[name]?.type){
+                    collection[name].type = 'controlled-vocabulary'
+                }
+            }
+            if (name == idFieldName) {
+                collection[name].unique = "true";
+                collection[name].type = "identifier"
+            }else if (!collection[name]?.type & name.endsWith("ID")) {
+                collection[name].type = "identifier"
             }
             return collection
         }, {}
@@ -92,7 +109,9 @@ const xmlSchemaToJson = (filePath,options) => {
     return simplifiedJson.extension;
 }
 
-
+// Convert several darwin core xml schemas into json and combine them into one file for later use.
+// The obis checklist is used to set fields as required, recomended, or  optional
+// validators are added by matching against field attributes or cmoponents of the field name
 async function main() {
 
     exMoFjson = xmlSchemaToJson(exMoFxml, { group: 'ExtendedMeasurementOrFact', idFieldName:"measurementID"});
@@ -142,8 +161,6 @@ async function main() {
         })
     })
 
-    // Log the JSON output to the console
-    // console.log(JSON.stringify(schemaJson, null, 2));
     fs.writeFileSync("./external/dwcSchema.json", JSON.stringify(schemaJson, null, 2));
     console.log('Schema with OBIS checklist written to ./external/dwcSchema.json');
 }
