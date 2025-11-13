@@ -63,16 +63,19 @@ const xmlSchemaToJson = (filePath,options) => {
             if (name == idFieldName){
                 unique = "true";
             }
+            let label = name.split(/(?<![A-Z])(?=[A-Z])/).join(" ");
+            label = label[0].toUpperCase() + label.slice(1); 
+
             let collection = {
                 ...acc,
-                [name]: { "group": propGroup, ...rest, "gbif_required": required, unique }
+                [name]: { "group": propGroup, name, label, ...rest, "gbif_required": required, unique }
             }
             if (group){
                 collection[name].group = group;
             }
             if (thesaurus){
                 thesaurusJson = xmlThesaurusToJson(thesaurus)
-                collection = { ...collection, thesaurus, "values": thesaurusJson.concept }
+                collection[name] = { ...collection[name], thesaurus, "values": thesaurusJson.concept }
             }
             return collection
         }, {}
@@ -80,9 +83,9 @@ const xmlSchemaToJson = (filePath,options) => {
 
     simplifiedJson.extension =
         simplifiedJson.extension.reduce((acc, prop) => {
-            const { _attributes, ...restProps } = prop;
+            const { _attributes, property, ...restProps } = prop;
             const { name, ...rest } = _attributes;
-            return { ...acc, [name]: {...rest, ...restProps} };
+            return { ...acc, [name]: { ...rest, "fields": property, ...restProps} };
         }, {}
 );
 
@@ -115,11 +118,29 @@ async function main() {
         const term = item.Term;
         Object.keys(schemaJson).forEach(key => {
             const table = schemaJson[key];
-            if (table.property[term]) {
-                table.property[term] = { ...table.property[term], "obis_required": item["OBIS Required"] };
+            if (table.fields[term]) {
+                table.fields[term] = { ...table.fields[term], "obis_required": item["OBIS Required"] };
             }
         })
     });
+
+    console.log("Assign Validators");
+    Object.keys(schemaJson).forEach(key => {
+        const table = schemaJson[key];
+        Object.keys(table.fields).forEach(fieldname => {
+            const field = table.fields[fieldname]
+            const validators = []
+            if (field.obis_required == "required" | field.obis_required == "required (if exists)") validators.push("required");
+            if (field.obis_required == "recommended" | field.obis_required == "strongly recommended") validators.push("recommended");
+            if (field.unique == "true") validators.push("uniqueIdentifier");
+            if (field.type == "integer") validators.push("integer");
+            if (field.type == "date") validators.push("iso8601Date");
+            if (field.type == "uri") validators.push("url");
+            if (field.name.includes('latitude')) validators.push("latitude");
+            if (field.name.includes('longitude')) validators.push("longitude");
+            table.fields[fieldname] = { ...field, validators }
+        })
+    })
 
     // Log the JSON output to the console
     // console.log(JSON.stringify(schemaJson, null, 2));
