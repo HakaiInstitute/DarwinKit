@@ -87,6 +87,14 @@ export class WorkspaceConfigService {
       let depth = 0;
       const searchedPaths: string[] = [];
 
+      /* check if config paramiter is a file. No need to search if pull config file path is provided.
+        this also allows config files named something other than "darwinkit.json" */
+      const statResult = yield* Effect.tryPromise(() => Deno.stat(currentDir)).pipe(Effect.option);
+
+      if (statResult._tag === "Some" && statResult.value.isFile) {
+        return currentDir
+      }
+
       while (depth < MAX_SEARCH_DEPTH) {
         const configPath = join(currentDir, CONFIG_FILENAME);
         searchedPaths.push(configPath);
