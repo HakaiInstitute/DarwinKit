@@ -1,0 +1,158 @@
+{
+    "id": "obis-marine-survey",
+    "name": "OBIS Marine Survey",
+    "version": "1.0.0",
+    "description": "Rocky Sub-tidal fish and invertebrate OBIS Event validation profile",
+    "createdAt": "2024-10-06T00:00:00.000Z",
+    "updatedAt": "2024-10-06T00:00:00.000Z",
+    "validation": {
+        "profile": "obis-event",
+        "nullValues": [
+            "NA",
+            "N/A",
+            "",
+            "NULL",
+            "null"
+        ],
+        "failFast": false,
+        "outputDir": "./validation_results"
+    },
+    "datasets": [
+        {
+            "name": "events",
+            "spec": "dwc-event",
+            "path": "./rocky-subtidal-fish-invertebrate/obis/hakaiFI_event.csv",
+            "description": "Marine sampling events for OBIS",
+            "fieldMappings": [
+                {
+                    "originName": "eventID",
+                    "targetName": "eventID"
+                },
+                {
+                    "originName": "eventDate",
+                    "targetName": "eventDate"
+                },
+                {
+                    "originName": "decimalLatitude",
+                    "targetName": "decimalLatitude"
+                },
+                {
+                    "originName": "decimalLongitude",
+                    "targetName": "decimalLongitude"
+                },
+                {
+                    "originName": "geodeticDatum",
+                    "targetName": "geodeticDatum"
+                },
+                {
+                    "originName": "eventType",
+                    "targetName": "eventType"
+                },
+                {
+                    "originName": "datasetName",
+                    "targetName": "datasetName"
+                },
+                {
+                    "originName": "language",
+                    "targetName": "language"
+                },
+                {
+                    "originName": "license",
+                    "targetName": "license"
+                },
+                {
+                    "originName": "bibliographicCitation",
+                    "targetName": "bibliographicCitation"
+                },
+                {
+                    "originName": "accessRights",
+                    "targetName": "accessRights"
+                },
+                {
+                    "originName": "samplingProtocol",
+                    "targetName": "samplingProtocol"
+                },
+                {
+                    "originName": "rightsHolder",
+                    "targetName": "rightsHolder"
+                },
+                {
+                    "originName": "institutionCode",
+                    "targetName": "institutionCode"
+                },
+                {
+                    "originName": "institutionID",
+                    "targetName": "institutionID"
+                },
+                {
+                    "originName": "modified",
+                    "targetName": "modified"
+                },
+                {
+                    "originName": "parentEventID",
+                    "targetName": "parentEventID"
+                },
+                {
+                    "originName": "verbatimLocality",
+                    "targetName": "verbatimLocality"
+                },
+                {
+                    "originName": "coordinateUncertaintyInMeters",
+                    "targetName": "coordinateUncertaintyInMeters"
+                },
+                {
+                    "originName": "day",
+                    "targetName": "day"
+                },
+                {
+                    "originName": "month",
+                    "targetName": "month"
+                },
+                {
+                    "originName": "year",
+                    "targetName": "year"
+                },
+                {
+                    "originName": "eventTime",
+                    "targetName": "eventTime"
+                },
+                {
+                    "originName": "visibility",
+                    "targetName": "visibility"
+                },
+                {
+                    "originName": "eventRemarks",
+                    "targetName": "eventRemarks"
+                },
+                {
+                    "originName": "country",
+                    "targetName": "country"
+                },
+                {
+                    "originName": "countryCode",
+                    "targetName": "countryCode"
+                },
+                {
+                    "originName": "locality",
+                    "targetName": "locality"
+                },
+                {
+                    "originName": "minDepth",
+                    "targetName": "minimumDepthInMeters",
+                    "constraints": {
+                        "minValue": 0,
+                        "maxValue": 11000
+                    }
+                },
+                {
+                    "originName": "maxDepth",
+                    "targetName": "maximumDepthInMeters",
+                    "constraints": {
+                        "minValue": 0,
+                        "maxValue": 11000
+                    }
+                }
+            ]
+        }
+    ]
+}
