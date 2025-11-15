@@ -11,6 +11,8 @@
     "dc:subject": "",
     "dc:relation": "https://rs.gbif.org/extension/obis/extended_measurement_or_fact_2023-08-28.xml",
     "dc:description": "Support for generic measurements or facts, extended version linking to occurrences.\n    This extension (eMoF) was developed to be used in combination with the Event Core, but is also compatible with other cores. When used with Event Core it allows to create an additional link between the eMoF and the occurrence extension. The eMoF can store measurements or facts related to a biological occurrence, environmental measurements or facts and sampling method attributes. This extension also provides the option to provide identifiers to reference a vocabulary for the measurementType, measurementValue and measurementUnit fields.",
+    "name": "ExtendedMeasurementOrFact",
+    "fieldOverrides": {},
     "fields": {
       "measurementID": {
         "group": "ExtendedMeasurementOrFact",
@@ -224,6 +226,8 @@
     "dc:subject": "",
     "dc:relation": "http://rs.tdwg.org/dwc/terms/Event",
     "dc:description": "Support for Darwin Core Event-based records.",
+    "name": "Event",
+    "fieldOverrides": {},
     "fields": {
       "type": {
         "group": "Record-level",
@@ -1974,6 +1978,8 @@
     "dc:subject": "dwc:Event dwc:Taxon",
     "dc:relation": "http://rs.tdwg.org/dwc/terms/Occurrence",
     "dc:description": "Support for Darwin Core Occurrence-based records.",
+    "name": "Occurrence",
+    "fieldOverrides": {},
     "fields": {
       "type": {
         "group": "Record-level",
@@ -2144,10 +2150,8 @@
         "comments": "Access Rights may include information regarding access or restrictions based on privacy, security, or other policies.",
         "examples": "`not-for-profit use only` (string literal example); `https://www.fieldmuseum.org/field-museum-natural-history-conditions-and-suggested-norms-use-collections-data-and-images` (URI example)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "bibliographicCitation": {
         "group": "Record-level",
@@ -2160,10 +2164,8 @@
         "comments": "From Dublin Core, &quot;Recommended practice is to include sufficient bibliographic detail to identify the resource as unambiguously as possible.&quot; The intended usage of this term in Darwin Core is to provide the preferred way to cite the resource itself - &quot;how to cite this record&quot;. Note that the intended usage of dcterms:references in Darwin Core, by contrast, is to point to the definitive source representation of the resource - &quot;where to find the as-close-to-original reference&quot;, if one is available.",
         "examples": "`Museum of Vertebrate Zoology, UC Berkeley. MVZ Mammal Collection (Arctos). Record ID: http://arctos.database.museum/guid/MVZ:Mamm:165861?seid=101356. Source: http://ipt.vertnet.org:8080/ipt/resource.do?r=mvz_mammal.` (Occurrence example); `https://www.gbif.org/species/2439608 Source: GBIF Taxonomic Backbone` (Taxon example); `Rand, K.M., Logerwell, E.A. The first demersal trawl survey of benthic fish and invertebrates in the Beaufort Sea since the late 1970s. Polar Biol 34, 475–488 (2011). https://doi.org/10.1007/s00300-010-0900-2` (Event example)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "references": {
         "group": "Record-level",
@@ -3634,10 +3636,8 @@
         "comments": "Recommended best practice is to use a controlled vocabulary. This term has an equivalent in the dwciri: namespace that allows only an IRI as a value, whereas this term allows for any string literal value.",
         "examples": "`unable to georeference`; `requires georeference`; `requires verification`; `verified by data custodian`; `verified by contributor`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "occurrenceStatus": {
         "group": "Occurrence",
@@ -4035,10 +4035,8 @@
         "examples": "`A1` (parentEventID to identify the main Whittaker Plot in nested samples, each with its own eventID - `A1:1`, `A1:2`).",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "required (if exists)",
-        "validators": [
-          "required"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "eventType": {
         "group": "Event",
@@ -4051,10 +4049,8 @@
         "comments": "Recommended best practice is to use a controlled vocabulary. Regardless of the dwc:eventType, the interval of the dwc:Event can be captured in dwc:eventDate. This term has an equivalent in the dwciri: namespace that allows only an IRI as a value, whereas this term allows for any string literal value.",
         "examples": "`Sample`; `Observation`; `Site Visit`; `Biotic Interaction`; `Bioblitz`; `Expedition`; `Survey`; `Project`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "projectTitle": {
         "group": "Event",
@@ -4135,10 +4131,8 @@
         "comments": "Recommended best practice is to use a date that conforms to ISO 8601-1:2019.",
         "examples": "`1963-03-08T14:07-06:00` (8 Mar 1963 at or after 2:07pm and before 2:08pm in the time zone six hours earlier than UTC); `2009-02-20T08:40Z` (20 February 2009 at or after 8:40am and before 8:41 UTC); `2018-08-29T15:19` (29 August 2018 at or after 3:19pm and before 3:20pm local time); `1809-02-12` (within the day 12 February 1809); `1906-06` (in the month of June 1906); `1971` (in the year 1971); `2007-03-01T13:00:00Z/2008-05-11T15:30:00Z` (some time within the interval beginning 1 March 2007 at 1pm UTC and before 11 May 2008 at 3:30pm UTC); `1900/1909` (some time within the interval between the beginning of the year 1900 and before the year 1909); `2007-11-13/15` (some time in the interval between the beginning of 13 November 2007 and before 15 November 2007)",
         "gbif_required": "false",
-        "obis_required": "required",
-        "validators": [
-          "required"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "eventTime": {
         "group": "Event",
@@ -4151,10 +4145,8 @@
         "comments": "Recommended best practice is to use a time of day that conforms to ISO 8601-1:2019.",
         "examples": "`14:07-06:00` (at or after 2:07pm and before 2:08pm in the time zone six hours earlier than UTC); `08:40:21Z` (at or after 8:40:21am and before 8:41:22am UTC); `13:00:00Z/15:30:00Z` (at or after 1pm and before 3:30pm UTC)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "startDayOfYear": {
         "group": "Event",
@@ -4168,9 +4160,8 @@
         "comments": "",
         "examples": "`1` (1 January); `366` (31 December); `365` (30 December in a leap year, 31 December in a non-leap year)",
         "gbif_required": "false",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "integer"
         ]
       },
@@ -4186,9 +4177,8 @@
         "comments": "",
         "examples": "`1` (1 January); `32` (1 February); `366` (31 December); `365` (30 December in a leap year, 31 December in a non-leap year)",
         "gbif_required": "false",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "integer"
         ]
       },
@@ -4204,9 +4194,8 @@
         "comments": "",
         "examples": "`1160`; `2008`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "integer"
         ]
       },
@@ -4222,9 +4211,8 @@
         "comments": "",
         "examples": "`1` (January); `10` (October)",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "integer"
         ]
       },
@@ -4240,9 +4228,8 @@
         "comments": "",
         "examples": "`9`; `28`",
         "gbif_required": "false",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "integer"
         ]
       },
@@ -4257,10 +4244,8 @@
         "comments": "",
         "examples": "`spring 1910`; `Marzo 2002`; `1999-03-XX`; `17IV1934`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "habitat": {
         "group": "Event",
@@ -4273,10 +4258,8 @@
         "comments": "This term has an equivalent in the dwciri: namespace that allows only an IRI as a value, whereas this term allows for any string literal value.",
         "examples": "`oak savanna`; `pre-cordilleran steppe`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "samplingProtocol": {
         "group": "Event",
@@ -4289,10 +4272,8 @@
         "comments": "Recommended best practice is describe a dwc:Event with no more than one sampling protocol. In the case of a summary Event with multiple protocols, in which a specific protocol can not be attributed to specific dwc:Occurrences, the recommended best practice is to separate the values in a list with space vertical bar space (` | `). This term has an equivalent in the dwciri: namespace that allows only an IRI as a value, whereas this term allows for any string literal value.",
         "examples": "`UV light trap`; `mist net`; `bottom trawl`; `ad hoc observation | point count`; `Penguins from space: faecal stains reveal the location of emperor penguin colonies, https://doi.org/10.1111/j.1466-8238.2009.00467.x`; `Takats et al. 2001. Guidelines for Nocturnal Owl Monitoring in North America. Beaverhill Bird Observatory and Bird Studies Canada, Edmonton, Alberta. 32 pp., http://www.bsc-eoc.org/download/Owl.pdf`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "sampleSizeValue": {
         "group": "Event",
@@ -4305,10 +4286,8 @@
         "comments": "A dwc:sampleSizeValue must have a corresponding dwc:sampleSizeUnit.",
         "examples": "`5` (sampleSizeValue) with `metre` (sampleSizeUnit)",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "sampleSizeUnit": {
         "group": "Event",
@@ -4506,10 +4485,8 @@
           }
         },
         "type": "controlled-vocabulary",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "samplingEffort": {
         "group": "Event",
@@ -4522,10 +4499,8 @@
         "comments": "",
         "examples": "`40 trap-nights`; `10 observer-hours`; `10 km by foot`; `30 km by car`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "fieldNotes": {
         "group": "Event",
@@ -4567,10 +4542,8 @@
         "examples": "`https://opencontext.org/subjects/768A875F-E205-4D0B-DE55-BAB7598D0FD1`",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "higherGeographyID": {
         "group": "Location",
@@ -4612,10 +4585,8 @@
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
         "examples": "`Africa`; `Antarctica`; `Asia`; `Europe`; `North America`; `Oceania`; `South America`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "waterBody": {
         "group": "Location",
@@ -4628,10 +4599,8 @@
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names.",
         "examples": "`Indian Ocean`; `Baltic Sea`; `Hudson River`; `Lago Nahuel Huapi`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "islandGroup": {
         "group": "Location",
@@ -4672,10 +4641,8 @@
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
         "examples": "`Denmark`; `Colombia`; `España`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "countryCode": {
         "group": "Location",
@@ -4744,10 +4711,8 @@
         "comments": "Less specific geographic information can be provided in other geographic terms (dwc:higherGeography, dwc:continent, dwc:country, dwc:stateProvince, dwc:county, dwc:municipality, dwc:waterBody, dwc:island, dwc:islandGroup). This term may contain information modified from the original to correct perceived errors or standardize the description.",
         "examples": "`Bariloche, 25 km NNE via Ruta Nacional 40 (=Ruta 237)`; `Queets Rainforest, Olympic National Park`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "verbatimLocality": {
         "group": "Location",
@@ -4832,10 +4797,8 @@
         "comments": "",
         "examples": "`0`; `100`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "maximumDepthInMeters": {
         "group": "Location",
@@ -4849,10 +4812,8 @@
         "comments": "",
         "examples": "`0`; `200`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "verbatimDepth": {
         "group": "Location",
@@ -4909,10 +4870,8 @@
         "comments": "This term has an equivalent in the dwciri: namespace that allows only an IRI as a value, whereas this term allows for any string literal value.",
         "examples": "`Getty Thesaurus of Geographic Names`; `GADM`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "locationRemarks": {
         "group": "Location",
@@ -4925,10 +4884,8 @@
         "comments": "",
         "examples": "`under water since 2005`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "decimalLatitude": {
         "group": "Location",
@@ -4942,10 +4899,8 @@
         "comments": "",
         "examples": "`-41.0983423`",
         "gbif_required": "false",
-        "obis_required": "required",
-        "validators": [
-          "required"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "decimalLongitude": {
         "group": "Location",
@@ -4959,10 +4914,8 @@
         "comments": "",
         "examples": "`-121.1761111`",
         "gbif_required": "false",
-        "obis_required": "required",
-        "validators": [
-          "required"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "geodeticDatum": {
         "group": "Location",
@@ -4975,10 +4928,8 @@
         "comments": "Recommended best practice is to use the EPSG code of the SRS, if known. Otherwise use a controlled vocabulary for the name or code of the geodetic datum, if known. Otherwise use a controlled vocabulary for the name or code of the ellipsoid, if known. If none of these is known, use the value `not recorded`. This term has an equivalent in the dwciri: namespace that allows only an IRI as a value, whereas this term allows for a string literal value.",
         "examples": "`EPSG:4326`; `WGS84`; `NAD27`; `Campo Inchauspe`; `European 1950`; `Clarke 1866`; `not recorded`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "coordinateUncertaintyInMeters": {
         "group": "Location",
@@ -4992,10 +4943,8 @@
         "comments": "",
         "examples": "`30` (reasonable lower limit on or after 2000-05-01 of a GPS reading under good conditions if the actual precision was not recorded at the time); `100` (reasonable lower limit before 2000-05-01 of a GPS reading under good conditions if the actual precision was not recorded at the time); `71` (uncertainty for a UTM coordinate having 100 meter precision and a known spatial reference system)",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "coordinatePrecision": {
         "group": "Location",
@@ -5009,10 +4958,8 @@
         "comments": "",
         "examples": "`0.00001` (normal GPS limit for decimal degrees); `0.000278` (nearest second); `0.01667` (nearest minute); `1.0` (nearest degree)",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "pointRadiusSpatialFit": {
         "group": "Location",
@@ -5110,10 +5057,8 @@
         "comments": "This term has an equivalent in the dwciri: namespace that allows only an IRI as a value, whereas this term allows for any string literal value.",
         "examples": "`POLYGON ((10 20, 11 20, 11 21, 10 21, 10 20))` (the one-degree bounding box with opposite corners at longitude=10, latitude=20 and longitude=11, latitude=21)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "footprintSRS": {
         "group": "Location",
@@ -5653,8 +5598,10 @@
         "examples": "`urn:lsid:ipni.org:names:37829-1:1.3`",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "�strongly recommended",
-        "validators": []
+        "obis_required": "strongly recommended",
+        "validators": [
+          "recommended"
+        ]
       },
       "acceptedNameUsageID": {
         "group": "Taxon",
@@ -6991,6 +6938,8 @@
     "dc:subject": "",
     "dc:relation": "http://rs.tdwg.org/dwc/terms/Taxon",
     "dc:description": "Support for Darwin Core Taxon-based records.",
+    "name": "Taxon",
+    "fieldOverrides": {},
     "fields": {
       "taxonID": {
         "group": "Taxon",
@@ -7022,7 +6971,7 @@
         "examples": "`urn:lsid:ipni.org:names:37829-1:1.3`",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "�strongly recommended",
+        "obis_required": "optional",
         "validators": []
       },
       "acceptedNameUsageID": {
@@ -7037,10 +6986,8 @@
         "examples": "`tsn:41107` (ITIS); `urn:lsid:ipni.org:names:320035-2` (IPNI); `2704179` (GBIF); `6W3C4` (COL)",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "parentNameUsageID": {
         "group": "Taxon",
@@ -7054,10 +7001,8 @@
         "examples": "`tsn:41074` (ITIS); `urn:lsid:ipni.org:names:30001404-2` (IPNI); `2704173` (GBIF); `6T8N` (COL)",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "originalNameUsageID": {
         "group": "Taxon",
@@ -7071,10 +7016,8 @@
         "examples": "`tsn:41107` (ITIS); `urn:lsid:ipni.org:names:320035-2` (IPNI); `2704179` (GBIF); `6W3C4` (COL)",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "nameAccordingToID": {
         "group": "Taxon",
@@ -7088,10 +7031,8 @@
         "examples": "`https://doi.org/10.1016/S0269-915X(97)80026-2`",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "namePublishedInID": {
         "group": "Taxon",
@@ -7134,10 +7075,8 @@
         "comments": "This term should not contain identification qualifications, which should instead be supplied in the IdentificationQualifier term. When applied to an Organism or Occurrence, this term should be used to represent the scientific name that was applied to the associated Organism in accordance with the Taxon to which it was or is currently identified. Names should be compliant to the most recent nomenclatural code. For example, names of hybrids for algae, fungi and plants should follow the rules of the International Code of Nomenclature for algae, fungi, and plants (Schenzhen Code Articles H.1, H.2 and H.3). Thus, use the multiplication sign `×` (Unicode `U+00D7`, HTML `&amp;times;`) to identify a hybrid, not `x` or `X`, if possible.",
         "examples": "`Coleoptera` (order); `Vespertilionidae` (family); `Manis` (genus); `Ctenomys sociabilis` (genus + specificEpithet); `Ambystoma tigrinum diaboli` (genus + specificEpithet + infraspecificEpithet); `Roptrocerus typographi (Györfi, 1952)` (genus + specificEpithet + scientificNameAuthorship); `Quercus agrifolia var. oxyadenia (Torr.) J.T. Howell` (genus + specificEpithet + taxonRank + infraspecificEpithet + scientificNameAuthorship); `×Agropogon littoralis (Sm.) C. E. Hubb.`; `Mentha ×smithiana R. A. Graham`; `Agrostis stolonifera L. × Polypogon monspeliensis (L.) Desf.`",
         "gbif_required": "false",
-        "obis_required": "required",
-        "validators": [
-          "required"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "acceptedNameUsage": {
         "group": "Taxon",
@@ -7150,10 +7089,8 @@
         "comments": "The full scientific name, with authorship and date information if known, of the accepted (botanical) or valid (zoological) name in cases where the provided dwc:scientificName is considered by the reference indicated in the dwc:nameAccordingTo property, or of the content provider, to be a synonym or misapplied name. When applied to a dwc:Organism or dwc:Occurrence, this term should be used in cases where a content provider regards the provided dwc:scientificName to be inconsistent with the taxonomic perspective of the content provider. For example, there are many discrepancies within specimen collections and observation datasets between the recorded name (e.g., the most recent identification from an expert who examined a specimen, or a field identification for an observed dwc:Organism), and the name asserted by the content provider to be taxonomically accepted.",
         "examples": "`Tamias minimus` (valid name for `Eutamias minimus`)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "parentNameUsage": {
         "group": "Taxon",
@@ -7166,10 +7103,8 @@
         "comments": "",
         "examples": "`Rubiaceae`; `Gruiformes`; `Testudinae`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "originalNameUsage": {
         "group": "Taxon",
@@ -7182,10 +7117,8 @@
         "comments": "The full scientific name, with authorship and date information if known, of the name usage in which the terminal element of the dwc:scientificName was originally established under the rules of the associated dwc:nomenclaturalCode. For example, for names governed by the ICNafp, this term would indicate the basionym of a record representing a subsequent combination. Unlike basionyms, however, this term can apply to scientific names at all ranks.",
         "examples": "`Pinus abies`; `Gasterosteus saltatrix Linnaeus 1768`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "nameAccordingTo": {
         "group": "Taxon",
@@ -7241,10 +7174,8 @@
         "comments": "Recommended best practice is to separate the values in a list with space vertical bar space (` | `), with terms in order from the highest taxonomic rank to the lowest.",
         "examples": "`Plantae | Tracheophyta | Magnoliopsida | Ranunculales | Ranunculaceae | Ranunculus`; `Animalia`; `Animalia | Chordata | Vertebrata | Mammalia | Theria | Eutheria | Rodentia | Hystricognatha | Hystricognathi | Ctenomyidae | Ctenomyini | Ctenomys`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "kingdom": {
         "group": "Taxon",
@@ -7257,10 +7188,8 @@
         "comments": "",
         "examples": "`Animalia`; `Archaea`; `Bacteria`; `Chromista`; `Fungi`; `Plantae`; `Protozoa`; `Viruses`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "phylum": {
         "group": "Taxon",
@@ -7273,10 +7202,8 @@
         "comments": "",
         "examples": "`Chordata` (phylum); `Bryophyta` (division)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "class": {
         "group": "Taxon",
@@ -7289,10 +7216,8 @@
         "comments": "",
         "examples": "`Mammalia`; `Hepaticopsida`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "order": {
         "group": "Taxon",
@@ -7305,10 +7230,8 @@
         "comments": "",
         "examples": "`Carnivora`; `Monocleales`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "superfamily": {
         "group": "Taxon",
@@ -7334,10 +7257,8 @@
         "comments": "",
         "examples": "`Felidae`; `Monocleaceae`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "subfamily": {
         "group": "Taxon",
@@ -7389,10 +7310,8 @@
         "comments": "",
         "examples": "`Puma`; `Monoclea`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "genericName": {
         "group": "Taxon",
@@ -7418,10 +7337,8 @@
         "comments": "A value for this term should be a complete subgenus name as required by the appropriate nomenclatural code.",
         "examples": "`Abacetus (Parastygis)`; `Dicranum subgen. Orthodicranum`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "infragenericEpithet": {
         "group": "Taxon",
@@ -7447,10 +7364,8 @@
         "comments": "",
         "examples": "`concolor`; `gottschei`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "infraspecificEpithet": {
         "group": "Taxon",
@@ -7463,10 +7378,8 @@
         "comments": "In botany, name strings in literature and identifications may have multiple infraspecific ranks. According to the International Code of Nomenclature for algae, fungi, and plants (Schenzhen Code Articles 6.7 &amp; Art. 24.1), valid names only have two epithets, with the lowest rank being the dwc:infraspecificEpithet. For example: the dwc:infraspecificEpithet in the string `Indigofera charlieriana subsp. sessilis var. scaberrima` is `scaberrima` and the dwc:scientificName is `Indigofera charlieriana var. scaberrima (Schinz) J.B.Gillett`. Use dwc:verbatimIdentification for the full name string used in a dwc:Identification.",
         "examples": "`concolor` (for scientificName `Puma concolor concolor (Linnaeus, 1771)`); `oxyadenia` (for scientificName `Quercus agrifolia var. oxyadenia (Torr.) J.T. Howell`); `laxa` (for scientificName `Cheilanthes hirta f. laxa (Kunze) W.Jacobsen &amp; N.Jacobsen`); `scaberrima` (for scientificName `Indigofera charlieriana var. scaberrima (Schinz) J.B.Gillett`)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "cultivarEpithet": {
         "group": "Taxon",
@@ -7931,10 +7844,8 @@
           }
         },
         "type": "controlled-vocabulary",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "verbatimTaxonRank": {
         "group": "Taxon",
@@ -7947,10 +7858,8 @@
         "comments": "",
         "examples": "`Agamospecies`; `sub-lesus`; `prole`; `apomict`; `nothogrex`; `sp.`; `subsp.`; `var.`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "scientificNameAuthorship": {
         "group": "Taxon",
@@ -7963,10 +7872,8 @@
         "comments": "",
         "examples": "`(Torr.) J.T. Howell`; `(Martinovský) Tzvelev`; `(Györfi, 1952)`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "vernacularName": {
         "group": "Taxon",
@@ -7979,10 +7886,8 @@
         "comments": "",
         "examples": "`Andean Condor`; `Condor Andino`; `American Eagle`; `Gänsegeier`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "nomenclaturalCode": {
         "group": "Taxon",
@@ -8341,10 +8246,8 @@
         "comments": "",
         "examples": "`this name is a misspelling in common use`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "modified": {
         "group": "Record-level",
@@ -8358,9 +8261,8 @@
         "comments": "Recommended best practice is to use a date that conforms to ISO 8601-1:2019.",
         "examples": "`1963-03-08T14:07-06:00` (8 Mar 1963 at or after 2:07pm and before 2:08pm in the time zone six hours earlier than UTC); `2009-02-20T08:40Z` (20 February 2009 at or after 8:40am and before 8:41 UTC); `2018-08-29T15:19` (29 August 2018 at or after 3:19pm and before 3:20pm local time); `1809-02-12` (within the day 12 February 1809); `1906-06` (in the month of June 1906); `1971` (in the year 1971); `2007-03-01T13:00:00Z/2008-05-11T15:30:00Z` (some time within the interval beginning 1 March 2007 at 1pm UTC and before 11 May 2008 at 3:30pm UTC); `1900/1909` (some time within the interval between the beginning of the year 1900 and before the year 1909); `2007-11-13/15` (some time in the interval between the beginning of 13 November 2007 and before 15 November 2007)",
         "gbif_required": "false",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "iso8601Date"
         ]
       },
@@ -8375,10 +8277,8 @@
         "comments": "Recommended best practice is to use a controlled vocabulary such as RFC 5646. This term has an equivalent in the dcterms: namespace that allows only an IRI as a value, whereas this term allows for any string literal value.",
         "examples": "`en` (for English); `es` (for Spanish)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "license": {
         "group": "Record-level",
@@ -8391,10 +8291,8 @@
         "comments": "",
         "examples": "`http://creativecommons.org/publicdomain/zero/1.0/legalcode`; `http://creativecommons.org/licenses/by/4.0/legalcode`",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "rightsHolder": {
         "group": "Record-level",
@@ -8407,10 +8305,8 @@
         "comments": "",
         "examples": "`The Regents of the University of California`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "accessRights": {
         "group": "Record-level",
@@ -8423,10 +8319,8 @@
         "comments": "Access Rights may include information regarding access or restrictions based on privacy, security, or other policies.",
         "examples": "`not-for-profit use only` (string literal example); `https://www.fieldmuseum.org/field-museum-natural-history-conditions-and-suggested-norms-use-collections-data-and-images` (URI example)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "bibliographicCitation": {
         "group": "Record-level",
@@ -8439,10 +8333,8 @@
         "comments": "From Dublin Core, &quot;Recommended practice is to include sufficient bibliographic detail to identify the resource as unambiguously as possible.&quot; The intended usage of this term in Darwin Core is to provide the preferred way to cite the resource itself - &quot;how to cite this record&quot;. Note that the intended usage of dcterms:references in Darwin Core, by contrast, is to point to the definitive source representation of the resource - &quot;where to find the as-close-to-original reference&quot;, if one is available.",
         "examples": "`Museum of Vertebrate Zoology, UC Berkeley. MVZ Mammal Collection (Arctos). Record ID: http://arctos.database.museum/guid/MVZ:Mamm:165861?seid=101356. Source: http://ipt.vertnet.org:8080/ipt/resource.do?r=mvz_mammal.` (Occurrence example); `https://www.gbif.org/species/2439608 Source: GBIF Taxonomic Backbone` (Taxon example); `Rand, K.M., Logerwell, E.A. The first demersal trawl survey of benthic fish and invertebrates in the Beaufort Sea since the late 1970s. Polar Biol 34, 475–488 (2011). https://doi.org/10.1007/s00300-010-0900-2` (Event example)",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "references": {
         "group": "Record-level",
@@ -8456,9 +8348,8 @@
         "comments": "From Dublin Core, &quot;This property is intended to be used with non-literal values. This property is an inverse property of Is Referenced By.&quot; The intended usage of this term in Darwin Core is to point to the definitive source representation of the resource (e.g.,dwc:Taxon, dwc:Occurrence, dwc:Event), if one is available. Note that the intended usage of dcterms:bibliographicCitation in Darwin Core, by contrast, is to provide the preferred way to cite the resource itself.",
         "examples": "`http://arctos.database.museum/guid/MVZ:Mamm:165861` (MaterialEntity example); `https://www.catalogueoflife.org/data/taxon/32664` (Taxon example)",
         "gbif_required": "false",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "url"
         ]
       },
@@ -8503,10 +8394,8 @@
         "examples": "`b15d4952-7d20-46f1-8a3e-556a512b04c5`",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "datasetName": {
         "group": "Record-level",
@@ -8519,10 +8408,8 @@
         "comments": "",
         "examples": "`Grinnell Resurvey Mammals`; `Lacey Ctenomys Recaptures`",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "informationWithheld": {
         "group": "Record-level",
@@ -8552,6 +8439,8 @@
     "dc:subject": "",
     "dc:relation": "https://w3id.org/mixs/",
     "dc:description": "An extension to Occurrence and Event cores to capture information relating to DNA. This extension is based on the MIxS extension for Darwin Core (underway), with additions from GGBN and MIQE standards and recommendations. This definition supports the outcomes documented in Publishing DNA-derived data through biodiversity data platforms (https://doi.org/10.35035/doc-vf1a-nr22).  This extension is subject to change, and recommended for early adopters who understand that data remapping may be required as things evolve.",
+    "name": "dnaDerivedData",
+    "fieldOverrides": {},
     "fields": {
       "samp_name": {
         "group": "dnaDerivedData",
@@ -8565,9 +8454,8 @@
         "gbif_required": "false",
         "unique": "true",
         "type": "identifier",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "uniqueIdentifier"
         ]
       },
@@ -8582,10 +8470,8 @@
         "examples": "",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "required",
-        "validators": [
-          "required"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "project_name": {
         "group": "dnaDerivedData",
@@ -8657,10 +8543,8 @@
         "dc:description": "In this field, report which major environmental system your sample or specimen came from. The systems identified should have a coarse spatial grain, to provide the general environmental context of where the sampling was done (e.g. were you in the desert or a rainforest?). We recommend using subclasses of ENVO’s biome class: http://purl.obolibrary.org/obo/ENVO_00000428. Format (one term): termLabel [termID], Format (multiple terms): termLabel [termID]|termLabel [termID]|termLabel [termID]. Example: Annotating a water sample from the photic zone in middle of the Atlantic Ocean, consider: oceanic epipelagic zone biome [ENVO:01000033]. Example: Annotating a sample from the Amazon rainforest consider: tropical moist broadleaf forest biome [ENVO:01000228]. If needed, request new terms on the ENVO tracker, identified here: http://www.obofoundry.org/ontology/envo.html",
         "examples": "forest biome [ENVO:01000174]",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "env_local_scale": {
         "group": "dnaDerivedData",
@@ -8684,10 +8568,8 @@
         "dc:description": "In this field, report which environmental material or materials (pipe separated) immediately surrounded your sample or specimen prior to sampling, using one or more subclasses of ENVO’s environmental material class: http://purl.obolibrary.org/obo/ENVO_00010483. Format (one term): termLabel [termID]; Format (multiple terms): termLabel [termID]|termLabel [termID]|termLabel [termID]. Example: Annotating a fish swimming in the upper 100 m of the Atlantic Ocean, consider: ocean water [ENVO:00002151]. Example: Annotating a duck on a pond consider: pond water [ENVO:00002228]|air ENVO_00002005. If needed, request new terms on the ENVO tracker, identified here: http://www.obofoundry.org/ontology/envo.html",
         "examples": "soil [ENVO:00001998]",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "subspecf_gen_lin": {
         "group": "dnaDerivedData",
@@ -9291,10 +9173,8 @@
         "dc:description": "Volume (ml) or mass (g) of total collected sample processed for DNA extraction. Note: total sample collected should be entered under the term Sample Size (MIXS:0000001).",
         "examples": "1500 milliliter",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "source_uvig": {
         "group": "dnaDerivedData",
@@ -9493,9 +9373,8 @@
         "dc:description": "A link to a literature reference, electronic resource or a standard operating procedure (SOP), that describes the material separation to recover the nucleic acid fraction from a sample",
         "examples": "https://mobio.com/media/wysiwyg/pdfs/protocols/12888.pdf",
         "gbif_required": "false",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "url"
         ]
       },
@@ -9510,9 +9389,8 @@
         "dc:description": "A link to a literature reference, electronic resource or a standard operating procedure (SOP), that describes the enzymatic amplification (PCR, TMA, NASBA) of specific nucleic acids",
         "examples": "https://phylogenomics.me/protocols/16s-pcr-protocol/",
         "gbif_required": "false",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "url"
         ]
       },
@@ -9588,10 +9466,8 @@
           }
         },
         "type": "controlled-vocabulary",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "lib_vector": {
         "group": "dnaDerivedData",
@@ -9627,10 +9503,8 @@
         "dc:description": "Targeted gene or locus name for marker gene studies",
         "examples": "16S rRNA, 18S rRNA, nif, amoA, rpo",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "target_subfragment": {
         "group": "dnaDerivedData",
@@ -9642,10 +9516,8 @@
         "dc:description": "Name of subfragment of a gene or locus. Important to e.g. identify special regions on marker genes like V6 on 16S rRNA",
         "examples": "V6, V9, ITS",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "pcr_primers": {
         "group": "dnaDerivedData",
@@ -10052,10 +9924,8 @@
           }
         },
         "type": "controlled-vocabulary",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "seq_quality_check": {
         "group": "dnaDerivedData",
@@ -11004,10 +10874,8 @@
         "dc:description": "Cutoffs and approach used when clustering new UViGs in \"species-level\" OTUs. Note that results from standard 95% ANI / 85% AF clustering should be provided alongside OTUS defined from another set of thresholds, even if the latter are the ones primarily used during the analysis",
         "examples": "95% ANI;85% AF; greedy incremental clustering",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "otu_seq_comp_appr": {
         "group": "dnaDerivedData",
@@ -11019,10 +10887,8 @@
         "dc:description": "Tool and thresholds used to compare sequences when computing \"species-level\" OTUs",
         "examples": "blastn;2.6.0+;e-value cutoff: 0.001",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "otu_db": {
         "group": "dnaDerivedData",
@@ -11034,10 +10900,8 @@
         "dc:description": "Reference database (i.e. sequences not generated as part of the current study) used to cluster new genomes in \"species-level\" OTUs, if any",
         "examples": "NCBI Viral RefSeq;83",
         "gbif_required": "false",
-        "obis_required": "recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "host_pred_appr": {
         "group": "dnaDerivedData",
@@ -11142,9 +11006,8 @@
         "dc:description": "Standard operating procedures used in assembly and/or annotation of genomes, metagenomes or environmental sequences",
         "examples": "http://press.igsb.anl.gov/earthmicrobiome/protocols-and-standards/its/",
         "gbif_required": "false",
-        "obis_required": "recommended",
+        "obis_required": "optional",
         "validators": [
-          "recommended",
           "url"
         ]
       },
@@ -11158,10 +11021,8 @@
         "dc:description": "Forward PCR primer that were used to amplify the sequence of the targeted gene, locus or subfragment. If multiple multiple forward or reverse primers are present in a single PCR reaction, there should be a full row for each of these linked to the same DWC Occurrence. The primer sequence should be reported in uppercase letters",
         "examples": "GGACTACHVGGGTWTCTAAT",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "pcr_primer_reverse": {
         "group": "dnaDerivedData",
@@ -11173,10 +11034,8 @@
         "dc:description": "Reverse PCR primer that were used to amplify the sequence of the targeted gene, locus or subfragment. If multiple multiple forward or reverse primers are present in a single PCR reaction, there should be a full row for each of these linked to the same DWC Occurrence. The primer sequence should be reported in uppercase letters",
         "examples": "GGACTACHVGGGTWTCTAAT",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "pcr_primer_name_forward": {
         "group": "dnaDerivedData",
@@ -11188,10 +11047,8 @@
         "dc:description": "Name of the forward PCR primer that were used to amplify the sequence of the targeted gene, locus or subfragment. If multiple multiple forward or reverse primers are present in a single PCR reaction, there should be a full row for each of these linked to the same DWC Occurrence.",
         "examples": "jgLCO1490",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "pcr_primer_name_reverse": {
         "group": "dnaDerivedData",
@@ -11203,10 +11060,8 @@
         "dc:description": "Name of the reverse PCR primer that were used to amplify the sequence of the targeted gene, locus or subfragment. If multiple multiple forward or reverse primers are present in a single PCR reaction, there should be a full row for each of these linked to the same DWC Occurrence.",
         "examples": "jgHCO2198",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "pcr_primer_reference": {
         "group": "dnaDerivedData",
@@ -11218,10 +11073,8 @@
         "dc:description": "Reference for the PCR primers that were used to amplify the sequence of the targeted gene, locus or subfragment.",
         "examples": "https://doi.org/10.1186/1742-9994-10-34",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "DNA_sequence": {
         "group": "dnaDerivedData",
@@ -11233,10 +11086,8 @@
         "dc:description": "The DNA sequence",
         "examples": "TCTATCCTCAATTATAGGTCATAATTCACCATCAGTAGATTTAGGAATTTTCTCTATTCATATTGCAGGTGTATCATCAATTATAGGATCAATTAATTTTATTGTAACAATTTTAAATATACATACAAAAACTCATTCATTAAACTTTTTACCATTATTTTCATGATCAGTTCTAGTTACAGCAATTCTCCTTTTATTATCATTA",
         "gbif_required": "false",
-        "obis_required": "strongly recommended",
-        "validators": [
-          "recommended"
-        ]
+        "obis_required": "optional",
+        "validators": []
       },
       "concentration": {
         "group": "dnaDerivedData",

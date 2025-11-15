@@ -102,7 +102,7 @@ const xmlSchemaToJson = (filePath,options) => {
         simplifiedJson.extension.reduce((acc, prop) => {
             const { _attributes, property, ...restProps } = prop;
             const { name, ...rest } = _attributes;
-            return { ...acc, [name]: { ...rest, "fields": property, ...restProps} };
+            return { ...acc, [name]: { ...rest, name, "fieldOverrides": {}, "fields": property, ...restProps} };
         }, {}
 );
 
@@ -127,8 +127,8 @@ async function main() {
     if (!response.ok) {
         throw new Error(`Failed to fetch ${obisChecklistUrl}: ${response.statusText}`);
     }
-    const csvText = await response.text();
-    const obisChecklist = await csv().fromString(csvText);
+    const csvText = (await response.text());
+    const obisChecklist = await csv().fromString(csvText.replace(/[^\x00-\x7F]/g, ""));
 
     fs.writeFileSync("./external/obisChecklist.json", JSON.stringify(obisChecklist, null, 2));
 
@@ -137,8 +137,19 @@ async function main() {
         const term = item.Term;
         Object.keys(schemaJson).forEach(key => {
             const table = schemaJson[key];
+            let affectedTable = []
+            if (item["Event Table"] ) affectedTable.push("Event");
+            if (item["Occurrence Extension"]) affectedTable.push("Occurrence");
+            if (item["eMoF Table"]) affectedTable.push("ExtendedMeasurementOrFact");
+            if (item["eMoF DNA Table"]) affectedTable.push("dnaDerivedData");
             if (table.fields[term]) {
-                table.fields[term] = { ...table.fields[term], "obis_required": item["OBIS Required"] };
+                console.log(key);
+                console.log(affectedTable);
+                if (affectedTable.includes(key)){
+                    table.fields[term] = { ...table.fields[term], "obis_required": item["OBIS Required"] };
+                } else {
+                    table.fields[term] = { ...table.fields[term], "obis_required": "optional" };
+                }
             }
         })
     });

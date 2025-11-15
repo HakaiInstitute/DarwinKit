@@ -99,11 +99,6 @@ export class WorkspaceValidator {
         }
         : loadedConfig;
 
-      // Load validation profile if specified
-      const validationProfile = config.validation.profile
-        ? getValidationProfile(config.validation.profile)
-        : undefined;
-
       // Create workspace and load all datasets
       const { workspaceId, connection } = yield* _(
         createWorkspaceFromConfig(config, dirname(resolvedConfigPath)),
@@ -116,6 +111,14 @@ export class WorkspaceValidator {
           const datasetResults: DatasetValidationResult[] = [];
 
           for (const dataset of config.datasets) {
+            // Load validation profile if specified
+            const validationProfile = 
+              dataset.validation.profile 
+              ? getValidationProfile(dataset.validation.profile) 
+              : config.validation.profile
+                ? getValidationProfile(config.validation.profile)
+                : undefined;
+
             const result = yield* _(
               validateDataset(connection, dataset, validationProfile),
             );
@@ -323,37 +326,39 @@ function validateDataset(
 
     // Check profile field requirements based on requirement levels
     if (profile) {
+      
       const mappedSpecFields = new Set(dataset.fieldMappings.map((m) => m.targetName));
 
-      for (const [fieldName, fieldOverride] of Object.entries(profile.fieldOverrides)) {
-        if (!fieldOverride.requirement) continue;
+      for (const [fieldName, fieldOverride] of Object.entries(profile.fields)) {
+
+        if (!fieldOverride.obis_required) continue;
 
         const isMapped = mappedSpecFields.has(fieldName);
 
         if (!isMapped) {
           // Handle missing fields based on requirement level
-          if (fieldOverride.requirement === FieldRequirementLevel.Required) {
+          if (fieldOverride.obis_required === FieldRequirementLevel.Required) {
             requiredFieldErrors.push({
               fieldName,
               targetName: fieldName,
               message:
-                `Profile '${profile.id}' requires field '${fieldName}' but it is not mapped in the dataset`,
+                `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
             });
-          } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
+          } else if (fieldOverride.obis_required === FieldRequirementLevel.StronglyRecommended) {
             warnings.push({
               fieldName,
               targetName: fieldName,
               requirementLevel: "strongly-recommended",
               message:
-                `Profile '${profile.id}' strongly recommends field '${fieldName}' but it is not mapped`,
+                `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
             });
-          } else if (fieldOverride.requirement === FieldRequirementLevel.Recommended) {
+          } else if (fieldOverride.obis_required === FieldRequirementLevel.Recommended) {
             recommendations.push({
               fieldName,
               targetName: fieldName,
               requirementLevel: "recommended",
               message:
-                `Profile '${profile.id}' recommends field '${fieldName}' for better data quality`,
+                `Profile '${profile.name}' recommends field '${fieldName}' for better data quality`,
             });
           }
           // RequiredIfExists and Optional don't generate messages when missing
@@ -363,15 +368,16 @@ function validateDataset(
 
     // Validate each field mapping
     for (const mapping of dataset.fieldMappings) {
-      // Get base spec field definition
-      const baseField = getDWCField(mapping.targetName);
 
+      // TODO: Why are we doing this check?
+      // Get base spec field definition
+      const baseField = Object.keys(profile.fields).includes(mapping.targetName);
       if (!baseField && specInfo.spec === "dwc") {
         // Unknown Darwin Core field
         requiredFieldErrors.push({
           fieldName: mapping.originName,
           targetName: mapping.targetName,
-          message: `Unknown Darwin Core field: ${mapping.targetName}`,
+          message: `Unknown Darwin Core schema field: ${mapping.targetName}. Please confirm the schema definition is up to date`,
         });
         continue;
       }
@@ -814,7 +820,7 @@ function validateRangeConstraints(
     const violations: ValidationViolation[] = [];
 
     // Get range validators from field definition
-    const rangeValidators = specField.validators.filter((v) => v.type === "range");
+    const rangeValidators = specField.validators?.filter((v) => v.type === "range") || [];
 
     for (const validator of rangeValidators) {
       // Get minimal violations

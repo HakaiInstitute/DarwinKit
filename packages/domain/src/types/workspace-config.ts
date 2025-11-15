@@ -68,6 +68,9 @@ export interface DatasetConfig {
   readonly spec: string; // e.g., "dwc-event", "dwc-occurrence", "metadata-v1"
   readonly path: string; // Path to CSV file
   readonly description?: string;
+  readonly validation: {
+    readonly profile?: string;
+  };
   readonly fieldMappings: readonly WorkspaceFieldMapping[];
 }
 

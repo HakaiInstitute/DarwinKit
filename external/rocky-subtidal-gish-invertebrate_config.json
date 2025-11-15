@@ -6,7 +6,6 @@
     "createdAt": "2024-10-06T00:00:00.000Z",
     "updatedAt": "2024-10-06T00:00:00.000Z",
     "validation": {
-        "profile": "obis-event",
         "nullValues": [
             "NA",
             "N/A",
@@ -23,6 +22,9 @@
             "spec": "dwc-event",
             "path": "./rocky-subtidal-fish-invertebrate/obis/hakaiFI_event.csv",
             "description": "Marine sampling events for OBIS",
+            "validation": {
+                "profile": "Event"
+            },
             "fieldMappings": [
                 {
                     "originName": "eventID",
@@ -151,6 +153,156 @@
                         "minValue": 0,
                         "maxValue": 11000
                     }
+                }
+            ]
+        },
+        {
+            "name": "occurrence",
+            "spec": "dwc-occurrence",
+            "path": "./rocky-subtidal-fish-invertebrate/obis/hakaiFI_occ.csv",
+            "description": "Marine sampling occurrence for OBIS",
+            "validation": {
+                "profile": "Occurrence"
+            },
+            "fieldMappings": [
+                {
+                    "originName": "scientificName",
+                    "targetName": "scientificName"
+                },
+                {
+                    "originName": "vernacularName",
+                    "targetName": "vernacularName"
+                },
+                {
+                    "originName": "identificationRemarks",
+                    "targetName": "identificationRemarks"
+                },
+                {
+                    "originName": "occurrenceRemarks",
+                    "targetName": "occurrenceRemarks"
+                },
+                {
+                    "originName": "verbatimIdentification",
+                    "targetName": "verbatimIdentification"
+                },
+                {
+                    "originName": "scientificNameID",
+                    "targetName": "scientificNameID"
+                },
+                {
+                    "originName": "taxonomicStatus",
+                    "targetName": "taxonomicStatus"
+                },
+                {
+                    "originName": "scientificNameAuthorship",
+                    "targetName": "scientificNameAuthorship"
+                },
+                {
+                    "originName": "kingdom",
+                    "targetName": "kingdom"
+                },
+                {
+                    "originName": "phylum",
+                    "targetName": "phylum"
+                },
+                {
+                    "originName": "class",
+                    "targetName": "class"
+                },
+                {
+                    "originName": "order",
+                    "targetName": "order"
+                },
+                {
+                    "originName": "family",
+                    "targetName": "family"
+                },
+                {
+                    "originName": "genus",
+                    "targetName": "genus"
+                },
+                {
+                    "originName": "recordedBy",
+                    "targetName": "recordedBy"
+                },
+                {
+                    "originName": "occurrenceStatus",
+                    "targetName": "occurrenceStatus"
+                },
+                {
+                    "originName": "individualCount",
+                    "targetName": "individualCount"
+                },
+                {
+                    "originName": "specificEpithet",
+                    "targetName": "specificEpithet"
+                },
+                {
+                    "originName": "basisOfRecord",
+                    "targetName": "basisOfRecord"
+                },
+                {
+                    "originName": "eventID",
+                    "targetName": "eventID"
+                },
+                {
+                    "originName": "occurrenceID",
+                    "targetName": "occurrenceID"
+                }
+            ]
+        },
+        {
+            "name": "extended measurement or fact",
+            "spec": "dwc-eMOF",
+            "path": "./rocky-subtidal-fish-invertebrate/obis/hakaiFI_eMOF.csv",
+            "description": "Marine sampling Extended Measurement Or Fact for OBIS",
+            "validation": {
+                "profile": "ExtendedMeasurementOrFact"
+            },
+            "fieldMappings": [
+                {
+                    "originName": "scientificName",
+                    "targetName": "scientificName"
+                },
+                {
+                    "originName": "eventID",
+                    "targetName": "eventID"
+                },
+                {
+                    "originName": "measurementValue",
+                    "targetName": "measurementValue"
+                },
+                {
+                    "originName": "measurementType",
+                    "targetName": "measurementType"
+                },
+                {
+                    "originName": "measurementValueID",
+                    "targetName": "measurementValueID"
+                },
+                {
+                    "originName": "measurementTypeID",
+                    "targetName": "measurementTypeID"
+                },
+                {
+                    "originName": "measurementUnit",
+                    "targetName": "measurementUnit"
+                },
+                {
+                    "originName": "measurementUnitID",
+                    "targetName": "measurementUnitID"
+                },
+                {
+                    "originName": "measurementID",
+                    "targetName": "measurementID"
+                },
+                {
+                    "originName": "occurrenceID",
+                    "targetName": "occurrenceID"
+                },
+                {
+                    "originName": "measurementMethod",
+                    "targetName": "measurementMethod"
                 }
             ]
         }
