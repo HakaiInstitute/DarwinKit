@@ -409,6 +409,12 @@ function validateDataset(
             targetName: mapping.targetName,
             message: `Required field '${mapping.originName}' not found in CSV`,
           });
+        } else {
+          warnings.push({
+            fieldName: mapping.originName,
+            targetName: mapping.targetName,
+            message: `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
+          });
         }
         continue;
       }
