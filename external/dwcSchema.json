@@ -14,6 +14,22 @@
     "name": "ExtendedMeasurementOrFact",
     "fieldOverrides": {},
     "fields": {
+      "eventID": {
+        "group": "ExtendedMeasurementOrFact",
+        "name": "eventID",
+        "label": "Event ID",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/eventID",
+        "dc:relation": "http://rs.tdwg.org/dwc/terms/index.htm#eventID",
+        "dc:description": "The identifier of the event the measurement or fact refers to.",
+        "examples": "",
+        "gbif_required": "true",
+        "type": "identifier",
+        "obis_required": "required",
+        "validators": [
+          "required"
+        ]
+      },
       "measurementID": {
         "group": "ExtendedMeasurementOrFact",
         "name": "measurementID",

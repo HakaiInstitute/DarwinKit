@@ -252,7 +252,7 @@
             ]
         },
         {
-            "name": "extended measurement or fact",
+            "name": "extendedMeasurementOrFact",
             "spec": "dwc-eMOF",
             "path": "./rocky-subtidal-fish-invertebrate/obis/hakaiFI_eMOF.csv",
             "description": "Marine sampling Extended Measurement Or Fact for OBIS",
@@ -260,10 +260,6 @@
                 "profile": "ExtendedMeasurementOrFact"
             },
             "fieldMappings": [
-                {
-                    "originName": "scientificName",
-                    "targetName": "scientificName"
-                },
                 {
                     "originName": "eventID",
                     "targetName": "eventID"

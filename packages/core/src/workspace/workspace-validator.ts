@@ -372,12 +372,13 @@ function validateDataset(
       // TODO: Why are we doing this check?
       // Get base spec field definition
       const baseField = Object.keys(profile.fields).includes(mapping.targetName);
+      // this will fail if a fieldmapping entry is not in the schema
       if (!baseField && specInfo.spec === "dwc") {
         // Unknown Darwin Core field
         requiredFieldErrors.push({
           fieldName: mapping.originName,
           targetName: mapping.targetName,
-          message: `Unknown Darwin Core schema field: ${mapping.targetName}. Please confirm the schema definition is up to date`,
+          message: `Unknown Darwin Core schema field: ${mapping.targetName}. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
         });
         continue;
       }
