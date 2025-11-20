@@ -1,5 +1,6 @@
 import { Command } from '@cliffy/command';
 import { validateCommand } from './src/cmd/validate/validate.ts';
+import { transformCommand } from './src/cmd/transform/transform.ts';
 import packageInfo from './deno.json' with { type: 'json' };
 
 const darwinkit = new Command()
@@ -13,6 +14,7 @@ const darwinkit = new Command()
   .action(function () {
     this.showHelp();
   })
-  .command('validate', validateCommand);
+  .command('validate', validateCommand)
+  .command('transform', transformCommand);
 
 await darwinkit.parse(Deno.args);

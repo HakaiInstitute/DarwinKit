@@ -19,6 +19,7 @@ export const validationSettingsSchema = S.Struct({
  * Workspace field mapping schema
  */
 export const workspaceFieldMappingSchema = S.Struct({
+  transform: S.optional(S.String),
   originName: S.String,
   targetName: S.String,
   isRequired: S.optional(S.Boolean),
@@ -57,6 +58,13 @@ export const workspaceConfigSchema = S.Struct({
   name: S.String,
   version: S.String,
   description: S.optional(S.String),
+  transform: (
+    S.Struct({
+      inputs: S.Object,
+      postImportTransforms: S.Array(S.String),
+      datasets: S.Array(S.Object),
+    })
+  ),
   validation: validationSettingsSchema,
   datasets: S.Array(datasetConfigSchema),
   crossDatasetRules: S.optional(S.Array(workspaceCrossDatasetRuleSchema)),

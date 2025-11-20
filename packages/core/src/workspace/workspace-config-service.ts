@@ -245,7 +245,7 @@ export class WorkspaceConfigService {
       const config = yield* _(WorkspaceConfigService.loadConfig(configPath));
 
       // Validate dataset paths
-      const basePath = dirname(configPath);
+      const basePath = dirname(configPath) || dirname(searchDir || Deno.cwd());
       yield* _(WorkspaceConfigService.validateDatasetPaths(config, basePath));
 
       return { config, configPath };
