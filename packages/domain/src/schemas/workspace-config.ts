@@ -9,7 +9,6 @@ import { EnforcementLevel } from "../specs/validators.ts";
  * Validation settings schema
  */
 export const validationSettingsSchema = S.Struct({
-  profile: S.optional(S.String),
   nullValues: S.Array(S.String),
   failFast: S.Boolean,
   outputDir: S.String,
@@ -19,7 +18,6 @@ export const validationSettingsSchema = S.Struct({
  * Workspace field mapping schema
  */
 export const workspaceFieldMappingSchema = S.Struct({
-  transform: S.optional(S.String),
   originName: S.String,
   targetName: S.String,
   isRequired: S.optional(S.Boolean),

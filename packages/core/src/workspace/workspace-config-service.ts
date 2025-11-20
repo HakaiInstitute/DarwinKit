@@ -15,6 +15,9 @@ import type { WorkspaceConfig } from "@dwkt/domain";
 import { ErrorCode } from "@dwkt/domain";
 import { workspaceConfigSchema } from "@dwkt/domain";
 import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
+import * as YAML from "js-yaml";
+import { cons } from "effect/List";
+
 
 // Configuration file constants
 const CONFIG_FILENAME = "darwinkit.json";
@@ -160,18 +163,36 @@ export class WorkspaceConfigService {
         }),
       );
 
-      // Parse JSON
-      const configJson = yield* _(
-        Effect.try({
-          try: () => JSON.parse(configContent),
-          catch: (error) =>
-            new ConfigParseError({
-              message: `Invalid JSON in configuration file: ${error}`,
-              configPath,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            }),
-        }),
-      );
+      let configJson: Object;
+      if(configPath.endsWith('.yaml') || configPath.endsWith('.yml')) {
+        // Parse YAML
+        configJson = yield* _(
+          Effect.try({
+            try: () => {
+              return YAML.load(configContent);
+            },
+            catch: (error) =>
+              new ConfigParseError({
+                message: `Invalid YAML in configuration file: ${error}`,
+                configPath,
+                cause: error instanceof Error ? error : new Error(String(error)),
+              }),
+          }),
+        );
+      } else {
+        // Parse JSON
+        configJson = yield* _(
+          Effect.try({
+            try: () => JSON.parse(configContent),
+            catch: (error) =>
+              new ConfigParseError({
+                message: `Invalid JSON in configuration file: ${error}`,
+                configPath,
+                cause: error instanceof Error ? error : new Error(String(error)),
+              }),
+          }),
+        );
+      }
 
       // Add metadata if missing (keep as strings for schema validation)
       const configWithMeta = {
@@ -185,12 +206,13 @@ export class WorkspaceConfigService {
       const config = yield* _(
         Effect.try({
           try: () => Schema.decodeUnknownSync(workspaceConfigSchema)(configWithMeta),
-          catch: (error) =>
-            new ConfigValidationError({
+          catch: (error) =>{
+            console.error(error);
+            return new ConfigValidationError({
               message: `Configuration validation failed`,
               configPath,
               validationErrors: [String(error)],
-            }),
+            })},
         }),
       );
 

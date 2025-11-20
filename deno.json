@@ -23,6 +23,7 @@
     "csvtojson": "npm:csvtojson@^2.0.14",
     "drizzle-kit": "npm:drizzle-kit@^0.31.4",
     "effect": "npm:effect@^3.17.8",
+    "js-yaml": "npm:js-yaml@^4.1.1",
     "node-fetch": "npm:node-fetch@^3.3.2",
     "txml": "npm:txml@^5.2.1",
     "uuid": "npm:uuid@^11.1.0",

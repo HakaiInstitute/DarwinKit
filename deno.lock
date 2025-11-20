@@ -68,6 +68,7 @@
     "npm:effect@^3.17.8": "3.17.8",
     "npm:git-cliff@^2.7.0": "2.10.0",
     "npm:hono@^4.6.9": "4.9.4",
+    "npm:js-yaml@^4.1.1": "4.1.1",
     "npm:node-fetch@^3.3.2": "3.3.2",
     "npm:pg@^8.16.3": "8.16.3",
     "npm:playwright@*": "1.55.0",
@@ -1439,6 +1440,9 @@
         "picomatch@2.3.1"
       ]
     },
+    "argparse@2.0.1": {
+      "integrity": "sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q=="
+    },
     "ast-types@0.16.1": {
       "integrity": "sha512-6t10qk83GOG8p0vKmaCr8eiilZwO171AvbROMtvvNiwrTly62t+7XkA8RdIIVbpMhCASAsxgAzdRSwh6nw/5Dg==",
       "dependencies": [
@@ -1870,6 +1874,13 @@
     },
     "js-tokens@4.0.0": {
       "integrity": "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="
+    },
+    "js-yaml@4.1.1": {
+      "integrity": "sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==",
+      "dependencies": [
+        "argparse"
+      ],
+      "bin": true
     },
     "jsesc@3.1.0": {
       "integrity": "sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==",
@@ -2558,6 +2569,7 @@
       "npm:drizzle-orm@~0.39.3",
       "npm:effect@^3.17.8",
       "npm:hono@^4.6.9",
+      "npm:js-yaml@^4.1.1",
       "npm:node-fetch@^3.3.2",
       "npm:pg@^8.16.3",
       "npm:playwright@^1.48.0",

@@ -16,14 +16,6 @@ export interface ValidationSettings {
   readonly nullValues: readonly string[];
   readonly failFast: boolean;
   readonly outputDir: string;
-
-  /**
-   * Optional validation profile ID (e.g., "obis-event", "gbif-occurrence")
-   *
-   * Profiles layer additional validation requirements on top of base specs.
-   * See packages/shared/src/specs/profiles/ for available profiles.
-   */
-  readonly profile?: string;
 }
 
 /**
