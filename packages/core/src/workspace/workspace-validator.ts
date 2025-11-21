@@ -110,14 +110,9 @@ export class WorkspaceValidator {
           // Validate each dataset
           const datasetResults: DatasetValidationResult[] = [];
 
-          for (const dataset of config.datasets) {
+          for (const dataset of config.validation.datasets) {
             // Load validation profile if specified
-            const validationProfile = 
-              dataset.validation.profile 
-              ? getValidationProfile(dataset.validation.profile) 
-              : config.validation.profile
-                ? getValidationProfile(config.validation.profile)
-                : undefined;
+            const validationProfile = getValidationProfile(dataset.profile) 
 
             const result = yield* _(
               validateDataset(connection, dataset, validationProfile),
@@ -190,7 +185,7 @@ function createWorkspaceFromConfig(
     );
 
     // Load each dataset into DuckDB
-    for (const dataset of config.datasets) {
+    for (const dataset of config.validation.datasets) {
       const filePath = resolve(basePath, dataset.path);
       const tableName = sanitizeTableName(dataset.name);
 

@@ -24,6 +24,7 @@
     "drizzle-kit": "npm:drizzle-kit@^0.31.4",
     "effect": "npm:effect@^3.17.8",
     "js-yaml": "npm:js-yaml@^4.1.1",
+    "json-2-csv": "npm:json-2-csv@^5.5.10",
     "node-fetch": "npm:node-fetch@^3.3.2",
     "txml": "npm:txml@^5.2.1",
     "uuid": "npm:uuid@^11.1.0",

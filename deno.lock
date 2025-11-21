@@ -69,6 +69,7 @@
     "npm:git-cliff@^2.7.0": "2.10.0",
     "npm:hono@^4.6.9": "4.9.4",
     "npm:js-yaml@^4.1.1": "4.1.1",
+    "npm:json-2-csv@^5.5.10": "5.5.10",
     "npm:node-fetch@^3.3.2": "3.3.2",
     "npm:pg@^8.16.3": "8.16.3",
     "npm:playwright@*": "1.55.0",
@@ -1557,6 +1558,9 @@
     "decode-formdata@0.9.0": {
       "integrity": "sha512-q5uwOjR3Um5YD+ZWPOF/1sGHVW9A5rCrRwITQChRXlmPkxDFBqCm4jNTIVdGHNH9OnR+V9MoZVgRhsFb+ARbUw=="
     },
+    "deeks@3.1.0": {
+      "integrity": "sha512-e7oWH1LzIdv/prMQ7pmlDlaVoL64glqzvNgkgQNgyec9ORPHrT2jaOqMtRyqJuwWjtfb6v+2rk9pmaHj+F137A=="
+    },
     "detect-libc@2.0.4": {
       "integrity": "sha512-3UDv+G9CsCKO1WKMGw9fwq/SWJYbI0c5Y7LU1AXYoDdbhE2AHQ6N6Nb34sG8Fj7T5APy8qXDCKuuIHd1BR0tVA=="
     },
@@ -1565,6 +1569,9 @@
     },
     "diff@8.0.2": {
       "integrity": "sha512-sSuxWU5j5SR9QQji/o2qMvqRNYRDOcBTgsJ/DeCf4iSN4gW+gNMXM7wFIP+fdXZxoNiAnHUTGjCr+TSWXdRDKg=="
+    },
+    "doc-path@4.1.1": {
+      "integrity": "sha512-h1ErTglQAVv2gCnOpD3sFS6uolDbOKHDU1BZq+Kl3npPqroU3dYL42lUgMfd5UimlwtRgp7C9dLGwqQ5D2HYgQ=="
     },
     "dotenv@16.6.1": {
       "integrity": "sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow=="
@@ -1885,6 +1892,13 @@
     "jsesc@3.1.0": {
       "integrity": "sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==",
       "bin": true
+    },
+    "json-2-csv@5.5.10": {
+      "integrity": "sha512-Dep8wO3Fr5wNjQevO2Z8Y7yeee/nYSGRsi7q6zJDKEVHxXkXT+v21vxHmDX923UzmCXXkSo62HaTz6eTWzFLaw==",
+      "dependencies": [
+        "deeks",
+        "doc-path"
+      ]
     },
     "json5@2.2.3": {
       "integrity": "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==",
@@ -2570,6 +2584,7 @@
       "npm:effect@^3.17.8",
       "npm:hono@^4.6.9",
       "npm:js-yaml@^4.1.1",
+      "npm:json-2-csv@^5.5.10",
       "npm:node-fetch@^3.3.2",
       "npm:pg@^8.16.3",
       "npm:playwright@^1.48.0",

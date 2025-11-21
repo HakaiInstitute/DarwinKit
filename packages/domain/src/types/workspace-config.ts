@@ -9,14 +9,7 @@
 import type { BaseEntity } from "./common.ts";
 import type { EnforcementLevel } from "../specs/validators.ts";
 
-/**
- * Validation settings for the workspace
- */
-export interface ValidationSettings {
-  readonly nullValues: readonly string[];
-  readonly failFast: boolean;
-  readonly outputDir: string;
-}
+
 
 /**
  * Field mapping from CSV column to spec field
@@ -60,10 +53,27 @@ export interface DatasetConfig {
   readonly spec: string; // e.g., "dwc-event", "dwc-occurrence", "metadata-v1"
   readonly path: string; // Path to CSV file
   readonly description?: string;
-  readonly validation: {
-    readonly profile?: string;
-  };
+  readonly profile: string;
   readonly fieldMappings: readonly WorkspaceFieldMapping[];
+}
+
+/**
+ * Validation settings for the workspace
+ */
+export interface ValidationSettings {
+  readonly nullValues: readonly string[];
+  readonly failFast: boolean;
+  readonly outputDir: string;
+  readonly datasets: readonly DatasetConfig[];
+}
+
+/**
+ * Transformation settings for the workspace
+ */
+export interface TransformSettings {
+  readonly nullValues: readonly string[];
+  readonly outputDir: string;
+  readonly datasets: readonly DatasetConfig[];
 }
 
 /**
@@ -73,8 +83,8 @@ export interface WorkspaceConfig extends BaseEntity {
   readonly name: string;
   readonly version: string;
   readonly description?: string;
-  readonly validation: ValidationSettings;
-  readonly datasets: readonly DatasetConfig[];
+  readonly transform?: TransformSettings;
+  readonly validation?: ValidationSettings;
   readonly crossDatasetRules?: readonly WorkspaceCrossDatasetRule[];
 }
 

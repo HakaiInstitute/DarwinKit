@@ -5,14 +5,7 @@
 import * as S from "effect/Schema";
 import { EnforcementLevel } from "../specs/validators.ts";
 
-/**
- * Validation settings schema
- */
-export const validationSettingsSchema = S.Struct({
-  nullValues: S.Array(S.String),
-  failFast: S.Boolean,
-  outputDir: S.String,
-});
+
 
 /**
  * Workspace field mapping schema
@@ -44,31 +37,55 @@ export const datasetConfigSchema = S.Struct({
   spec: S.String,
   path: S.String,
   description: S.optional(S.String),
-  validation: (S.Struct({profile: S.optional(S.String)})),
+  profile: S.String,
   fieldMappings: S.Array(workspaceFieldMappingSchema),
+});
+
+/**
+ * Validation settings schema
+ */
+export const validationSettingsSchema = S.Struct({
+  nullValues: S.Array(S.String),
+  failFast: S.Boolean,
+  outputDir: S.String,
+  datasets: S.Array(datasetConfigSchema),
+});
+
+/**
+ * Transform settings schema
+ */
+export const transformSettingsSchema = S.Struct({
+  nullValues: S.Array(S.String),
+  inputs: S.Object,
+  postImportTransforms: S.Array(S.String),
+  datasets: S.Array(S.Object),
+  outputDir: S.String,
+  outputFilesWithTimestamp: S.optional(S.Boolean),
 });
 
 /**
  * Complete workspace configuration schema
  */
-export const workspaceConfigSchema = S.Struct({
+const workspaceConfigBaseSchema = S.Struct({
   id: S.String,
   name: S.String,
   version: S.String,
   description: S.optional(S.String),
-  transform: (
-    S.Struct({
-      inputs: S.Object,
-      postImportTransforms: S.Array(S.String),
-      datasets: S.Array(S.Object),
-    })
-  ),
+  transform: transformSettingsSchema,
   validation: validationSettingsSchema,
-  datasets: S.Array(datasetConfigSchema),
   crossDatasetRules: S.optional(S.Array(workspaceCrossDatasetRuleSchema)),
   createdAt: S.Date,
   updatedAt: S.Date,
 });
+
+/**
+ * Workspace configuration schema that allows either validation or transform settings to be omitted, but not both.
+ */
+export const workspaceConfigSchema = S.Union(
+  workspaceConfigBaseSchema.pipe(S.omit("validation")),
+  workspaceConfigBaseSchema.pipe(S.omit("transform")),
+  workspaceConfigBaseSchema
+);
 
 // Note: Type exports are defined in types/workspace-config.ts to avoid duplication
 // These schemas validate the types defined there

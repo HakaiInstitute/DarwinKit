@@ -230,8 +230,23 @@ export class WorkspaceConfigService {
     const base = basePath || dirname(Deno.cwd());
 
     return Effect.gen(function* (_) {
-      for (const dataset of config.datasets) {
+      for (const dataset of config.validation?.datasets || []) {
         const filePath = resolve(base, dataset.path);
+
+        yield* _(
+          Effect.tryPromise({
+            try: () => Deno.stat(filePath),
+            catch: () =>
+              new DatasetFileNotFoundError({
+                message: `Dataset file not found: ${filePath}`,
+                datasetName: dataset.name,
+                filePath,
+              }),
+          }),
+        );
+      }
+      for (const path of Object.values(config.transform?.inputs || [])) {
+        const filePath = resolve(base, path);
 
         yield* _(
           Effect.tryPromise({
