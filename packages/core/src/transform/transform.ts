@@ -124,6 +124,14 @@ function createTableFromSchema(
         } else if (field.obis_required === "required") {
           fieldStr += " NOT NULL"
         }
+        // add forgain key constraints for fields
+        if (fieldName.endsWith('ID') && fieldName != tableName + 'ID') {
+          const referencedTable = fieldName.slice(0, -2).toLowerCase();
+          // check if referenced table exists in config
+          if (config.transform.datasets.find(ds => getValidationProfile(ds.profile).name.toLowerCase() === referencedTable)) { 
+            fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;
+          }
+        }
         return fieldStr;
       });
 
@@ -185,9 +193,9 @@ export function exportObisTablesToCSV(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig
 ): Effect.Effect<void, OutputError> {
-  const withTimestamp = config.transform?.outputFilesWithTimestamp ?? true;
-  const tables = config.transform?.datasets.map((ds) => ds.profile.toLowerCase()) || [];
-  const outputPath = config.transform?.outputDir || './transform_results';
+  const withTimestamp = config.transform?.output.outputFilesWithTimestamp ?? true;
+  const tables = [...new Set(config.transform?.datasets.map((ds) => ds.profile.toLowerCase()) || [])];
+  const outputPath = config.transform?.output.outputDir || './transform_results';
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   return Effect.gen(function* (_) {
     // Create output directory, recursively if necessary
@@ -202,11 +210,30 @@ export function exportObisTablesToCSV(
     );
 
     for (const tableName of tables) {
+
+      const selectColumns: string[] = [];
+      if (config.transform?.output?.dropNullColumns) {
+        // Get column names
+        const columnNamesResult = yield* _(Effect.tryPromise(() => connection.runAndReadAll(`PRAGMA table_info(${tableName});`)));
+        const columnNames = columnNamesResult.getRowObjectsJson().map((row: any) => row.name);
+
+        for (const columnName of columnNames) {
+          // Check if the column is entirely NULL
+          const nullCountResult = yield* _(Effect.tryPromise(() => connection.runAndReadAll(`SELECT COUNT(*) AS null_count FROM ${tableName} WHERE "${columnName}" IS NOT NULL;`)));
+          const notNullCount = nullCountResult.getRowObjectsJson()[0].null_count;
+          if (notNullCount > 0) {
+            selectColumns.push(`"${columnName}"`);
+          }
+        }
+      } else{
+        selectColumns.push('*');
+      }
+
       // Fetch all data from the current table
-      const result = yield* _(Effect.tryPromise(() => connection.runAndReadAll(`SELECT * FROM ${tableName}`)));
+      const result = yield* _(Effect.tryPromise(() => connection.runAndReadAll(`SELECT ${selectColumns.join(',')} FROM ${tableName}`)));
       // Generate the filename for the CSV file, including a timestamp if specified
       const filename = withTimestamp ? `${tableName}-${timestamp}.csv` : `${tableName}.csv`;
-      const fullPath:string = join(outputPath, filename);
+      const fullPath: string = join(outputPath, filename);
 
       // Write the data to the CSV file
       yield* _(Effect.tryPromise({
@@ -234,13 +261,18 @@ export function exportToPersistentDB(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig
 ): Effect.Effect<void, OutputError> {
-  const withTimestamp = config.transform?.outputFilesWithTimestamp ?? true;
-  const outputPath = config.transform?.outputDir || './transform_results';
+  const withTimestamp = config.transform?.output.outputFilesWithTimestamp ?? true;
+  const outputPath = config.transform?.output.outputDir || './transform_results';
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const dbName = 'obis'; // Default database name for the exported file
-  const filename = withTimestamp ? `${dbName}-${timestamp}.duckdb` : `${dbName}.duckdb`;
+  const dbFileName = config.transform?.output.exportDBFileName || dbName;
+  const filename = withTimestamp ? `${dbFileName}-${timestamp}.duckdb` : `${dbFileName}.duckdb`;
   const fullPath = join(outputPath, filename);
+
   return Effect.gen(function* (_) {
+    if (!config.transform?.output.exportDB) {
+      return;
+    }
 
     // Create output directory, recursively if necessary
     yield* _(Effect.tryPromise({
@@ -277,16 +309,27 @@ export function exportToPersistentDB(
     }
 
     // Export the in-memory database to a persistent DuckDB file. This will create the file if it doesn't exist.
-    yield* _(
-      Effect.tryPromise({
-        try: () => connection.run(`ATTACH '${fullPath}'; COPY FROM DATABASE memory TO ${dbName}; DETACH ${dbName};`),
-        catch: (error) => new OutputError({
-          message: `Failed export DB to ${fullPath}: ${error}`,
-          outputPath,
-          cause: error instanceof Error ? error : new Error(String(error)),
-        }),
-      })
-    );
+    // We cant use COPY TO DATABASE directly, as it creates constraint violations when tables are copied out of order.
+    for (const dataset of config.transform.datasets) {
+      // Load validation profile if specified
+      const transformProfile = getValidationProfile(dataset.profile)
+      const tableName = transformProfile.name.toLowerCase();
+      yield* _(
+        Effect.tryPromise({
+          // try: () => connection.run(`ATTACH '${fullPath}'; COPY FROM DATABASE memory TO ${dbName}; DETACH ${dbName};`),
+          try: () => connection.run(`
+            ATTACH '${fullPath}' as ${dbName}; 
+            CREATE TABLE IF NOT EXISTS ${dbName}.${tableName} AS FROM memory.${tableName};
+            DETACH ${dbName};
+          `),
+          catch: (error) => new OutputError({
+            message: `Failed export DB to ${fullPath}: ${error}`,
+            outputPath,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          }),
+        })
+      );
+    }
 
   });
 }
@@ -309,16 +352,16 @@ export function transformFile(
           WorkspaceConfigService.discoverAndLoad(configPath),
         );
         const basePath = dirname(resolvedConfigPath);
-        
+
         console.log('Creating tables from CSV files...');
         yield* _(createTablesFromCSV(connection, config, basePath));
-        
+
         console.log('Creating OBIS tables from schema...');
         yield* _(createTableFromSchema(connection, config));
-        
+
         console.log('Populating OBIS tables from data tables...');
         yield* _(populateSchemaFromDataTables(connection, config));
-        
+
         console.log('Exporting OBIS tables to CSV...');       
         yield* _(exportObisTablesToCSV(connection, config));
 

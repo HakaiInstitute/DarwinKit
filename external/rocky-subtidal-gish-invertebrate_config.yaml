@@ -26,6 +26,12 @@ transform:
     - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Sebastes caurinus maliger auriculatus', 'Sebastes')
     - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cottoidea', 'Cottidae')
     - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cadilna luteomarginata', 'Cadlina luteomarginata')
+  output:
+    outputDir: ./transform_results
+    outputFilesWithTimestamp: false
+    exportDB: true
+    exportDBFileName: obis_marine_survey
+    dropNullColumns: true
   datasets:
     - name: event_project
       profile: Event
@@ -236,8 +242,7 @@ transform:
         measurementID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn, occ.rn)
         occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
         measurementMethod: "'visually'"
-  outputDir: ./transform_results
-  outputFilesWithTimestamp: false
+
 validation:
   nullValues:
     - NA

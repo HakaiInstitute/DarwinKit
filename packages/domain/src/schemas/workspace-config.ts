@@ -59,8 +59,13 @@ export const transformSettingsSchema = S.Struct({
   inputs: S.Object,
   postImportTransforms: S.Array(S.String),
   datasets: S.Array(S.Object),
-  outputDir: S.String,
-  outputFilesWithTimestamp: S.optional(S.Boolean),
+  output: S.Struct({
+    outputDir: S.String,
+    outputFilesWithTimestamp: S.optional(S.Boolean),
+    exportDB: S.Boolean,
+    exportDBFileName: S.optional(S.String),
+    dropNullColumns: S.optional(S.Boolean),
+  }),
 });
 
 /**

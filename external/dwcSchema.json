@@ -59,9 +59,8 @@
         "examples": "",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "required",
+        "obis_required": "",
         "validators": [
-          "required"
         ]
       },
       "measurementType": {
