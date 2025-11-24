@@ -14,7 +14,6 @@ import { json2csv } from 'json-2-csv';
  */
 export class TransformationError extends Data.TaggedError('TransformationError')<{
   readonly message: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }> { }
 
@@ -35,7 +34,7 @@ export class OutputError extends Data.TaggedError('OutputError')<{
  * @param basePath - The base path for resolving relative CSV file paths.
  * @returns An Effect that completes when all tables are created, or fails with a TransformationError.
  */
-function createTablesFromCSV(
+export function createTablesFromCSV( // Export for testing
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
   basePath: string,
@@ -61,7 +60,6 @@ function createTablesFromCSV(
           console.error(error);
           return new TransformationError({
             message: `Failed to create table '${tableName}' from CSV`,
-            code: ErrorCode.TRANSFORMATION_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         },
@@ -76,7 +74,6 @@ function createTablesFromCSV(
           console.error(error);
           return new TransformationError({
             message: `Failed to execute post-import transform SQL`,
-            code: ErrorCode.TRANSFORMATION_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         },
@@ -93,17 +90,22 @@ function createTablesFromCSV(
  * @param config - The workspace configuration.
  * @returns An Effect that completes when all schema tables are created, or fails with a TransformationError.
  */
-function createTableFromSchema(
+export function createTableFromSchema(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
 ): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
 
-    for (const dataset of config.transform.datasets) {
+    for (const dataset of config.transform?.datasets || []) {
       // Load validation profile if specified
       const transformProfile = getValidationProfile(dataset.profile)
+      if (!transformProfile) {
+        console.warn(`No validation profile found for ${dataset.profile}, skipping table creation.`);
+        continue;
+      }
       const tableName = transformProfile.name.toLowerCase();
-      // Create ENUM types for controlled vocabularies
+
+      // 1. Create ENUM types for controlled vocabularies
       const enums = Object.entries(transformProfile.fields).map(([fieldName, field], i) => {
         if (field.type === "controlled-vocabulary" && field.values) {
           const enumName = `${tableName}_${fieldName}_enum`;
@@ -112,6 +114,8 @@ function createTableFromSchema(
         }
         return null;
       })
+
+      // 2. Generate Column Definition SQL
       const columns = Object.keys(transformProfile.fields).map((fieldName) => {
         const field = transformProfile.fields[fieldName];
         const fieldType = (field.type?.toUpperCase() || 'TEXT')
@@ -128,17 +132,37 @@ function createTableFromSchema(
         if (fieldName.endsWith('ID') && fieldName != tableName + 'ID') {
           const referencedTable = fieldName.slice(0, -2).toLowerCase();
           // check if referenced table exists in config
-          if (config.transform.datasets.find(ds => getValidationProfile(ds.profile).name.toLowerCase() === referencedTable)) { 
+          if (config.transform?.datasets.find(ds => getValidationProfile(ds.profile)?.name.toLowerCase() === referencedTable)) {
             fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;
           }
         }
         return fieldStr;
       });
 
-      // Create enums
-      connection.run(enums.filter(e => e !== null).join('\n'));
-      // Create table
-      connection.run(`CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(', ')})`);
+      // 3. Create ENUM Types
+      const enumSql = enums.filter(e => e !== null).join('\n');
+      if (enumSql) {
+        yield* _(Effect.tryPromise({
+          try: () => connection.run(enumSql),
+          catch: (error) => new TransformationError({
+            message: `Failed to create ENUM types for table '${tableName}'`,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          })
+        }));
+      }
+
+      // 4. Create Tables
+      const tableSql = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(', ')})`;
+      yield* _(Effect.tryPromise({
+        try: () => connection.run(tableSql),
+        catch: (error) => {
+          console.error(`Failing SQL: ${tableSql}`);
+          return new TransformationError({
+            message: `Failed to create table '${tableName}'`,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          })
+        }
+      }));
     }
   });
 }
@@ -149,19 +173,22 @@ function createTableFromSchema(
  * @param config - The workspace configuration.
  * @returns An Effect that completes when the tables are populated, or fails with a TransformationError.
  */
-function populateSchemaFromDataTables(
+export function populateSchemaFromDataTables( // Export for testing
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
 ): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
-    for (const dataset of config.transform.datasets) {
-      const targetColumnNames = Object.keys(dataset.fields).map((fieldName) => `"${fieldName}"`);
+    for (const dataset of config.transform?.datasets || []) {
+      const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string):string => `"${fieldName}"`);
       // Create column calculations based on the transformations defined in the dataset fields
-      const columnCalculations = Object.entries(dataset.fields).map(([targetField, transformation]) => {
-        return `${transformation} AS "${targetField}"`;
-      });
+      const columnCalculations = Object.entries(dataset.fields)
+        .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
 
       const transformProfile = getValidationProfile(dataset.profile)
+      if (!transformProfile) {
+        console.warn(`No validation profile found for ${dataset.profile}, skipping data population.`);
+        continue;
+      }
       const tableName = transformProfile.name.toLowerCase();
       const tableSources = Object.entries(dataset.source).map(([tableName, joinSQL]) => `(${joinSQL}) AS ${tableName}`).join(', ');
 
@@ -174,7 +201,6 @@ function populateSchemaFromDataTables(
           console.log(insertSQL);
           return new TransformationError({
             message: `Failed to populate table '${tableName}' from dataset '${dataset.name}'`,
-            code: ErrorCode.TRANSFORMATION_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         }
@@ -199,14 +225,14 @@ export function exportObisTablesToCSV(
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   return Effect.gen(function* (_) {
     // Create output directory, recursively if necessary
-    yield* _(Effect.tryPromise({
-      try: () => Deno.mkdir(outputPath, { recursive: true }),
-      catch: (error) => new OutputError({
-        message: `Failed to create output directory: ${error instanceof Error ? error.message : String(error)}`,
-        outputPath: outputPath,
-        cause: error instanceof Error ? error : new Error(String(error)),
-      }),
-    })
+    yield* _(
+      Effect.try(() => Deno.mkdirSync(outputPath, { recursive: true })).pipe(
+        Effect.mapError((error) => new OutputError({
+          message: `Failed to create output directory: ${error instanceof Error ? error.message : String(error)}`,
+          outputPath: outputPath,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        })),
+      ),
     );
 
     for (const tableName of tables) {
@@ -214,23 +240,50 @@ export function exportObisTablesToCSV(
       const selectColumns: string[] = [];
       if (config.transform?.output?.dropNullColumns) {
         // Get column names
-        const columnNamesResult = yield* _(Effect.tryPromise(() => connection.runAndReadAll(`PRAGMA table_info(${tableName});`)));
+        const columnNamesResult = yield* _(
+          Effect.tryPromise({
+            try: () => connection.runAndReadAll(`PRAGMA table_info(${tableName});`),
+            catch: (error) => new OutputError({
+              message: `Failed to read table schema for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+              outputPath,
+              cause: error instanceof Error ? error : new Error(String(error)),
+            }),
+          }),
+        );
         const columnNames = columnNamesResult.getRowObjectsJson().map((row: any) => row.name);
 
         for (const columnName of columnNames) {
           // Check if the column is entirely NULL
-          const nullCountResult = yield* _(Effect.tryPromise(() => connection.runAndReadAll(`SELECT COUNT(*) AS null_count FROM ${tableName} WHERE "${columnName}" IS NOT NULL;`)));
-          const notNullCount = nullCountResult.getRowObjectsJson()[0].null_count;
+          const nullCountResult = yield* _(
+            Effect.tryPromise({
+              try: () => connection.runAndReadAll(`SELECT COUNT(*) AS null_count FROM ${tableName} WHERE "${columnName}" IS NOT NULL;`),
+              catch: (error) => new OutputError({
+                message: `Failed to count non-null values for ${tableName}.${columnName}: ${error instanceof Error ? error.message : String(error)}`,
+                outputPath,
+                cause: error instanceof Error ? error : new Error(String(error)),
+              }),
+            }),
+          );
+          const notNullCount = Number(nullCountResult.getRowObjectsJson()[0].null_count ?? 0);
           if (notNullCount > 0) {
             selectColumns.push(`"${columnName}"`);
           }
         }
-      } else{
+      } else {
         selectColumns.push('*');
       }
 
       // Fetch all data from the current table
-      const result = yield* _(Effect.tryPromise(() => connection.runAndReadAll(`SELECT ${selectColumns.join(',')} FROM ${tableName}`)));
+      const result = yield* _(
+        Effect.tryPromise({
+          try: () => connection.runAndReadAll(`SELECT ${selectColumns.join(',')} FROM ${tableName}`),
+          catch: (error) => new OutputError({
+            message: `Failed to select data from ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            outputPath,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          }),
+        }),
+      );
       // Generate the filename for the CSV file, including a timestamp if specified
       const filename = withTimestamp ? `${tableName}-${timestamp}.csv` : `${tableName}.csv`;
       const fullPath: string = join(outputPath, filename);
@@ -275,14 +328,14 @@ export function exportToPersistentDB(
     }
 
     // Create output directory, recursively if necessary
-    yield* _(Effect.tryPromise({
-      try: () => Deno.mkdir(outputPath, { recursive: true }),
-      catch: (error) => new OutputError({
-        message: `Failed to create output directory: ${error}`,
-        outputPath,
-        cause: error instanceof Error ? error : new Error(String(error)),
-      }),
-    })
+    yield* _(
+      Effect.try(() => Deno.mkdirSync(outputPath, { recursive: true })).pipe(
+        Effect.mapError((error) => new OutputError({
+          message: `Failed to create output directory: ${error}`,
+          outputPath,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        })),
+      ),
     );
 
     // Check if DuckDB file already exists
@@ -310,9 +363,13 @@ export function exportToPersistentDB(
 
     // Export the in-memory database to a persistent DuckDB file. This will create the file if it doesn't exist.
     // We cant use COPY TO DATABASE directly, as it creates constraint violations when tables are copied out of order.
-    for (const dataset of config.transform.datasets) {
+    for (const dataset of config.transform?.datasets || []) {
       // Load validation profile if specified
       const transformProfile = getValidationProfile(dataset.profile)
+      if (!transformProfile) {
+        console.warn(`No validation profile found for ${dataset.profile}, skipping table export.`);
+        continue;
+      }
       const tableName = transformProfile.name.toLowerCase();
       yield* _(
         Effect.tryPromise({
@@ -362,13 +419,14 @@ export function transformFile(
         console.log('Populating OBIS tables from data tables...');
         yield* _(populateSchemaFromDataTables(connection, config));
 
-        console.log('Exporting OBIS tables to CSV...');       
+        console.log('Exporting OBIS tables to CSV...');
         yield* _(exportObisTablesToCSV(connection, config));
 
         console.log('Exporting DuckDB database to persistent file...');
         yield* _(exportToPersistentDB(connection, config));
 
       }),
-    (connection) => Effect.promise(async () => connection.closeSync()),
+    // Release: close DuckDB connection (ignore any cleanup errors)
+    (connection) => Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
   );
 }

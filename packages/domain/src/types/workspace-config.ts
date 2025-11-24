@@ -50,11 +50,13 @@ export interface WorkspaceCrossDatasetRule {
  */
 export interface DatasetConfig {
   readonly name: string;
-  readonly spec: string; // e.g., "dwc-event", "dwc-occurrence", "metadata-v1"
-  readonly path: string; // Path to CSV file
+  readonly spec?: string; // e.g., "dwc-event", "dwc-occurrence", "metadata-v1"
+  readonly path?: string; // Path to CSV file
   readonly description?: string;
+  readonly source?: Record<string, string>; // SQL source definitions for data import
   readonly profile: string;
-  readonly fieldMappings: readonly WorkspaceFieldMapping[];
+  readonly fieldMappings?: readonly WorkspaceFieldMapping[];
+  readonly fields?: Record<string, string>; // Additional field transformations
 }
 
 /**
@@ -67,12 +69,22 @@ export interface ValidationSettings {
   readonly datasets: readonly DatasetConfig[];
 }
 
+export interface outputConfig {
+  readonly outputDir?: string;
+  readonly exportDB?: boolean;
+  readonly exportDBFileName?: string;
+  readonly outputFilesWithTimestamp?: boolean;
+  readonly dropNullColumns?: boolean;
+}
+
 /**
  * Transformation settings for the workspace
  */
 export interface TransformSettings {
   readonly nullValues: readonly string[];
-  readonly outputDir: string;
+  readonly inputs: Record<string, string>;
+  readonly postImportTransforms: readonly string[];
+  readonly output: outputConfig;
   readonly datasets: readonly DatasetConfig[];
 }
 
@@ -81,7 +93,7 @@ export interface TransformSettings {
  */
 export interface WorkspaceConfig extends BaseEntity {
   readonly name: string;
-  readonly version: string;
+  readonly version: string | number;
   readonly description?: string;
   readonly transform?: TransformSettings;
   readonly validation?: ValidationSettings;
