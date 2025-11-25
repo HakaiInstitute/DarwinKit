@@ -5,8 +5,8 @@
  * validation rules for cross-dataset relationships.
  */
 
-import * as S from "effect/Schema";
-import {
+import type * as S from "effect/Schema";
+import type {
   CrossDatasetRuleSchema,
   FieldMappingConfigSchema,
   FieldMappingSchema,

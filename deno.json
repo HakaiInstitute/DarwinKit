@@ -8,7 +8,11 @@
   ],
   "nodeModulesDir": "auto",
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "deno.ns"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "deno.ns"
+    ],
     "jsx": "react-jsx",
     "jsxImportSource": "react"
   },
@@ -61,7 +65,10 @@
   },
   "tasks": {
     "dev": {
-      "dependencies": ["dev:api", "dev:gui"]
+      "dependencies": [
+        "dev:api",
+        "dev:gui"
+      ]
     },
     "dev:api": "cd packages/api && deno task dev",
     "dev:gui": "cd packages/gui && deno task dev",
@@ -74,13 +81,15 @@
     "test:cli": "deno test packages/cli/",
     "test:api": "deno test packages/api/",
     "test:gui": "deno test packages/gui/",
-    "test:e2e": "deno task test:e2e --workers=1",
-    "test:integration": "deno test packages/cli/src/integration.test.ts --allow-all",
-    "tsr-gen": "tsr generate",
-    "drizzle:push": "deno run -A npm:drizzle-kit push",
-    "drizzle:studio": "deno run -A npm:drizzle-kit studio"
+    "test:integration": "deno test packages/cli/src/integration.test.ts --allow-all"
   },
-  "exclude": ["dist", ".vinxi", ".vite", ".tanstack", "build", "coverage"],
+  "exclude": [
+    "dist",
+    ".vinxi",
+    ".vite",
+    "build",
+    "coverage"
+  ],
   "fmt": {
     "useTabs": false,
     "lineWidth": 100,
@@ -88,12 +97,23 @@
     "semiColons": true,
     "singleQuote": false,
     "proseWrap": "preserve",
-    "include": ["src/", "test/", "demo/"]
+    "include": [
+      "src/",
+      "test/",
+      "demo/"
+    ]
   },
   "lint": {
     "rules": {
-      "exclude": ["jsx-no-children-prop", "no-slow-types"]
+      "exclude": [
+        "jsx-no-children-prop",
+        "no-slow-types"
+      ]
     },
-    "include": ["src/", "test/", "demo/"]
+    "include": [
+      "src/",
+      "test/",
+      "demo/"
+    ]
   }
 }
