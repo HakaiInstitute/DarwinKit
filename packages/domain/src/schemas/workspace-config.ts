@@ -5,15 +5,7 @@
 import * as S from "effect/Schema";
 import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
 
-/**
- * Validation settings schema
- */
-export const validationSettingsSchema = S.Struct({
-  profile: S.optional(S.String),
-  nullValues: S.Array(S.String),
-  failFast: S.Boolean,
-  outputDir: S.String,
-});
+
 
 /**
  * Workspace field mapping schema
@@ -44,26 +36,65 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
  */
 export const datasetConfigSchema = S.Struct({
   name: S.String,
-  spec: S.String,
-  path: S.String,
+  spec: S.optional(S.String),
+  path: S.optional(S.String),
+  source: S.optional(S.Object),
   description: S.optional(S.String),
-  fieldMappings: S.Array(workspaceFieldMappingSchema),
+  profile: S.String,
+  fieldMappings: S.optional(S.Array(workspaceFieldMappingSchema)),
+  fields: S.optional(S.Object)
+});
+
+/**
+ * Validation settings schema
+ */
+export const validationSettingsSchema = S.Struct({
+  nullValues: S.Array(S.String),
+  failFast: S.Boolean,
+  outputDir: S.String,
+  datasets: S.Array(datasetConfigSchema),
+});
+
+/**
+ * Transform settings schema
+ */
+export const transformSettingsSchema = S.Struct({
+  nullValues: S.Array(S.String),
+  inputs: S.Object,
+  postImportTransforms: S.Array(S.String),
+  datasets: S.Array(datasetConfigSchema),
+  output: S.Struct({
+    outputDir: S.String,
+    outputFilesWithTimestamp: S.optional(S.Boolean),
+    exportDB: S.Boolean,
+    exportDBFileName: S.optional(S.String),
+    dropNullColumns: S.optional(S.Boolean),
+  }),
 });
 
 /**
  * Complete workspace configuration schema
  */
-export const workspaceConfigSchema = S.Struct({
+const workspaceConfigBaseSchema = S.Struct({
   id: S.String,
   name: S.String,
   version: S.String,
   description: S.optional(S.String),
+  transform: transformSettingsSchema,
   validation: validationSettingsSchema,
-  datasets: S.Array(datasetConfigSchema),
   crossDatasetRules: S.optional(S.Array(workspaceCrossDatasetRuleSchema)),
   createdAt: S.Date,
   updatedAt: S.Date,
 });
+
+/**
+ * Workspace configuration schema that allows either validation or transform settings to be omitted, but not both.
+ */
+export const workspaceConfigSchema = S.Union(
+  workspaceConfigBaseSchema.pipe(S.omit("validation")),
+  workspaceConfigBaseSchema.pipe(S.omit("transform")),
+  workspaceConfigBaseSchema
+);
 
 // Note: Type exports are defined in types/workspace-config.ts to avoid duplication
 // These schemas validate the types defined there

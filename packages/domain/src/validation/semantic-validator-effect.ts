@@ -294,9 +294,24 @@ function validateFormat(
       return validateUUID(value, config);
     case "email":
       return validateEmail(value, config);
+    case "integer":
+      return validateInteger(value, config);
     default:
       return Effect.void;
   }
+}
+
+/**
+ * Validate Integer format using Effect Schema
+ */
+function validateInteger(
+  value: string,
+  config: ValidatorConfig,
+): Effect.Effect<void, ValidationError, never> {
+  return Effect.try({
+    try: () => Number.isInteger(value),
+    catch: () => externalError(config.message || "Value must be a valid Integer value", value),
+  }).pipe(Effect.asVoid);
 }
 
 /**

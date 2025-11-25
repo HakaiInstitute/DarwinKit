@@ -29,6 +29,7 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
   nullValues: ["", "NA", "N/A", "NULL", "null"],
   failFast: false,
   outputDir: "./validation_results",
+  datasets:[],
 };
 
 /**
@@ -48,8 +49,10 @@ export type SpecIdentifier =
  * Parse spec identifier into spec name and type
  */
 export function parseSpecIdentifier(
-  specId: string,
+  specId: string | undefined,
 ): { spec: string; type: string } | null {
+  if (!specId)
+    return null;
   const parts = specId.split("-");
   if (parts.length < 2) {
     return null;

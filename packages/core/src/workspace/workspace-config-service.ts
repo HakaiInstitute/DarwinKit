@@ -15,6 +15,9 @@ import type { WorkspaceConfig } from "@dwkt/domain";
 import { ErrorCode } from "@dwkt/domain";
 import { workspaceConfigSchema } from "@dwkt/domain";
 import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
+import * as YAML from "js-yaml";
+import { cons } from "effect/List";
+
 
 // Configuration file constants
 const DEFAULT_CONFIG_FILENAME = "darwinkit.json";
@@ -87,6 +90,14 @@ export class WorkspaceConfigService {
       let depth = 0;
       const searchedPaths: string[] = [];
 
+      /* check if config paramiter is a file. No need to search if pull config file path is provided.
+        this also allows config files named something other than "darwinkit.json" */
+      const statResult = yield* Effect.tryPromise(() => Deno.stat(currentDir)).pipe(Effect.option);
+
+      if (statResult._tag === "Some" && statResult.value.isFile) {
+        return currentDir
+      }
+
       while (depth < MAX_SEARCH_DEPTH) {
         const configPath = join(currentDir, DEFAULT_CONFIG_FILENAME);
         searchedPaths.push(configPath);
@@ -152,18 +163,36 @@ export class WorkspaceConfigService {
         }),
       );
 
-      // Parse JSON
-      const configJson = yield* _(
-        Effect.try({
-          try: () => JSON.parse(configContent),
-          catch: (error) =>
-            new ConfigParseError({
-              message: `Invalid JSON in configuration file: ${error}`,
-              configPath,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            }),
-        }),
-      );
+      let configJson: Object;
+      if(configPath.endsWith('.yaml') || configPath.endsWith('.yml')) {
+        // Parse YAML
+        configJson = yield* _(
+          Effect.try({
+            try: () => {
+              return YAML.load(configContent);
+            },
+            catch: (error) =>
+              new ConfigParseError({
+                message: `Invalid YAML in configuration file: ${error}`,
+                configPath,
+                cause: error instanceof Error ? error : new Error(String(error)),
+              }),
+          }),
+        );
+      } else {
+        // Parse JSON
+        configJson = yield* _(
+          Effect.try({
+            try: () => JSON.parse(configContent),
+            catch: (error) =>
+              new ConfigParseError({
+                message: `Invalid JSON in configuration file: ${error}`,
+                configPath,
+                cause: error instanceof Error ? error : new Error(String(error)),
+              }),
+          }),
+        );
+      }
 
       // Add metadata if missing (keep as strings for schema validation)
       const configWithMeta = {
@@ -177,12 +206,13 @@ export class WorkspaceConfigService {
       const config = yield* _(
         Effect.try({
           try: () => Schema.decodeUnknownSync(workspaceConfigSchema)(configWithMeta),
-          catch: (error) =>
-            new ConfigValidationError({
+          catch: (error) =>{
+            console.error(error);
+            return new ConfigValidationError({
               message: `Configuration validation failed`,
               configPath,
               validationErrors: [String(error)],
-            }),
+            })},
         }),
       );
 
@@ -200,8 +230,23 @@ export class WorkspaceConfigService {
     const base = basePath || dirname(Deno.cwd());
 
     return Effect.gen(function* (_) {
-      for (const dataset of config.datasets) {
+      for (const dataset of config.validation?.datasets || []) {
         const filePath = resolve(base, dataset.path);
+
+        yield* _(
+          Effect.tryPromise({
+            try: () => Deno.stat(filePath),
+            catch: () =>
+              new DatasetFileNotFoundError({
+                message: `Dataset file not found: ${filePath}`,
+                datasetName: dataset.name,
+                filePath,
+              }),
+          }),
+        );
+      }
+      for (const path of Object.values(config.transform?.inputs || [])) {
+        const filePath = resolve(base, path);
 
         yield* _(
           Effect.tryPromise({
@@ -237,7 +282,7 @@ export class WorkspaceConfigService {
       const config = yield* _(WorkspaceConfigService.loadConfig(configPath));
 
       // Validate dataset paths
-      const basePath = dirname(configPath);
+      const basePath = dirname(configPath) || dirname(searchDir || Deno.cwd());
       yield* _(WorkspaceConfigService.validateDatasetPaths(config, basePath));
 
       return { config, configPath };

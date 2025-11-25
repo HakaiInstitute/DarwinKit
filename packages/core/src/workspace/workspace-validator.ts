@@ -16,6 +16,7 @@ import type {
   DatasetConfig,
   DatasetValidationResult,
   FieldDefinition,
+  Field,
   RawViolation,
   ValidationProfile,
   ValidationViolation,
@@ -100,11 +101,6 @@ export class WorkspaceValidator {
         }
         : loadedConfig;
 
-      // Load validation profile if specified
-      const validationProfile = config.validation.profile
-        ? getValidationProfile(config.validation.profile)
-        : undefined;
-
       // Create workspace and load all datasets
       const { workspaceId, connection } = yield* _(
         createWorkspaceFromConfig(config, dirname(resolvedConfigPath)),
@@ -116,7 +112,10 @@ export class WorkspaceValidator {
           // Validate each dataset
           const datasetResults: DatasetValidationResult[] = [];
 
-          for (const dataset of config.datasets) {
+          for (const dataset of config.validation.datasets) {
+            // Load validation profile if specified
+            const validationProfile = getValidationProfile(dataset.profile) 
+
             const result = yield* _(
               validateDataset(connection, dataset, validationProfile),
             );
@@ -188,12 +187,12 @@ function createWorkspaceFromConfig(
     );
 
     // Load each dataset into DuckDB
-    for (const dataset of config.datasets) {
+    for (const dataset of config.validation.datasets) {
       const filePath = resolve(basePath, dataset.path);
       const tableName = sanitizeTableName(dataset.name);
 
       // Build null values string for DuckDB
-      const nullStr = config.validation.nullValues.map((v) => `'${v}'`).join(", ");
+      const nullStr = config.validation?.nullValues?.map((v) => `'${v}'`).join(", ");
 
       // Drop table if it exists, then create from CSV
       const dropTableQuery = `DROP TABLE IF EXISTS ${tableName}`;
@@ -233,7 +232,7 @@ function createWorkspaceFromConfig(
  * Priority: field override > profile > base spec
  */
 function mergeFieldDefinition(
-  baseField: FieldDefinition | undefined,
+  baseField: FieldDefinition | Field | undefined,
   profile: ValidationProfile | undefined,
   fieldMapping: import("@dwkt/domain").WorkspaceFieldMapping,
 ): FieldDefinition | undefined {
@@ -323,38 +322,40 @@ function validateDataset(
     const recommendations: Array<DatasetValidationResult["recommendations"][number]> = [];
 
     // Check profile field requirements based on requirement levels
-    if (profile) {
+    if (profile && profile.fields && dataset.fieldMappings) {
+      
       const mappedSpecFields = new Set(dataset.fieldMappings.map((m) => m.targetName));
 
-      for (const [fieldName, fieldOverride] of Object.entries(profile.fieldOverrides)) {
-        if (!fieldOverride.requirement) continue;
+      for (const [fieldName, fieldOverride] of Object.entries(profile.fields)) {
+
+        if (!fieldOverride.obis_required) continue;
 
         const isMapped = mappedSpecFields.has(fieldName);
 
         if (!isMapped) {
           // Handle missing fields based on requirement level
-          if (fieldOverride.requirement === FieldRequirementLevel.Required) {
+          if (fieldOverride.obis_required === FieldRequirementLevel.Required) {
             requiredFieldErrors.push({
               fieldName,
               targetName: fieldName,
               message:
-                `Profile '${profile.id}' requires field '${fieldName}' but it is not mapped in the dataset`,
+                `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
             });
-          } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
+          } else if (fieldOverride.obis_required === FieldRequirementLevel.StronglyRecommended) {
             warnings.push({
               fieldName,
               targetName: fieldName,
               requirementLevel: "strongly-recommended",
               message:
-                `Profile '${profile.id}' strongly recommends field '${fieldName}' but it is not mapped`,
+                `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
             });
-          } else if (fieldOverride.requirement === FieldRequirementLevel.Recommended) {
+          } else if (fieldOverride.obis_required === FieldRequirementLevel.Recommended) {
             recommendations.push({
               fieldName,
               targetName: fieldName,
               requirementLevel: "recommended",
               message:
-                `Profile '${profile.id}' recommends field '${fieldName}' for better data quality`,
+                `Profile '${profile.name}' recommends field '${fieldName}' for better data quality`,
             });
           }
           // RequiredIfExists and Optional don't generate messages when missing
@@ -363,16 +364,21 @@ function validateDataset(
     }
 
     // Validate each field mapping
-    for (const mapping of dataset.fieldMappings) {
-      // Get base spec field definition
-      const baseField = getDWCField(mapping.targetName);
+    for (const mapping of dataset?.fieldMappings || []) {
 
+      if (!profile?.fields){
+        continue;
+      }
+      // TODO: Why are we doing this check?
+      // Get base spec field definition
+      const baseField = profile.fields[mapping.targetName];
+      // this will fail if a fieldmapping entry is not in the schema
       if (!baseField && specInfo.spec === "dwc") {
         // Unknown Darwin Core field
         requiredFieldErrors.push({
           fieldName: mapping.originName,
           targetName: mapping.targetName,
-          message: `Unknown Darwin Core field: ${mapping.targetName}`,
+          message: `Unknown Darwin Core schema field: ${mapping.targetName}. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
         });
         continue;
       }
@@ -402,6 +408,13 @@ function validateDataset(
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             message: `Required field '${mapping.originName}' not found in CSV`,
+          });
+        } else {
+          warnings.push({
+            fieldName: mapping.originName,
+            targetName: mapping.targetName,
+            requirementLevel: "optional",
+            message: `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
           });
         }
         continue;
@@ -815,7 +828,7 @@ function validateRangeConstraints(
     const violations: ValidationViolation[] = [];
 
     // Get range validators from field definition
-    const rangeValidators = specField.validators.filter((v) => v.type === "range");
+    const rangeValidators = specField.validators?.filter((v) => v.type === "range") || [];
 
     for (const validator of rangeValidators) {
       // Get minimal violations
