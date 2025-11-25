@@ -65,7 +65,7 @@ export interface ValidatorParams {
   readonly flags?: string;
 
   // Format validator parameters
-  readonly format?: "email" | "url" | "uuid" | "iso8601" | "decimal-degrees";
+  readonly format?: "email" | "url" | "uuid" | "iso8601" | "decimal-degrees" | "integer";
 
   // Required validator parameters
   readonly allowEmpty?: boolean;
@@ -191,6 +191,14 @@ export const DARWIN_CORE_VALIDATORS = {
     enforcement: "recommended",
     params: { format: "url" },
     message: "Web identifier should be a valid URL",
+  }),
+
+    // URL format for web identifiers
+  integer: (): ValidatorConfig => ({
+    type: "format",
+    enforcement: "required",
+    params: { format: "integer" },
+    message: "Value must be whole numbers (integers)",
   }),
 } as const;
 
