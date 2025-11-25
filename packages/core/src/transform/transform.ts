@@ -187,19 +187,29 @@ export function populateSchemaFromDataTables( // Export for testing
     if (!config.transform?.datasets) return;
 
     for (const dataset of (config.transform.datasets)) {
-      const targetColumnNames = Object.keys(dataset?.fields || {}).map((fieldName: string):string => `"${fieldName}"`);
+      if (!dataset.fields){
+        console.error(`Error: No field definitions found in ${dataset?.name}`)
+        console.debug(`dataset:\n{JSON.stringify(dataset, null, 2)}`)
+        return new TransformationError({
+          message: `No field definitions found in '${dataset?.name}'`,
+          cause: new Error(String('field property missing from dataset definition'))
+        })
+      }
+      const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string):string => `"${fieldName}"`);
       // Create column calculations based on the transformations defined in the dataset fields
-      const columnCalculations = Object.entries(dataset.fields || {})
+      const columnCalculations = Object.entries(dataset.fields)
         .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
-
+      
       const transformProfile = getValidationProfile(dataset.profile)
       if (!transformProfile) {
-        console.warn(`No validation profile found for ${dataset.profile}, skipping data population.`);
-        continue;
+        console.warn(`No validation profile found for ${dataset.profile}`);
+        return new TransformationError({
+          message: `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
+          cause: new Error(String(`Validation profile ${dataset.profile} not found for '${dataset?.name}'`))
+        })
       }
       const tableName = transformProfile.name.toLowerCase();
       const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) => `(${joinSQL}) AS ${tableName}`).join(', ');
-
       const insertSQL = `INSERT INTO ${tableName} (${targetColumnNames.join(', ')}) SELECT ${columnCalculations.join(', ')} FROM ${tableSources};`;
 
       yield* _(Effect.tryPromise({

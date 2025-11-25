@@ -34,13 +34,13 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
  */
 export const datasetConfigSchema = S.Struct({
   name: S.String,
-  spec: S.String,
-  path: S.String,
+  spec: S.optional(S.String),
+  path: S.optional(S.String),
   source: S.optional(S.Object),
   description: S.optional(S.String),
   profile: S.String,
-  fieldMappings: S.Array(workspaceFieldMappingSchema),
-  field: S.optional(S.Object)
+  fieldMappings: S.optional(S.Array(workspaceFieldMappingSchema)),
+  fields: S.optional(S.Object)
 });
 
 /**
