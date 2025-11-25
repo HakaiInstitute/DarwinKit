@@ -1,0 +1,53 @@
+name: Code Quality
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Run linter
+        run: deno lint
+
+      - name: Check formatting
+        run: deno fmt --check
+
+  type-check:
+    name: Type Checking
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Type check domain package
+        run: deno check packages/domain/mod.ts
+
+      - name: Type check core package
+        run: deno check packages/core/mod.ts
+
+      - name: Type check all TypeScript files
+        run: |
+          find packages -name "*.ts" -type f | while read file; do
+            echo "Checking $file"
+            deno check "$file" || exit 1
+          done

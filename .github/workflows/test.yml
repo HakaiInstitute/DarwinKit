@@ -1,0 +1,67 @@
+name: Test Suite
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Verify Deno installation
+        run: deno --version
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/deno
+            ~/.deno
+          key: ${{ runner.os }}-deno-${{ hashFiles('**/deno.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-deno-
+
+      - name: Run linter
+        run: deno lint
+
+      - name: Run formatter check
+        run: deno fmt --check
+
+      - name: Type check packages
+        run: |
+          deno check packages/domain/mod.ts
+          deno check packages/core/mod.ts
+
+      - name: Run domain tests
+        run: deno test packages/domain/ --allow-all
+
+      - name: Run core tests
+        run: deno test packages/core/ --allow-all
+
+      - name: Run integration tests
+        run: |
+          deno test test/example-config.test.ts --allow-all
+          deno test test/obis-profile.test.ts --allow-all
+          deno test test/workspace-service.test.ts --allow-all
+
+      - name: Test summary
+        if: always()
+        run: echo "✅ All tests completed"
