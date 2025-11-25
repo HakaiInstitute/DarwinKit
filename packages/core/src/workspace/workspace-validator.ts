@@ -16,7 +16,6 @@ import type {
   DatasetConfig,
   DatasetValidationResult,
   FieldDefinition,
-  Field,
   RawViolation,
   ValidationProfile,
   ValidationViolation,
@@ -26,11 +25,9 @@ import type {
 } from "@dwkt/domain";
 import {
   enforcementToSeverity,
-  enrichCrossDatasetViolation,
   enrichViolation,
   ErrorCode,
   FieldRequirementLevel,
-  getDWCField,
   getValidationProfile,
   getVocabularyValues,
   hasControlledVocabulary,
@@ -90,6 +87,18 @@ export class WorkspaceValidator {
         ),
       );
 
+      // Ensure the config has validation settings
+      if (!("validation" in loadedConfig)) {
+        return yield* _(
+          Effect.fail(
+            new WorkspaceValidationError({
+              message: `Configuration '${resolvedConfigPath}' does not contain validation settings`,
+              code: ErrorCode.INVALID_CONFIG,
+            }),
+          ),
+        );
+      }
+
       // Override validation settings with CLI options
       const config: WorkspaceConfig = options?.failFast !== undefined
         ? {
@@ -109,12 +118,25 @@ export class WorkspaceValidator {
       // Perform validation with guaranteed connection cleanup
       return yield* _(
         Effect.gen(function* (_) {
+          // Type guard - we already checked validation exists above
+          if (!("validation" in config)) {
+            return yield* _(
+              Effect.fail(
+                new WorkspaceValidationError({
+                  message:
+                    `Configuration '${resolvedConfigPath}' does not contain validation settings`,
+                  code: ErrorCode.INVALID_CONFIG,
+                }),
+              ),
+            );
+          }
+
           // Validate each dataset
           const datasetResults: DatasetValidationResult[] = [];
 
           for (const dataset of config.validation.datasets) {
             // Load validation profile if specified
-            const validationProfile = getValidationProfile(dataset.profile) 
+            const validationProfile = getValidationProfile(dataset.profile);
 
             const result = yield* _(
               validateDataset(connection, dataset, validationProfile),
@@ -186,13 +208,20 @@ function createWorkspaceFromConfig(
       Effect.tryPromise(() => DuckDB.create()).pipe(Effect.orDie),
     );
 
+    // Type guard - ensure config has validation settings
+    if (!("validation" in config)) {
+      return yield* _(Effect.die("Configuration does not contain validation settings"));
+    }
+
     // Load each dataset into DuckDB
     for (const dataset of config.validation.datasets) {
+      if (!dataset.path) continue;
+
       const filePath = resolve(basePath, dataset.path);
       const tableName = sanitizeTableName(dataset.name);
 
       // Build null values string for DuckDB
-      const nullStr = config.validation?.nullValues?.map((v) => `'${v}'`).join(", ");
+      const nullStr = config.validation.nullValues.map((v: string) => `'${v}'`).join(", ");
 
       // Drop table if it exists, then create from CSV
       const dropTableQuery = `DROP TABLE IF EXISTS ${tableName}`;
@@ -232,7 +261,7 @@ function createWorkspaceFromConfig(
  * Priority: field override > profile > base spec
  */
 function mergeFieldDefinition(
-  baseField: FieldDefinition | Field | undefined,
+  baseField: FieldDefinition | undefined,
   profile: ValidationProfile | undefined,
   fieldMapping: import("@dwkt/domain").WorkspaceFieldMapping,
 ): FieldDefinition | undefined {
@@ -315,19 +344,17 @@ function validateDataset(
     // OLD: Keep old structure for backward compatibility (will be deprecated)
     const typeErrors: Array<DatasetValidationResult["typeErrors"][number]> = [];
     const requiredFieldErrors: Array<DatasetValidationResult["requiredFieldErrors"][number]> = [];
-    const vocabularyErrors: Array<DatasetValidationResult["vocabularyErrors"][number]> = [];
-    const uniquenessViolations: Array<DatasetValidationResult["uniquenessViolations"][number]> = [];
-    const constraintViolations: Array<DatasetValidationResult["constraintViolations"][number]> = [];
+    // const vocabularyErrors: Array<DatasetValidationResult["vocabularyErrors"][number]> = [];
+    // const uniquenessViolations: Array<DatasetValidationResult["uniquenessViolations"][number]> = [];
+    // const constraintViolations: Array<DatasetValidationResult["constraintViolations"][number]> = [];
     const warnings: Array<DatasetValidationResult["warnings"][number]> = [];
     const recommendations: Array<DatasetValidationResult["recommendations"][number]> = [];
 
     // Check profile field requirements based on requirement levels
     if (profile && profile.fields && dataset.fieldMappings) {
-      
       const mappedSpecFields = new Set(dataset.fieldMappings.map((m) => m.targetName));
 
       for (const [fieldName, fieldOverride] of Object.entries(profile.fields)) {
-
         if (!fieldOverride.obis_required) continue;
 
         const isMapped = mappedSpecFields.has(fieldName);
@@ -365,8 +392,7 @@ function validateDataset(
 
     // Validate each field mapping
     for (const mapping of dataset?.fieldMappings || []) {
-
-      if (!profile?.fields){
+      if (!profile?.fields) {
         continue;
       }
       // TODO: Why are we doing this check?
@@ -378,7 +404,8 @@ function validateDataset(
         requiredFieldErrors.push({
           fieldName: mapping.originName,
           targetName: mapping.targetName,
-          message: `Unknown Darwin Core schema field: ${mapping.targetName}. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
+          message:
+            `Unknown Darwin Core schema field: ${mapping.targetName}. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
         });
         continue;
       }
@@ -414,7 +441,8 @@ function validateDataset(
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             requirementLevel: "optional",
-            message: `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
+            message:
+              `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
           });
         }
         continue;

@@ -16,8 +16,6 @@ import { ErrorCode } from "@dwkt/domain";
 import { workspaceConfigSchema } from "@dwkt/domain";
 import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
 import * as YAML from "js-yaml";
-import { cons } from "effect/List";
-
 
 // Configuration file constants
 const DEFAULT_CONFIG_FILENAME = "darwinkit.json";
@@ -95,7 +93,7 @@ export class WorkspaceConfigService {
       const statResult = yield* Effect.tryPromise(() => Deno.stat(currentDir)).pipe(Effect.option);
 
       if (statResult._tag === "Some" && statResult.value.isFile) {
-        return currentDir
+        return currentDir;
       }
 
       while (depth < MAX_SEARCH_DEPTH) {
@@ -163,8 +161,10 @@ export class WorkspaceConfigService {
         }),
       );
 
-      let configJson: Object;
-      if(configPath.endsWith('.yaml') || configPath.endsWith('.yml')) {
+      // TODO: Create a schema for this data which we can use to parse/validate
+      // deno-lint-ignore no-explicit-any
+      let configJson: any;
+      if (configPath.endsWith(".yaml") || configPath.endsWith(".yml")) {
         // Parse YAML
         configJson = yield* _(
           Effect.try({
@@ -206,13 +206,14 @@ export class WorkspaceConfigService {
       const config = yield* _(
         Effect.try({
           try: () => Schema.decodeUnknownSync(workspaceConfigSchema)(configWithMeta),
-          catch: (error) =>{
+          catch: (error) => {
             console.error(error);
             return new ConfigValidationError({
               message: `Configuration validation failed`,
               configPath,
               validationErrors: [String(error)],
-            })},
+            });
+          },
         }),
       );
 
@@ -230,35 +231,46 @@ export class WorkspaceConfigService {
     const base = basePath || dirname(Deno.cwd());
 
     return Effect.gen(function* (_) {
-      for (const dataset of config.validation?.datasets || []) {
-        const filePath = resolve(base, dataset.path);
+      // Check validation datasets if present
+      if ("validation" in config && config.validation) {
+        for (const dataset of config.validation.datasets) {
+          if (!dataset.path) continue;
 
-        yield* _(
-          Effect.tryPromise({
-            try: () => Deno.stat(filePath),
-            catch: () =>
-              new DatasetFileNotFoundError({
-                message: `Dataset file not found: ${filePath}`,
-                datasetName: dataset.name,
-                filePath,
-              }),
-          }),
-        );
+          const filePath = resolve(base, dataset.path);
+
+          yield* _(
+            Effect.tryPromise({
+              try: () => Deno.stat(filePath),
+              catch: () =>
+                new DatasetFileNotFoundError({
+                  message: `Dataset file not found: ${filePath}`,
+                  datasetName: dataset.name,
+                  filePath,
+                }),
+            }),
+          );
+        }
       }
-      for (const path of Object.values(config.transform?.inputs || [])) {
-        const filePath = resolve(base, path);
 
-        yield* _(
-          Effect.tryPromise({
-            try: () => Deno.stat(filePath),
-            catch: () =>
-              new DatasetFileNotFoundError({
-                message: `Dataset file not found: ${filePath}`,
-                datasetName: dataset.name,
-                filePath,
-              }),
-          }),
-        );
+      // Check transform inputs if present
+      if ("transform" in config && config.transform) {
+        for (const path of Object.values(config.transform.inputs)) {
+          if (typeof path !== "string") continue;
+
+          const filePath = resolve(base, path);
+
+          yield* _(
+            Effect.tryPromise({
+              try: () => Deno.stat(filePath),
+              catch: () =>
+                new DatasetFileNotFoundError({
+                  message: `Transform input file not found: ${filePath}`,
+                  datasetName: "transform-input",
+                  filePath,
+                }),
+            }),
+          );
+        }
       }
     });
   }

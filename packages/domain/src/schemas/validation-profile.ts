@@ -21,6 +21,25 @@ export const fieldOverrideSchema = S.Struct({
   enforcement: S.optional(S.Literal("required", "recommended", "optional")),
 });
 
+// Field definition schema (used in profiles loaded from dwcSchema.json)
+// This represents the structure of fields in the external schema
+export const fieldDefinitionSchema = S.Struct({
+  group: S.optional(S.String),
+  name: S.String,
+  label: S.optional(S.String),
+  namespace: S.optional(S.String),
+  qualName: S.optional(S.String),
+  "dc:relation": S.optional(S.String),
+  "dc:description": S.optional(S.String),
+  examples: S.optional(S.String),
+  gbif_required: S.optional(S.String),
+  obis_required: S.optional(S.String),
+  type: S.optional(S.String),
+  unique: S.optional(S.String),
+  validators: S.optional(S.Array(S.String)),
+  values: S.optional(S.Record({ key: S.String, value: S.Unknown })),
+});
+
 // Validation profile schema
 export const validationProfileSchema = S.Struct({
   id: S.String,
@@ -28,6 +47,7 @@ export const validationProfileSchema = S.Struct({
   description: S.String,
   targetSchema: S.Literal("obis", "gbif", "custom"),
   extends: S.optional(S.String),
+  fields: S.optional(S.Record({ key: S.String, value: fieldDefinitionSchema })),
   fieldOverrides: S.Record({ key: S.String, value: fieldOverrideSchema }),
   documentationUrl: S.optional(S.String),
   version: S.optional(S.String),

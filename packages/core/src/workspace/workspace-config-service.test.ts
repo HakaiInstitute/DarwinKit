@@ -109,9 +109,15 @@ Deno.test("WorkspaceConfigService - loads valid configuration", async () => {
     );
 
     assertEquals(config.name, "Valid Config");
-    assertEquals(config.validation?.datasets.length, 1);
-    assertEquals(config.validation?.datasets[0].name, "test_dataset");
-    assertEquals(config.validation?.datasets[0].spec, "dwc-event");
+
+    // Type guard - ensure config has validation settings
+    if (!("validation" in config)) {
+      throw new Error("Config does not have validation settings");
+    }
+
+    assertEquals(config.validation.datasets.length, 1);
+    assertEquals(config.validation.datasets[0].name, "test_dataset");
+    assertEquals(config.validation.datasets[0].spec, "dwc-event");
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -237,7 +243,13 @@ Deno.test("WorkspaceConfigService - discoverAndLoad end-to-end", async () => {
 
     assertExists(config);
     assertEquals(config.name, "Complete Config");
-    assertEquals(config.validation?.datasets.length, 1);
+
+    // Type guard - ensure config has validation settings
+    if (!("validation" in config)) {
+      throw new Error("Config does not have validation settings");
+    }
+
+    assertEquals(config.validation.datasets.length, 1);
     assertEquals(configPath, join(tempDir, "darwinkit.json"));
   } finally {
     await Deno.remove(tempDir, { recursive: true });

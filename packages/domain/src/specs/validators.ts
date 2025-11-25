@@ -193,7 +193,7 @@ export const DARWIN_CORE_VALIDATORS = {
     message: "Web identifier should be a valid URL",
   }),
 
-    // URL format for web identifiers
+  // URL format for web identifiers
   integer: (): ValidatorConfig => ({
     type: "format",
     enforcement: "required",

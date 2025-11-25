@@ -5,7 +5,7 @@
  * to a persistent DuckDB file.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import { exportToPersistentDB } from "@dwkt/core";
@@ -17,7 +17,7 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-db-export-test-" });
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -50,14 +50,12 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1');");
 
     // 3. Act: Execute the export function
-    const effect = exportToPersistentDB(connection, config);
-    await Effect.runPromise(effect);
+    await Effect.runPromise(exportToPersistentDB(connection, config));
 
     // 4. Assert: Verify the contents of the created DB file
     // Connect to the newly created persistent DB file
     const diskConnection = await DuckDBInstance.create(dbPath)
       .then((instance) => instance.connect());
-
 
     // Check Event table data
     const eventResult = await diskConnection.runAndReadAll("SELECT * FROM event;");
@@ -72,7 +70,6 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     assertEquals(occRows[0].occurrenceID, "occ1");
 
     diskConnection.closeSync();
-
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
@@ -84,21 +81,22 @@ Deno.test("exportToPersistentDB - does nothing if exportDB is false", async () =
   const connection = await DuckDBConnection.create();
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-db-no-export-" });
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
     name: "Test Workspace",
     description: "A workspace for testing",
     transform: {
-      nullValues: [], 
+      nullValues: [],
       inputs: {},
       postImportTransforms: [],
-      datasets: [], 
-      output: { 
-        outputDir: outputDir, 
-        exportDB: false } 
+      datasets: [],
+      output: {
+        outputDir: outputDir,
+        exportDB: false,
       },
+    },
   };
 
   await Effect.runPromise(exportToPersistentDB(connection, config));

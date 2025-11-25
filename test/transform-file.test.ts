@@ -8,7 +8,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
-import {DuckDBConnection} from "@duckdb/node-api";
+import { DuckDBConnection } from "@duckdb/node-api";
 import { transformFile } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { join } from "@std/path";
@@ -21,7 +21,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
   const sourceCsvPath = join(workspaceDir, "source_data.csv");
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -72,8 +72,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     );
 
     // 3. Act: Run the entire transformation process
-    const effect = transformFile(configPath);
-    await Effect.runPromise(effect);
+    await Effect.runPromise(transformFile(configPath));
 
     // 4. Assert: Verify the output files
     // Assert CSV output
@@ -92,7 +91,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     assertExists(stat.isFile, "Database file should be created");
 
     // Connect to the created DB and verify its contents
-    const connection = await DuckDBConnection.create()
+    const connection = await DuckDBConnection.create();
 
     const eventRows = (await connection.runAndReadAll("SELECT * FROM event;")).getRowObjects();
     assertEquals(eventRows.length, 1);
@@ -105,7 +104,6 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     assertEquals(occRows[0].basisOfRecord, "HumanObservation");
 
     connection.closeSync();
-
   } finally {
     // 5. Teardown
     await Deno.remove(workspaceDir, { recursive: true });
@@ -115,8 +113,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 Deno.test("transformFile - returns ConfigError for non-existent config", async () => {
   const nonExistentConfigPath = "/path/to/nothing/workspace.dwc.json";
 
-  const effect = transformFile(nonExistentConfigPath);
-  const result = await Effect.runPromise(Effect.flip(effect));
+  const result = await Effect.runPromise(Effect.flip(transformFile(nonExistentConfigPath)));
 
   assertExists(result, "Effect should fail");
   // assertEquals(result._tag, "ConfigError", "Error should be a ConfigError");

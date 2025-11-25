@@ -8,8 +8,8 @@
  * Merge Priority: field override > profile > base spec
  */
 
-import * as S from "effect/Schema";
-import {
+import type * as S from "effect/Schema";
+import type {
   fieldOverrideSchema,
   validationProfileRegistrySchema,
   validationProfileSchema,

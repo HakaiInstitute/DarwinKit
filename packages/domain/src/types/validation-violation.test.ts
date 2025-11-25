@@ -2,12 +2,11 @@
  * Tests for validation violation types and enrichment
  */
 
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import {
   enforcementToSeverity,
   enrichViolation,
   type RawViolation,
-  type ValidationViolation,
 } from "./validation-violation.ts";
 import { ErrorSeverity } from "../errors/severity.ts";
 import type { FieldDefinition } from "../specs/field-definition.ts";

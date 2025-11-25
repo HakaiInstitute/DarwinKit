@@ -73,8 +73,9 @@ function mergeProfiles(parent: ValidationProfile, child: ValidationProfile): Val
  */
 export function getValidationProfile(profileId: string): ValidationProfile | undefined {
   // const profile = VALIDATION_PROFILES[profileId];
-  const profile: ValidationProfile | undefined = (DWC_SCHEMA as unknown as Record<string, ValidationProfile>)[profileId];
-  
+  const profile: ValidationProfile | undefined =
+    (DWC_SCHEMA as unknown as Record<string, ValidationProfile>)[profileId];
+
   if (!profile) return undefined;
 
   // Resolve inheritance chain

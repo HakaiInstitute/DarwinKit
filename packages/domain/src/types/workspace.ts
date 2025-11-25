@@ -2,8 +2,8 @@
  * Workspace types - derived from Effect schemas
  */
 
-import * as S from "effect/Schema";
-import {
+import type * as S from "effect/Schema";
+import type {
   createWorkspaceInputSchema,
   createWorkspaceOptionsSchema,
   workspaceInfoSchema,

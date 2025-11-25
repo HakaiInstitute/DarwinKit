@@ -6,8 +6,8 @@
  * specification (e.g., Darwin Core) with explicit field mappings.
  */
 
-import * as S from "effect/Schema";
-import {
+import type * as S from "effect/Schema";
+import type {
   datasetConfigSchema,
   validationSettingsSchema,
   workspaceConfigSchema,
@@ -29,7 +29,7 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
   nullValues: ["", "NA", "N/A", "NULL", "null"],
   failFast: false,
   outputDir: "./validation_results",
-  datasets:[],
+  datasets: [],
 };
 
 /**
@@ -51,8 +51,9 @@ export type SpecIdentifier =
 export function parseSpecIdentifier(
   specId: string | undefined,
 ): { spec: string; type: string } | null {
-  if (!specId)
+  if (!specId) {
     return null;
+  }
   const parts = specId.split("-");
   if (parts.length < 2) {
     return null;

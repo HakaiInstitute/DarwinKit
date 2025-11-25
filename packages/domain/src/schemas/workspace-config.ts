@@ -5,8 +5,6 @@
 import * as S from "effect/Schema";
 import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
 
-
-
 /**
  * Workspace field mapping schema
  */
@@ -42,7 +40,7 @@ export const datasetConfigSchema = S.Struct({
   description: S.optional(S.String),
   profile: S.String,
   fieldMappings: S.optional(S.Array(workspaceFieldMappingSchema)),
-  fields: S.optional(S.Object)
+  fields: S.optional(S.Object),
 });
 
 /**
@@ -73,27 +71,42 @@ export const transformSettingsSchema = S.Struct({
 });
 
 /**
- * Complete workspace configuration schema
+ * Base fields shared by all workspace configurations
  */
-const workspaceConfigBaseSchema = S.Struct({
+const workspaceConfigBaseFields = S.Struct({
   id: S.String,
   name: S.String,
   version: S.String,
   description: S.optional(S.String),
-  transform: transformSettingsSchema,
-  validation: validationSettingsSchema,
   crossDatasetRules: S.optional(S.Array(workspaceCrossDatasetRuleSchema)),
   createdAt: S.Date,
   updatedAt: S.Date,
 });
 
 /**
- * Workspace configuration schema that allows either validation or transform settings to be omitted, but not both.
+ * Workspace configuration schema that requires at least one of validation or transform.
+ * This creates a proper discriminated union with three variants:
+ * 1. Only validation (no transform)
+ * 2. Only transform (no validation)
+ * 3. Both validation and transform
  */
 export const workspaceConfigSchema = S.Union(
-  workspaceConfigBaseSchema.pipe(S.omit("validation")),
-  workspaceConfigBaseSchema.pipe(S.omit("transform")),
-  workspaceConfigBaseSchema
+  // Only validation
+  S.Struct({
+    ...workspaceConfigBaseFields.fields,
+    validation: validationSettingsSchema,
+  }),
+  // Only transform
+  S.Struct({
+    ...workspaceConfigBaseFields.fields,
+    transform: transformSettingsSchema,
+  }),
+  // Both validation and transform
+  S.Struct({
+    ...workspaceConfigBaseFields.fields,
+    validation: validationSettingsSchema,
+    transform: transformSettingsSchema,
+  }),
 );
 
 // Note: Type exports are defined in types/workspace-config.ts to avoid duplication

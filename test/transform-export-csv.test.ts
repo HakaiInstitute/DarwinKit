@@ -72,7 +72,7 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
 
 Deno.test("exportObisTablesToCSV - drops null columns when configured", async () => {
   // 1. Setup
-  const connection = await DuckDBConnection.create()
+  const connection = await DuckDBConnection.create();
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-export-null-test-" });
 
   const config: WorkspaceConfig = {
@@ -97,8 +97,12 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 
   try {
     // 2. Arrange: Create a table with a column that is entirely NULL
-    await connection.run("CREATE TABLE event (eventID TEXT, year INTEGER, month INTEGER, remarks TEXT);");
-    await connection.run("INSERT INTO event VALUES ('evt1', 2023, 1, NULL), ('evt2', 2024, 2, NULL);");
+    await connection.run(
+      "CREATE TABLE event (eventID TEXT, year INTEGER, month INTEGER, remarks TEXT);",
+    );
+    await connection.run(
+      "INSERT INTO event VALUES ('evt1', 2023, 1, NULL), ('evt2', 2024, 2, NULL);",
+    );
 
     // 3. Act
     const effect = exportObisTablesToCSV(connection, config);
@@ -120,7 +124,6 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
     assertEquals(rows.length, 2, "CSV should contain 2 data rows");
     assertEquals(rows[0], `"evt1",2023,1`);
     assertEquals(rows[1], `"evt2",2024,2`);
-
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
@@ -129,7 +132,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 });
 
 Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", async () => {
-  const connection = await DuckDBConnection.create()
+  const connection = await DuckDBConnection.create();
   // Invalid path to trigger a file system error
   const invalidOutputDir = "/non_existent_dir/sub_dir";
 
@@ -156,5 +159,4 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
   assertEquals(result.outputPath, invalidOutputDir);
 
   connection.closeSync();
-
 });
