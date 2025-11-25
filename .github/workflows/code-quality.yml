@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - main
-      - chore/3-derive-types-from-dataschema-objects
+      - effect-workspaces
 
 jobs:
   lint:
