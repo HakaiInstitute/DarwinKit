@@ -6,82 +6,21 @@
  * specification (e.g., Darwin Core) with explicit field mappings.
  */
 
-import type { BaseEntity } from "./common.ts";
-import type { EnforcementLevel } from "../specs/validators.ts";
+import * as S from "effect/Schema";
+import {
+  datasetConfigSchema,
+  validationSettingsSchema,
+  workspaceConfigSchema,
+  workspaceCrossDatasetRuleSchema,
+  workspaceFieldMappingSchema,
+} from "../schemas/workspace-config.ts";
 
-/**
- * Validation settings for the workspace
- */
-export interface ValidationSettings {
-  readonly nullValues: readonly string[];
-  readonly failFast: boolean;
-  readonly outputDir: string;
-
-  /**
-   * Optional validation profile ID (e.g., "obis-event", "gbif-occurrence")
-   *
-   * Profiles layer additional validation requirements on top of base specs.
-   * See packages/shared/src/specs/profiles/ for available profiles.
-   */
-  readonly profile?: string;
-}
-
-/**
- * Field mapping from CSV column to spec field
- * Re-export from field-mapping types for workspace config
- */
-export interface WorkspaceFieldMapping {
-  readonly originName: string;
-  readonly targetName: string;
-  readonly isRequired?: boolean;
-
-  /**
-   * Field-level validation overrides
-   *
-   * Allows project-specific constraints or validators to override
-   * both the base spec and validation profile.
-   *
-   * Priority: field override > profile > base spec
-   */
-  readonly constraints?: Record<string, unknown>;
-  readonly validators?: readonly import("../specs/validators.ts").ValidatorConfig[];
-}
-
-/**
- * Cross-dataset validation rule for workspace config
- */
-export interface WorkspaceCrossDatasetRule {
-  readonly ruleType: "foreignKey" | "referentialIntegrity";
-  readonly sourceDataset: string;
-  readonly sourceField: string;
-  readonly targetDataset: string;
-  readonly targetField: string;
-  readonly enforcement?: EnforcementLevel; // Defaults to "required" if not specified
-  readonly description?: string;
-}
-
-/**
- * Individual dataset configuration within a workspace
- */
-export interface DatasetConfig {
-  readonly name: string;
-  readonly spec: string; // e.g., "dwc-event", "dwc-occurrence", "metadata-v1"
-  readonly path: string; // Path to CSV file
-  readonly description?: string;
-  readonly fieldMappings: readonly WorkspaceFieldMapping[];
-}
-
-/**
- * Complete workspace configuration
- */
-export interface WorkspaceConfig extends BaseEntity {
-  readonly name: string;
-  readonly version: string;
-  readonly description?: string;
-  readonly validation: ValidationSettings;
-  readonly datasets: readonly DatasetConfig[];
-  readonly crossDatasetRules?: readonly WorkspaceCrossDatasetRule[];
-}
+// Types derived from schemas
+export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
+export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
+export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
+export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
+export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
 
 /**
  * Default validation settings

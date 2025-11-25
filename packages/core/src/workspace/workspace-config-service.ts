@@ -17,7 +17,7 @@ import { workspaceConfigSchema } from "@dwkt/domain";
 import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
 
 // Configuration file constants
-const CONFIG_FILENAME = "darwinkit.json";
+const DEFAULT_CONFIG_FILENAME = "darwinkit.json";
 const MAX_SEARCH_DEPTH = 10;
 
 /**
@@ -88,7 +88,7 @@ export class WorkspaceConfigService {
       const searchedPaths: string[] = [];
 
       while (depth < MAX_SEARCH_DEPTH) {
-        const configPath = join(currentDir, CONFIG_FILENAME);
+        const configPath = join(currentDir, DEFAULT_CONFIG_FILENAME);
         searchedPaths.push(configPath);
 
         // Check if config exists at this level
@@ -123,7 +123,7 @@ export class WorkspaceConfigService {
         Effect.fail(
           new ConfigNotFoundError({
             message:
-              `Configuration file '${CONFIG_FILENAME}' not found in '${searchDir}' or any parent directory`,
+              `Configuration file '${DEFAULT_CONFIG_FILENAME}' not found in '${searchDir}' or any parent directory`,
             searchDir,
             searchedPaths,
           }),
@@ -256,7 +256,7 @@ const formatConfigError = createTaggedFormatter<ConfigError>({
   ConfigNotFoundError: (error) => {
     // error is automatically typed as ConfigNotFoundError!
     const pathsList = error.searchedPaths.map((p) => `  - ${p}`).join("\n");
-    return `${error.message}\n\nSearched paths:\n${pathsList}\n\nSuggestion: Create '${CONFIG_FILENAME}' in your project directory or a parent directory.`;
+    return `${error.message}\n\nSearched paths:\n${pathsList}\n\nSuggestion: Create '${DEFAULT_CONFIG_FILENAME}' in your project directory or a parent directory.`;
   },
   ConfigParseError: (error) => {
     // error is automatically typed as ConfigParseError!

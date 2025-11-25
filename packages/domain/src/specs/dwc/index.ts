@@ -39,7 +39,6 @@ export {
   getVocabularyValues,
   isValidVocabularyValue,
   VOCABULARIES,
-  VOCABULARY_METADATA,
 } from "../vocabularies/registry.ts";
 export {
   createVocabularyConfig,

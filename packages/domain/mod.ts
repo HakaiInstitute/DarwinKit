@@ -21,6 +21,8 @@ export { FieldRequirementLevel } from "./src/types/validation-profile.ts";
 export * from "./src/schemas/schema.ts";
 export * from "./src/schemas/workspace.ts";
 export * from "./src/schemas/workspace-config.ts";
+export * from "./src/schemas/validation-profile.ts";
+export * from "./src/schemas/field-mapping.ts";
 // Export validation schemas with renamed ValidationError to avoid conflict
 export {
   type CoordinateWarning,
@@ -52,7 +54,7 @@ export {
 export * from "./src/errors/codes.ts";
 export * from "./src/errors/types.ts";
 export * from "./src/errors/severity.ts";
-export * from "./src/errors/cli-presenter.ts";
+export * from "./src/errors/presenter.ts";
 
 // Error examples (for documentation and migration)
 export * from "./src/errors/examples.ts";

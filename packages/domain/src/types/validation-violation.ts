@@ -4,6 +4,20 @@
  * Defines the minimal and enriched violation types for validation errors.
  * Validators return RawViolation (minimal data), infrastructure enriches
  * to ValidationViolation (full metadata for routing and reporting).
+ *
+ * DESIGN DECISION: Kept as pure TypeScript interfaces rather than Effect Schemas because:
+ * 1. OUTPUT-ONLY types - Never parsed from external input, only constructed internally
+ * 2. Two-tier design pattern:
+ *    - RawViolation: Minimal data returned by validators (lightweight, fast)
+ *    - ValidationViolation: Enriched with metadata for routing/reporting (complete)
+ * 3. Internal contracts - These define how validators communicate with the validation infrastructure
+ * 4. No validation needed - These types are constructed by trusted internal code, not from external sources
+ *
+ * This separation allows validators to return minimal data while the validation
+ * infrastructure handles metadata enrichment (field names, enforcement mapping,
+ * severity calculation, error messages, etc.).
+ *
+ * Validators return RawViolation; infrastructure enriches to ValidationViolation.
  */
 
 import type { EnforcementLevel, ValidatorConfig } from "../specs/validators.ts";

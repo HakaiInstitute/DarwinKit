@@ -3,7 +3,7 @@
  */
 
 import * as S from "effect/Schema";
-import { EnforcementLevel } from "../specs/validators.ts";
+import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
 
 /**
  * Validation settings schema
@@ -22,6 +22,8 @@ export const workspaceFieldMappingSchema = S.Struct({
   originName: S.String,
   targetName: S.String,
   isRequired: S.optional(S.Boolean),
+  constraints: S.optional(S.Record({ key: S.String, value: S.Unknown })),
+  validators: S.optional(S.Array(ValidatorConfigSchema)),
 });
 
 /**

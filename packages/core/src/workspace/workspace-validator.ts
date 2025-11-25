@@ -19,6 +19,7 @@ import type {
   RawViolation,
   ValidationProfile,
   ValidationViolation,
+  ValidatorConfig,
   WorkspaceConfig,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
@@ -253,7 +254,7 @@ function mergeFieldDefinition(
         ...merged,
         validators: [
           ...merged.validators,
-          ...profileOverride.validators,
+          ...(profileOverride.validators as ValidatorConfig[]),
         ],
       };
     }
@@ -265,7 +266,7 @@ function mergeFieldDefinition(
       ...merged,
       validators: [
         ...merged.validators,
-        ...fieldMapping.validators,
+        ...(fieldMapping.validators as ValidatorConfig[]),
       ],
     };
   }

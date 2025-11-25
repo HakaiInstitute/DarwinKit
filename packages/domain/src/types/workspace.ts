@@ -1,50 +1,23 @@
 /**
- * Workspace types
+ * Workspace types - derived from Effect schemas
  */
 
-import type { FileFormat } from "./common.ts";
-import type { DatasetSchema } from "./schema.ts";
+import * as S from "effect/Schema";
+import {
+  createWorkspaceInputSchema,
+  createWorkspaceOptionsSchema,
+  workspaceInfoSchema,
+  workspaceSchema,
+} from "../schemas/workspace.ts";
 
 // File-based workspace - stored as JSON files
-export interface Workspace {
-  readonly id: string;
-  readonly name: string;
-  readonly description?: string;
-  readonly filePath: string;
-  readonly format: FileFormat;
-  readonly schema: DatasetSchema;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
-
-  // File-based storage paths
-  readonly workspaceDir: string; // e.g., "./workspaces/workspace-123/"
-  readonly dataTableName: string; // DuckDB table name for queries
-}
+export type Workspace = S.Schema.Type<typeof workspaceSchema>;
 
 // Minimal workspace info for listing
-export interface WorkspaceInfo {
-  readonly id: string;
-  readonly name: string;
-  readonly description?: string;
-  readonly filePath: string;
-  readonly format: FileFormat;
-  readonly rowCount: number;
-  readonly fieldCount: number;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
-}
+export type WorkspaceInfo = S.Schema.Type<typeof workspaceInfoSchema>;
 
 // Workspace creation input
-export interface CreateWorkspaceInput {
-  readonly name: string;
-  readonly description?: string;
-  readonly filePath: string;
-}
+export type CreateWorkspaceInput = S.Schema.Type<typeof createWorkspaceInputSchema>;
 
 // Workspace creation options with parse settings
-export interface CreateWorkspaceOptions extends CreateWorkspaceInput {
-  readonly parseOptions?: {
-    readonly sampleSize?: number;
-    readonly maxRows?: number;
-  };
-}
+export type CreateWorkspaceOptions = S.Schema.Type<typeof createWorkspaceOptionsSchema>;
