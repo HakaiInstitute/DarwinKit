@@ -91,7 +91,7 @@ export interface ValidationProfile {
   /** Field-specific validation overrides and requirements */
   readonly fieldOverrides: Record<string, FieldOverride>;
 
-  readonly fields: Record<string, field>;
+  readonly fields?: Record<string, field>;
   /** External documentation URL */
   readonly documentationUrl?: string;
 

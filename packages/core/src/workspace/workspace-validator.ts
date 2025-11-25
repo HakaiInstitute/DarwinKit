@@ -16,6 +16,7 @@ import type {
   DatasetConfig,
   DatasetValidationResult,
   FieldDefinition,
+  Field,
   RawViolation,
   ValidationProfile,
   ValidationViolation,
@@ -190,7 +191,7 @@ function createWorkspaceFromConfig(
       const tableName = sanitizeTableName(dataset.name);
 
       // Build null values string for DuckDB
-      const nullStr = config.validation.nullValues.map((v) => `'${v}'`).join(", ");
+      const nullStr = config.validation?.nullValues?.map((v) => `'${v}'`).join(", ");
 
       // Drop table if it exists, then create from CSV
       const dropTableQuery = `DROP TABLE IF EXISTS ${tableName}`;
@@ -230,7 +231,7 @@ function createWorkspaceFromConfig(
  * Priority: field override > profile > base spec
  */
 function mergeFieldDefinition(
-  baseField: FieldDefinition | undefined,
+  baseField: FieldDefinition | Field | undefined,
   profile: ValidationProfile | undefined,
   fieldMapping: import("@dwkt/domain").WorkspaceFieldMapping,
 ): FieldDefinition | undefined {
@@ -320,9 +321,9 @@ function validateDataset(
     const recommendations: Array<DatasetValidationResult["recommendations"][number]> = [];
 
     // Check profile field requirements based on requirement levels
-    if (profile) {
+    if (profile && profile.fields && dataset.fieldMappings) {
       
-      const mappedSpecFields = new Set(dataset?.fieldMappings.map((m) => m.targetName));
+      const mappedSpecFields = new Set(dataset.fieldMappings.map((m) => m.targetName));
 
       for (const [fieldName, fieldOverride] of Object.entries(profile.fields)) {
 
@@ -364,9 +365,12 @@ function validateDataset(
     // Validate each field mapping
     for (const mapping of dataset?.fieldMappings || []) {
 
+      if (!profile?.fields){
+        continue;
+      }
       // TODO: Why are we doing this check?
       // Get base spec field definition
-      const baseField = Object.keys(profile.fields).includes(mapping.targetName);
+      const baseField = profile.fields[mapping.targetName];
       // this will fail if a fieldmapping entry is not in the schema
       if (!baseField && specInfo.spec === "dwc") {
         // Unknown Darwin Core field
@@ -408,6 +412,7 @@ function validateDataset(
           warnings.push({
             fieldName: mapping.originName,
             targetName: mapping.targetName,
+            requirementLevel: "optional",
             message: `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
           });
         }
