@@ -49,6 +49,22 @@ export interface FieldOverride {
   readonly enforcement?: "required" | "recommended" | "optional";
 }
 
+export interface field {
+  readonly group: string;
+  readonly name: string;
+  readonly label: string;
+  readonly namespace: string;
+  readonly qualName: string;
+  readonly "dc:relation": string;
+  readonly "dc:description": string;
+  readonly gbif_required: string;
+  readonly type: string;
+  readonly obis_required: string;
+  readonly validators: string[];
+  readonly values?: string[];
+}
+
+
 /**
  * Validation Profile
  *
@@ -75,6 +91,7 @@ export interface ValidationProfile {
   /** Field-specific validation overrides and requirements */
   readonly fieldOverrides: Record<string, FieldOverride>;
 
+  readonly fields?: Record<string, field>;
   /** External documentation URL */
   readonly documentationUrl?: string;
 

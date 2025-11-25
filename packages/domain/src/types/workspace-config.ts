@@ -9,22 +9,7 @@
 import type { BaseEntity } from "./common.ts";
 import type { EnforcementLevel } from "../specs/validators.ts";
 
-/**
- * Validation settings for the workspace
- */
-export interface ValidationSettings {
-  readonly nullValues: readonly string[];
-  readonly failFast: boolean;
-  readonly outputDir: string;
 
-  /**
-   * Optional validation profile ID (e.g., "obis-event", "gbif-occurrence")
-   *
-   * Profiles layer additional validation requirements on top of base specs.
-   * See packages/shared/src/specs/profiles/ for available profiles.
-   */
-  readonly profile?: string;
-}
 
 /**
  * Field mapping from CSV column to spec field
@@ -65,10 +50,42 @@ export interface WorkspaceCrossDatasetRule {
  */
 export interface DatasetConfig {
   readonly name: string;
-  readonly spec: string; // e.g., "dwc-event", "dwc-occurrence", "metadata-v1"
-  readonly path: string; // Path to CSV file
+  readonly spec?: string; // e.g., "dwc-event", "dwc-occurrence", "metadata-v1"
+  readonly path?: string; // Path to CSV file
   readonly description?: string;
-  readonly fieldMappings: readonly WorkspaceFieldMapping[];
+  readonly source?: Record<string, string>; // SQL source definitions for data import
+  readonly profile: string;
+  readonly fieldMappings?: WorkspaceFieldMapping[];
+  readonly fields?: Record<string, string>; // Additional field transformations
+}
+
+/**
+ * Validation settings for the workspace
+ */
+export interface ValidationSettings {
+  readonly nullValues: string[];
+  readonly failFast: boolean;
+  readonly outputDir: string;
+  readonly datasets: DatasetConfig[];
+}
+
+export interface outputConfig {
+  readonly outputDir?: string;
+  readonly exportDB?: boolean;
+  readonly exportDBFileName?: string;
+  readonly outputFilesWithTimestamp?: boolean;
+  readonly dropNullColumns?: boolean;
+}
+
+/**
+ * Transformation settings for the workspace
+ */
+export interface TransformSettings {
+  readonly nullValues: string[];
+  readonly inputs: Record<string, string>;
+  readonly postImportTransforms: string[];
+  readonly output: outputConfig;
+  readonly datasets: DatasetConfig[];
 }
 
 /**
@@ -76,11 +93,11 @@ export interface DatasetConfig {
  */
 export interface WorkspaceConfig extends BaseEntity {
   readonly name: string;
-  readonly version: string;
+  readonly version: string | number;
   readonly description?: string;
-  readonly validation: ValidationSettings;
-  readonly datasets: readonly DatasetConfig[];
-  readonly crossDatasetRules?: readonly WorkspaceCrossDatasetRule[];
+  readonly transform?: TransformSettings;
+  readonly validation?: ValidationSettings;
+  readonly crossDatasetRules?: WorkspaceCrossDatasetRule[];
 }
 
 /**
@@ -90,6 +107,7 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
   nullValues: ["", "NA", "N/A", "NULL", "null"],
   failFast: false,
   outputDir: "./validation_results",
+  datasets:[],
 };
 
 /**
@@ -109,8 +127,10 @@ export type SpecIdentifier =
  * Parse spec identifier into spec name and type
  */
 export function parseSpecIdentifier(
-  specId: string,
+  specId: string | undefined,
 ): { spec: string; type: string } | null {
+  if (!specId)
+    return null;
   const parts = specId.split("-");
   if (parts.length < 2) {
     return null;

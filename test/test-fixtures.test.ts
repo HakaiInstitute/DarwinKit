@@ -25,32 +25,32 @@ Deno.test("Test fixtures - fc2022-complete config loads successfully", async () 
   // Verify structure
   assertEquals(result.config.id, "fc2022-complete-test-fixture");
   assertEquals(result.config.name, "FC2022 Marine Biodiversity Dataset");
-  assertEquals(result.config.datasets.length, 3);
+  assertEquals(result.config.validation?.datasets.length, 3);
 
   // Verify datasets are present
-  const datasetNames = result.config.datasets.map((d) => d.name);
-  assertEquals(datasetNames.includes("event_data"), true);
-  assertEquals(datasetNames.includes("occurrence_data"), true);
-  assertEquals(datasetNames.includes("emof_data"), true);
+  const datasetNames = result.config.validation?.datasets.map((d) => d.name);
+  assertEquals(datasetNames?.includes("event_data"), true);
+  assertEquals(datasetNames?.includes("occurrence_data"), true);
+  assertEquals(datasetNames?.includes("emof_data"), true);
 
   // Verify specs are correct
-  const eventDataset = result.config.datasets.find((d) => d.name === "event_data");
+  const eventDataset = result.config.validation?.datasets.find((d) => d.name === "event_data");
   assertExists(eventDataset);
-  assertEquals(eventDataset.spec, "dwc-event");
+  assertEquals(eventDataset?.spec, "dwc-event");
 
-  const occurrenceDataset = result.config.datasets.find((d) => d.name === "occurrence_data");
+  const occurrenceDataset = result.config.validation?.datasets.find((d) => d.name === "occurrence_data");
   assertExists(occurrenceDataset);
-  assertEquals(occurrenceDataset.spec, "dwc-occurrence");
+  assertEquals(occurrenceDataset?.spec, "dwc-occurrence");
 
-  const emofDataset = result.config.datasets.find((d) => d.name === "emof_data");
+  const emofDataset = result.config.validation?.datasets.find((d) => d.name === "emof_data");
   assertExists(emofDataset);
-  assertEquals(emofDataset.spec, "dwc-extendedMeasurementOrFacts");
+  assertEquals(emofDataset?.spec, "dwc-extendedMeasurementOrFacts");
 
   // Verify cross-dataset rules
   assertEquals(result.config.crossDatasetRules?.length, 2);
 
   console.log("\n✅ fc2022-complete config loaded successfully");
-  console.log(`   - ${result.config.datasets.length} datasets`);
+  console.log(`   - ${result.config.validation?.datasets.length} datasets`);
   console.log(`   - ${result.config.crossDatasetRules?.length} cross-dataset rules`);
 });
 
@@ -68,13 +68,13 @@ Deno.test("Test fixtures - mixed-validity config loads successfully", async () =
   // Verify structure
   assertEquals(result.config.id, "mixed-validity-test-fixture");
   assertEquals(result.config.name, "Mixed Valid/Invalid Dataset");
-  assertEquals(result.config.datasets.length, 1);
+  assertEquals(result.config.validation?.datasets.length, 1);
 
   // Verify dataset
-  const dataset = result.config.datasets[0];
-  assertEquals(dataset.name, "occurrence_data");
-  assertEquals(dataset.spec, "dwc-occurrence");
-  assertEquals(dataset.path, "data/mixed_occ.csv");
+  const dataset = result.config.validation?.datasets[0];
+  assertEquals(dataset?.name, "occurrence_data");
+  assertEquals(dataset?.spec, "dwc-occurrence");
+  assertEquals(dataset?.path, "data/mixed_occ.csv");
 
   console.log("\n✅ mixed-validity config loaded successfully");
   console.log(`   - Purpose: Test mixed valid/invalid records`);
@@ -94,17 +94,17 @@ Deno.test("Test fixtures - na-type-failures config loads successfully", async ()
   // Verify structure
   assertEquals(result.config.id, "na-type-failures-test-fixture");
   assertEquals(result.config.name, "Invalid Dataset - NA Type Failures");
-  assertEquals(result.config.datasets.length, 1);
+  assertEquals(result.config.validation?.datasets.length, 1);
 
   // Verify validation settings - NA should NOT be in nullValues
-  assertEquals(result.config.validation.nullValues.includes("NA"), false);
-  assertEquals(result.config.validation.nullValues.includes("N/A"), false);
-  assertEquals(result.config.validation.nullValues.includes(""), true);
-  assertEquals(result.config.validation.nullValues.includes("NULL"), true);
+  assertEquals(result.config.validation?.nullValues.includes("NA"), false);
+  assertEquals(result.config.validation?.nullValues.includes("N/A"), false);
+  assertEquals(result.config.validation?.nullValues.includes(""), true);
+  assertEquals(result.config.validation?.nullValues.includes("NULL"), true);
 
   console.log("\n✅ na-type-failures config loaded successfully");
   console.log(`   - Purpose: Test NA values cause failures when not in nullValues`);
-  console.log(`   - nullValues: ${result.config.validation.nullValues.join(", ")}`);
+  console.log(`   - nullValues: ${result.config.validation?.nullValues.join(", ")}`);
 });
 
 Deno.test("Test fixtures - all configs use datasets array format", async () => {
@@ -120,16 +120,16 @@ Deno.test("Test fixtures - all configs use datasets array format", async () => {
     );
 
     // Verify datasets is an array
-    assertEquals(Array.isArray(result.config.datasets), true);
+    assertEquals(Array.isArray(result.config.validation?.datasets), true);
 
     // Verify each dataset has required fields
-    for (const dataset of result.config.datasets) {
-      assertExists(dataset.name, `Dataset should have name in ${configPath}`);
-      assertExists(dataset.spec, `Dataset should have spec in ${configPath}`);
-      assertExists(dataset.path, `Dataset should have path in ${configPath}`);
-      assertExists(dataset.fieldMappings, `Dataset should have fieldMappings in ${configPath}`);
+    for (const dataset of result.config.validation?.datasets || []) {
+      assertExists(dataset?.name, `Dataset should have name in ${configPath}`);
+      assertExists(dataset?.spec, `Dataset should have spec in ${configPath}`);
+      assertExists(dataset?.path, `Dataset should have path in ${configPath}`);
+      assertExists(dataset?.fieldMappings, `Dataset should have fieldMappings in ${configPath}`);
       assertEquals(
-        Array.isArray(dataset.fieldMappings),
+        Array.isArray(dataset?.fieldMappings),
         true,
         `fieldMappings should be array in ${configPath}`,
       );

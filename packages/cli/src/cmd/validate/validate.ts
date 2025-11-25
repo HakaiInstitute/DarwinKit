@@ -249,6 +249,7 @@ export async function validate(options: {
 
   // Run the Effect pipeline with Exit to preserve Cause information
   const result = await Effect.runPromiseExit(runValidation);
+  //const result = await Effect.runPromise(runValidation).catch(console.error);
 
   if (Exit.isFailure(result)) {
     // Stop spinner on error

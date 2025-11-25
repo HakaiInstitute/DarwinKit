@@ -12,7 +12,7 @@ import type {
 } from "../../types/validation-profile.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
-
+import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
 /**
  * All available validation profiles
  */
@@ -72,7 +72,9 @@ function mergeProfiles(parent: ValidationProfile, child: ValidationProfile): Val
  * are merged with the child's (child takes precedence).
  */
 export function getValidationProfile(profileId: string): ValidationProfile | undefined {
-  const profile = VALIDATION_PROFILES[profileId];
+  // const profile = VALIDATION_PROFILES[profileId];
+  const profile: ValidationProfile | undefined = (DWC_SCHEMA as unknown as Record<string, ValidationProfile>)[profileId];
+  
   if (!profile) return undefined;
 
   // Resolve inheritance chain

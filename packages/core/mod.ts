@@ -12,3 +12,6 @@ export * from "./src/parsing/csv-parser.ts";
 
 // Validation
 export * from "./src/validation/uniqueness-validator.ts";
+
+// Transformation
+export * from "./src/transform/transform.ts";
