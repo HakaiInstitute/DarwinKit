@@ -4,11 +4,10 @@ on:
   pull_request:
     branches:
       - main
-      - develop
+      - chore/3-derive-types-from-dataschema-objects
   push:
     branches:
       - main
-      - develop
 
 jobs:
   test:
