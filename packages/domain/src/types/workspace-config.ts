@@ -55,7 +55,7 @@ export interface DatasetConfig {
   readonly description?: string;
   readonly source?: Record<string, string>; // SQL source definitions for data import
   readonly profile: string;
-  readonly fieldMappings?: readonly WorkspaceFieldMapping[];
+  readonly fieldMappings?: WorkspaceFieldMapping[];
   readonly fields?: Record<string, string>; // Additional field transformations
 }
 
@@ -63,10 +63,10 @@ export interface DatasetConfig {
  * Validation settings for the workspace
  */
 export interface ValidationSettings {
-  readonly nullValues: readonly string[];
+  readonly nullValues: string[];
   readonly failFast: boolean;
   readonly outputDir: string;
-  readonly datasets: readonly DatasetConfig[];
+  readonly datasets: DatasetConfig[];
 }
 
 export interface outputConfig {
@@ -81,11 +81,11 @@ export interface outputConfig {
  * Transformation settings for the workspace
  */
 export interface TransformSettings {
-  readonly nullValues: readonly string[];
+  readonly nullValues: string[];
   readonly inputs: Record<string, string>;
-  readonly postImportTransforms: readonly string[];
+  readonly postImportTransforms: string[];
   readonly output: outputConfig;
-  readonly datasets: readonly DatasetConfig[];
+  readonly datasets: DatasetConfig[];
 }
 
 /**
@@ -97,7 +97,7 @@ export interface WorkspaceConfig extends BaseEntity {
   readonly description?: string;
   readonly transform?: TransformSettings;
   readonly validation?: ValidationSettings;
-  readonly crossDatasetRules?: readonly WorkspaceCrossDatasetRule[];
+  readonly crossDatasetRules?: WorkspaceCrossDatasetRule[];
 }
 
 /**

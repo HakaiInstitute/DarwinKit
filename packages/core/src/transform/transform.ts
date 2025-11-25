@@ -5,9 +5,15 @@ import * as Data from 'effect/Data';
 
 import { WorkspaceConfigService } from '../workspace/workspace-config-service.ts';
 import type { WorkspaceConfig } from '@dwkt/domain';
-import { ErrorCode, getValidationProfile } from '@dwkt/domain';
-import { ConfigError } from '@dwkt/core';
+import { getValidationProfile } from '@dwkt/domain';
 import { json2csv } from 'json-2-csv';
+import type {
+  ConfigNotFoundError,
+  ConfigParseError,
+  ConfigValidationError,
+  DatasetFileNotFoundError,
+  ConfigError,
+} from "@dwkt/core";
 
 /**
  * Represents an error that occurs during the data transformation process.
@@ -49,7 +55,7 @@ export function createTablesFromCSV( // Export for testing
     // Build a string of null values from the configuration to be used in the DuckDB query.
     const nullStr = config.transform.nullValues.map((v) => `'${v}'`).join(", ");
 
-    for (const [tableName, csvPath] of Object.entries(config.transform.inputs)) {
+    for (const [tableName, csvPath] of Object.entries(config.transform.inputs || {})) {
       const fullPath = resolve(basePath, csvPath);
 
       yield* _(Effect.tryPromise({
@@ -106,17 +112,17 @@ export function createTableFromSchema(
       const tableName = transformProfile.name.toLowerCase();
 
       // 1. Create ENUM types for controlled vocabularies
-      const enums = Object.entries(transformProfile.fields).map(([fieldName, field], i) => {
+      const enums = Object.entries(transformProfile.fields || {}).map(([fieldName, field], i) => {
         if (field.type === "controlled-vocabulary" && field.values) {
           const enumName = `${tableName}_${fieldName}_enum`;
-          const enumValues = Object.keys(field.values).map((v: string) => `'${v}'`).join(', ');
+          const enumValues = Object.keys(field.values || {}).map((v: string) => `'${v}'`).join(', ');
           return `CREATE TYPE IF NOT EXISTS ${enumName} AS ENUM (${enumValues});`
         }
         return null;
       })
 
       // 2. Generate Column Definition SQL
-      const columns = Object.keys(transformProfile.fields).map((fieldName) => {
+      const columns = Object.keys(transformProfile.fields || {}).map((fieldName) => {
         const field = transformProfile.fields[fieldName];
         const fieldType = (field.type?.toUpperCase() || 'TEXT')
           .replace('IDENTIFIER', 'TEXT')
@@ -178,10 +184,12 @@ export function populateSchemaFromDataTables( // Export for testing
   config: WorkspaceConfig,
 ): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
-    for (const dataset of config.transform?.datasets || []) {
-      const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string):string => `"${fieldName}"`);
+    if (!config.transform?.datasets) return;
+
+    for (const dataset of (config.transform.datasets)) {
+      const targetColumnNames = Object.keys(dataset?.fields || {}).map((fieldName: string):string => `"${fieldName}"`);
       // Create column calculations based on the transformations defined in the dataset fields
-      const columnCalculations = Object.entries(dataset.fields)
+      const columnCalculations = Object.entries(dataset.fields || {})
         .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
 
       const transformProfile = getValidationProfile(dataset.profile)
@@ -190,7 +198,7 @@ export function populateSchemaFromDataTables( // Export for testing
         continue;
       }
       const tableName = transformProfile.name.toLowerCase();
-      const tableSources = Object.entries(dataset.source).map(([tableName, joinSQL]) => `(${joinSQL}) AS ${tableName}`).join(', ');
+      const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) => `(${joinSQL}) AS ${tableName}`).join(', ');
 
       const insertSQL = `INSERT INTO ${tableName} (${targetColumnNames.join(', ')}) SELECT ${columnCalculations.join(', ')} FROM ${tableSources};`;
 
@@ -400,7 +408,13 @@ export function exportToPersistentDB(
  */
 export function transformFile(
   configPath?: string,
-): Effect.Effect<void, TransformationError | ConfigError> {
+): Effect.Effect<void, 
+TransformationError | 
+OutputError | 
+ConfigNotFoundError | 
+ConfigParseError | 
+ConfigValidationError | 
+DatasetFileNotFoundError, never> {
   return Effect.acquireUseRelease(
     Effect.tryPromise(() => duckdb.DuckDBConnection.create()),
     (connection) =>

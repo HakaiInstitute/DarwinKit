@@ -40,6 +40,7 @@ export const datasetConfigSchema = S.Struct({
   description: S.optional(S.String),
   profile: S.String,
   fieldMappings: S.Array(workspaceFieldMappingSchema),
+  field: S.optional(S.Object)
 });
 
 /**
@@ -59,7 +60,7 @@ export const transformSettingsSchema = S.Struct({
   nullValues: S.Array(S.String),
   inputs: S.Object,
   postImportTransforms: S.Array(S.String),
-  datasets: S.Array(S.Object),
+  datasets: S.Array(datasetConfigSchema),
   output: S.Struct({
     outputDir: S.String,
     outputFilesWithTimestamp: S.optional(S.Boolean),

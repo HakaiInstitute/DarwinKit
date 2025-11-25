@@ -322,7 +322,7 @@ function validateDataset(
     // Check profile field requirements based on requirement levels
     if (profile) {
       
-      const mappedSpecFields = new Set(dataset.fieldMappings.map((m) => m.targetName));
+      const mappedSpecFields = new Set(dataset?.fieldMappings.map((m) => m.targetName));
 
       for (const [fieldName, fieldOverride] of Object.entries(profile.fields)) {
 
@@ -362,7 +362,7 @@ function validateDataset(
     }
 
     // Validate each field mapping
-    for (const mapping of dataset.fieldMappings) {
+    for (const mapping of dataset?.fieldMappings || []) {
 
       // TODO: Why are we doing this check?
       // Get base spec field definition
