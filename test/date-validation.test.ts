@@ -71,7 +71,7 @@ E4,2022,6,32,2022-06-32`;
 
     // Check for specific date range violations
     const rangeErrors = datasetResult.violations.errors
-      .filter((v) => v.violationType === "range");
+      .filter((v) => v._tag === "RangeViolation");
 
     console.log(`Range violations: ${rangeErrors.length}`);
     for (const violation of rangeErrors) {

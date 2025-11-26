@@ -12,7 +12,6 @@ export * from "./src/types/field-mapping.ts";
 export * from "./src/types/validation-profile.ts";
 export * from "./src/types/validation-violation.ts";
 export * from "./src/types/transformation.ts";
-export * from "./src/types/semantic-values.ts";
 export { FieldRequirementLevel } from "./src/types/validation-profile.ts";
 
 // Note: enrichCrossDatasetViolation is exported via validation-violation.ts wildcard export above
@@ -56,9 +55,6 @@ export * from "./src/errors/types.ts";
 export * from "./src/errors/severity.ts";
 export * from "./src/errors/presenter.ts";
 
-// Error examples (for documentation and migration)
-export * from "./src/errors/examples.ts";
-
 // Utilities
 export * from "./src/utils/cause-formatter.ts";
 
@@ -72,6 +68,3 @@ export * from "./src/specs/dwc/index.ts";
 export * from "./src/specs/profiles/registry.ts";
 export * from "./src/specs/profiles/obis.ts";
 export * from "./src/specs/profiles/obis-event.ts";
-
-// Note: Semantic validation (semantic-validator-effect.ts) is not yet exported
-// It will be exported when it's fully tested and ready for use

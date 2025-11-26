@@ -6,7 +6,6 @@ import { assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { join } from "@std/path";
 import { WorkspaceValidator } from "./workspace-validator.ts";
-import { ValidationViolation } from "@dwkt/domain";
 
 async function createTestWorkspace(tempDir: string) {
   // Create event CSV

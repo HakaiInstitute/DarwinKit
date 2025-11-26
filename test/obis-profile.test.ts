@@ -240,7 +240,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     // Should have constraint violations for depths > 11000m
     const depthViolations = eventsResult.violations.errors.filter(
       (v) =>
-        v.violationType === "range" &&
+        v._tag === "RangeViolation" &&
         (v.targetName === "minimumDepthInMeters" || v.targetName === "maximumDepthInMeters"),
     );
 
