@@ -15,15 +15,20 @@ import type {
   CrossDatasetValidationResult,
   DatasetConfig,
   DatasetValidationResult,
+  EnforcementLevel,
   FieldDefinition,
   ValidationProfile,
+  ValidationSettings,
   ValidationViolation,
   ValidatorConfig,
+  VocabularyEnforcement,
+  VocabularyKey,
+  WorkspaceFieldMapping,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
 import {
+  CrossDatasetViolation,
   enforcementToSeverity,
-  enrichViolation,
   ErrorCode,
   FieldRequirementLevel,
   getDWCField,
@@ -33,7 +38,7 @@ import {
   isIdentifierField,
   isValidVocabularyValue,
   parseSpecIdentifier,
-  RawViolation,
+  RangeViolation,
   UniquenessViolation,
   VocabularyViolation,
 } from "@dwkt/domain";
@@ -181,7 +186,7 @@ export class WorkspaceValidator {
  */
 function createWorkspaceFromConfig(
   workspaceId: string,
-  validationSettings: import("@dwkt/domain").ValidationSettings,
+  validationSettings: ValidationSettings,
   basePath: string,
 ): Effect.Effect<
   { workspaceId: string; connection: DuckDBConnection },
@@ -243,7 +248,7 @@ function createWorkspaceFromConfig(
 function mergeFieldDefinition(
   baseField: FieldDefinition | undefined,
   profile: ValidationProfile | undefined,
-  fieldMapping: import("@dwkt/domain").WorkspaceFieldMapping,
+  fieldMapping: WorkspaceFieldMapping,
 ): FieldDefinition | undefined {
   if (!baseField) {
     return undefined;
@@ -515,18 +520,19 @@ function validateDataset(
 /**
  * Find cross-dataset foreign key violations
  *
- * Helper function that returns minimal violation data (RawViolation).
- * Infrastructure enriches this with metadata to create ValidationViolation.
+ * Returns fully-formed CrossDatasetViolation objects with all metadata.
  */
 function findCrossDatasetViolations(
   connection: DuckDBConnection,
   rule: {
+    ruleType?: string;
     sourceDataset: string;
     sourceField: string;
     targetDataset: string;
     targetField: string;
+    enforcement?: EnforcementLevel;
   },
-): Effect.Effect<RawViolation[], never> {
+): Effect.Effect<CrossDatasetViolation[], never> {
   return Effect.gen(function* (_) {
     const sourceTable = sanitizeTableName(rule.sourceDataset);
     const targetTable = sanitizeTableName(rule.targetDataset);
@@ -548,22 +554,34 @@ function findCrossDatasetViolations(
     );
 
     const rows = violationsResult.getRowObjects();
+    const enforcement = rule.enforcement ?? "required";
 
-    // Return minimal violations (just rowNumber and value)
+    // Return fully-formed CrossDatasetViolation objects
     return rows.map((row) =>
-      new RawViolation({
+      new CrossDatasetViolation({
+        enforcement,
+        severity: enforcementToSeverity(enforcement),
+        fieldName: rule.sourceField,
+        targetName: rule.targetField,
         rowNumber: Number(row.row_num),
-        value: row.source_value,
+        value: String(row.source_value),
+        errorMessage:
+          `Value '${row.source_value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`,
+        validatorType: rule.ruleType || "foreignKey",
+        params: {
+          sourceDataset: rule.sourceDataset,
+          targetDataset: rule.targetDataset,
+          targetField: rule.targetField,
+        },
       })
     );
   });
 }
 
 /**
- * Validate cross-dataset rule using enrichment pattern
+ * Validate cross-dataset rule
  *
- * Calls findCrossDatasetViolations() and enriches the minimal data
- * with full metadata including enforcement level.
+ * Returns cross-dataset violations with enforcement level.
  */
 function validateCrossDatasetRule(
   connection: DuckDBConnection,
@@ -578,18 +596,24 @@ function validateCrossDatasetRule(
   },
 ): Effect.Effect<CrossDatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
-    // Get minimal violations
-    const rawViolations = yield* _(
-      findCrossDatasetViolations(connection, rule),
+    // Map string enforcement to EnforcementLevel
+    const enforcement: EnforcementLevel = (rule.enforcement === "recommended"
+      ? "recommended"
+      : rule.enforcement === "optional"
+      ? "optional"
+      : "required") as EnforcementLevel;
+
+    // Get fully-formed violations
+    const crossDatasetViolations = yield* _(
+      findCrossDatasetViolations(connection, { ...rule, enforcement }),
     );
 
-    // For now, convert to old format for compatibility
+    // Convert to old format for compatibility
     // TODO: Update CrossDatasetValidationResult to use ValidationViolation[]
-    const violations = rawViolations.map((raw) => ({
-      rowNumber: raw.rowNumber,
-      sourceValue: String(raw.value),
-      errorMessage:
-        `Value '${raw.value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`,
+    const violations = crossDatasetViolations.map((v) => ({
+      rowNumber: v.rowNumber,
+      sourceValue: v.value,
+      errorMessage: v.errorMessage,
     }));
 
     return {
@@ -717,15 +741,15 @@ function calculateSummary(datasetResults: readonly DatasetValidationResult[]): {
 /**
  * Find range violations for a single validator
  *
- * Helper function that returns minimal violation data (RawViolation).
- * Infrastructure enriches this with metadata to create ValidationViolation.
+ * Returns fully-formed RangeViolation objects with all metadata.
  */
 function findRangeViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  validator: import("@dwkt/domain").ValidatorConfig,
-): Effect.Effect<RawViolation[], never> {
+  validator: ValidatorConfig,
+  specField: FieldDefinition,
+): Effect.Effect<RangeViolation[], never> {
   return Effect.gen(function* (_) {
     const { min, max, inclusive = true } = validator.params || {};
 
@@ -770,21 +794,27 @@ function findRangeViolations(
 
     const rows = result.getRowObjects();
 
-    // Return minimal violations (just rowNumber and value)
+    // Return fully-formed RangeViolation objects
     return rows.map((row) =>
-      new RawViolation({
+      new RangeViolation({
+        enforcement: validator.enforcement,
+        severity: enforcementToSeverity(validator.enforcement),
+        fieldName,
+        targetName: specField.name,
         rowNumber: Number(row.row_num),
-        value: row.value,
+        value: String(row.value),
+        errorMessage: validator.message || `Value out of range`,
+        validatorType: validator.type,
+        params: validator.params as { min?: number; max?: number } | undefined,
       })
     );
   });
 }
 
 /**
- * Validate range constraints using enrichment pattern
+ * Validate range constraints for a field
  *
- * Calls findRangeViolations() for each validator and enriches
- * the minimal data with full metadata.
+ * Calls findRangeViolations() for each range validator.
  */
 function validateRangeConstraints(
   connection: DuckDBConnection,
@@ -799,17 +829,11 @@ function validateRangeConstraints(
     const rangeValidators = specField.validators?.filter((v) => v.type === "range") || [];
 
     for (const validator of rangeValidators) {
-      // Get minimal violations
-      const rawViolations = yield* _(
-        findRangeViolations(connection, tableName, fieldName, validator),
+      const rangeViolations = yield* _(
+        findRangeViolations(connection, tableName, fieldName, validator, specField),
       );
 
-      // Enrich with metadata
-      const enriched = rawViolations.map((raw) =>
-        enrichViolation(raw, validator, specField, fieldName)
-      );
-
-      violations.push(...enriched);
+      violations.push(...rangeViolations);
     }
 
     return violations;
@@ -828,8 +852,8 @@ function validateRangeConstraints(
  * - loose → optional (INFO)
  */
 function vocabularyEnforcementToStandard(
-  vocabEnforcement: import("@dwkt/domain").VocabularyEnforcement,
-): import("@dwkt/domain").EnforcementLevel {
+  vocabEnforcement: VocabularyEnforcement,
+): EnforcementLevel {
   switch (vocabEnforcement) {
     case "strict":
       return "required";
@@ -843,16 +867,17 @@ function vocabularyEnforcementToStandard(
 /**
  * Find vocabulary violations
  *
- * Returns minimal violation data (RawViolation).
- * Infrastructure enriches with metadata.
+ * Returns fully-formed VocabularyViolation objects with all metadata.
  */
 function findVocabularyViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  vocabularyKey: import("@dwkt/domain").VocabularyKey,
+  vocabularyKey: VocabularyKey,
+  specField: FieldDefinition,
+  enforcement: EnforcementLevel,
   caseSensitive = false,
-): Effect.Effect<RawViolation[], WorkspaceValidationError> {
+): Effect.Effect<VocabularyViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     // Get distinct values from the field with row numbers
     const query = `
@@ -876,7 +901,7 @@ function findVocabularyViolations(
     );
 
     const rows = result.getRowObjects();
-    const violations: RawViolation[] = [];
+    const violations: VocabularyViolation[] = [];
 
     for (const row of rows) {
       const value = String(row.value);
@@ -908,11 +933,19 @@ function findVocabularyViolations(
       if (!isValid) {
         // Add violation for each row with this invalid value
         for (const rowNum of rowNumbers) {
-          violations.push({
-            rowNumber: Number(rowNum),
-            value,
-            // TODO: Add fuzzy matching for suggestions
-          });
+          violations.push(
+            new VocabularyViolation({
+              enforcement,
+              severity: enforcementToSeverity(enforcement),
+              fieldName,
+              targetName: specField.name,
+              rowNumber: Number(rowNum),
+              value,
+              errorMessage: `Invalid vocabulary value: "${value}"`,
+              validatorType: "vocabulary",
+              // TODO: Add fuzzy matching for suggestions
+            }),
+          );
         }
       }
     }
@@ -922,10 +955,7 @@ function findVocabularyViolations(
 }
 
 /**
- * Validate controlled vocabulary using enrichment pattern
- *
- * Calls findVocabularyViolations() and enriches the minimal data
- * with full metadata including enforcement level from vocabulary config.
+ * Validate controlled vocabulary for a field
  *
  * Returns ValidationViolation[] for new enforcement-aware infrastructure.
  * Also returns old format for backward compatibility.
@@ -934,7 +964,7 @@ function validateVocabulary(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: import("@dwkt/domain").FieldDefinition,
+  specField: FieldDefinition,
 ): Effect.Effect<
   {
     enriched: ValidationViolation[];
@@ -949,49 +979,27 @@ function validateVocabulary(
 
     const { vocabularyKey, caseSensitive = false, enforcement = "strict" } = specField.vocabulary;
 
-    // Get minimal violations using helper
-    const rawViolations = yield* _(
-      findVocabularyViolations(connection, tableName, fieldName, vocabularyKey, caseSensitive),
-    );
-
     // Map vocabulary enforcement to standard enforcement level
     const standardEnforcement = vocabularyEnforcementToStandard(enforcement);
 
-    // Enrich violations with metadata
-    const enriched: ValidationViolation[] = rawViolations.map((raw) =>
-      new VocabularyViolation({
-        // Enforcement (from vocabulary config)
-        enforcement: standardEnforcement,
-        severity: enforcementToSeverity(standardEnforcement),
-
-        // Location
+    // Get fully-formed violations
+    const enriched = yield* _(
+      findVocabularyViolations(
+        connection,
+        tableName,
         fieldName,
-        targetName: specField.name,
-        rowNumber: raw.rowNumber,
-
-        // Violation details
-        value: String(raw.value),
-        csvValue: raw.csvValue,
-        transformedValue: raw.transformedValue,
-        transformationChain: raw.transformationChain,
-        errorMessage: `Value '${raw.value}' is not in controlled vocabulary '${vocabularyKey}'`,
-        suggestedValues: raw.suggestedValues,
-
-        // Validator metadata
-        validatorType: "vocabulary",
-        params: {
-          vocabularyKey,
-          enforcement,
-          caseSensitive,
-        },
-      })
+        vocabularyKey,
+        specField,
+        standardEnforcement,
+        caseSensitive,
+      ),
     );
 
     // Also return legacy format for backward compatibility
-    const legacy = rawViolations.map((raw) => ({
-      rowNumber: raw.rowNumber,
-      value: String(raw.value),
-      suggestedValues: raw.suggestedValues ? [...raw.suggestedValues] : undefined,
+    const legacy = enriched.map((v) => ({
+      rowNumber: v.rowNumber,
+      value: v.value,
+      suggestedValues: v.suggestedValues ? [...v.suggestedValues] : undefined,
     }));
 
     return { enriched, legacy };
@@ -1001,17 +1009,18 @@ function validateVocabulary(
 /**
  * Find uniqueness violations
  *
- * Returns minimal violation data (RawViolation), one per affected row.
- * Infrastructure enriches with metadata.
+ * Returns fully-formed UniquenessViolation objects with all metadata.
  *
  * Note: This "explodes" duplicate values into individual violations,
- * so a value duplicated 3 times creates 3 RawViolations.
+ * so a value duplicated 3 times creates 3 UniquenessViolations.
  */
 function findUniquenessViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-): Effect.Effect<RawViolation[], WorkspaceValidationError> {
+  specField: FieldDefinition,
+  enforcement: EnforcementLevel,
+): Effect.Effect<UniquenessViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     // Query to find duplicate values using a CTE to assign row numbers first
     const query = `
@@ -1039,7 +1048,7 @@ function findUniquenessViolations(
     );
 
     const rows = result.getRowObjects();
-    const violations: RawViolation[] = [];
+    const violations: UniquenessViolation[] = [];
 
     // Explode each duplicate value into individual violations (one per row)
     for (const row of rows) {
@@ -1057,10 +1066,18 @@ function findUniquenessViolations(
 
       // Create one violation per affected row
       for (const rowNum of affectedRows) {
-        violations.push({
-          rowNumber: Number(rowNum),
-          value,
-        });
+        violations.push(
+          new UniquenessViolation({
+            enforcement,
+            severity: enforcementToSeverity(enforcement),
+            fieldName,
+            targetName: specField.name,
+            rowNumber: Number(rowNum),
+            value,
+            errorMessage: `Duplicate value: "${value}"`,
+            validatorType: "unique",
+          }),
+        );
       }
     }
 
@@ -1069,10 +1086,7 @@ function findUniquenessViolations(
 }
 
 /**
- * Validate uniqueness using enrichment pattern
- *
- * Calls findUniquenessViolations() and enriches the minimal data
- * with full metadata including enforcement level.
+ * Validate uniqueness for a field
  *
  * Returns ValidationViolation[] for new enforcement-aware infrastructure.
  * Also returns old format for backward compatibility.
@@ -1081,7 +1095,7 @@ function validateUniqueness(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: import("@dwkt/domain").FieldDefinition,
+  specField: FieldDefinition,
 ): Effect.Effect<
   {
     enriched: ValidationViolation[];
@@ -1094,38 +1108,13 @@ function validateUniqueness(
   WorkspaceValidationError
 > {
   return Effect.gen(function* (_) {
-    // Get minimal violations using helper
-    const rawViolations = yield* _(
-      findUniquenessViolations(connection, tableName, fieldName),
-    );
-
     // Check if field has explicit uniqueness validator with enforcement
     const uniqueValidator = specField.validators.find((v) => v.type === "unique");
     const enforcement = uniqueValidator?.enforcement ?? "required";
 
-    // Enrich violations with metadata
-    const enriched: ValidationViolation[] = rawViolations.map((raw) =>
-      new UniquenessViolation({
-        // Enforcement (from unique validator or default to required)
-        enforcement,
-        severity: enforcementToSeverity(enforcement),
-
-        // Location
-        fieldName,
-        targetName: specField.name,
-        rowNumber: raw.rowNumber,
-
-        // Violation details
-        value: String(raw.value),
-        csvValue: raw.csvValue,
-        transformedValue: raw.transformedValue,
-        transformationChain: raw.transformationChain,
-        errorMessage: `Duplicate value '${raw.value}' in identifier field`,
-
-        // Validator metadata
-        validatorType: "unique",
-        params: uniqueValidator?.params as Record<string, unknown> | undefined,
-      })
+    // Get fully-formed violations
+    const enriched = yield* _(
+      findUniquenessViolations(connection, tableName, fieldName, specField, enforcement),
     );
 
     // Also return legacy format for backward compatibility
@@ -1135,14 +1124,14 @@ function validateUniqueness(
       { count: number; rows: number[] }
     >();
 
-    for (const raw of rawViolations) {
-      const value = String(raw.value);
+    for (const violation of enriched) {
+      const value = violation.value;
       if (!duplicateGroups.has(value)) {
         duplicateGroups.set(value, { count: 0, rows: [] });
       }
       const group = duplicateGroups.get(value)!;
       group.count++;
-      group.rows.push(raw.rowNumber);
+      group.rows.push(violation.rowNumber);
     }
 
     const legacy = Array.from(duplicateGroups.entries()).map(([value, group]) => ({

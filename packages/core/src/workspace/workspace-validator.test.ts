@@ -6,6 +6,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { join } from "@std/path";
 import { WorkspaceValidator } from "./workspace-validator.ts";
+import { isRangeViolation, isUniquenessViolation, isVocabularyViolation } from "@dwkt/domain";
 
 async function createTestWorkspace(tempDir: string) {
   // Create event CSV
@@ -310,7 +311,7 @@ E3,-95.0,-125.0`;
 
     // Should detect latitude out of range
     const rangeErrors = result.datasetResults[0].violations.errors
-      .filter((v) => v._tag === "RangeViolation");
+      .filter(isRangeViolation);
     assertEquals(rangeErrors.length, 2); // E2 and E3 have invalid latitude
     assertEquals(rangeErrors[0].fieldName, "decimalLatitude");
   } finally {
@@ -368,7 +369,7 @@ O3,PreservedSpecimen,Panthera tigris`;
 
     // Should detect invalid vocabulary value
     const vocabErrors = result.datasetResults[0].violations.errors
-      .filter((v) => v._tag === "VocabularyViolation");
+      .filter(isVocabularyViolation);
     assertEquals(vocabErrors.length, 1);
     assertEquals(vocabErrors[0].fieldName, "basisOfRecord");
     assertEquals(vocabErrors[0].value, "InvalidBasis");
@@ -426,7 +427,7 @@ E1,Mexico`;
 
     // Should detect duplicate eventID
     const uniquenessErrors = result.datasetResults[0].violations.errors
-      .filter((v) => v._tag === "UniquenessViolation");
+      .filter(isUniquenessViolation);
     assertEquals(uniquenessErrors.length, 2); // Two rows with duplicate E1
     assertEquals(uniquenessErrors[0].value, "E1");
     assertEquals(uniquenessErrors[0].fieldName, "eventID");

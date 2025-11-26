@@ -9,6 +9,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { join } from "@std/path";
 import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
+import { isRangeViolation } from "../packages/domain/mod.ts";
 
 Deno.test("WorkspaceValidator - validates date ranges", async () => {
   const tempDir = await Deno.makeTempDir({ prefix: "date_validation_test_" });
@@ -71,7 +72,7 @@ E4,2022,6,32,2022-06-32`;
 
     // Check for specific date range violations
     const rangeErrors = datasetResult.violations.errors
-      .filter((v) => v._tag === "RangeViolation");
+      .filter(isRangeViolation);
 
     console.log(`Range violations: ${rangeErrors.length}`);
     for (const violation of rangeErrors) {

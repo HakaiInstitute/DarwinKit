@@ -6,8 +6,8 @@
  * to ValidationViolation (full metadata for routing and reporting).
  *
  * DESIGN DECISION: ValidationViolation uses Effect's Data.TaggedClass for discriminated unions:
- * 1. TYPE-SAFE pattern matching - Use $match for exhaustive case handling
- * 2. TYPE GUARDS - Use $is for filtering violations by type
+ * 1. TYPE-SAFE pattern matching - Use switch on _tag for exhaustive case handling
+ * 2. TYPE GUARDS - Use provided helper functions (isRangeViolation, etc.) for filtering violations by type
  * 3. Two-tier design pattern:
  *    - RawViolation: Minimal data returned by validators (lightweight, fast)
  *    - ValidationViolation: Enriched with metadata for routing/reporting (complete)
@@ -22,66 +22,9 @@
  */
 
 import { Data } from "effect";
-import type { EnforcementLevel, ValidatorConfig } from "../specs/validators.ts";
-import type { FieldDefinition } from "../specs/field-definition.ts";
+import type { EnforcementLevel } from "../specs/validators.ts";
 import type { TransformationChain } from "./transformation.ts";
 import { ErrorSeverity } from "../errors/severity.ts";
-
-/**
- * Minimal violation data returned by validators
- *
- * Validators use the RawViolation constructor to create type-safe violation objects.
- * Infrastructure enriches them with metadata to create ValidationViolation.
- *
- * Using Data.Class provides:
- * - Type-safe construction with compile-time checks
- * - Immutability guarantees
- * - Structural equality for testing
- * - Single source of truth for the type
- *
- * @example Simple validator (no conditional logic)
- * ```typescript
- * return rows.map((row) => RawViolation({
- *   rowNumber: Number(row.row_num),
- *   value: row.value,
- * }));
- * ```
- *
- * @example Conditional enforcement
- * ```typescript
- * return rows.map((row) => RawViolation({
- *   rowNumber: Number(row.row_num),
- *   value: row.value,
- *   enforcement: extremeOutOfRange ? "required" : "recommended",
- *   message: "Custom message",
- * }));
- * ```
- */
-export class RawViolation extends Data.Class<{
-  /** Row number where violation occurred (required) */
-  readonly rowNumber: number;
-
-  /** Value that violated the constraint (required) */
-  readonly value: unknown;
-
-  /** Optional override of validator's enforcement level (for conditional severity) */
-  readonly enforcement?: EnforcementLevel;
-
-  /** Optional custom message (overrides validator's default message) */
-  readonly message?: string;
-
-  /** Original CSV value (before transformations) */
-  readonly csvValue?: string;
-
-  /** Value after transformations */
-  readonly transformedValue?: unknown;
-
-  /** Full transformation history */
-  readonly transformationChain?: TransformationChain;
-
-  /** Suggested valid values (for vocabulary violations) */
-  readonly suggestedValues?: ReadonlyArray<string>;
-}> {}
 
 /**
  * Common fields shared by all validation violations
@@ -159,12 +102,12 @@ export class CrossDatasetViolation extends Data.TaggedClass("CrossDatasetViolati
 /**
  * Discriminated union of all validation violation types
  *
- * Use type guard checking with _tag:
+ * Use the provided type guard helpers for filtering:
  *
  * @example Type guard filtering
  * ```typescript
- * const rangeErrors = violations.filter((v): v is RangeViolation => v._tag === "RangeViolation");
- * const vocabErrors = violations.filter((v): v is VocabularyViolation => v._tag === "VocabularyViolation");
+ * const rangeErrors = violations.filter(isRangeViolation);
+ * const vocabErrors = violations.filter(isVocabularyViolation);
  * ```
  */
 export type ValidationViolation =
@@ -173,6 +116,71 @@ export type ValidationViolation =
   | UniquenessViolation
   | TemporalViolation
   | CrossDatasetViolation;
+
+/**
+ * Type guard helper for RangeViolation
+ *
+ * @example
+ * ```typescript
+ * const rangeErrors = violations.filter(isRangeViolation);
+ * // TypeScript knows rangeErrors is RangeViolation[]
+ * ```
+ */
+export function isRangeViolation(v: ValidationViolation): v is RangeViolation {
+  return v._tag === "RangeViolation";
+}
+
+/**
+ * Type guard helper for VocabularyViolation
+ *
+ * @example
+ * ```typescript
+ * const vocabErrors = violations.filter(isVocabularyViolation);
+ * // TypeScript knows vocabErrors is VocabularyViolation[]
+ * ```
+ */
+export function isVocabularyViolation(v: ValidationViolation): v is VocabularyViolation {
+  return v._tag === "VocabularyViolation";
+}
+
+/**
+ * Type guard helper for UniquenessViolation
+ *
+ * @example
+ * ```typescript
+ * const uniquenessErrors = violations.filter(isUniquenessViolation);
+ * // TypeScript knows uniqueErrors is UniquenessViolation[]
+ * ```
+ */
+export function isUniquenessViolation(v: ValidationViolation): v is UniquenessViolation {
+  return v._tag === "UniquenessViolation";
+}
+
+/**
+ * Type guard helper for TemporalViolation
+ *
+ * @example
+ * ```typescript
+ * const temporalErrors = violations.filter(isTemporalViolation);
+ * // TypeScript knows temporalErrors is TemporalViolation[]
+ * ```
+ */
+export function isTemporalViolation(v: ValidationViolation): v is TemporalViolation {
+  return v._tag === "TemporalViolation";
+}
+
+/**
+ * Type guard helper for CrossDatasetViolation
+ *
+ * @example
+ * ```typescript
+ * const crossErrors = violations.filter(isCrossDatasetViolation);
+ * // TypeScript knows crossErrors is CrossDatasetViolation[]
+ * ```
+ */
+export function isCrossDatasetViolation(v: ValidationViolation): v is CrossDatasetViolation {
+  return v._tag === "CrossDatasetViolation";
+}
 
 /**
  * Convert enforcement level to severity
@@ -242,156 +250,3 @@ export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSever
  * // }
  * ```
  */
-export function enrichCrossDatasetViolation(
-  raw: RawViolation,
-  rule: {
-    readonly sourceDataset: string;
-    readonly sourceField: string;
-    readonly targetDataset: string;
-    readonly targetField: string;
-    readonly enforcement?: EnforcementLevel;
-    readonly ruleType?: string;
-  },
-): CrossDatasetViolation {
-  // Use rule enforcement override if provided, otherwise default to "required"
-  const enforcement = raw.enforcement ?? rule.enforcement ?? "required";
-
-  const defaultMessage =
-    `Value '${raw.value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`;
-
-  return new CrossDatasetViolation({
-    // Enforcement
-    enforcement,
-    severity: enforcementToSeverity(enforcement),
-
-    // Location (use source field as both fieldName and targetName for cross-dataset)
-    fieldName: rule.sourceField,
-    targetName: rule.targetField,
-    rowNumber: raw.rowNumber,
-
-    // Violation details
-    value: String(raw.value),
-    csvValue: raw.csvValue,
-    transformedValue: raw.transformedValue,
-    transformationChain: raw.transformationChain,
-    errorMessage: raw.message || defaultMessage,
-
-    // Validator metadata (use rule type as validator type)
-    validatorType: rule.ruleType || "foreignKey",
-    params: {
-      sourceDataset: rule.sourceDataset,
-      targetDataset: rule.targetDataset,
-      targetField: rule.targetField,
-    },
-  });
-}
-
-/**
- * Enrich a RawViolation with metadata
- *
- * Converts minimal validator output into full ValidationViolation
- * with all metadata needed for routing and reporting.
- *
- * This separation allows validators to return minimal data (just
- * rowNumber and value) while infrastructure handles all the
- * metadata (field names, types, enforcement mapping, etc.).
- *
- * @param raw - Minimal violation data from validator
- * @param validator - Validator config with enforcement and message
- * @param specField - Field definition with name and metadata
- * @param fieldName - Original field name in CSV
- * @returns Enriched violation with full metadata
- *
- * @example
- * ```typescript
- * const raw: RawViolation = {
- *   rowNumber: 5,
- *   value: 95.0,
- * };
- *
- * const validator: ValidatorConfig = {
- *   type: "range",
- *   enforcement: "required",
- *   params: { min: -90, max: 90 },
- *   message: "Latitude must be between -90 and 90",
- * };
- *
- * const enriched = enrichViolation(raw, validator, specField, "lat");
- * // => {
- * //   enforcement: "required",
- * //   severity: ErrorSeverity.ERROR,
- * //   fieldName: "lat",
- * //   targetName: "decimalLatitude",
- * //   rowNumber: 5,
- * //   violationType: "range",
- * //   value: "95.0",
- * //   errorMessage: "Latitude must be between -90 and 90",
- * //   ...
- * // }
- * ```
- */
-export function enrichViolation(
-  raw: RawViolation,
-  validator: ValidatorConfig,
-  specField: FieldDefinition,
-  fieldName: string,
-): ValidationViolation {
-  // Use raw enforcement override if provided, otherwise use validator's default
-  const enforcement = raw.enforcement ?? validator.enforcement;
-
-  // Common properties for all violation types
-  const baseProps = {
-    enforcement,
-    severity: enforcementToSeverity(enforcement),
-    fieldName,
-    targetName: specField.name,
-    rowNumber: raw.rowNumber,
-    value: String(raw.value),
-    csvValue: raw.csvValue,
-    transformedValue: raw.transformedValue,
-    transformationChain: raw.transformationChain,
-    errorMessage: raw.message || validator.message || "Validation failed",
-    validatorType: validator.type,
-  };
-
-  // Return specific violation type based on validator type
-  // Note: Some validators use custom type strings beyond the ValidatorType enum
-  const validatorType = validator.type as string;
-
-  if (validatorType === "range") {
-    return new RangeViolation({
-      ...baseProps,
-      params: validator.params as { min?: number; max?: number } | undefined,
-    });
-  }
-
-  if (validatorType === "pattern" && raw.suggestedValues) {
-    // Pattern validators with suggested values are vocabulary-like
-    return new VocabularyViolation({
-      ...baseProps,
-      suggestedValues: raw.suggestedValues,
-      params: validator.params as Record<string, unknown> | undefined,
-    });
-  }
-
-  if (validatorType === "unique") {
-    return new UniquenessViolation({
-      ...baseProps,
-      params: validator.params as Record<string, unknown> | undefined,
-    });
-  }
-
-  if (validatorType === "format" || validatorType === "pattern") {
-    // Format/pattern validators can be temporal-like
-    return new TemporalViolation({
-      ...baseProps,
-      params: validator.params as Record<string, unknown> | undefined,
-    });
-  }
-
-  // Default fallback for any unknown types
-  return new RangeViolation({
-    ...baseProps,
-    params: validator.params as Record<string, unknown> | undefined,
-  });
-}

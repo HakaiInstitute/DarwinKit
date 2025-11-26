@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
 import { join } from "@std/path";
+import { isRangeViolation } from "../packages/domain/mod.ts";
 
 Deno.test("OBIS Profile - validates required fields", async () => {
   // Create temp directory for test workspace
@@ -240,7 +241,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     // Should have constraint violations for depths > 11000m
     const depthViolations = eventsResult.violations.errors.filter(
       (v) =>
-        v._tag === "RangeViolation" &&
+        isRangeViolation(v) &&
         (v.targetName === "minimumDepthInMeters" || v.targetName === "maximumDepthInMeters"),
     );
 
