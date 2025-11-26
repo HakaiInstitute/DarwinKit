@@ -52,7 +52,7 @@ jobs:
 
       - name: Test Report
         uses: dorny/test-reporter@v2
-        if: ${{ !cancelled() }}       # run this step even if previous step failed
+        if: failure() || success()
         with:
           name: JEST Tests            # Name of the check run which will be created
           path: ./reports/*.xml    # Path to test results
