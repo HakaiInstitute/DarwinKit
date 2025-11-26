@@ -59,56 +59,56 @@ export interface DatasetValidationResult {
     readonly message: string;
   }>;
 
-  /**
-   * @deprecated Use violations.errors instead. This field will be removed in a future version.
-   * Controlled vocabulary errors (from spec)
-   */
-  readonly vocabularyErrors: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly violations: ReadonlyArray<{
-      readonly rowNumber: number;
-      readonly value: string; // Deprecated: use csvValue for source, transformedValue for final
-      readonly csvValue?: string; // Original value in CSV file
-      readonly transformedValue?: unknown; // Value after transformations
-      readonly transformationChain?: TransformationChain; // Full transformation history
-      readonly errorMessage?: string; // Enhanced error message with transformation context
-      readonly suggestedValues?: ReadonlyArray<string>;
-    }>;
-  }>;
+  // /**
+  //  * @deprecated Use violations.errors instead. This field will be removed in a future version.
+  //  * Controlled vocabulary errors (from spec)
+  //  */
+  // readonly vocabularyErrors: ReadonlyArray<{
+  //   readonly fieldName: string;
+  //   readonly targetName: string;
+  //   readonly violations: ReadonlyArray<{
+  //     readonly rowNumber: number;
+  //     readonly value: string; // Deprecated: use csvValue for source, transformedValue for final
+  //     readonly csvValue?: string; // Original value in CSV file
+  //     readonly transformedValue?: unknown; // Value after transformations
+  //     readonly transformationChain?: TransformationChain; // Full transformation history
+  //     readonly errorMessage?: string; // Enhanced error message with transformation context
+  //     readonly suggestedValues?: ReadonlyArray<string>;
+  //   }>;
+  // }>;
 
-  /**
-   * @deprecated Use violations.errors/warnings instead. This field will be removed in a future version.
-   * Uniqueness violations (from spec)
-   */
-  readonly uniquenessViolations: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly duplicateValue: string; // Deprecated: use csvValue/transformedValue
-    readonly csvValue?: string; // Original value in CSV file
-    readonly transformedValue?: unknown; // Value after transformations
-    readonly transformationChain?: TransformationChain; // Full transformation history
-    readonly occurrenceCount: number;
-    readonly affectedRows: ReadonlyArray<number>;
-  }>;
+  // /**
+  //  * @deprecated Use violations.errors/warnings instead. This field will be removed in a future version.
+  //  * Uniqueness violations (from spec)
+  //  */
+  // readonly uniquenessViolations: ReadonlyArray<{
+  //   readonly fieldName: string;
+  //   readonly targetName: string;
+  //   readonly duplicateValue: string; // Deprecated: use csvValue/transformedValue
+  //   readonly csvValue?: string; // Original value in CSV file
+  //   readonly transformedValue?: unknown; // Value after transformations
+  //   readonly transformationChain?: TransformationChain; // Full transformation history
+  //   readonly occurrenceCount: number;
+  //   readonly affectedRows: ReadonlyArray<number>;
+  // }>;
 
-  /**
-   * @deprecated Use violations.errors/warnings/info instead. This field will be removed in a future version.
-   * Range/constraint violations (from spec validators)
-   */
-  readonly constraintViolations: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly constraintType: string;
-    readonly violations: ReadonlyArray<{
-      readonly rowNumber: number;
-      readonly value: string; // Deprecated: use csvValue for source, transformedValue for final
-      readonly csvValue?: string; // Original value in CSV file
-      readonly transformedValue?: unknown; // Value after transformations
-      readonly transformationChain?: TransformationChain; // Full transformation history
-      readonly errorMessage: string;
-    }>;
-  }>;
+  // /**
+  //  * @deprecated Use violations.errors/warnings/info instead. This field will be removed in a future version.
+  //  * Range/constraint violations (from spec validators)
+  //  */
+  // readonly constraintViolations: ReadonlyArray<{
+  //   readonly fieldName: string;
+  //   readonly targetName: string;
+  //   readonly constraintType: string;
+  //   readonly violations: ReadonlyArray<{
+  //     readonly rowNumber: number;
+  //     readonly value: string; // Deprecated: use csvValue for source, transformedValue for final
+  //     readonly csvValue?: string; // Original value in CSV file
+  //     readonly transformedValue?: unknown; // Value after transformations
+  //     readonly transformationChain?: TransformationChain; // Full transformation history
+  //     readonly errorMessage: string;
+  //   }>;
+  // }>;
 
   // Field warnings (strongly recommended fields that are missing)
   readonly warnings: ReadonlyArray<{
