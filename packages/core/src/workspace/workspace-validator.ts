@@ -344,9 +344,9 @@ function validateDataset(
     // OLD: Keep old structure for backward compatibility (will be deprecated)
     const typeErrors: Array<DatasetValidationResult["typeErrors"][number]> = [];
     const requiredFieldErrors: Array<DatasetValidationResult["requiredFieldErrors"][number]> = [];
-    // const vocabularyErrors: Array<DatasetValidationResult["vocabularyErrors"][number]> = [];
-    // const uniquenessViolations: Array<DatasetValidationResult["uniquenessViolations"][number]> = [];
-    // const constraintViolations: Array<DatasetValidationResult["constraintViolations"][number]> = [];
+    const vocabularyErrors: Array<DatasetValidationResult["vocabularyErrors"][number]> = [];
+    const uniquenessViolations: Array<DatasetValidationResult["uniquenessViolations"][number]> = [];
+    const constraintViolations: Array<DatasetValidationResult["constraintViolations"][number]> = [];
     const warnings: Array<DatasetValidationResult["warnings"][number]> = [];
     const recommendations: Array<DatasetValidationResult["recommendations"][number]> = [];
 
