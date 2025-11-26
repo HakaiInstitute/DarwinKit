@@ -56,7 +56,7 @@ Deno.test("Test fixtures - fc2022-complete config loads successfully", async () 
     d.name === "emof_data"
   );
   assertExists(emofDataset);
-  assertEquals(emofDataset?.spec, "dwc-extendedMeasurementOrFacts");
+  assertEquals(emofDataset?.spec, "dwc-extendedMeasurementOrFact");
 
   // Verify cross-dataset rules
   assertEquals(result.config.crossDatasetRules?.length, 2);

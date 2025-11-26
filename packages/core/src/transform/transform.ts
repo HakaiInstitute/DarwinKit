@@ -5,7 +5,7 @@ import * as Data from "effect/Data";
 
 import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { getValidationProfile } from "@dwkt/domain";
+import { getValidationProfile, getVocabularyValues, isIdentifierField } from "@dwkt/domain";
 import { json2csv } from "json-2-csv";
 import type {
   ConfigNotFoundError,
@@ -124,22 +124,14 @@ export function createTableFromSchema(
       }
       const tableName = transformProfile.name.toLowerCase();
 
-      // Check if profile has fields defined
-      if (!transformProfile.fields) {
-        console.warn(
-          `No fields defined in profile ${transformProfile.name}, skipping table creation.`,
-        );
-        continue;
-      }
-
       // 1. Create ENUM types for controlled vocabularies
-      const enums = Object.entries(transformProfile.fields).map(
+      const enums = Object.entries(transformProfile.fields || {}).map(
         ([fieldName, field]) => {
+          // Check if this is a controlled vocabulary field
+          // Profile fields use `type === "controlled-vocabulary"` and may have `values`
           if (field.type === "controlled-vocabulary" && field.values) {
             const enumName = `${tableName}_${fieldName}_enum`;
-            const enumValues = Object.keys(field.values).map((v: string) => `'${v}'`).join(
-              ", ",
-            );
+            const enumValues = Object.keys(field.values).map((v: string) => `'${v}'`).join(", ");
             return `CREATE TYPE IF NOT EXISTS ${enumName} AS ENUM (${enumValues});`;
           }
           return null;
@@ -147,24 +139,25 @@ export function createTableFromSchema(
       );
 
       // 2. Generate Column Definition SQL
-      const columns = Object.keys(transformProfile.fields).map((fieldName) => {
+      const columns = Object.keys(transformProfile.fields || {}).map((fieldName) => {
         const field = transformProfile.fields![fieldName];
         const fieldType = (field.type?.toUpperCase() || "TEXT")
           .replace("IDENTIFIER", "TEXT")
           .replace("CONTROLLED-VOCABULARY", `${tableName}_${fieldName}_enum`)
           .replace("URI", "TEXT");
         let fieldStr = `"${fieldName}" ${fieldType}`;
-        if (fieldName == tableName + "ID") {
+        // Check if this field is the primary identifier for this table
+        // Profile fields use simple name matching (e.g., occurrenceID for Occurrence table)
+        if (fieldName === tableName + "ID") {
           fieldStr += " PRIMARY KEY";
         } else if (field.obis_required === "required") {
           fieldStr += " NOT NULL";
         }
-        // add forgain key constraints for fields
+        // add foreign key constraints for fields
         if (fieldName.endsWith("ID") && fieldName != tableName + "ID") {
           const referencedTable = fieldName.slice(0, -2).toLowerCase();
           // check if referenced table exists in config
           if (
-            "transform" in config &&
             config.transform.datasets.find((ds) =>
               getValidationProfile(ds.profile)?.name.toLowerCase() === referencedTable
             )
@@ -224,10 +217,12 @@ export function populateSchemaFromDataTables( // Export for testing
       if (!dataset.fields) {
         console.error(`Error: No field definitions found in ${dataset?.name}`);
         console.debug(`dataset:\n{JSON.stringify(dataset, null, 2)}`);
-        return new TransformationError({
-          message: `No field definitions found in '${dataset?.name}'`,
-          cause: new Error(String("field property missing from dataset definition")),
-        });
+        return yield* _(Effect.fail(
+          new TransformationError({
+            message: `No field definitions found in '${dataset?.name}'`,
+            cause: new Error(String("field property missing from dataset definition")),
+          }),
+        ));
       }
       const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string): string =>
         `"${fieldName}"`
@@ -239,12 +234,14 @@ export function populateSchemaFromDataTables( // Export for testing
       const transformProfile = getValidationProfile(dataset.profile);
       if (!transformProfile) {
         console.warn(`No validation profile found for ${dataset.profile}`);
-        return new TransformationError({
-          message: `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
-          cause: new Error(
-            String(`Validation profile ${dataset.profile} not found for '${dataset?.name}'`),
-          ),
-        });
+        return yield* _(Effect.fail(
+          new TransformationError({
+            message: `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
+            cause: new Error(
+              String(`Validation profile ${dataset.profile} not found for '${dataset?.name}'`),
+            ),
+          }),
+        ));
       }
       const tableName = transformProfile.name.toLowerCase();
       const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) =>
@@ -505,7 +502,7 @@ export function transformFile(
   never
 > {
   return Effect.acquireUseRelease(
-    Effect.tryPromise(() => duckdb.DuckDBConnection.create()),
+    Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(Effect.orDie),
     (connection) =>
       Effect.gen(function* (_) {
         const { config, configPath: resolvedConfigPath } = yield* _(

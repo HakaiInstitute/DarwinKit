@@ -34,24 +34,24 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
         nullValues: ["NA", "N/A", "", "NULL", "null"],
         failFast: false,
         outputDir: "./validation_results",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./events.csv",
+            description: "Marine sampling events",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "eventDate", targetName: "eventDate" },
+              { originName: "decimalLatitude", targetName: "decimalLatitude" },
+              { originName: "decimalLongitude", targetName: "decimalLongitude" },
+              { originName: "geodeticDatum", targetName: "geodeticDatum" },
+              { originName: "locality", targetName: "locality" },
+            ],
+          },
+        ],
       },
-
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          description: "Marine sampling events",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "eventDate", targetName: "eventDate" },
-            { originName: "decimalLatitude", targetName: "decimalLatitude" },
-            { originName: "decimalLongitude", targetName: "decimalLongitude" },
-            { originName: "geodeticDatum", targetName: "geodeticDatum" },
-            { originName: "locality", targetName: "locality" },
-          ],
-        },
-      ],
     };
 
     Deno.writeTextFileSync(
@@ -115,23 +115,23 @@ E2,2022-09-16,49.9012,-125.4789`;
         nullValues: ["NA", "N/A", "", "NULL", "null"],
         failFast: false,
         outputDir: "./validation_results",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./events.csv",
+            description: "Marine sampling events",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "eventDate", targetName: "eventDate" },
+              { originName: "decimalLatitude", targetName: "decimalLatitude" },
+              { originName: "decimalLongitude", targetName: "decimalLongitude" },
+              // Missing geodeticDatum mapping!
+            ],
+          },
+        ],
       },
-
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          description: "Marine sampling events",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "eventDate", targetName: "eventDate" },
-            { originName: "decimalLatitude", targetName: "decimalLatitude" },
-            { originName: "decimalLongitude", targetName: "decimalLongitude" },
-            // Missing geodeticDatum mapping!
-          ],
-        },
-      ],
     };
 
     Deno.writeTextFileSync(
@@ -199,25 +199,25 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
         nullValues: ["NA", "N/A", "", "NULL", "null"],
         failFast: false,
         outputDir: "./validation_results",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./events.csv",
+            description: "Marine sampling events",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "eventDate", targetName: "eventDate" },
+              { originName: "decimalLatitude", targetName: "decimalLatitude" },
+              { originName: "decimalLongitude", targetName: "decimalLongitude" },
+              { originName: "geodeticDatum", targetName: "geodeticDatum" },
+              { originName: "minimumDepthInMeters", targetName: "minimumDepthInMeters" },
+              { originName: "maximumDepthInMeters", targetName: "maximumDepthInMeters" },
+            ],
+          },
+        ],
       },
-
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          description: "Marine sampling events",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "eventDate", targetName: "eventDate" },
-            { originName: "decimalLatitude", targetName: "decimalLatitude" },
-            { originName: "decimalLongitude", targetName: "decimalLongitude" },
-            { originName: "geodeticDatum", targetName: "geodeticDatum" },
-            { originName: "minimumDepthInMeters", targetName: "minimumDepthInMeters" },
-            { originName: "maximumDepthInMeters", targetName: "maximumDepthInMeters" },
-          ],
-        },
-      ],
     };
 
     Deno.writeTextFileSync(
@@ -238,16 +238,16 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     const eventsResult = result.datasetResults[0];
 
     // Should have constraint violations for depths > 11000m
-    const depthViolations = eventsResult.constraintViolations.filter(
-      (v) => v.targetName === "minimumDepthInMeters" || v.targetName === "maximumDepthInMeters",
+    const depthViolations = eventsResult.violations.errors.filter(
+      (v) =>
+        v.violationType === "range" &&
+        (v.targetName === "minimumDepthInMeters" || v.targetName === "maximumDepthInMeters"),
     );
 
     assertEquals(depthViolations.length > 0, true, "Should detect depth violations");
 
     // Verify the violation is for row 3 (depth 12000-12500)
-    const hasRowThreeViolation = depthViolations.some((v) =>
-      v.violations.some((violation) => violation.rowNumber === 3)
-    );
+    const hasRowThreeViolation = depthViolations.some((v) => v.rowNumber === 3);
 
     assertEquals(hasRowThreeViolation, true, "Should flag row 3 with depth > 11000m");
   } finally {

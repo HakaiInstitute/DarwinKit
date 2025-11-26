@@ -397,7 +397,7 @@ function buildSchemaAndSamples(
   schemaInfo: Array<{ name: string; type: string; nullable: boolean }>,
   sampleSize: number,
 ): Effect.Effect<
-  { schema: ReadonlyMap<string, FieldSchema>; samples: ReadonlyMap<string, ReadonlyArray<string>> },
+  { schema: Map<string, FieldSchema>; samples: Map<string, ReadonlyArray<string>> },
   ParseError
 > {
   return Effect.gen(function* (_) {

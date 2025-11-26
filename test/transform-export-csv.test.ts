@@ -18,7 +18,7 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-export-test-" });
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -29,12 +29,13 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", profile: "dwc-event", source: {}, fields: {} },
-        { name: "Occurrence", profile: "dwc-occurrence", source: {}, fields: {} },
+        { name: "Event", profile: "Event", source: {}, fields: {} },
+        { name: "Occurrence", profile: "Occurrence", source: {}, fields: {} },
       ],
       output: {
         outputDir: outputDir,
         outputFilesWithTimestamp: false, // For predictable filenames
+        exportDB: false,
       },
     },
   };
@@ -52,14 +53,14 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
 
     // 4. Assert: Verify the CSV files and their contents
     // Check event.csv
-    const eventCsvPath = `${outputDir}/dwc-event.csv`;
+    const eventCsvPath = `${outputDir}/event.csv`;
     const eventCsvContent = await Deno.readTextFile(eventCsvPath);
     assertExists(eventCsvContent, "event.csv should be created");
     // json-2-csv adds quotes
     assertEquals(eventCsvContent.trim(), `"eventID","year"\n"evt1",2023`);
 
     // Check occurrence.csv
-    const occurrenceCsvPath = `${outputDir}/dwc-occurrence.csv`;
+    const occurrenceCsvPath = `${outputDir}/occurrence.csv`;
     const occurrenceCsvContent = await Deno.readTextFile(occurrenceCsvPath);
     assertExists(occurrenceCsvContent, "occurrence.csv should be created");
     assertEquals(occurrenceCsvContent.trim(), `"occurrenceID","eventID"\n"occ1","evt1"`);
@@ -76,7 +77,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-export-null-test-" });
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -86,10 +87,11 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
       nullValues: [],
       inputs: {},
       postImportTransforms: [],
-      datasets: [{ name: "Event", profile: "dwc-event", source: {}, fields: {} }],
+      datasets: [{ name: "Event", profile: "Event", source: {}, fields: {} }],
       output: {
         outputDir: outputDir,
         outputFilesWithTimestamp: false,
+        exportDB: false,
         dropNullColumns: true, // Enable dropping null columns
       },
     },
@@ -109,7 +111,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
     await Effect.runPromise(effect);
 
     // 4. Assert
-    const csvPath = `${outputDir}/dwc-event.csv`;
+    const csvPath = `${outputDir}/event.csv`;
     const csvContent = await Deno.readTextFile(csvPath);
     assertExists(csvContent, "CSV file should be created");
 
@@ -137,7 +139,7 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
   const invalidOutputDir = "/non_existent_dir/sub_dir";
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -147,8 +149,8 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
       inputs: {},
       postImportTransforms: [],
       nullValues: [],
-      datasets: [{ name: "Event", profile: "dwc-event", source: {}, fields: {} }],
-      output: { outputDir: invalidOutputDir },
+      datasets: [{ name: "Event", profile: "Event", source: {}, fields: {} }],
+      output: { outputDir: invalidOutputDir, exportDB: false },
     },
   };
 

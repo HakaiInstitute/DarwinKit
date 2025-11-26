@@ -8,6 +8,9 @@ import { join } from "@std/path";
 import { WorkspaceConfigService } from "./workspace-config-service.ts";
 
 async function createTestConfig(tempDir: string, config: Partial<Record<string, unknown>>) {
+  // Extract datasets from config if provided, to nest inside validation
+  const { datasets = [], ...restConfig } = config;
+
   const fullConfig = {
     id: "test-workspace",
     name: "Test Workspace",
@@ -16,11 +19,11 @@ async function createTestConfig(tempDir: string, config: Partial<Record<string, 
       nullValues: ["", "NA"],
       failFast: false,
       outputDir: "./output",
+      datasets: datasets,
     },
-    datasets: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    ...config,
+    ...restConfig,
   };
 
   await Deno.writeTextFile(
@@ -95,6 +98,7 @@ Deno.test("WorkspaceConfigService - loads valid configuration", async () => {
         {
           name: "test_dataset",
           spec: "dwc-event",
+          profile: "Event",
           path: "./data.csv",
           fieldMappings: [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -159,6 +163,7 @@ Deno.test("WorkspaceConfigService - validates dataset file paths", async () => {
         {
           name: "test_dataset",
           spec: "dwc-event",
+          profile: "Event",
           path: "./data.csv",
           fieldMappings: [],
         },
@@ -188,6 +193,7 @@ Deno.test("WorkspaceConfigService - fails when dataset file missing", async () =
         {
           name: "missing_dataset",
           spec: "dwc-event",
+          profile: "Event",
           path: "./missing.csv",
           fieldMappings: [],
         },
@@ -228,6 +234,7 @@ Deno.test("WorkspaceConfigService - discoverAndLoad end-to-end", async () => {
         {
           name: "events",
           spec: "dwc-event",
+          profile: "Event",
           path: "./events.csv",
           fieldMappings: [
             { originName: "eventID", targetName: "eventID" },

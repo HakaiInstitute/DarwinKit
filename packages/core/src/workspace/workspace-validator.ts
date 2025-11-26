@@ -28,6 +28,7 @@ import {
   enrichViolation,
   ErrorCode,
   FieldRequirementLevel,
+  getDWCField,
   getValidationProfile,
   getVocabularyValues,
   hasControlledVocabulary,
@@ -344,31 +345,28 @@ function validateDataset(
     // OLD: Keep old structure for backward compatibility (will be deprecated)
     const typeErrors: Array<DatasetValidationResult["typeErrors"][number]> = [];
     const requiredFieldErrors: Array<DatasetValidationResult["requiredFieldErrors"][number]> = [];
-    // const vocabularyErrors: Array<DatasetValidationResult["vocabularyErrors"][number]> = [];
-    // const uniquenessViolations: Array<DatasetValidationResult["uniquenessViolations"][number]> = [];
-    // const constraintViolations: Array<DatasetValidationResult["constraintViolations"][number]> = [];
     const warnings: Array<DatasetValidationResult["warnings"][number]> = [];
     const recommendations: Array<DatasetValidationResult["recommendations"][number]> = [];
 
     // Check profile field requirements based on requirement levels
-    if (profile && profile.fields && dataset.fieldMappings) {
+    if (profile && profile.fieldOverrides && dataset.fieldMappings) {
       const mappedSpecFields = new Set(dataset.fieldMappings.map((m) => m.targetName));
 
-      for (const [fieldName, fieldOverride] of Object.entries(profile.fields)) {
-        if (!fieldOverride.obis_required) continue;
+      for (const [fieldName, fieldOverride] of Object.entries(profile.fieldOverrides)) {
+        if (!fieldOverride.requirement) continue;
 
         const isMapped = mappedSpecFields.has(fieldName);
 
         if (!isMapped) {
           // Handle missing fields based on requirement level
-          if (fieldOverride.obis_required === FieldRequirementLevel.Required) {
+          if (fieldOverride.requirement === FieldRequirementLevel.Required) {
             requiredFieldErrors.push({
               fieldName,
               targetName: fieldName,
               message:
                 `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
             });
-          } else if (fieldOverride.obis_required === FieldRequirementLevel.StronglyRecommended) {
+          } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
             warnings.push({
               fieldName,
               targetName: fieldName,
@@ -376,7 +374,7 @@ function validateDataset(
               message:
                 `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
             });
-          } else if (fieldOverride.obis_required === FieldRequirementLevel.Recommended) {
+          } else if (fieldOverride.requirement === FieldRequirementLevel.Recommended) {
             recommendations.push({
               fieldName,
               targetName: fieldName,
@@ -392,13 +390,10 @@ function validateDataset(
 
     // Validate each field mapping
     for (const mapping of dataset?.fieldMappings || []) {
-      if (!profile?.fields) {
-        continue;
-      }
-      // TODO: Why are we doing this check?
-      // Get base spec field definition
-      const baseField = profile.fields[mapping.targetName];
-      // this will fail if a fieldmapping entry is not in the schema
+      // Get base spec field definition from the Darwin Core registry
+      const baseField = specInfo.spec === "dwc" ? getDWCField(mapping.targetName) : undefined;
+
+      // Validate that mapped fields exist in Darwin Core when using dwc spec
       if (!baseField && specInfo.spec === "dwc") {
         // Unknown Darwin Core field
         requiredFieldErrors.push({
@@ -462,21 +457,6 @@ function validateDataset(
         if (rangeViolations.length > 0) {
           // NEW: Add to allViolations for partitioning
           allViolations.push(...rangeViolations);
-
-          // OLD: Convert to old format for backward compatibility (deprecated)
-          constraintViolations.push({
-            fieldName: mapping.originName,
-            targetName: mapping.targetName,
-            constraintType: "range",
-            violations: rangeViolations.map((v) => ({
-              rowNumber: v.rowNumber,
-              value: v.value,
-              csvValue: v.csvValue,
-              transformedValue: v.transformedValue,
-              transformationChain: v.transformationChain,
-              errorMessage: v.errorMessage,
-            })),
-          });
         }
 
         // Vocabulary validation
@@ -495,15 +475,6 @@ function validateDataset(
           if (vocabResult.enriched.length > 0) {
             allViolations.push(...vocabResult.enriched);
           }
-
-          // OLD: Also populate legacy format for backward compatibility
-          if (vocabResult.legacy.length > 0) {
-            vocabularyErrors.push({
-              fieldName: mapping.originName,
-              targetName: mapping.targetName,
-              violations: vocabResult.legacy,
-            });
-          }
         }
 
         // Uniqueness validation for identifier fields
@@ -520,17 +491,6 @@ function validateDataset(
           // NEW: Add enriched violations to allViolations for partitioning
           if (uniqueResult.enriched.length > 0) {
             allViolations.push(...uniqueResult.enriched);
-          }
-
-          // OLD: Also populate legacy format for backward compatibility
-          if (uniqueResult.legacy.length > 0) {
-            uniquenessViolations.push(...uniqueResult.legacy.map((v) => ({
-              fieldName: mapping.originName,
-              targetName: mapping.targetName,
-              duplicateValue: v.duplicateValue,
-              occurrenceCount: v.occurrenceCount,
-              affectedRows: v.affectedRows,
-            })));
           }
         }
       }
@@ -552,8 +512,8 @@ function validateDataset(
 
     return {
       datasetName: dataset.name,
-      spec: dataset.spec,
-      filePath: dataset.path,
+      spec: dataset.spec ?? "",
+      filePath: dataset.path ?? "",
       rowsProcessed,
       processingTimeMs,
       status,
@@ -564,9 +524,6 @@ function validateDataset(
       // OLD: Deprecated fields for backward compatibility
       typeErrors,
       requiredFieldErrors,
-      vocabularyErrors,
-      uniquenessViolations,
-      constraintViolations,
       warnings,
       recommendations,
     };

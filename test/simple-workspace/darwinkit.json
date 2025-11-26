@@ -9,75 +9,77 @@
       "N/A"
     ],
     "failFast": false,
-    "outputDir": "./validation_results"
+    "outputDir": "./validation_results",
+    "datasets": [
+      {
+        "name": "events",
+        "spec": "dwc-event",
+        "profile": "Event",
+        "path": "./events.csv",
+        "description": "Event data",
+        "fieldMappings": [
+          {
+            "originName": "eventID",
+            "targetName": "eventID",
+            "isRequired": true
+          },
+          {
+            "originName": "country",
+            "targetName": "country"
+          },
+          {
+            "originName": "countryCode",
+            "targetName": "countryCode"
+          },
+          {
+            "originName": "decimalLatitude",
+            "targetName": "decimalLatitude"
+          },
+          {
+            "originName": "decimalLongitude",
+            "targetName": "decimalLongitude"
+          },
+          {
+            "originName": "eventDate",
+            "targetName": "eventDate"
+          }
+        ]
+      },
+      {
+        "name": "occurrences",
+        "spec": "dwc-occurrence",
+        "profile": "Occurrence",
+        "path": "./occurrences.csv",
+        "description": "Occurrence data",
+        "fieldMappings": [
+          {
+            "originName": "eventID",
+            "targetName": "eventID",
+            "isRequired": true
+          },
+          {
+            "originName": "occurrenceID",
+            "targetName": "occurrenceID",
+            "isRequired": true
+          },
+          {
+            "originName": "basisOfRecord",
+            "targetName": "basisOfRecord",
+            "isRequired": true
+          },
+          {
+            "originName": "scientificName",
+            "targetName": "scientificName",
+            "isRequired": true
+          },
+          {
+            "originName": "taxonRank",
+            "targetName": "taxonRank"
+          }
+        ]
+      }
+    ]
   },
-  "datasets": [
-    {
-      "name": "events",
-      "spec": "dwc-event",
-      "path": "./events.csv",
-      "description": "Event data",
-      "fieldMappings": [
-        {
-          "originName": "eventID",
-          "targetName": "eventID",
-          "isRequired": true
-        },
-        {
-          "originName": "country",
-          "targetName": "country"
-        },
-        {
-          "originName": "countryCode",
-          "targetName": "countryCode"
-        },
-        {
-          "originName": "decimalLatitude",
-          "targetName": "decimalLatitude"
-        },
-        {
-          "originName": "decimalLongitude",
-          "targetName": "decimalLongitude"
-        },
-        {
-          "originName": "eventDate",
-          "targetName": "eventDate"
-        }
-      ]
-    },
-    {
-      "name": "occurrences",
-      "spec": "dwc-occurrence",
-      "path": "./occurrences.csv",
-      "description": "Occurrence data",
-      "fieldMappings": [
-        {
-          "originName": "eventID",
-          "targetName": "eventID",
-          "isRequired": true
-        },
-        {
-          "originName": "occurrenceID",
-          "targetName": "occurrenceID",
-          "isRequired": true
-        },
-        {
-          "originName": "basisOfRecord",
-          "targetName": "basisOfRecord",
-          "isRequired": true
-        },
-        {
-          "originName": "scientificName",
-          "targetName": "scientificName",
-          "isRequired": true
-        },
-        {
-          "originName": "taxonRank",
-          "targetName": "taxonRank"
-        }
-      ]
-    }
-  ],
   "crossDatasetRules": [
     {
       "ruleType": "foreignKey",

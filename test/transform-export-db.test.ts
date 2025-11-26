@@ -28,8 +28,8 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", profile: "dwc-event", source: {}, fields: {} },
-        { name: "Occurrence", profile: "dwc-occurrence", source: {}, fields: {} },
+        { name: "Event", profile: "Event", source: {}, fields: {} },
+        { name: "Occurrence", profile: "Occurrence", source: {}, fields: {} },
       ],
       output: {
         outputDir: outputDir,

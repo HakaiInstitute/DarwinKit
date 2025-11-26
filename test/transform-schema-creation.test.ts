@@ -46,13 +46,13 @@ Deno.test("createTableFromSchema - creates tables, enums, and constraints", asyn
       datasets: [
         {
           name: "Event",
-          profile: "dwc-event",
+          profile: "Event",
           source: { test: "" },
           fields: {},
         },
         {
           name: "Occurrence",
-          profile: "dwc-occurrence",
+          profile: "Occurrence",
           source: { test: "" },
           fields: {},
         },
@@ -183,7 +183,7 @@ Deno.test("createTableFromSchema - returns TransformationError on SQL failure", 
         {
           name: "InvalidTable",
           // Using a profile that will generate invalid SQL (e.g., bad type)
-          profile: "dwc-occurrence",
+          profile: "Occurrence",
           source: {},
           fields: {},
         },
@@ -226,11 +226,11 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", profile: "dwc-event", source: { test: "" }, fields: {} },
-        { name: "Occurrence", profile: "dwc-occurrence", source: { test: "" }, fields: {} },
+        { name: "Event", profile: "Event", source: { test: "" }, fields: {} },
+        { name: "Occurrence", profile: "Occurrence", source: { test: "" }, fields: {} },
         {
           name: "MeasurementOrFact",
-          profile: "dwc-extendedMeasurementOrFact",
+          profile: "ExtendedMeasurementOrFact",
           source: { test: "" },
           fields: {},
         },

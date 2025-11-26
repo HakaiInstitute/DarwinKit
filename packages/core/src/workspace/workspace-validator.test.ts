@@ -32,32 +32,34 @@ E2,O3,HumanObservation,Ursus arctos`;
       nullValues: ["", "NA"],
       failFast: false,
       outputDir: "./output",
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          profile: "Event",
+          path: "./events.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+            { originName: "country", targetName: "country", isRequired: true },
+            { originName: "countryCode", targetName: "countryCode", isRequired: true },
+            { originName: "decimalLatitude", targetName: "decimalLatitude" },
+            { originName: "decimalLongitude", targetName: "decimalLongitude" },
+          ],
+        },
+        {
+          name: "occurrences",
+          spec: "dwc-occurrence",
+          profile: "Occurrence",
+          path: "./occurrences.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+            { originName: "occurrenceID", targetName: "occurrenceID", isRequired: true },
+            { originName: "basisOfRecord", targetName: "basisOfRecord", isRequired: true },
+            { originName: "scientificName", targetName: "scientificName", isRequired: true },
+          ],
+        },
+      ],
     },
-    datasets: [
-      {
-        name: "events",
-        spec: "dwc-event",
-        path: "./events.csv",
-        fieldMappings: [
-          { originName: "eventID", targetName: "eventID", isRequired: true },
-          { originName: "country", targetName: "country", isRequired: true },
-          { originName: "countryCode", targetName: "countryCode", isRequired: true },
-          { originName: "decimalLatitude", targetName: "decimalLatitude" },
-          { originName: "decimalLongitude", targetName: "decimalLongitude" },
-        ],
-      },
-      {
-        name: "occurrences",
-        spec: "dwc-occurrence",
-        path: "./occurrences.csv",
-        fieldMappings: [
-          { originName: "eventID", targetName: "eventID", isRequired: true },
-          { originName: "occurrenceID", targetName: "occurrenceID", isRequired: true },
-          { originName: "basisOfRecord", targetName: "basisOfRecord", isRequired: true },
-          { originName: "scientificName", targetName: "scientificName", isRequired: true },
-        ],
-      },
-    ],
     crossDatasetRules: [
       {
         ruleType: "foreignKey",
@@ -150,26 +152,28 @@ E2,O2,HumanObservation,Canis lupus`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./events.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+            ],
+          },
+          {
+            name: "occurrences",
+            spec: "dwc-occurrence",
+            profile: "Occurrence",
+            path: "./occurrences.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "occurrenceID", targetName: "occurrenceID" },
+            ],
+          },
+        ],
       },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-          ],
-        },
-        {
-          name: "occurrences",
-          spec: "dwc-occurrence",
-          path: "./occurrences.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "occurrenceID", targetName: "occurrenceID" },
-          ],
-        },
-      ],
       crossDatasetRules: [
         {
           ruleType: "foreignKey",
@@ -220,18 +224,19 @@ E1,Canada`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./events.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID", isRequired: true },
+              { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
+            ],
+          },
+        ],
       },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID", isRequired: true },
-            { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
-          ],
-        },
-      ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -275,19 +280,20 @@ E3,-95.0,-125.0`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./events.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "decimalLatitude", targetName: "decimalLatitude" },
+              { originName: "decimalLongitude", targetName: "decimalLongitude" },
+            ],
+          },
+        ],
       },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "decimalLatitude", targetName: "decimalLatitude" },
-            { originName: "decimalLongitude", targetName: "decimalLongitude" },
-          ],
-        },
-      ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -303,12 +309,10 @@ E3,-95.0,-125.0`;
     );
 
     // Should detect latitude out of range
-    assertEquals(result.datasetResults[0].constraintViolations.length, 1);
-    assertEquals(
-      result.datasetResults[0].constraintViolations[0].fieldName,
-      "decimalLatitude",
-    );
-    assertEquals(result.datasetResults[0].constraintViolations[0].violations.length, 2); // E2 and E3
+    const rangeErrors = result.datasetResults[0].violations.errors
+      .filter((v) => v.violationType === "range");
+    assertEquals(rangeErrors.length, 2); // E2 and E3 have invalid latitude
+    assertEquals(rangeErrors[0].fieldName, "decimalLatitude");
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -334,19 +338,20 @@ O3,PreservedSpecimen,Panthera tigris`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
+        datasets: [
+          {
+            name: "occurrences",
+            spec: "dwc-occurrence",
+            profile: "Occurrence",
+            path: "./occurrences.csv",
+            fieldMappings: [
+              { originName: "occurrenceID", targetName: "occurrenceID" },
+              { originName: "basisOfRecord", targetName: "basisOfRecord" },
+              { originName: "scientificName", targetName: "scientificName" },
+            ],
+          },
+        ],
       },
-      datasets: [
-        {
-          name: "occurrences",
-          spec: "dwc-occurrence",
-          path: "./occurrences.csv",
-          fieldMappings: [
-            { originName: "occurrenceID", targetName: "occurrenceID" },
-            { originName: "basisOfRecord", targetName: "basisOfRecord" },
-            { originName: "scientificName", targetName: "scientificName" },
-          ],
-        },
-      ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -362,13 +367,11 @@ O3,PreservedSpecimen,Panthera tigris`;
     );
 
     // Should detect invalid vocabulary value
-    assertEquals(result.datasetResults[0].vocabularyErrors.length, 1);
-    assertEquals(
-      result.datasetResults[0].vocabularyErrors[0].fieldName,
-      "basisOfRecord",
-    );
-    assertEquals(result.datasetResults[0].vocabularyErrors[0].violations.length, 1); // InvalidBasis
-    assertEquals(result.datasetResults[0].vocabularyErrors[0].violations[0].value, "InvalidBasis");
+    const vocabErrors = result.datasetResults[0].violations.errors
+      .filter((v) => v.violationType === "vocabulary");
+    assertEquals(vocabErrors.length, 1);
+    assertEquals(vocabErrors[0].fieldName, "basisOfRecord");
+    assertEquals(vocabErrors[0].value, "InvalidBasis");
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -394,18 +397,19 @@ E1,Mexico`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./events.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "country", targetName: "country" },
+            ],
+          },
+        ],
       },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "country", targetName: "country" },
-          ],
-        },
-      ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -421,12 +425,11 @@ E1,Mexico`;
     );
 
     // Should detect duplicate eventID
-    assertEquals(result.datasetResults[0].uniquenessViolations.length, 1);
-    assertEquals(
-      result.datasetResults[0].uniquenessViolations[0].duplicateValue,
-      "E1",
-    );
-    assertEquals(result.datasetResults[0].uniquenessViolations[0].occurrenceCount, 2);
+    const uniquenessErrors = result.datasetResults[0].violations.errors
+      .filter((v) => v.violationType === "uniqueness");
+    assertEquals(uniquenessErrors.length, 2); // Two rows with duplicate E1
+    assertEquals(uniquenessErrors[0].value, "E1");
+    assertEquals(uniquenessErrors[0].fieldName, "eventID");
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }

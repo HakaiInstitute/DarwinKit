@@ -39,9 +39,9 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
  * Each spec defines its own field definitions and validators.
  */
 export type SpecIdentifier =
-  | "dwc-event"
-  | "dwc-occurrence"
-  | "dwc-extendedMeasurementOrFacts"
+  | "Event"
+  | "Occurrence"
+  | "ExtendedMeasurementOrFact"
   | "dwc-resourceRelationship"
   | "metadata-v1";
 
@@ -70,9 +70,9 @@ export function parseSpecIdentifier(
  */
 export function isValidSpecIdentifier(specId: string): specId is SpecIdentifier {
   const validSpecs: readonly string[] = [
-    "dwc-event",
-    "dwc-occurrence",
-    "dwc-extendedMeasurementOrFacts",
+    "Event",
+    "Occurrence",
+    "ExtendedMeasurementOrFact",
     "dwc-resourceRelationship",
     "metadata-v1",
   ];

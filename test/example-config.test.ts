@@ -68,9 +68,9 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
     console.log(`  Status: ${dataset.status}`);
     console.log(`  Type errors: ${dataset.typeErrors.length}`);
     console.log(`  Required field errors: ${dataset.requiredFieldErrors.length}`);
-    console.log(`  Vocabulary errors: ${dataset.vocabularyErrors.length}`);
-    console.log(`  Uniqueness violations: ${dataset.uniquenessViolations.length}`);
-    console.log(`  Constraint violations: ${dataset.constraintViolations.length}`);
+    console.log(`  Violation errors: ${dataset.violations.errors.length}`);
+    console.log(`  Violation warnings: ${dataset.violations.warnings.length}`);
+    console.log(`  Violation info: ${dataset.violations.info.length}`);
   }
 
   console.log("\n--- Cross-Dataset Validation ---");

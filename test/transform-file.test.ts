@@ -36,7 +36,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
       datasets: [
         {
           name: "Event",
-          profile: "dwc-event",
+          profile: "Event",
           source: { "source_data": "source_data" },
           fields: {
             "eventID": "source_data.event_id",
@@ -45,7 +45,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
         },
         {
           name: "Occurrence",
-          profile: "dwc-occurrence",
+          profile: "Occurrence",
           source: { "source_data": "source_data" },
           fields: {
             "occurrenceID": "source_data.occ_id",
@@ -76,10 +76,10 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 
     // 4. Assert: Verify the output files
     // Assert CSV output
-    const eventCsvContent = await Deno.readTextFile(join(outputDir, "dwc-event.csv"));
+    const eventCsvContent = await Deno.readTextFile(join(outputDir, "event.csv"));
     assertEquals(eventCsvContent.trim(), `"eventID","year"\n"evt01",2024`);
 
-    const occCsvContent = await Deno.readTextFile(join(outputDir, "dwc-occurrence.csv"));
+    const occCsvContent = await Deno.readTextFile(join(outputDir, "occurrence.csv"));
     assertEquals(
       occCsvContent.trim(),
       `"occurrenceID","eventID","basisOfRecord"\n"occ01","evt01","HumanObservation"`,

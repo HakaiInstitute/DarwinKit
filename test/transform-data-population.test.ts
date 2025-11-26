@@ -29,7 +29,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
       datasets: [
         {
           name: "Event",
-          profile: "dwc-event",
+          profile: "Event",
           source: {
             "source_events": "source_events",
           },
@@ -41,7 +41,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
         },
         {
           name: "Occurrence",
-          profile: "dwc-occurrence",
+          profile: "Occurrence",
           source: {
             "source_occurrences": "source_occurrences",
           },
