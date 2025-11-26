@@ -5,7 +5,7 @@ import * as Data from "effect/Data";
 
 import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { getValidationProfile, getVocabularyValues, isIdentifierField } from "@dwkt/domain";
+import { getValidationProfile } from "@dwkt/domain";
 import { json2csv } from "json-2-csv";
 import type {
   ConfigNotFoundError,
