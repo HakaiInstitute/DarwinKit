@@ -20,7 +20,6 @@ import type {
   ValidationProfile,
   ValidationViolation,
   ValidatorConfig,
-  WorkspaceConfig,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
 import {
@@ -75,7 +74,7 @@ export class WorkspaceValidator {
     return Effect.gen(function* (_) {
       const startTime = Date.now();
 
-      // Discover and load configuration
+      // Discover and load configuration (schema already validates structure)
       const { config: loadedConfig, configPath: resolvedConfigPath } = yield* _(
         WorkspaceConfigService.discoverAndLoad(configPath).pipe(
           Effect.mapError((error) =>
@@ -88,7 +87,7 @@ export class WorkspaceValidator {
         ),
       );
 
-      // Ensure the config has validation settings
+      // Narrow the config type to ensure it has validation settings
       if (!("validation" in loadedConfig)) {
         return yield* _(
           Effect.fail(
@@ -100,42 +99,26 @@ export class WorkspaceValidator {
         );
       }
 
-      // Override validation settings with CLI options
-      const config: WorkspaceConfig = options?.failFast !== undefined
-        ? {
-          ...loadedConfig,
-          validation: {
-            ...loadedConfig.validation,
-            failFast: options.failFast,
-          },
-        }
-        : loadedConfig;
+      // At this point TypeScript knows config has validation property
+      const config = loadedConfig;
+
+      // Override validation settings with CLI options if provided
+      const validationSettings = options?.failFast !== undefined
+        ? { ...config.validation, failFast: options.failFast }
+        : config.validation;
 
       // Create workspace and load all datasets
       const { workspaceId, connection } = yield* _(
-        createWorkspaceFromConfig(config, dirname(resolvedConfigPath)),
+        createWorkspaceFromConfig(config.id, validationSettings, dirname(resolvedConfigPath)),
       );
 
       // Perform validation with guaranteed connection cleanup
       return yield* _(
         Effect.gen(function* (_) {
-          // Type guard - we already checked validation exists above
-          if (!("validation" in config)) {
-            return yield* _(
-              Effect.fail(
-                new WorkspaceValidationError({
-                  message:
-                    `Configuration '${resolvedConfigPath}' does not contain validation settings`,
-                  code: ErrorCode.INVALID_CONFIG,
-                }),
-              ),
-            );
-          }
-
           // Validate each dataset
           const datasetResults: DatasetValidationResult[] = [];
 
-          for (const dataset of config.validation.datasets) {
+          for (const dataset of validationSettings.datasets) {
             // Load validation profile if specified
             const validationProfile = getValidationProfile(dataset.profile);
 
@@ -146,14 +129,14 @@ export class WorkspaceValidator {
             datasetResults.push(result);
 
             // Fail-fast if enabled and we have critical errors
-            if (config.validation.failFast && result.status === "fail") {
+            if (validationSettings.failFast && result.status === "fail") {
               break;
             }
           }
 
           // Validate cross-dataset rules if provided
           const crossDatasetResults: CrossDatasetValidationResult[] = [];
-          if (config.crossDatasetRules && !config.validation.failFast) {
+          if (config.crossDatasetRules && !validationSettings.failFast) {
             for (const rule of config.crossDatasetRules) {
               const result = yield* _(
                 validateCrossDatasetRule(connection, rule),
@@ -192,37 +175,31 @@ export class WorkspaceValidator {
 }
 
 /**
- * Create workspace and load all datasets from config
+ * Create workspace and load all datasets from validation settings
  */
 function createWorkspaceFromConfig(
-  config: WorkspaceConfig,
+  workspaceId: string,
+  validationSettings: import("@dwkt/domain").ValidationSettings,
   basePath: string,
 ): Effect.Effect<
   { workspaceId: string; connection: DuckDBConnection },
   WorkspaceValidationError
 > {
   return Effect.gen(function* (_) {
-    const workspaceId = config.id;
-
     // Create DuckDB connection - failure is a system defect
     const connection = yield* _(
       Effect.tryPromise(() => DuckDB.create()).pipe(Effect.orDie),
     );
 
-    // Type guard - ensure config has validation settings
-    if (!("validation" in config)) {
-      return yield* _(Effect.die("Configuration does not contain validation settings"));
-    }
-
     // Load each dataset into DuckDB
-    for (const dataset of config.validation.datasets) {
+    for (const dataset of validationSettings.datasets) {
       if (!dataset.path) continue;
 
       const filePath = resolve(basePath, dataset.path);
       const tableName = sanitizeTableName(dataset.name);
 
       // Build null values string for DuckDB
-      const nullStr = config.validation.nullValues.map((v: string) => `'${v}'`).join(", ");
+      const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`).join(", ");
 
       // Drop table if it exists, then create from CSV
       const dropTableQuery = `DROP TABLE IF EXISTS ${tableName}`;
