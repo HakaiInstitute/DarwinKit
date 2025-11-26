@@ -5,13 +5,14 @@
  * Validators return RawViolation (minimal data), infrastructure enriches
  * to ValidationViolation (full metadata for routing and reporting).
  *
- * DESIGN DECISION: Kept as pure TypeScript interfaces rather than Effect Schemas because:
- * 1. OUTPUT-ONLY types - Never parsed from external input, only constructed internally
- * 2. Two-tier design pattern:
+ * DESIGN DECISION: ValidationViolation uses Effect's Data.TaggedClass for discriminated unions:
+ * 1. TYPE-SAFE pattern matching - Use $match for exhaustive case handling
+ * 2. TYPE GUARDS - Use $is for filtering violations by type
+ * 3. Two-tier design pattern:
  *    - RawViolation: Minimal data returned by validators (lightweight, fast)
  *    - ValidationViolation: Enriched with metadata for routing/reporting (complete)
- * 3. Internal contracts - These define how validators communicate with the validation infrastructure
- * 4. No validation needed - These types are constructed by trusted internal code, not from external sources
+ * 4. Internal contracts - These define how validators communicate with the validation infrastructure
+ * 5. No runtime validation needed - These types are constructed by trusted internal code
  *
  * This separation allows validators to return minimal data while the validation
  * infrastructure handles metadata enrichment (field names, enforcement mapping,
@@ -20,6 +21,7 @@
  * Validators return RawViolation; infrastructure enriches to ValidationViolation.
  */
 
+import { Data } from "effect";
 import type { EnforcementLevel, ValidatorConfig } from "../specs/validators.ts";
 import type { FieldDefinition } from "../specs/field-definition.ts";
 import type { TransformationChain } from "./transformation.ts";
@@ -28,12 +30,18 @@ import { ErrorSeverity } from "../errors/severity.ts";
 /**
  * Minimal violation data returned by validators
  *
- * Validators return this lightweight structure. Infrastructure
- * enriches it with metadata to create ValidationViolation.
+ * Validators use the RawViolation constructor to create type-safe violation objects.
+ * Infrastructure enriches them with metadata to create ValidationViolation.
+ *
+ * Using Data.Class provides:
+ * - Type-safe construction with compile-time checks
+ * - Immutability guarantees
+ * - Structural equality for testing
+ * - Single source of truth for the type
  *
  * @example Simple validator (no conditional logic)
  * ```typescript
- * return rows.map((row) => ({
+ * return rows.map((row) => RawViolation({
  *   rowNumber: Number(row.row_num),
  *   value: row.value,
  * }));
@@ -41,7 +49,7 @@ import { ErrorSeverity } from "../errors/severity.ts";
  *
  * @example Conditional enforcement
  * ```typescript
- * return rows.map((row) => ({
+ * return rows.map((row) => RawViolation({
  *   rowNumber: Number(row.row_num),
  *   value: row.value,
  *   enforcement: extremeOutOfRange ? "required" : "recommended",
@@ -49,7 +57,7 @@ import { ErrorSeverity } from "../errors/severity.ts";
  * }));
  * ```
  */
-export interface RawViolation {
+export class RawViolation extends Data.Class<{
   /** Row number where violation occurred (required) */
   readonly rowNumber: number;
 
@@ -73,41 +81,98 @@ export interface RawViolation {
 
   /** Suggested valid values (for vocabulary violations) */
   readonly suggestedValues?: ReadonlyArray<string>;
-}
+}> {}
 
 /**
- * Enriched validation violation with full metadata
+ * Common fields shared by all validation violations
  *
- * Created by infrastructure from RawViolation. Contains all
- * metadata needed for routing, formatting, and reporting.
- *
- * This is the internal representation used for partitioning
- * violations by enforcement level before transforming into
- * external API result types.
+ * DESIGN DECISION: Kept as plain TypeScript interface rather than Effect Schema because:
+ * 1. Internal-only type - Used as base for Data.TaggedClass violations, not for parsing
+ * 2. OUTPUT-ONLY - These violations are constructed internally, never parsed from external input
+ * 3. TransformationChain dependency - Would require creating schemas for complex nested types
+ * 4. Performance - No runtime validation overhead for internally-constructed objects
  */
-export interface ValidationViolation {
-  // Enforcement metadata (determines routing)
+interface ViolationBase {
   readonly enforcement: EnforcementLevel;
   readonly severity: ErrorSeverity;
-
-  // Location metadata
   readonly fieldName: string;
   readonly targetName: string;
   readonly rowNumber: number;
-
-  // Violation details
-  readonly violationType: "range" | "vocabulary" | "uniqueness" | "temporal" | "cross-dataset";
   readonly value: string;
   readonly csvValue?: string;
   readonly transformedValue?: unknown;
   readonly transformationChain?: TransformationChain;
   readonly errorMessage: string;
-  readonly suggestedValues?: ReadonlyArray<string>;
-
-  // Validator metadata
   readonly validatorType: string;
-  readonly params?: Record<string, unknown>;
 }
+
+/**
+ * Range validation violation (numeric/date range constraints)
+ */
+export class RangeViolation extends Data.TaggedClass("RangeViolation")<
+  ViolationBase & {
+    readonly params?: { min?: number; max?: number };
+  }
+> {}
+
+/**
+ * Vocabulary validation violation (controlled vocabulary constraints)
+ */
+export class VocabularyViolation extends Data.TaggedClass("VocabularyViolation")<
+  ViolationBase & {
+    readonly suggestedValues?: ReadonlyArray<string>;
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Uniqueness validation violation (duplicate identifier constraints)
+ */
+export class UniquenessViolation extends Data.TaggedClass("UniquenessViolation")<
+  ViolationBase & {
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Temporal validation violation (date/time consistency constraints)
+ */
+export class TemporalViolation extends Data.TaggedClass("TemporalViolation")<
+  ViolationBase & {
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Cross-dataset validation violation (foreign key/referential integrity)
+ */
+export class CrossDatasetViolation extends Data.TaggedClass("CrossDatasetViolation")<
+  ViolationBase & {
+    readonly params?: {
+      sourceDataset?: string;
+      targetDataset?: string;
+      targetField?: string;
+    };
+  }
+> {}
+
+/**
+ * Discriminated union of all validation violation types
+ *
+ * Use type guard checking with _tag:
+ *
+ * @example Type guard filtering
+ * ```typescript
+ * const rangeErrors = violations.filter((v): v is RangeViolation => v._tag === "RangeViolation");
+ * const vocabErrors = violations.filter((v): v is VocabularyViolation => v._tag === "VocabularyViolation");
+ * ```
+ */
+export type ValidationViolation =
+  | RangeViolation
+  | VocabularyViolation
+  | UniquenessViolation
+  | TemporalViolation
+  | CrossDatasetViolation;
 
 /**
  * Convert enforcement level to severity
@@ -187,14 +252,14 @@ export function enrichCrossDatasetViolation(
     readonly enforcement?: EnforcementLevel;
     readonly ruleType?: string;
   },
-): ValidationViolation {
+): CrossDatasetViolation {
   // Use rule enforcement override if provided, otherwise default to "required"
   const enforcement = raw.enforcement ?? rule.enforcement ?? "required";
 
   const defaultMessage =
     `Value '${raw.value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`;
 
-  return {
+  return new CrossDatasetViolation({
     // Enforcement
     enforcement,
     severity: enforcementToSeverity(enforcement),
@@ -205,13 +270,11 @@ export function enrichCrossDatasetViolation(
     rowNumber: raw.rowNumber,
 
     // Violation details
-    violationType: "cross-dataset",
     value: String(raw.value),
     csvValue: raw.csvValue,
     transformedValue: raw.transformedValue,
     transformationChain: raw.transformationChain,
     errorMessage: raw.message || defaultMessage,
-    suggestedValues: raw.suggestedValues,
 
     // Validator metadata (use rule type as validator type)
     validatorType: rule.ruleType || "foreignKey",
@@ -220,7 +283,7 @@ export function enrichCrossDatasetViolation(
       targetDataset: rule.targetDataset,
       targetField: rule.targetField,
     },
-  };
+  });
 }
 
 /**
@@ -276,27 +339,59 @@ export function enrichViolation(
   // Use raw enforcement override if provided, otherwise use validator's default
   const enforcement = raw.enforcement ?? validator.enforcement;
 
-  return {
-    // Enforcement (use override or default)
+  // Common properties for all violation types
+  const baseProps = {
     enforcement,
     severity: enforcementToSeverity(enforcement),
-
-    // Location
     fieldName,
     targetName: specField.name,
     rowNumber: raw.rowNumber,
-
-    // Violation details
-    violationType: validator.type as ValidationViolation["violationType"],
     value: String(raw.value),
     csvValue: raw.csvValue,
     transformedValue: raw.transformedValue,
     transformationChain: raw.transformationChain,
     errorMessage: raw.message || validator.message || "Validation failed",
-    suggestedValues: raw.suggestedValues,
-
-    // Validator metadata
     validatorType: validator.type,
-    params: validator.params as Record<string, unknown> | undefined,
   };
+
+  // Return specific violation type based on validator type
+  // Note: Some validators use custom type strings beyond the ValidatorType enum
+  const validatorType = validator.type as string;
+
+  if (validatorType === "range") {
+    return new RangeViolation({
+      ...baseProps,
+      params: validator.params as { min?: number; max?: number } | undefined,
+    });
+  }
+
+  if (validatorType === "pattern" && raw.suggestedValues) {
+    // Pattern validators with suggested values are vocabulary-like
+    return new VocabularyViolation({
+      ...baseProps,
+      suggestedValues: raw.suggestedValues,
+      params: validator.params as Record<string, unknown> | undefined,
+    });
+  }
+
+  if (validatorType === "unique") {
+    return new UniquenessViolation({
+      ...baseProps,
+      params: validator.params as Record<string, unknown> | undefined,
+    });
+  }
+
+  if (validatorType === "format" || validatorType === "pattern") {
+    // Format/pattern validators can be temporal-like
+    return new TemporalViolation({
+      ...baseProps,
+      params: validator.params as Record<string, unknown> | undefined,
+    });
+  }
+
+  // Default fallback for any unknown types
+  return new RangeViolation({
+    ...baseProps,
+    params: validator.params as Record<string, unknown> | undefined,
+  });
 }

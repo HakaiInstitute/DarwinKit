@@ -16,7 +16,6 @@ import type {
   DatasetConfig,
   DatasetValidationResult,
   FieldDefinition,
-  RawViolation,
   ValidationProfile,
   ValidationViolation,
   ValidatorConfig,
@@ -34,6 +33,9 @@ import {
   isIdentifierField,
   isValidVocabularyValue,
   parseSpecIdentifier,
+  RawViolation,
+  UniquenessViolation,
+  VocabularyViolation,
 } from "@dwkt/domain";
 import { WorkspaceConfigService } from "./workspace-config-service.ts";
 
@@ -548,10 +550,12 @@ function findCrossDatasetViolations(
     const rows = violationsResult.getRowObjects();
 
     // Return minimal violations (just rowNumber and value)
-    return rows.map((row) => ({
-      rowNumber: Number(row.row_num),
-      value: row.source_value,
-    }));
+    return rows.map((row) =>
+      new RawViolation({
+        rowNumber: Number(row.row_num),
+        value: row.source_value,
+      })
+    );
   });
 }
 
@@ -767,10 +771,12 @@ function findRangeViolations(
     const rows = result.getRowObjects();
 
     // Return minimal violations (just rowNumber and value)
-    return rows.map((row) => ({
-      rowNumber: Number(row.row_num),
-      value: row.value,
-    }));
+    return rows.map((row) =>
+      new RawViolation({
+        rowNumber: Number(row.row_num),
+        value: row.value,
+      })
+    );
   });
 }
 
@@ -952,33 +958,34 @@ function validateVocabulary(
     const standardEnforcement = vocabularyEnforcementToStandard(enforcement);
 
     // Enrich violations with metadata
-    const enriched: ValidationViolation[] = rawViolations.map((raw) => ({
-      // Enforcement (from vocabulary config)
-      enforcement: standardEnforcement,
-      severity: enforcementToSeverity(standardEnforcement),
+    const enriched: ValidationViolation[] = rawViolations.map((raw) =>
+      new VocabularyViolation({
+        // Enforcement (from vocabulary config)
+        enforcement: standardEnforcement,
+        severity: enforcementToSeverity(standardEnforcement),
 
-      // Location
-      fieldName,
-      targetName: specField.name,
-      rowNumber: raw.rowNumber,
+        // Location
+        fieldName,
+        targetName: specField.name,
+        rowNumber: raw.rowNumber,
 
-      // Violation details
-      violationType: "vocabulary" as const,
-      value: String(raw.value),
-      csvValue: raw.csvValue,
-      transformedValue: raw.transformedValue,
-      transformationChain: raw.transformationChain,
-      errorMessage: `Value '${raw.value}' is not in controlled vocabulary '${vocabularyKey}'`,
-      suggestedValues: raw.suggestedValues,
+        // Violation details
+        value: String(raw.value),
+        csvValue: raw.csvValue,
+        transformedValue: raw.transformedValue,
+        transformationChain: raw.transformationChain,
+        errorMessage: `Value '${raw.value}' is not in controlled vocabulary '${vocabularyKey}'`,
+        suggestedValues: raw.suggestedValues,
 
-      // Validator metadata
-      validatorType: "vocabulary",
-      params: {
-        vocabularyKey,
-        enforcement,
-        caseSensitive,
-      },
-    }));
+        // Validator metadata
+        validatorType: "vocabulary",
+        params: {
+          vocabularyKey,
+          enforcement,
+          caseSensitive,
+        },
+      })
+    );
 
     // Also return legacy format for backward compatibility
     const legacy = rawViolations.map((raw) => ({
@@ -1097,29 +1104,29 @@ function validateUniqueness(
     const enforcement = uniqueValidator?.enforcement ?? "required";
 
     // Enrich violations with metadata
-    const enriched: ValidationViolation[] = rawViolations.map((raw) => ({
-      // Enforcement (from unique validator or default to required)
-      enforcement,
-      severity: enforcementToSeverity(enforcement),
+    const enriched: ValidationViolation[] = rawViolations.map((raw) =>
+      new UniquenessViolation({
+        // Enforcement (from unique validator or default to required)
+        enforcement,
+        severity: enforcementToSeverity(enforcement),
 
-      // Location
-      fieldName,
-      targetName: specField.name,
-      rowNumber: raw.rowNumber,
+        // Location
+        fieldName,
+        targetName: specField.name,
+        rowNumber: raw.rowNumber,
 
-      // Violation details
-      violationType: "uniqueness" as const,
-      value: String(raw.value),
-      csvValue: raw.csvValue,
-      transformedValue: raw.transformedValue,
-      transformationChain: raw.transformationChain,
-      errorMessage: `Duplicate value '${raw.value}' in identifier field`,
-      suggestedValues: raw.suggestedValues,
+        // Violation details
+        value: String(raw.value),
+        csvValue: raw.csvValue,
+        transformedValue: raw.transformedValue,
+        transformationChain: raw.transformationChain,
+        errorMessage: `Duplicate value '${raw.value}' in identifier field`,
 
-      // Validator metadata
-      validatorType: "unique",
-      params: uniqueValidator?.params as Record<string, unknown> | undefined,
-    }));
+        // Validator metadata
+        validatorType: "unique",
+        params: uniqueValidator?.params as Record<string, unknown> | undefined,
+      })
+    );
 
     // Also return legacy format for backward compatibility
     // Group violations by duplicate value for old structure

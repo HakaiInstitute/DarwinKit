@@ -60,11 +60,14 @@ Deno.test("enrichViolation - uses validator's enforcement by default", () => {
   assertEquals(enriched.fieldName, "lat");
   assertEquals(enriched.targetName, "decimalLatitude");
   assertEquals(enriched.rowNumber, 5);
-  assertEquals(enriched.violationType, "range");
+  assertEquals(enriched._tag, "RangeViolation");
   assertEquals(enriched.value, "95");
   assertEquals(enriched.errorMessage, "Latitude must be between -90 and 90");
   assertEquals(enriched.validatorType, "range");
-  assertEquals(enriched.params, { min: -90, max: 90 });
+  // Check params for RangeViolation
+  if (enriched._tag === "RangeViolation") {
+    assertEquals(enriched.params, { min: -90, max: 90 });
+  }
 });
 
 Deno.test("enrichViolation - uses raw enforcement override", () => {
@@ -195,7 +198,11 @@ Deno.test("enrichViolation - preserves suggested values", () => {
 
   const enriched = enrichViolation(raw, validator, mockField, "basisOfRecord");
 
-  assertEquals(enriched.suggestedValues, ["Human", "HumanObservation"]);
+  // Should be VocabularyViolation since it has suggested values
+  assertEquals(enriched._tag, "VocabularyViolation");
+  if (enriched._tag === "VocabularyViolation") {
+    assertEquals(enriched.suggestedValues, ["Human", "HumanObservation"]);
+  }
 });
 
 Deno.test("enrichViolation - converts value to string", () => {
@@ -310,7 +317,7 @@ Deno.test("enrichCrossDatasetViolation - uses rule's enforcement by default", ()
   assertEquals(enriched.fieldName, "eventID");
   assertEquals(enriched.targetName, "eventID");
   assertEquals(enriched.rowNumber, 5);
-  assertEquals(enriched.violationType, "cross-dataset");
+  assertEquals(enriched._tag, "CrossDatasetViolation");
   assertEquals(enriched.value, "E2");
   assertEquals(
     enriched.errorMessage,
