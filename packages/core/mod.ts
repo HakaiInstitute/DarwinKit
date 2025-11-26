@@ -15,3 +15,6 @@ export * from "./src/validation/uniqueness-validator.ts";
 
 // Transformation
 export * from "./src/transform/transform.ts";
+
+// Schema Import
+export * from "./src/import/get_dwc_schema.ts";

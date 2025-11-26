@@ -3,17 +3,17 @@
 // Run from the repo root:
 //  deno run external/get_dc_schema.cjs
 //
-const fs = require('fs');
-const txml = require('txml');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-const csv = require('csvtojson');
+import fs from 'node:fs';
+import * as txml from 'txml';
+import fetch  from 'node-fetch';
+import csv from 'csvtojson';
 
 // Read the XML file content
-const exMoFxml = './external/rs_gbif/extension/obis/extended_measurement_or_fact_2023-08-28.xml';
-const eventXml = './external/rs_gbif/core/dwc_event_2025-07-10.xml';
-const occurrenceXml = './external/rs_gbif/core/dwc_occurrence_2025-07-10.xml';
-const taxonXml = './external/rs_gbif/core/dwc_taxon_2025-07-10.xml';
-const DNAXml = './external/rs_gbif/extension/gbif/1.0/dna_derived_data_2024-07-11.xml';
+const exMoFxml = '../../external/rs_gbif/extension/obis/extended_measurement_or_fact_2023-08-28.xml';
+const eventXml = '../../external/rs_gbif/core/dwc_event_2025-07-10.xml';
+const occurrenceXml = '../../external/rs_gbif/core/dwc_occurrence_2025-07-10.xml';
+const taxonXml = '../../external/rs_gbif/core/dwc_taxon_2025-07-10.xml';
+const DNAXml = '../../external/rs_gbif/extension/gbif/1.0/dna_derived_data_2024-07-11.xml';
 
 const obisChecklistUrl = 'https://raw.githubusercontent.com/iobis/manual/master/docs/OBIS-termchecklist.csv';
 
@@ -21,7 +21,7 @@ const obisChecklistUrl = 'https://raw.githubusercontent.com/iobis/manual/master/
 // added to the relevent schema field
 const xmlThesaurusToJson = (inputID) => {
 
-    thesaurusPath = inputID.replace('http://rs.gbif.org/', './external/rs_gbif/').replace('https://rs.gbif.org/', './external/rs_gbif/');
+    const thesaurusPath = inputID.replace('http://rs.gbif.org/', '../../external/rs_gbif/').replace('https://rs.gbif.org/', '../../external/rs_gbif/');
     console.log(`    Getting vocabulary from ${thesaurusPath}`);
     const thesaurusXml = fs.readFileSync(thesaurusPath, 'utf8');
     const xmlObject = txml.parse(thesaurusXml.replaceAll("<voc:", "<").replaceAll("</voc:", "</"));
@@ -29,7 +29,7 @@ const xmlThesaurusToJson = (inputID) => {
 
     simplifiedJson.thesaurus[0].concept = simplifiedJson.thesaurus[0].concept.reduce((acc, concept) => {
         const { _attributes, preferred, alternative, } = concept;
-        AltRepresentations = []
+        let AltRepresentations = []
         // Each value has a perfered and alternative in multiple languages. The number of languages are not 
         // consistent and may not contain an english version
         preferred?.forEach(alt => {
@@ -82,7 +82,7 @@ const xmlSchemaToJson = (filePath,options) => {
                 collection[name].group = group;
             }
             if (thesaurus){
-                thesaurusJson = xmlThesaurusToJson(thesaurus)
+                const thesaurusJson = xmlThesaurusToJson(thesaurus)
                 collection[name] = { ...collection[name], thesaurus, "values": thesaurusJson.concept }
                 if (!collection[name]?.type){
                     collection[name].type = 'controlled-vocabulary'
@@ -112,13 +112,13 @@ const xmlSchemaToJson = (filePath,options) => {
 // Convert several darwin core xml schemas into json and combine them into one file for later use.
 // The obis checklist is used to set fields as required, recomended, or  optional
 // validators are added by matching against field attributes or cmoponents of the field name
-async function main() {
+export async function import_schema() {
 
-    exMoFjson = xmlSchemaToJson(exMoFxml, { group: 'ExtendedMeasurementOrFact', idFieldName:"measurementID"});
-    eventJson = xmlSchemaToJson(eventXml, { idFieldName:"eventID"});
-    occurrenceJson = xmlSchemaToJson(occurrenceXml, { idFieldName:"occurrenceID"});
-    taxonJson = xmlSchemaToJson(taxonXml, { idFieldName:"taxonID"});
-    DNAJson = xmlSchemaToJson(DNAXml, { group: 'dnaDerivedData', idFieldName:"samp_name"});
+    const exMoFjson = xmlSchemaToJson(exMoFxml, { group: 'ExtendedMeasurementOrFact', idFieldName:"measurementID"});
+    const eventJson = xmlSchemaToJson(eventXml, { idFieldName:"eventID"});
+    const occurrenceJson = xmlSchemaToJson(occurrenceXml, { idFieldName:"occurrenceID"});
+    const taxonJson = xmlSchemaToJson(taxonXml, { idFieldName:"taxonID"});
+    const DNAJson = xmlSchemaToJson(DNAXml, { group: 'dnaDerivedData', idFieldName:"samp_name"});
 
     const schemaJson = { ...exMoFjson, ...eventJson, ...occurrenceJson, ...taxonJson, ...DNAJson };
 
@@ -130,9 +130,10 @@ async function main() {
     const csvText = (await response.text());
     const obisChecklist = await csv().fromString(csvText.replace(/[^\x00-\x7F]/g, ""));
 
-    fs.writeFileSync("./external/obisChecklist.json", JSON.stringify(obisChecklist, null, 2));
+    console.log('    Writeing OBIS checklist to file');
+    fs.writeFileSync("../../external/obisChecklist.json", JSON.stringify(obisChecklist, null, 2));
 
-    console.log('Joining OBIS checklist with schema...');
+    console.log('    Joining OBIS checklist with schema');
     obisChecklist.forEach(item => {
         const term = item.Term;
         Object.keys(schemaJson).forEach(key => {
@@ -143,8 +144,6 @@ async function main() {
             if (item["eMoF Table"]) affectedTable.push("ExtendedMeasurementOrFact");
             if (item["eMoF DNA Table"]) affectedTable.push("dnaDerivedData");
             if (table.fields[term]) {
-                console.log(key);
-                console.log(affectedTable);
                 if (affectedTable.includes(key)){
                     table.fields[term] = { ...table.fields[term], "obis_required": item["OBIS Required"] };
                 } else {
@@ -172,8 +171,6 @@ async function main() {
         })
     })
 
-    fs.writeFileSync("./external/dwcSchema.json", JSON.stringify(schemaJson, null, 2));
+    fs.writeFileSync("../../external/dwcSchema.json", JSON.stringify(schemaJson, null, 2));
     console.log('Schema with OBIS checklist written to ./external/dwcSchema.json');
 }
-
-main().catch(console.error);
