@@ -19,22 +19,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Deno
-        uses: denoland/setup-deno@v1
+        uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+          cache: true
 
       - name: Verify Deno installation
         run: deno --version
-
-      - name: Cache Deno dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/deno
-            ~/.deno
-          key: ${{ runner.os }}-deno-${{ hashFiles('**/deno.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-deno-
 
       - name: Run linter
         run: deno lint
@@ -48,16 +39,29 @@ jobs:
           deno check packages/core/mod.ts
 
       - name: Run domain tests
-        run: deno test packages/domain/ --allow-all
+        id: domain
+        run: deno test packages/domain/ --allow-all --junit-path=./reports/report1.xml
 
       - name: Run core tests
-        run: deno test packages/core/ --allow-all
+        id: core
+        run: deno test packages/core/ --allow-all --junit-path=./reports/report2.xml
 
       - name: Run integration tests
+        id: integration
         run: |
-          deno test test/example-config.test.ts --allow-all
-          deno test test/obis-profile.test.ts --allow-all
-          deno test test/workspace-service.test.ts --allow-all
+          deno test test/example-config.test.ts --allow-all --junit-path=./reports/report3.xml
+          deno test test/obis-profile.test.ts --allow-all --junit-path=./reports/report4.xml
+          deno test test/workspace-service.test.ts --allow-all --junit-path=./reports/report5.xml
+
+      - name: Test Report
+        uses: dorny/test-reporter@v2
+        if: steps.domain.outcome == 'success' || steps.domain.outcome == 'failure'
+          || steps.core.outcome == 'success' || steps.core.outcome == 'failure'
+          || steps.integration.outcome == 'success' || steps.integration.outcome == 'failure'
+        with:
+          name: JEST Tests            # Name of the check run which will be created
+          path: ./reports/*.xml    # Path to test results
+          reporter: jest-junit        # Format of test results
 
       - name: Test summary
         if: always()
