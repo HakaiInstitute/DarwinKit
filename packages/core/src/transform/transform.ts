@@ -149,8 +149,8 @@ export function createTableFromSchema(
         // Check if this field is the primary identifier for this table
         // Profile fields use simple name matching (e.g., occurrenceID for Occurrence table)
         // or check if field is marked as unique identifier
-        const isUniqueIdentifier = (field as any).unique === "true" ||
-          (field as any).unique === true;
+        const isUniqueIdentifier = field.unique === "true";
+
         if (fieldName === tableName + "ID" || (fieldName.endsWith("ID") && isUniqueIdentifier)) {
           fieldStr += " PRIMARY KEY";
         } else if (
