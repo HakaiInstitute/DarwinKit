@@ -25,6 +25,98 @@ interface ForeignKeyInfoRow {
   to: string;
 }
 
+/**
+ * Helper function to verify foreign key constraints in DuckDB
+ *
+ * DuckDB doesn't support PRAGMA foreign_keys(), so we use information_schema
+ * to verify FK constraints. The constraint naming convention is:
+ * - FK: {source_table}_{source_column}_{target_column}_fkey
+ * - PK: {table}_{column}_pkey
+ *
+ * @param connection - DuckDB connection
+ * @param sourceTable - Table containing the foreign key
+ * @param sourceColumn - Column with the foreign key constraint
+ * @param targetTable - Referenced table
+ * @param targetColumn - Referenced column (usually the PK)
+ * @returns True if FK exists, false otherwise
+ */
+async function verifyForeignKey(
+  connection: DuckDBConnection,
+  sourceTable: string,
+  sourceColumn: string,
+  targetTable: string,
+  targetColumn: string,
+): Promise<boolean> {
+  const query = `
+    SELECT
+      tc.constraint_name,
+      rc.unique_constraint_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.referential_constraints rc
+      ON tc.constraint_name = rc.constraint_name
+    WHERE tc.constraint_type = 'FOREIGN KEY'
+      AND tc.table_name = '${sourceTable.toLowerCase()}';
+  `;
+
+  const result = await connection.runAndReadAll(query);
+  const fks = result.getRowObjects();
+
+  // Expected FK constraint name: {table}_{sourceCol}_{targetCol}_fkey
+  const expectedFKName =
+    `${sourceTable.toLowerCase()}_${sourceColumn.toLowerCase()}_${targetColumn.toLowerCase()}_fkey`;
+
+  // Expected referenced PK constraint name: {table}_{column}_pkey
+  const expectedPKName = `${targetTable.toLowerCase()}_${targetColumn.toLowerCase()}_pkey`;
+
+  return fks.some((fk) =>
+    fk.constraint_name === expectedFKName &&
+    fk.unique_constraint_name === expectedPKName
+  );
+}
+
+/**
+ * Get all foreign keys for a table
+ *
+ * @param connection - DuckDB connection
+ * @param tableName - Table to check
+ * @returns Array of FK information
+ */
+async function getForeignKeys(
+  connection: DuckDBConnection,
+  tableName: string,
+): Promise<
+  Array<{ constraint_name: string; referenced_table: string; referenced_column: string }>
+> {
+  const query = `
+    SELECT
+      tc.constraint_name,
+      rc.unique_constraint_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.referential_constraints rc
+      ON tc.constraint_name = rc.constraint_name
+    WHERE tc.constraint_type = 'FOREIGN KEY'
+      AND tc.table_name = '${tableName.toLowerCase()}';
+  `;
+
+  const result = await connection.runAndReadAll(query);
+  const fks = result.getRowObjects();
+
+  // Parse constraint names to extract table and column info
+  // FK format: {table}_{sourceCol}_{targetCol}_fkey
+  // PK format: {table}_{column}_pkey
+  return fks.map((fk) => {
+    const pkParts = String(fk.unique_constraint_name).match(/^(.+?)_(.+?)_pkey$/);
+    const referencedTable = pkParts?.[1] || "";
+    const referencedColumn = pkParts?.[2] || "";
+
+    return {
+      constraint_name: String(fk.constraint_name),
+      referenced_table: referencedTable,
+      referenced_column: referencedColumn,
+    };
+  });
+}
+
 Deno.test("createTableFromSchema - creates tables, enums, and constraints", async () => {
   // 1. Setup: In-memory DuckDB and test configuration
   const connection = await DuckDBConnection.create();
@@ -150,8 +242,15 @@ Deno.test("createTableFromSchema - creates tables, enums, and constraints", asyn
       "basisOfRecord should not be NOT NULL without profile override",
     );
 
-    // Note: Foreign key constraints are created but verification via PRAGMA foreign_keys
-    // is not available in all DuckDB versions. The FK is created in the table DDL.
+    // Verify Foreign Key constraint from occurrence.eventID to event.eventID
+    const hasForeignKey = await verifyForeignKey(
+      connection,
+      "occurrence",
+      "eventID",
+      "event",
+      "eventID",
+    );
+    assert(hasForeignKey, "Occurrence should have a foreign key to Event via eventID");
   } finally {
     // 4. Teardown
     connection.closeSync();
@@ -304,8 +403,112 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
       "mof.measurementID should be PK",
     );
 
-    // Note: Foreign key constraints are created in the table DDL but verification via
-    // PRAGMA foreign_keys is not available in all DuckDB versions
+    // Verify Foreign Keys
+    // 1. From Occurrence to Event
+    const occHasEventFK = await verifyForeignKey(
+      connection,
+      "occurrence",
+      "eventID",
+      "event",
+      "eventID",
+    );
+    assert(occHasEventFK, "Occurrence should have a foreign key to Event");
+
+    // 2. From ExtendedMeasurementOrFact to Event
+    const mofHasEventFK = await verifyForeignKey(
+      connection,
+      "extendedmeasurementorfact",
+      "eventID",
+      "event",
+      "eventID",
+    );
+    assert(mofHasEventFK, "ExtendedMeasurementOrFact should have a foreign key to Event");
+
+    // 3. From ExtendedMeasurementOrFact to Occurrence
+    const mofHasOccurrenceFK = await verifyForeignKey(
+      connection,
+      "extendedmeasurementorfact",
+      "occurrenceID",
+      "occurrence",
+      "occurrenceID",
+    );
+    assert(
+      mofHasOccurrenceFK,
+      "ExtendedMeasurementOrFact should have a foreign key to Occurrence",
+    );
+  } finally {
+    connection.closeSync();
+  }
+});
+
+Deno.test("createTableFromSchema - comprehensive FK verification", async () => {
+  const connection = await DuckDBConnection.create();
+
+  const config: WorkspaceConfig = {
+    version: "1",
+    name: "",
+    id: "",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    transform: {
+      nullValues: [],
+      inputs: {},
+      postImportTransforms: [],
+      datasets: [
+        { name: "Event", profile: "Event", source: { test: "" }, fields: {} },
+        { name: "Occurrence", profile: "Occurrence", source: { test: "" }, fields: {} },
+      ],
+      output: {
+        outputDir: "",
+        exportDB: false,
+      },
+    },
+  };
+
+  try {
+    await Effect.runPromise(createTableFromSchema(connection, config));
+
+    // Test 1: Verify specific FK exists
+    const hasFK = await verifyForeignKey(
+      connection,
+      "occurrence",
+      "eventID",
+      "event",
+      "eventID",
+    );
+    assert(hasFK, "Should detect existing FK from occurrence to event");
+
+    // Test 2: Verify non-existent FK returns false
+    const hasInvalidFK = await verifyForeignKey(
+      connection,
+      "occurrence",
+      "nonExistentColumn",
+      "event",
+      "eventID",
+    );
+    assertEquals(hasInvalidFK, false, "Should return false for non-existent FK");
+
+    // Test 3: Get all FKs for a table
+    const occurrenceFKs = await getForeignKeys(connection, "occurrence");
+    assertEquals(occurrenceFKs.length, 1, "Occurrence should have exactly 1 FK");
+    assertEquals(occurrenceFKs[0].referenced_table, "event", "FK should reference event table");
+    assertEquals(
+      occurrenceFKs[0].referenced_column,
+      "eventid",
+      "FK should reference eventID column (lowercase in constraint)",
+    );
+
+    // Test 4: Verify table with no FKs
+    const eventFKs = await getForeignKeys(connection, "event");
+    assertEquals(eventFKs.length, 0, "Event table should have no foreign keys");
+
+    // Test 5: Verify FK constraint naming follows convention
+    const expectedConstraintName = "occurrence_eventid_eventid_fkey";
+    assertEquals(
+      occurrenceFKs[0].constraint_name,
+      expectedConstraintName,
+      "FK constraint should follow naming convention",
+    );
   } finally {
     connection.closeSync();
   }
