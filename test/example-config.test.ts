@@ -48,38 +48,4 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
   assertEquals(fkRule.targetDataset, "events");
   assertEquals(fkRule.sourceField, "eventID");
   assertEquals(fkRule.targetField, "eventID");
-
-  // Log validation summary for documentation
-  console.log("\n=== FC2022 Validation Summary ===");
-  console.log(`Total datasets: ${result.summary.totalDatasets}`);
-  console.log(`Total rows processed: ${result.summary.totalRowsProcessed}`);
-  console.log(`Processing time: ${result.totalProcessingTimeMs}ms`);
-  console.log(`Overall status: ${result.overallStatus}`);
-  console.log("\nNote: This validates real marine biodiversity data including:");
-  console.log("  - Date fields (year, month, day, eventDate)");
-  console.log("  - Geographic coordinates (decimalLatitude, decimalLongitude)");
-  console.log("  - Controlled vocabularies (basisOfRecord, occurrenceStatus)");
-  console.log("  - Cross-dataset foreign keys (occurrence.eventID -> event.eventID)");
-
-  console.log("\n--- Dataset Results ---");
-  for (const dataset of result.datasetResults) {
-    console.log(`\n${dataset.datasetName} (${dataset.spec}):`);
-    console.log(`  Rows: ${dataset.rowsProcessed}`);
-    console.log(`  Status: ${dataset.status}`);
-    console.log(`  Type errors: ${dataset.typeErrors.length}`);
-    console.log(`  Required field errors: ${dataset.requiredFieldErrors.length}`);
-    console.log(`  Violation errors: ${dataset.violations.errors.length}`);
-    console.log(`  Violation warnings: ${dataset.violations.warnings.length}`);
-    console.log(`  Violation info: ${dataset.violations.info.length}`);
-  }
-
-  console.log("\n--- Cross-Dataset Validation ---");
-  for (const rule of result.crossDatasetResults || []) {
-    console.log(
-      `\n${rule.sourceDataset}.${rule.sourceField} -> ${rule.targetDataset}.${rule.targetField}:`,
-    );
-    console.log(`  Violations: ${rule.violations.length}`);
-  }
-
-  console.log("\n=================================\n");
 });

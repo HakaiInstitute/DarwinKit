@@ -34,7 +34,6 @@ export async function getWorkspace(id: string): Promise<Workspace> {
     throw new Error(`Failed to fetch workspace: ${response.statusText}`);
   }
   const data = await response.json();
-  // Schema already transforms fields array to Map during decode
   return S.decodeUnknownSync(workspaceSchema)(data);
 }
 

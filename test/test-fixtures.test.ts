@@ -60,10 +60,6 @@ Deno.test("Test fixtures - fc2022-complete config loads successfully", async () 
 
   // Verify cross-dataset rules
   assertEquals(result.config.crossDatasetRules?.length, 2);
-
-  console.log("\n✅ fc2022-complete config loaded successfully");
-  console.log(`   - ${result.config.validation?.datasets.length} datasets`);
-  console.log(`   - ${result.config.crossDatasetRules?.length} cross-dataset rules`);
 });
 
 Deno.test("Test fixtures - mixed-validity config loads successfully", async () => {
@@ -93,9 +89,6 @@ Deno.test("Test fixtures - mixed-validity config loads successfully", async () =
   assertEquals(dataset?.name, "occurrence_data");
   assertEquals(dataset?.spec, "dwc-occurrence");
   assertEquals(dataset?.path, "data/mixed_occ.csv");
-
-  console.log("\n✅ mixed-validity config loaded successfully");
-  console.log(`   - Purpose: Test mixed valid/invalid records`);
 });
 
 Deno.test("Test fixtures - na-type-failures config loads successfully", async () => {
@@ -125,10 +118,6 @@ Deno.test("Test fixtures - na-type-failures config loads successfully", async ()
   assertEquals(result.config.validation.nullValues.includes("N/A"), false);
   assertEquals(result.config.validation.nullValues.includes(""), true);
   assertEquals(result.config.validation.nullValues.includes("NULL"), true);
-
-  console.log("\n✅ na-type-failures config loaded successfully");
-  console.log(`   - Purpose: Test NA values cause failures when not in nullValues`);
-  console.log(`   - nullValues: ${result.config.validation.nullValues.join(", ")}`);
 });
 
 Deno.test("Test fixtures - all configs use datasets array format", async () => {
@@ -164,7 +153,4 @@ Deno.test("Test fixtures - all configs use datasets array format", async () => {
       );
     }
   }
-
-  console.log("\n✅ All test fixture configs use datasets array format");
-  console.log(`   - Verified ${configs.length} configurations`);
 });

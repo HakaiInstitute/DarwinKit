@@ -67,22 +67,14 @@ E4,2022,6,32,2022-06-32`;
     assertEquals(result.datasetResults.length, 1);
 
     const datasetResult = result.datasetResults[0];
-    console.log("\n=== Date Validation Results ===");
-    console.log(`Status: ${datasetResult.status}`);
 
     // Check for specific date range violations
     const rangeErrors = datasetResult.violations.errors
       .filter(isRangeViolation);
 
-    console.log(`Range violations: ${rangeErrors.length}`);
-    for (const violation of rangeErrors) {
-      console.log(`  Row ${violation.rowNumber}: ${violation.fieldName} = ${violation.value}`);
-    }
-
     // Should have violations for:
     // - month 13 (> 12)
     // - day 32 (> 31)
-    // Note: year validation may not be enforced in base Darwin Core spec
     const monthViolation = rangeErrors.find((v) => v.fieldName === "month");
     const dayViolation = rangeErrors.find((v) => v.fieldName === "day");
 
