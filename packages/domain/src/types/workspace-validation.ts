@@ -59,57 +59,6 @@ export interface DatasetValidationResult {
     readonly message: string;
   }>;
 
-  /**
-   * @deprecated REMOVED. Use violations.errors instead.
-   * This field has been removed as part of the migration to enforcement-level partitioning.
-   */
-  readonly vocabularyErrors?: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly violations: ReadonlyArray<{
-      readonly rowNumber: number;
-      readonly value: string;
-      readonly csvValue?: string;
-      readonly transformedValue?: unknown;
-      readonly transformationChain?: TransformationChain;
-      readonly errorMessage?: string;
-      readonly suggestedValues?: ReadonlyArray<string>;
-    }>;
-  }>;
-
-  /**
-   * @deprecated REMOVED. Use violations.errors/warnings instead.
-   * This field has been removed as part of the migration to enforcement-level partitioning.
-   */
-  readonly uniquenessViolations?: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly duplicateValue: string;
-    readonly csvValue?: string;
-    readonly transformedValue?: unknown;
-    readonly transformationChain?: TransformationChain;
-    readonly occurrenceCount: number;
-    readonly affectedRows: ReadonlyArray<number>;
-  }>;
-
-  /**
-   * @deprecated REMOVED. Use violations.errors/warnings/info instead.
-   * This field has been removed as part of the migration to enforcement-level partitioning.
-   */
-  readonly constraintViolations?: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly constraintType: string;
-    readonly violations: ReadonlyArray<{
-      readonly rowNumber: number;
-      readonly value: string;
-      readonly csvValue?: string;
-      readonly transformedValue?: unknown;
-      readonly transformationChain?: TransformationChain;
-      readonly errorMessage: string;
-    }>;
-  }>;
-
   // Field warnings (strongly recommended fields that are missing)
   readonly warnings: ReadonlyArray<{
     readonly fieldName: string;
