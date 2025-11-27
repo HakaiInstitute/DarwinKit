@@ -130,7 +130,7 @@ export function createTableFromSchema(
           // Check if this is a controlled vocabulary field
           // Profile fields use `type === "controlled-vocabulary"` and may have `values`
           if (field.type === "controlled-vocabulary" && field.values) {
-            const enumName = `${tableName}_${fieldName}_enum`;
+            const enumName = `${tableName}_${fieldName.toLowerCase()}_enum`;
             const enumValues = Object.keys(field.values).map((v: string) => `'${v}'`).join(", ");
             return `CREATE TYPE IF NOT EXISTS ${enumName} AS ENUM (${enumValues});`;
           }
@@ -143,18 +143,27 @@ export function createTableFromSchema(
         const field = transformProfile.fields![fieldName];
         const fieldType = (field.type?.toUpperCase() || "TEXT")
           .replace("IDENTIFIER", "TEXT")
-          .replace("CONTROLLED-VOCABULARY", `${tableName}_${fieldName}_enum`)
+          .replace("CONTROLLED-VOCABULARY", `${tableName}_${fieldName.toLowerCase()}_enum`)
           .replace("URI", "TEXT");
         let fieldStr = `"${fieldName}" ${fieldType}`;
         // Check if this field is the primary identifier for this table
         // Profile fields use simple name matching (e.g., occurrenceID for Occurrence table)
-        if (fieldName === tableName + "ID") {
+        // or check if field is marked as unique identifier
+        const isUniqueIdentifier = (field as any).unique === "true" ||
+          (field as any).unique === true;
+        if (fieldName === tableName + "ID" || (fieldName.endsWith("ID") && isUniqueIdentifier)) {
           fieldStr += " PRIMARY KEY";
-        } else if (field.obis_required === "required") {
+        } else if (
+          transformProfile.fieldOverrides?.[fieldName]?.requirement === "required"
+        ) {
+          // Only apply NOT NULL if this specific profile marks the field as required
           fieldStr += " NOT NULL";
         }
         // add foreign key constraints for fields
-        if (fieldName.endsWith("ID") && fieldName != tableName + "ID") {
+        // Skip FK for this table's PK, but include it for other ID fields
+        const isPrimaryKey = fieldName === tableName + "ID" ||
+          (fieldName.endsWith("ID") && isUniqueIdentifier);
+        if (fieldName.endsWith("ID") && !isPrimaryKey) {
           const referencedTable = fieldName.slice(0, -2).toLowerCase();
           // check if referenced table exists in config
           if (
@@ -244,9 +253,12 @@ export function populateSchemaFromDataTables( // Export for testing
         ));
       }
       const tableName = transformProfile.name.toLowerCase();
-      const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) =>
-        `(${joinSQL}) AS ${tableName}`
-      ).join(", ");
+      const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) => {
+        // Simple table names don't contain spaces, just an identifier
+        // Only wrap subqueries in parentheses, not simple table names
+        const isSimpleTable = !joinSQL.trim().includes(" ");
+        return isSimpleTable ? `${joinSQL} AS ${tableName}` : `(${joinSQL}) AS ${tableName}`;
+      }).join(", ");
       const insertSQL = `INSERT INTO ${tableName} (${targetColumnNames.join(", ")}) SELECT ${
         columnCalculations.join(", ")
       } FROM ${tableSources};`;

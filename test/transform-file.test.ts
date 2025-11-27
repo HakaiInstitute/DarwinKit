@@ -59,6 +59,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
         exportDB: true,
         outputFilesWithTimestamp: false,
         exportDBFileName: "final_db",
+        dropNullColumns: true,
       },
     },
   };
@@ -75,14 +76,14 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     await Effect.runPromise(transformFile(configPath));
 
     // 4. Assert: Verify the output files
-    // Assert CSV output
+    // Assert CSV output (json-2-csv default format is unquoted)
     const eventCsvContent = await Deno.readTextFile(join(outputDir, "event.csv"));
-    assertEquals(eventCsvContent.trim(), `"eventID","year"\n"evt01",2024`);
+    assertEquals(eventCsvContent.trim(), `eventID,year\nevt01,2024`);
 
     const occCsvContent = await Deno.readTextFile(join(outputDir, "occurrence.csv"));
     assertEquals(
       occCsvContent.trim(),
-      `"occurrenceID","eventID","basisOfRecord"\n"occ01","evt01","HumanObservation"`,
+      `basisOfRecord,occurrenceID,eventID\nHumanObservation,occ01,evt01`,
     );
 
     // Assert persistent DB output
@@ -91,19 +92,22 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     assertExists(stat.isFile, "Database file should be created");
 
     // Connect to the created DB and verify its contents
-    const connection = await DuckDBConnection.create();
+    const dbConnection = await DuckDBConnection.create();
+    await dbConnection.run(`ATTACH '${dbPath}' AS persisted_db;`);
 
-    const eventRows = (await connection.runAndReadAll("SELECT * FROM event;")).getRowObjects();
+    const eventRows = (await dbConnection.runAndReadAll("SELECT * FROM persisted_db.event;"))
+      .getRowObjects();
     assertEquals(eventRows.length, 1);
     assertEquals(eventRows[0].eventID, "evt01");
     assertEquals(eventRows[0].year, 2024);
 
-    const occRows = (await connection.runAndReadAll("SELECT * FROM occurrence;")).getRowObjects();
+    const occRows = (await dbConnection.runAndReadAll("SELECT * FROM persisted_db.occurrence;"))
+      .getRowObjects();
     assertEquals(occRows.length, 1);
     assertEquals(occRows[0].occurrenceID, "occ01");
     assertEquals(occRows[0].basisOfRecord, "HumanObservation");
 
-    connection.closeSync();
+    dbConnection.closeSync();
   } finally {
     // 5. Teardown
     await Deno.remove(workspaceDir, { recursive: true });

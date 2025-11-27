@@ -72,21 +72,37 @@ function mergeProfiles(parent: ValidationProfile, child: ValidationProfile): Val
  * are merged with the child's (child takes precedence).
  */
 export function getValidationProfile(profileId: string): ValidationProfile | undefined {
-  // const profile = VALIDATION_PROFILES[profileId];
-  const profile: ValidationProfile | undefined =
+  // Try to get profile from TypeScript registry first
+  const tsProfile = VALIDATION_PROFILES[profileId];
+  if (tsProfile) {
+    // Resolve inheritance chain for TypeScript profiles
+    if (tsProfile.extends) {
+      const parent = getValidationProfile(tsProfile.extends);
+      if (parent) {
+        return mergeProfiles(parent, tsProfile);
+      }
+    }
+    return tsProfile;
+  }
+
+  // Fall back to JSON schema (for base Darwin Core profiles like "Event", "Occurrence")
+  const jsonProfile: ValidationProfile | undefined =
     (DWC_SCHEMA as unknown as Record<string, ValidationProfile>)[profileId];
 
-  if (!profile) return undefined;
+  if (!jsonProfile) return undefined;
+
+  // JSON profiles use the schema as-is without extracting obis_required metadata
+  // obis_required is only enforced when using explicit OBIS profiles like "obis-event"
 
   // Resolve inheritance chain
-  if (profile.extends) {
-    const parent = getValidationProfile(profile.extends);
+  if (jsonProfile.extends) {
+    const parent = getValidationProfile(jsonProfile.extends);
     if (parent) {
-      return mergeProfiles(parent, profile);
+      return mergeProfiles(parent, jsonProfile);
     }
   }
 
-  return profile;
+  return jsonProfile;
 }
 
 /**
