@@ -254,7 +254,7 @@ export class WorkspaceConfigService {
 
       // Check transform inputs if present
       if ("transform" in config && config.transform) {
-        for (const path of Object.values(config.transform.inputs)) {
+        for (const [inputName, path] of Object.entries(config.transform.inputs)) {
           if (typeof path !== "string") continue;
 
           const filePath = resolve(base, path);
@@ -265,7 +265,7 @@ export class WorkspaceConfigService {
               catch: () =>
                 new DatasetFileNotFoundError({
                   message: `Transform input file not found: ${filePath}`,
-                  datasetName: "transform-input",
+                  datasetName: inputName,
                   filePath,
                 }),
             }),
