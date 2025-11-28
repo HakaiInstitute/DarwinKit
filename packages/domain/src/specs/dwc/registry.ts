@@ -133,7 +133,9 @@ export function getExtensionField(
   if (!(extension in DWC_FIELDS_BY_EXTENSION)) {
     return undefined;
   }
-  return DWC_FIELDS_BY_EXTENSION[extension as keyof typeof DWC_FIELDS_BY_EXTENSION][fieldName];
+  const extensionFields =
+    DWC_FIELDS_BY_EXTENSION[extension as keyof typeof DWC_FIELDS_BY_EXTENSION];
+  return extensionFields[fieldName as keyof typeof extensionFields];
 }
 
 /**

@@ -396,7 +396,7 @@ function validateDataset(
       // Use extension-specific lookup to get context-appropriate field definitions
       // (e.g., eventID in Event tables has unique validator, but not in Occurrence tables)
       const baseField = specInfo.spec === "dwc"
-        ? getExtensionField(specInfo.extension, mapping.targetName) ||
+        ? getExtensionField(specInfo.type, mapping.targetName) ||
           getDWCField(mapping.targetName)
         : undefined;
 
