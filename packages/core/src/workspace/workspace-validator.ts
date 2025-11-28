@@ -16,7 +16,7 @@ import type {
   DatasetConfig,
   DatasetValidationResult,
   EnforcementLevel,
-  FieldDefinition,
+  NormalizedField,
   ValidationProfile,
   ValidationSettings,
   ValidationViolation,
@@ -31,12 +31,9 @@ import {
   enforcementToSeverity,
   ErrorCode,
   FieldRequirementLevel,
-  getDWCField,
-  getExtensionField,
   getValidationProfile,
   getVocabularyValues,
   hasControlledVocabulary,
-  isIdentifierField,
   isValidVocabularyValue,
   parseSpecIdentifier,
   RangeViolation,
@@ -148,8 +145,24 @@ export class WorkspaceValidator {
           const datasetResults: DatasetValidationResult[] = [];
 
           for (const dataset of config.datasets) {
+            // Use dataset-level profile if specified, otherwise use validation-level profile,
+            // otherwise derive from spec field
+            let datasetProfile = dataset.profile
+              ? getValidationProfile(dataset.profile)
+              : validationProfile;
+
+            // If still no profile, try to derive from spec field
+            if (!datasetProfile && dataset.spec) {
+              const parsed = parseSpecIdentifier(dataset.spec);
+              if (parsed) {
+                // Capitalize the type to match profile names (e.g., "event" -> "Event")
+                const derivedProfileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+                datasetProfile = getValidationProfile(derivedProfileId);
+              }
+            }
+
             const result = yield* _(
-              validateDataset(connection, dataset, validationProfile),
+              validateDataset(connection, dataset, datasetProfile),
             );
 
             datasetResults.push(result);
@@ -264,16 +277,16 @@ function createWorkspaceFromConfig(
  * Priority: field override > profile > base spec
  */
 function mergeFieldDefinition(
-  baseField: FieldDefinition | undefined,
+  baseField: NormalizedField | undefined,
   profile: ValidationProfile | undefined,
   fieldMapping: WorkspaceFieldMapping,
-): FieldDefinition | undefined {
+): NormalizedField | undefined {
   if (!baseField) {
     return undefined;
   }
 
   // Start with base field
-  let merged = { ...baseField };
+  let merged: NormalizedField = { ...baseField };
 
   // Apply profile overrides if profile exists and has overrides for this field
   if (profile && profile.fieldOverrides[fieldMapping.targetName]) {
@@ -302,7 +315,7 @@ function mergeFieldDefinition(
     };
   }
 
-  return merged as FieldDefinition;
+  return merged;
 }
 
 /**
@@ -392,22 +405,31 @@ function validateDataset(
 
     // Validate each field mapping
     for (const mapping of dataset?.fieldMappings || []) {
-      // Get base spec field definition from the Darwin Core registry
-      // Use extension-specific lookup to get context-appropriate field definitions
-      // (e.g., eventID in Event tables has unique validator, but not in Occurrence tables)
-      const baseField = specInfo.spec === "dwc"
-        ? getExtensionField(specInfo.type, mapping.targetName) ||
-          getDWCField(mapping.targetName)
-        : undefined;
-
-      // Validate that mapped fields exist in Darwin Core when using dwc spec
-      if (!baseField && specInfo.spec === "dwc") {
-        // Unknown Darwin Core field
+      // Require profile for validation - normalized fields are the source of truth
+      if (!profile?.normalizedFields) {
         requiredFieldErrors.push({
           fieldName: mapping.originName,
           targetName: mapping.targetName,
           message:
-            `Unknown Darwin Core schema field: ${mapping.targetName}. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
+            `No validation profile specified for dataset '${dataset.name}'. Please add a 'profile' property to the dataset configuration.`,
+        });
+        continue;
+      }
+
+      // Get field from normalized profile (already normalized at load time)
+      // Use normalizedFields for validation (keeps raw fields for transformation)
+      const baseField = profile.normalizedFields?.[mapping.targetName] as
+        | NormalizedField
+        | undefined;
+
+      // Validate that mapped fields exist in profile
+      if (!baseField) {
+        // Unknown field in profile
+        requiredFieldErrors.push({
+          fieldName: mapping.originName,
+          targetName: mapping.targetName,
+          message:
+            `Unknown field '${mapping.targetName}' in profile '${profile.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
         });
         continue;
       }
@@ -461,6 +483,7 @@ function validateDataset(
             specField,
           ),
         );
+
         if (rangeViolations.length > 0) {
           // NEW: Add to allViolations for partitioning
           allViolations.push(...rangeViolations);
@@ -485,7 +508,12 @@ function validateDataset(
         }
 
         // Uniqueness validation for fields with explicit unique validators
-        const hasUniqueValidator = specField.validators?.some((v) => v.type === "unique");
+        // Handle both JSON schema format (validators: string[]) and FieldDefinition format (validators: ValidatorConfig[])
+        const hasUniqueValidator = specField.validators
+          ? (specField.validators.some((v) =>
+            typeof v === "string" ? v === "uniqueIdentifier" : v.type === "unique"
+          ))
+          : false;
         if (hasUniqueValidator) {
           const uniqueResult = yield* _(
             validateUniqueness(
@@ -621,11 +649,11 @@ function validateCrossDatasetRule(
 ): Effect.Effect<CrossDatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     // Map string enforcement to EnforcementLevel
-    const enforcement: EnforcementLevel = (rule.enforcement === "recommended"
+    const enforcement: EnforcementLevel = rule.enforcement === "recommended"
       ? "recommended"
       : rule.enforcement === "optional"
       ? "optional"
-      : "required") as EnforcementLevel;
+      : "required";
 
     // Get fully-formed violations
     const crossDatasetViolations = yield* _(
@@ -772,7 +800,7 @@ function findRangeViolations(
   tableName: string,
   fieldName: string,
   validator: ValidatorConfig,
-  specField: FieldDefinition,
+  specField: NormalizedField,
 ): Effect.Effect<RangeViolation[], never> {
   return Effect.gen(function* (_) {
     const { min, max, inclusive = true } = validator.params || {};
@@ -829,7 +857,7 @@ function findRangeViolations(
         value: String(row.value),
         errorMessage: validator.message || `Value out of range`,
         validatorType: validator.type,
-        params: validator.params as { min?: number; max?: number } | undefined,
+        params: validator.params,
       })
     );
   });
@@ -844,17 +872,38 @@ function validateRangeConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: NormalizedField,
 ): Effect.Effect<ValidationViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     const violations: ValidationViolation[] = [];
 
-    // Get range validators from field definition
-    const rangeValidators = specField.validators?.filter((v) => v.type === "range") || [];
+    if (!specField.validators || !Array.isArray(specField.validators)) {
+      return violations;
+    }
+
+    // Get range validators (now always ValidatorConfig[] after normalization)
+    const rangeValidators = specField.validators.filter((v) => v.type === "range");
 
     for (const validator of rangeValidators) {
+      // Normalize validator format: JSON schema may have min/max at top level,
+      // but ValidatorConfig expects them under params
+      // Treat validator as unknown to safely check for legacy top-level properties
+      const validatorUnknown = validator as unknown as Record<string, unknown>;
+      const normalizedValidator = {
+        type: validator.type,
+        enforcement: validator.enforcement || "required",
+        message: validator.message,
+        params: validator.params || {
+          min: typeof validatorUnknown.min === "number" ? validatorUnknown.min : undefined,
+          max: typeof validatorUnknown.max === "number" ? validatorUnknown.max : undefined,
+          inclusive: typeof validatorUnknown.inclusive === "boolean"
+            ? validatorUnknown.inclusive
+            : true,
+        },
+      };
+
       const rangeViolations = yield* _(
-        findRangeViolations(connection, tableName, fieldName, validator, specField),
+        findRangeViolations(connection, tableName, fieldName, normalizedValidator, specField),
       );
 
       violations.push(...rangeViolations);
@@ -873,7 +922,10 @@ function validateRangeConstraints(
  * Converts vocabulary-specific enforcement to standard enforcement levels:
  * - strict → required (ERROR)
  * - recommended → recommended (WARNING)
- * - loose → optional (INFO)
+ * - loose → (no violations generated - any value accepted)
+ *
+ * Note: This mapping is only used for strict/recommended enforcement.
+ * Loose enforcement is handled separately by skipping validation entirely.
  */
 function vocabularyEnforcementToStandard(
   vocabEnforcement: VocabularyEnforcement,
@@ -884,21 +936,21 @@ function vocabularyEnforcementToStandard(
     case "recommended":
       return "recommended";
     case "loose":
-      return "optional";
+      return "optional"; // Not actually used - loose enforcement skips validation
   }
 }
 
 /**
- * Find vocabulary violations
+ * Find vocabulary violations using a list of valid values (JSON schema format)
  *
  * Returns fully-formed VocabularyViolation objects with all metadata.
  */
-function findVocabularyViolations(
+function findVocabularyViolationsFromValues(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  vocabularyKey: VocabularyKey,
-  specField: FieldDefinition,
+  validValues: string[],
+  specField: NormalizedField,
   enforcement: EnforcementLevel,
   caseSensitive = false,
 ): Effect.Effect<VocabularyViolation[], WorkspaceValidationError> {
@@ -934,10 +986,92 @@ function findVocabularyViolations(
       // DuckDB LIST types are returned as { items: [...] } objects
       let rowNumbers: number[] = [];
       if (Array.isArray(rawRowNumbers)) {
-        rowNumbers = (rawRowNumbers as Array<unknown>).map((n) => Number(n));
+        rowNumbers = rawRowNumbers.map((n) => Number(n));
       } else if (rawRowNumbers && typeof rawRowNumbers === "object" && "items" in rawRowNumbers) {
-        const items = (rawRowNumbers as { items: unknown[] }).items;
-        rowNumbers = items.map((n) => Number(n));
+        rowNumbers = rawRowNumbers.items.map((n) => Number(n));
+      }
+
+      // Check if value is valid in vocabulary
+      let isValid = false;
+      if (caseSensitive) {
+        isValid = validValues.includes(value);
+      } else {
+        const lowerValue = value.toLowerCase();
+        isValid = validValues.some((v) => v.toLowerCase() === lowerValue);
+      }
+
+      if (!isValid) {
+        // Add violation for each row with this invalid value
+        for (const rowNum of rowNumbers) {
+          violations.push(
+            new VocabularyViolation({
+              enforcement,
+              severity: enforcementToSeverity(enforcement),
+              fieldName,
+              targetName: specField.name,
+              rowNumber: Number(rowNum),
+              value,
+              errorMessage: `Invalid vocabulary value: "${value}"`,
+              validatorType: "vocabulary",
+              // TODO: Add fuzzy matching for suggestions
+            }),
+          );
+        }
+      }
+    }
+
+    return violations;
+  });
+}
+
+/**
+ * Find vocabulary violations using vocabulary key (TypeScript FieldDefinition format)
+ *
+ * Returns fully-formed VocabularyViolation objects with all metadata.
+ */
+function findVocabularyViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  vocabularyKey: VocabularyKey,
+  specField: NormalizedField,
+  enforcement: EnforcementLevel,
+  caseSensitive = false,
+): Effect.Effect<VocabularyViolation[], WorkspaceValidationError> {
+  return Effect.gen(function* (_) {
+    // Get distinct values from the field with row numbers
+    const query = `
+      WITH numbered_rows AS (
+        SELECT
+          "${fieldName}",
+          row_number() OVER() as row_num
+        FROM ${tableName}
+        WHERE "${fieldName}" IS NOT NULL
+      )
+      SELECT
+        "${fieldName}" as value,
+        list(row_num) as row_numbers
+      FROM numbered_rows
+      GROUP BY "${fieldName}"
+    `;
+
+    // SQL query execution should work - query failure is a defect
+    const result = yield* _(
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    );
+
+    const rows = result.getRowObjects();
+    const violations: VocabularyViolation[] = [];
+
+    for (const row of rows) {
+      const value = String(row.value);
+      const rawRowNumbers = row.row_numbers;
+
+      let rowNumbers: number[] = [];
+      if (Array.isArray(rawRowNumbers)) {
+        rowNumbers = rawRowNumbers.map((n) => Number(n));
+      } else if (rawRowNumbers && typeof rawRowNumbers === "object" && "items" in rawRowNumbers) {
+        rowNumbers = rawRowNumbers.items.map((n) => Number(n));
       }
 
       // Check if value is valid in vocabulary
@@ -988,7 +1122,7 @@ function validateVocabulary(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: NormalizedField,
 ): Effect.Effect<
   {
     enriched: ValidationViolation[];
@@ -997,11 +1131,17 @@ function validateVocabulary(
   WorkspaceValidationError
 > {
   return Effect.gen(function* (_) {
+    // After normalization, vocabulary config is always present if field has controlled vocabulary
     if (!specField.vocabulary) {
       return { enriched: [], legacy: [] };
     }
 
     const { vocabularyKey, caseSensitive = false, enforcement = "strict" } = specField.vocabulary;
+
+    // Skip validation for loose enforcement - any value is accepted
+    if (enforcement === "loose") {
+      return { enriched: [], legacy: [] };
+    }
 
     // Map vocabulary enforcement to standard enforcement level
     const standardEnforcement = vocabularyEnforcementToStandard(enforcement);
@@ -1042,7 +1182,7 @@ function findUniquenessViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: NormalizedField,
   enforcement: EnforcementLevel,
 ): Effect.Effect<UniquenessViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
@@ -1082,10 +1222,9 @@ function findUniquenessViolations(
       let affectedRows: number[] = [];
       const raw = row.affected_rows;
       if (Array.isArray(raw)) {
-        affectedRows = (raw as Array<unknown>).map((n) => Number(n));
+        affectedRows = raw.map((n) => Number(n));
       } else if (raw && typeof raw === "object" && "items" in raw) {
-        const items = (raw as { items: unknown[] }).items;
-        affectedRows = items.map((n) => Number(n));
+        affectedRows = raw.items.map((n) => Number(n));
       }
 
       // Create one violation per affected row
@@ -1119,7 +1258,7 @@ function validateUniqueness(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: NormalizedField,
 ): Effect.Effect<
   {
     enriched: ValidationViolation[];
@@ -1132,8 +1271,8 @@ function validateUniqueness(
   WorkspaceValidationError
 > {
   return Effect.gen(function* (_) {
-    // Check if field has explicit uniqueness validator with enforcement
-    const uniqueValidator = specField.validators.find((v) => v.type === "unique");
+    // Check if field has explicit uniqueness validator (already normalized)
+    const uniqueValidator = specField.validators?.find((v) => v.type === "unique");
     const enforcement = uniqueValidator?.enforcement ?? "required";
 
     // Get fully-formed violations

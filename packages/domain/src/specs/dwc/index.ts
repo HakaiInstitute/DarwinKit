@@ -57,26 +57,3 @@ export {
   isTaxonomicField,
   isTemporalField,
 } from "../field-definition.ts";
-
-// Darwin Core specification and registry
-export {
-  ALL_DWC_FIELDS,
-  DARWIN_CORE_SPEC,
-  DWC_EXTENSION_METADATA,
-  DWC_FIELDS_BY_EXTENSION,
-  DWC_STATS,
-} from "./registry.ts";
-
-// Darwin Core field lookup functions
-export {
-  getAllDWCFields,
-  getDWCField,
-  getExtensionField,
-  getExtensionFieldNames,
-  getExtensionFields,
-  isDWCField,
-} from "./registry.ts";
-
-// Individual field definitions (for direct access if needed)
-export * as EventFields from "./event.ts";
-export * as OccurrenceFields from "./occurrence.ts";

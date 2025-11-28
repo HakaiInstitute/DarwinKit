@@ -12,9 +12,9 @@ import type { VocabularyKey } from "./registry.ts";
  * Vocabulary enforcement levels
  */
 export const VocabularyEnforcement = S.Literal(
-  "strict", // Only vocabulary values allowed, validation fails otherwise
+  "strict", // Only vocabulary values allowed, validation fails with errors
   "recommended", // Vocabulary values preferred, warnings for non-vocabulary values
-  "loose", // Vocabulary values suggested, any value accepted
+  "loose", // Any value accepted, no violations generated
 );
 
 export type VocabularyEnforcement = S.Schema.Type<typeof VocabularyEnforcement>;

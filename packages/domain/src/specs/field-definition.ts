@@ -11,8 +11,19 @@ import type { SemanticType } from "./semantic-types.ts";
 import type { ValidatorConfig } from "./validators.ts";
 import type { VocabularyConfig } from "./vocabularies/config.ts";
 import { optionalBoolean, optionalNumber, optionalString } from "../schemas/util.ts";
+import type { NormalizedField } from "./normalized-field.ts";
+import type { field } from "../types/validation-profile.ts";
 
 /**
+ * @deprecated Use NormalizedField instead.
+ *
+ * This interface predates the JSON schema refactor and has been superseded by
+ * NormalizedField which provides a simpler, more consistent structure for validation.
+ *
+ * FieldDefinition was designed for TypeScript-defined field specifications,
+ * but the system now uses JSON schemas as the source of truth with runtime
+ * normalization to NormalizedField.
+ *
  * Comprehensive field definition with semantic types and validation
  */
 export interface FieldDefinition extends BaseEntity {
@@ -181,9 +192,31 @@ export const FieldDefinitionSchema = S.Struct({
 
 /**
  * Check if a field uses controlled vocabulary
+ *
+ * Supports multiple field formats for backward compatibility:
+ * - NormalizedField (recommended): has 'vocabulary' property
+ * - FieldDefinition (deprecated): has 'semanticType' and 'vocabulary'
+ * - Raw JSON schema: has 'values' object
  */
-export function hasControlledVocabulary(field: FieldDefinition): boolean {
-  return field.semanticType === "controlled-vocabulary" && !!field.vocabulary;
+export function hasControlledVocabulary(
+  field: NormalizedField | FieldDefinition | field,
+): boolean {
+  // NormalizedField format (recommended - has 'vocabulary' but no 'semanticType')
+  if ("vocabulary" in field && field.vocabulary && !("semanticType" in field)) {
+    return true;
+  }
+
+  // FieldDefinition format (deprecated)
+  if ("semanticType" in field && "vocabulary" in field) {
+    return field.semanticType === "controlled-vocabulary" && !!field.vocabulary;
+  }
+
+  // JSON schema format (has 'values' object - used before normalization)
+  if ("values" in field && field.values) {
+    return typeof field.values === "object" && Object.keys(field.values).length > 0;
+  }
+
+  return false;
 }
 
 /**

@@ -37,6 +37,7 @@ export const datasetConfigSchema = S.Struct({
   spec: S.String,
   path: S.String,
   description: S.optional(S.String),
+  profile: S.optional(S.String),
   fieldMappings: S.Array(workspaceFieldMappingSchema),
 });
 

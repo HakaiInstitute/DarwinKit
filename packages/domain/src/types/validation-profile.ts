@@ -5,6 +5,23 @@
  * base Darwin Core specifications. Profiles represent target-specific needs
  * (e.g., OBIS, GBIF) or custom validation criteria.
  *
+ * ## Dual-Purpose Field Storage
+ *
+ * ValidationProfile maintains two representations of field metadata:
+ *
+ * 1. **fields**: Raw field metadata from JSON schema
+ *    - Used by transformation logic for SQL DDL generation
+ *    - Contains: type, unique, values (controlled vocabularies)
+ *    - Format matches Darwin Core JSON schema structure
+ *
+ * 2. **normalizedFields**: Processed field definitions
+ *    - Used by validation logic for data quality checks
+ *    - Contains: validators (structured), vocabulary (processed)
+ *    - Provides consistent structure regardless of source format
+ *
+ * This separation allows transformation and validation to operate independently
+ * while sharing the same profile definition.
+ *
  * Merge Priority: field override > profile > base spec
  */
 
@@ -35,6 +52,40 @@ export enum FieldRequirementLevel {
 
   /** Field is completely optional; no validation requirements */
   Optional = "optional",
+}
+
+/**
+ * Field definition from JSON schema
+ *
+ * Represents the raw structure of fields in the dwcSchema.json file.
+ *
+ * @internal This type is used internally for normalization and should not be used
+ * directly in application code. Use NormalizedField instead for validation logic.
+ *
+ * Note: This is different from FieldDefinition (deprecated TypeScript structure).
+ * The lowercase naming indicates this is a raw format from JSON schema.
+ */
+/**
+ * Raw field definition from JSON schema
+ *
+ * Validators can be either strings (legacy format) or ValidatorConfig objects
+ */
+export interface field {
+  readonly group: string;
+  readonly name: string;
+  readonly label: string;
+  readonly namespace: string;
+  readonly qualName: string;
+  readonly "dc:relation": string;
+  readonly "dc:description": string;
+  readonly gbif_required: string;
+  readonly type: string;
+  readonly obis_required: string;
+  readonly validators?: ReadonlyArray<string | Record<string, unknown>>;
+  readonly values?: Record<string, unknown>;
+  readonly comments?: string;
+  readonly examples?: string;
+  readonly unique?: string;
 }
 
 // Types derived from schemas

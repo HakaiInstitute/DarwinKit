@@ -21,12 +21,19 @@ export const fieldOverrideSchema = S.Struct({
   enforcement: S.optional(S.Literal("required", "recommended", "optional")),
 });
 
-// Field schema for transform use (raw field metadata)
-export const fieldSchema = S.Struct({
+// Field schema for transform use (raw field metadata from JSON schema)
+// Renamed from fieldSchema to make its purpose clearer
+export const transformFieldSchema = S.Struct({
   type: S.optional(S.String),
   unique: S.optional(S.String),
   values: S.optional(S.Record({ key: S.String, value: S.Unknown })),
 });
+
+// Re-export as fieldSchema for backward compatibility
+export const fieldSchema = transformFieldSchema;
+
+// Import NormalizedFieldSchema for validation use
+import { NormalizedFieldSchema } from "../specs/normalized-field.ts";
 
 // Validation profile schema
 export const validationProfileSchema = S.Struct({
@@ -36,8 +43,13 @@ export const validationProfileSchema = S.Struct({
   targetSchema: S.Literal("obis", "gbif", "custom"),
   extends: S.optional(S.String),
   fieldOverrides: S.Record({ key: S.String, value: fieldOverrideSchema }),
-  // NOTE: fields property is only used by transform functionality, not validation
-  fields: S.optional(S.Record({ key: S.String, value: fieldSchema })),
+
+  // Dual-purpose field storage:
+  // - fields: Raw field metadata for SQL DDL generation (transform functionality)
+  // - normalizedFields: Processed fields with structured validators for validation logic
+  fields: S.optional(S.Record({ key: S.String, value: transformFieldSchema })),
+  normalizedFields: S.optional(S.Record({ key: S.String, value: NormalizedFieldSchema })),
+
   documentationUrl: S.optional(S.String),
   version: S.optional(S.String),
   metadata: S.optional(S.Struct({

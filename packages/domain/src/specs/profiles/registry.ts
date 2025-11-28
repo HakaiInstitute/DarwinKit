@@ -6,12 +6,14 @@
  */
 
 import type {
+  field,
   FieldOverride,
   ValidationProfile,
   ValidationProfileRegistry,
 } from "../../types/validation-profile.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
+import { type NormalizedField, normalizeField } from "../normalized-field.ts";
 import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
 /**
  * All available validation profiles
@@ -57,12 +59,60 @@ function mergeFieldOverrides(
 
 /**
  * Merge parent and child profiles (child overrides parent)
+ *
+ * Inherits fields and normalizedFields from parent, then applies child's fieldOverrides.
  */
 function mergeProfiles(parent: ValidationProfile, child: ValidationProfile): ValidationProfile {
   return {
     ...child,
+    // Inherit field definitions from parent (used for SQL DDL generation)
+    fields: child.fields || parent.fields,
+    // Inherit normalized fields from parent (used for validation)
+    normalizedFields: child.normalizedFields || parent.normalizedFields,
+    // Merge field overrides (child takes precedence)
     fieldOverrides: mergeFieldOverrides(parent.fieldOverrides, child.fieldOverrides),
   };
+}
+
+/**
+ * Normalize a JSON profile by converting field objects to NormalizedField
+ *
+ * This ensures consistent field structure regardless of source (JSON vs TypeScript).
+ * Preserves raw fields for transformation while adding normalized fields for validation.
+ */
+function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
+  // Type guard: ensure jsonProfile is an object
+  if (typeof jsonProfile !== "object" || jsonProfile === null) {
+    throw new Error("Invalid JSON profile: expected object");
+  }
+
+  const profile = jsonProfile as Record<string, unknown>;
+
+  // Normalize fields if they exist
+  const normalizedFields: Record<string, NormalizedField> = {};
+
+  if (
+    "fields" in profile &&
+    typeof profile.fields === "object" &&
+    profile.fields !== null
+  ) {
+    for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
+      try {
+        normalizedFields[fieldName] = normalizeField(fieldValue as field);
+      } catch (error) {
+        console.warn(`Failed to normalize field '${fieldName}':`, error);
+        // Skip invalid fields rather than failing the entire profile
+      }
+    }
+  }
+
+  return {
+    ...profile,
+    // Keep raw fields for transformation (SQL DDL generation)
+    fields: "fields" in profile ? profile.fields : undefined,
+    // Add normalized fields for validation
+    normalizedFields: normalizedFields,
+  } as ValidationProfile;
 }
 
 /**
@@ -86,10 +136,12 @@ export function getValidationProfile(profileId: string): ValidationProfile | und
   }
 
   // Fall back to JSON schema (for base Darwin Core profiles like "Event", "Occurrence")
-  const jsonProfile: ValidationProfile | undefined =
-    (DWC_SCHEMA as unknown as Record<string, ValidationProfile>)[profileId];
+  const rawJsonProfile = (DWC_SCHEMA as unknown as Record<string, any>)[profileId];
 
-  if (!jsonProfile) return undefined;
+  if (!rawJsonProfile) return undefined;
+
+  // Normalize JSON profile to ensure consistent field structure
+  const jsonProfile = normalizeJsonProfile(rawJsonProfile);
 
   // JSON profiles use the schema as-is without extracting obis_required metadata
   // obis_required is only enforced when using explicit OBIS profiles like "obis-event"

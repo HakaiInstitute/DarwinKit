@@ -161,9 +161,8 @@ export class WorkspaceConfigService {
         }),
       );
 
-      // TODO: Create a schema for this data which we can use to parse/validate
-      // deno-lint-ignore no-explicit-any
-      let configJson: any;
+      // Parse as unknown - will be validated by WorkspaceConfig schema below
+      let configJson: unknown;
       if (configPath.endsWith(".yaml") || configPath.endsWith(".yml")) {
         // Parse YAML
         configJson = yield* _(
@@ -195,11 +194,13 @@ export class WorkspaceConfigService {
       }
 
       // Add metadata if missing (keep as strings for schema validation)
+      // Cast to Record to access properties - will be validated by schema below
+      const configRecord = configJson as Record<string, unknown>;
       const configWithMeta = {
-        id: configJson.id || "workspace-" + Date.now(),
-        ...configJson,
-        createdAt: configJson.createdAt || new Date().toISOString(),
-        updatedAt: configJson.updatedAt || new Date().toISOString(),
+        id: configRecord.id || "workspace-" + Date.now(),
+        ...configRecord,
+        createdAt: configRecord.createdAt || new Date().toISOString(),
+        updatedAt: configRecord.updatedAt || new Date().toISOString(),
       };
 
       // Validate against schema

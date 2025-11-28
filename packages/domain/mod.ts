@@ -64,6 +64,9 @@ export * from "./src/constants/darwin-core.ts";
 // Darwin Core Specifications
 export * from "./src/specs/dwc/index.ts";
 
+// Field normalization
+export * from "./src/specs/normalized-field.ts";
+
 // Validation Profiles
 export * from "./src/specs/profiles/registry.ts";
 export * from "./src/specs/profiles/obis.ts";

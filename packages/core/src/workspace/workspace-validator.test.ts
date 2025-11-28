@@ -227,6 +227,7 @@ E1,Canada`;
           name: "events",
           spec: "dwc-event",
           path: "./events.csv",
+          profile: "Event",
           fieldMappings: [
             { originName: "eventID", targetName: "eventID", isRequired: true },
             { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
@@ -282,6 +283,7 @@ E3,-95.0,-125.0`;
           name: "events",
           spec: "dwc-event",
           path: "./events.csv",
+          profile: "Event",
           fieldMappings: [
             { originName: "eventID", targetName: "eventID" },
             { originName: "decimalLatitude", targetName: "decimalLatitude" },
@@ -339,6 +341,7 @@ O3,PreservedSpecimen,Panthera tigris`;
           name: "occurrences",
           spec: "dwc-occurrence",
           path: "./occurrences.csv",
+          profile: "Occurrence",
           fieldMappings: [
             { originName: "occurrenceID", targetName: "occurrenceID" },
             { originName: "basisOfRecord", targetName: "basisOfRecord" },
@@ -397,6 +400,7 @@ E1,Mexico`;
           name: "events",
           spec: "dwc-event",
           path: "./events.csv",
+          profile: "Event",
           fieldMappings: [
             { originName: "eventID", targetName: "eventID" },
             { originName: "country", targetName: "country" },

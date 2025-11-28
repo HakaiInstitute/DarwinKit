@@ -123,19 +123,36 @@ export function createTaggedFormatter<
  * This helper makes it easy to create formatters that handle different
  * error types with type-safe instanceof checks.
  *
- * @param formatters - Array of [constructor, formatter] pairs
+ * Each formatter pair can handle a different error type - the array accepts
+ * heterogeneous error types.
+ *
+ * @param formatters - Array of [constructor, formatter] pairs. Each pair consists of
+ *                     an error constructor and a function that formats that error type.
+ *                     The function will receive a correctly-typed instance when the
+ *                     instanceof check passes at runtime.
  * @param defaultFormatter - Fallback formatter for unknown error types
  * @returns A formatter function that dispatches to the appropriate handler
  */
 export function createMultiErrorFormatter<E>(
-  // deno-lint-ignore no-explicit-any
-  formatters: Array<[any, (error: any) => string]>,
+  formatters: ReadonlyArray<
+    readonly [
+      // Constructor - can construct a type that E might be
+      // deno-lint-ignore no-explicit-any
+      abstract new (...args: any[]) => any,
+      // Formatter - receives the specific error type from the constructor
+      // We use (error: never) => string as a catch-all signature that accepts
+      // any function taking a single parameter and returning string
+      (error: never) => string,
+    ]
+  >,
   defaultFormatter: (error: E) => string = (e) => `Unknown error: ${e}`,
 ): ErrorFormatter<E> {
   return (error: E) => {
     for (const [Constructor, format] of formatters) {
       if (error instanceof Constructor) {
-        return format(error);
+        // The instanceof check ensures error is the correct type for format
+        // TypeScript can't verify this statically, but it's safe at runtime
+        return format(error as never);
       }
     }
     return defaultFormatter(error);
