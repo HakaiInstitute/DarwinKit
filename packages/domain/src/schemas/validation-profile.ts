@@ -21,22 +21,10 @@ export const fieldOverrideSchema = S.Struct({
   enforcement: S.optional(S.Literal("required", "recommended", "optional")),
 });
 
-// Field schema (matches dwcSchema.json structure)
-// This is the raw field metadata from external schema definitions
+// Field schema for transform use (raw field metadata)
 export const fieldSchema = S.Struct({
-  group: S.optional(S.String),
-  name: S.String,
-  label: S.optional(S.String),
-  namespace: S.optional(S.String),
-  qualName: S.optional(S.String),
-  "dc:relation": S.optional(S.String),
-  "dc:description": S.optional(S.String),
-  examples: S.optional(S.String),
-  gbif_required: S.optional(S.String),
-  obis_required: S.optional(S.String),
   type: S.optional(S.String),
   unique: S.optional(S.String),
-  validators: S.optional(S.Array(S.String)),
   values: S.optional(S.Record({ key: S.String, value: S.Unknown })),
 });
 
@@ -48,6 +36,7 @@ export const validationProfileSchema = S.Struct({
   targetSchema: S.Literal("obis", "gbif", "custom"),
   extends: S.optional(S.String),
   fieldOverrides: S.Record({ key: S.String, value: fieldOverrideSchema }),
+  // NOTE: fields property is only used by transform functionality, not validation
   fields: S.optional(S.Record({ key: S.String, value: fieldSchema })),
   documentationUrl: S.optional(S.String),
   version: S.optional(S.String),

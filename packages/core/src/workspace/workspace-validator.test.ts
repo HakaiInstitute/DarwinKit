@@ -33,34 +33,32 @@ E2,O3,HumanObservation,Ursus arctos`;
       nullValues: ["", "NA"],
       failFast: false,
       outputDir: "./output",
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          profile: "Event",
-          path: "./events.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID", isRequired: true },
-            { originName: "country", targetName: "country", isRequired: true },
-            { originName: "countryCode", targetName: "countryCode", isRequired: true },
-            { originName: "decimalLatitude", targetName: "decimalLatitude" },
-            { originName: "decimalLongitude", targetName: "decimalLongitude" },
-          ],
-        },
-        {
-          name: "occurrences",
-          spec: "dwc-occurrence",
-          profile: "Occurrence",
-          path: "./occurrences.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID", isRequired: true },
-            { originName: "occurrenceID", targetName: "occurrenceID", isRequired: true },
-            { originName: "basisOfRecord", targetName: "basisOfRecord", isRequired: true },
-            { originName: "scientificName", targetName: "scientificName", isRequired: true },
-          ],
-        },
-      ],
     },
+    datasets: [
+      {
+        name: "events",
+        spec: "dwc-event",
+        path: "./events.csv",
+        fieldMappings: [
+          { originName: "eventID", targetName: "eventID", isRequired: true },
+          { originName: "country", targetName: "country", isRequired: true },
+          { originName: "countryCode", targetName: "countryCode", isRequired: true },
+          { originName: "decimalLatitude", targetName: "decimalLatitude" },
+          { originName: "decimalLongitude", targetName: "decimalLongitude" },
+        ],
+      },
+      {
+        name: "occurrences",
+        spec: "dwc-occurrence",
+        path: "./occurrences.csv",
+        fieldMappings: [
+          { originName: "eventID", targetName: "eventID", isRequired: true },
+          { originName: "occurrenceID", targetName: "occurrenceID", isRequired: true },
+          { originName: "basisOfRecord", targetName: "basisOfRecord", isRequired: true },
+          { originName: "scientificName", targetName: "scientificName", isRequired: true },
+        ],
+      },
+    ],
     crossDatasetRules: [
       {
         ruleType: "foreignKey",
@@ -153,28 +151,26 @@ E2,O2,HumanObservation,Canis lupus`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            profile: "Event",
-            path: "./events.csv",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-            ],
-          },
-          {
-            name: "occurrences",
-            spec: "dwc-occurrence",
-            profile: "Occurrence",
-            path: "./occurrences.csv",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "occurrenceID", targetName: "occurrenceID" },
-            ],
-          },
-        ],
       },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+          ],
+        },
+        {
+          name: "occurrences",
+          spec: "dwc-occurrence",
+          path: "./occurrences.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "occurrenceID", targetName: "occurrenceID" },
+          ],
+        },
+      ],
       crossDatasetRules: [
         {
           ruleType: "foreignKey",
@@ -225,19 +221,18 @@ E1,Canada`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            profile: "Event",
-            path: "./events.csv",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID", isRequired: true },
-              { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
-            ],
-          },
-        ],
       },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+            { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -281,20 +276,19 @@ E3,-95.0,-125.0`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            profile: "Event",
-            path: "./events.csv",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "decimalLatitude", targetName: "decimalLatitude" },
-              { originName: "decimalLongitude", targetName: "decimalLongitude" },
-            ],
-          },
-        ],
       },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "decimalLatitude", targetName: "decimalLatitude" },
+            { originName: "decimalLongitude", targetName: "decimalLongitude" },
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -339,20 +333,19 @@ O3,PreservedSpecimen,Panthera tigris`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
-        datasets: [
-          {
-            name: "occurrences",
-            spec: "dwc-occurrence",
-            profile: "Occurrence",
-            path: "./occurrences.csv",
-            fieldMappings: [
-              { originName: "occurrenceID", targetName: "occurrenceID" },
-              { originName: "basisOfRecord", targetName: "basisOfRecord" },
-              { originName: "scientificName", targetName: "scientificName" },
-            ],
-          },
-        ],
       },
+      datasets: [
+        {
+          name: "occurrences",
+          spec: "dwc-occurrence",
+          path: "./occurrences.csv",
+          fieldMappings: [
+            { originName: "occurrenceID", targetName: "occurrenceID" },
+            { originName: "basisOfRecord", targetName: "basisOfRecord" },
+            { originName: "scientificName", targetName: "scientificName" },
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -398,19 +391,18 @@ E1,Mexico`;
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            profile: "Event",
-            path: "./events.csv",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "country", targetName: "country" },
-            ],
-          },
-        ],
       },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "country", targetName: "country" },
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

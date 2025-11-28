@@ -71,6 +71,7 @@ export {
 export {
   getAllDWCFields,
   getDWCField,
+  getExtensionField,
   getExtensionFieldNames,
   getExtensionFields,
   isDWCField,

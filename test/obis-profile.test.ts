@@ -31,27 +31,27 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
       updatedAt: new Date().toISOString(),
 
       validation: {
+        profile: "obis-event",
         nullValues: ["NA", "N/A", "", "NULL", "null"],
         failFast: false,
         outputDir: "./validation_results",
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            profile: "obis-event",
-            path: "./events.csv",
-            description: "Marine sampling events",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "eventDate", targetName: "eventDate" },
-              { originName: "decimalLatitude", targetName: "decimalLatitude" },
-              { originName: "decimalLongitude", targetName: "decimalLongitude" },
-              { originName: "geodeticDatum", targetName: "geodeticDatum" },
-              { originName: "locality", targetName: "locality" },
-            ],
-          },
-        ],
       },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          description: "Marine sampling events",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "eventDate", targetName: "eventDate" },
+            { originName: "decimalLatitude", targetName: "decimalLatitude" },
+            { originName: "decimalLongitude", targetName: "decimalLongitude" },
+            { originName: "geodeticDatum", targetName: "geodeticDatum" },
+            { originName: "locality", targetName: "locality" },
+          ],
+        },
+      ],
     };
 
     Deno.writeTextFileSync(
@@ -111,26 +111,26 @@ E2,2022-09-16,49.9012,-125.4789`;
       updatedAt: new Date().toISOString(),
 
       validation: {
+        profile: "obis-event",
         nullValues: ["NA", "N/A", "", "NULL", "null"],
         failFast: false,
         outputDir: "./validation_results",
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            profile: "obis-event",
-            path: "./events.csv",
-            description: "Marine sampling events",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "eventDate", targetName: "eventDate" },
-              { originName: "decimalLatitude", targetName: "decimalLatitude" },
-              { originName: "decimalLongitude", targetName: "decimalLongitude" },
-              // Missing geodeticDatum mapping!
-            ],
-          },
-        ],
       },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          description: "Marine sampling events",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "eventDate", targetName: "eventDate" },
+            { originName: "decimalLatitude", targetName: "decimalLatitude" },
+            { originName: "decimalLongitude", targetName: "decimalLongitude" },
+            // Missing geodeticDatum mapping!
+          ],
+        },
+      ],
     };
 
     Deno.writeTextFileSync(

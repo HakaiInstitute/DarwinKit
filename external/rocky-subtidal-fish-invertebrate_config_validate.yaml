@@ -2,8 +2,8 @@ id: obis-marine-survey
 name: OBIS Marine Survey
 version: 1.0.0
 description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
-createdAt: '2024-10-06T00:00:00.000Z'
-updatedAt: '2024-10-06T00:00:00.000Z'
+createdAt: "2024-10-06T00:00:00.000Z"
+updatedAt: "2024-10-06T00:00:00.000Z"
 validation:
   nullValues:
     - NA

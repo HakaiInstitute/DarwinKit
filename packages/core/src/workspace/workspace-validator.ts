@@ -32,6 +32,7 @@ import {
   ErrorCode,
   FieldRequirementLevel,
   getDWCField,
+  getExtensionField,
   getValidationProfile,
   getVocabularyValues,
   hasControlledVocabulary,
@@ -94,7 +95,7 @@ export class WorkspaceValidator {
         ),
       );
 
-      // Narrow the config type to ensure it has validation settings
+      // Narrow the config type to ensure it has validation settings and datasets
       if (!("validation" in loadedConfig)) {
         return yield* _(
           Effect.fail(
@@ -106,7 +107,18 @@ export class WorkspaceValidator {
         );
       }
 
-      // At this point TypeScript knows config has validation property
+      if (!("datasets" in loadedConfig)) {
+        return yield* _(
+          Effect.fail(
+            new WorkspaceValidationError({
+              message: `Configuration '${resolvedConfigPath}' does not contain datasets`,
+              code: ErrorCode.INVALID_CONFIG,
+            }),
+          ),
+        );
+      }
+
+      // At this point TypeScript knows config has validation property and datasets
       const config = loadedConfig;
 
       // Override validation settings with CLI options if provided
@@ -114,9 +126,19 @@ export class WorkspaceValidator {
         ? { ...config.validation, failFast: options.failFast }
         : config.validation;
 
+      // Load validation profile if specified
+      const validationProfile = config.validation.profile
+        ? getValidationProfile(config.validation.profile)
+        : undefined;
+
       // Create workspace and load all datasets
       const { workspaceId, connection } = yield* _(
-        createWorkspaceFromConfig(config.id, validationSettings, dirname(resolvedConfigPath)),
+        createWorkspaceFromConfig(
+          config.id,
+          config.datasets,
+          validationSettings,
+          dirname(resolvedConfigPath),
+        ),
       );
 
       // Perform validation with guaranteed connection cleanup
@@ -125,10 +147,7 @@ export class WorkspaceValidator {
           // Validate each dataset
           const datasetResults: DatasetValidationResult[] = [];
 
-          for (const dataset of validationSettings.datasets) {
-            // Load validation profile if specified
-            const validationProfile = getValidationProfile(dataset.profile);
-
+          for (const dataset of config.datasets) {
             const result = yield* _(
               validateDataset(connection, dataset, validationProfile),
             );
@@ -182,10 +201,11 @@ export class WorkspaceValidator {
 }
 
 /**
- * Create workspace and load all datasets from validation settings
+ * Create workspace and load all datasets from config
  */
 function createWorkspaceFromConfig(
   workspaceId: string,
+  datasets: readonly DatasetConfig[],
   validationSettings: ValidationSettings,
   basePath: string,
 ): Effect.Effect<
@@ -199,9 +219,7 @@ function createWorkspaceFromConfig(
     );
 
     // Load each dataset into DuckDB
-    for (const dataset of validationSettings.datasets) {
-      if (!dataset.path) continue;
-
+    for (const dataset of datasets) {
       const filePath = resolve(basePath, dataset.path);
       const tableName = sanitizeTableName(dataset.name);
 
@@ -266,7 +284,7 @@ function mergeFieldDefinition(
       merged = {
         ...merged,
         validators: [
-          ...merged.validators,
+          ...(merged.validators || []),
           ...(profileOverride.validators as ValidatorConfig[]),
         ],
       };
@@ -278,13 +296,13 @@ function mergeFieldDefinition(
     merged = {
       ...merged,
       validators: [
-        ...merged.validators,
+        ...(merged.validators || []),
         ...(fieldMapping.validators as ValidatorConfig[]),
       ],
     };
   }
 
-  return merged;
+  return merged as FieldDefinition;
 }
 
 /**
@@ -375,7 +393,12 @@ function validateDataset(
     // Validate each field mapping
     for (const mapping of dataset?.fieldMappings || []) {
       // Get base spec field definition from the Darwin Core registry
-      const baseField = specInfo.spec === "dwc" ? getDWCField(mapping.targetName) : undefined;
+      // Use extension-specific lookup to get context-appropriate field definitions
+      // (e.g., eventID in Event tables has unique validator, but not in Occurrence tables)
+      const baseField = specInfo.spec === "dwc"
+        ? getExtensionField(specInfo.extension, mapping.targetName) ||
+          getDWCField(mapping.targetName)
+        : undefined;
 
       // Validate that mapped fields exist in Darwin Core when using dwc spec
       if (!baseField && specInfo.spec === "dwc") {
@@ -461,8 +484,9 @@ function validateDataset(
           }
         }
 
-        // Uniqueness validation for identifier fields
-        if (isIdentifierField(specField)) {
+        // Uniqueness validation for fields with explicit unique validators
+        const hasUniqueValidator = specField.validators?.some((v) => v.type === "unique");
+        if (hasUniqueValidator) {
           const uniqueResult = yield* _(
             validateUniqueness(
               connection,

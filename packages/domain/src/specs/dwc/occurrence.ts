@@ -46,6 +46,37 @@ export const occurrenceID: FieldDefinition = {
 };
 
 /**
+ * Event ID - Foreign key reference to the sampling event
+ *
+ * Note: In Occurrence tables, eventID is a foreign key (not unique) referencing the Event table.
+ * Multiple occurrences can share the same eventID.
+ */
+export const eventID: FieldDefinition = {
+  id: "dwc-occurrence-eventID",
+  schemaId: "dwc",
+  name: "eventID",
+  semanticType: "identifier",
+  validators: [
+    DARWIN_CORE_VALIDATORS.required(),
+    // No uniqueIdentifier() validator - this is a foreign key, not a primary key
+  ],
+  primitiveType: "string",
+  termIri: `${DWC_NAMESPACE}eventID`,
+  label: "Event ID",
+  definition:
+    "An identifier for the set of information associated with a dwc:Event (something that occurs at a place and time). In Occurrence records, this is a foreign key referencing the Event table.",
+  examples: ["INBO:VIS:Ev:00009375"],
+  createdAt: new Date("2008-11-19"),
+  updatedAt: new Date("2023-06-28"),
+  identifier: {
+    identifierType: "local",
+    globallyUnique: false,
+    persistentIdentifier: true,
+    resolvable: false,
+  },
+};
+
+/**
  * Basis of Record - Nature of the data record
  */
 export const basisOfRecord: FieldDefinition = {

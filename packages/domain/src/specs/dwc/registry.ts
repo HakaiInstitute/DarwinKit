@@ -49,6 +49,7 @@ export const DWC_FIELDS_BY_EXTENSION = {
     eventRemarks: EventFields.eventRemarks,
   },
   occurrence: {
+    eventID: OccurrenceFields.eventID, // Foreign key (not unique) - overrides Event extension's definition
     occurrenceID: OccurrenceFields.occurrenceID,
     basisOfRecord: OccurrenceFields.basisOfRecord,
     scientificName: OccurrenceFields.scientificName,
@@ -117,6 +118,22 @@ export function getExtensionFields(
   extension: keyof typeof DWC_FIELDS_BY_EXTENSION,
 ): FieldDefinition[] {
   return Object.values(DWC_FIELDS_BY_EXTENSION[extension]);
+}
+
+/**
+ * Get a specific field definition from an extension
+ *
+ * This allows context-specific field lookups. For example, eventID in the Event
+ * extension has a unique validator, while eventID in the Occurrence extension does not.
+ */
+export function getExtensionField(
+  extension: string,
+  fieldName: string,
+): FieldDefinition | undefined {
+  if (!(extension in DWC_FIELDS_BY_EXTENSION)) {
+    return undefined;
+  }
+  return DWC_FIELDS_BY_EXTENSION[extension as keyof typeof DWC_FIELDS_BY_EXTENSION][fieldName];
 }
 
 /**

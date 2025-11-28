@@ -232,10 +232,8 @@ export class WorkspaceConfigService {
 
     return Effect.gen(function* (_) {
       // Check validation datasets if present
-      if ("validation" in config && config.validation) {
-        for (const dataset of config.validation.datasets) {
-          if (!dataset.path) continue;
-
+      if ("datasets" in config && config.datasets) {
+        for (const dataset of config.datasets) {
           const filePath = resolve(base, dataset.path);
 
           yield* _(
