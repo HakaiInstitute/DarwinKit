@@ -4,14 +4,16 @@ import * as Effect from "effect/Effect";
 import * as Data from "effect/Data";
 
 import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
+import { WorkspaceImportCSV } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { getValidationProfile } from "@dwkt/domain";
+import { getValidationProfile, ErrorCode } from "@dwkt/domain";
 import { json2csv } from "json-2-csv";
 import type {
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
+  WorkspaceImportError,
 } from "@dwkt/core";
 
 /**
@@ -19,6 +21,7 @@ import type {
  */
 export class TransformationError extends Data.TaggedError("TransformationError")<{
   readonly message: string;
+  readonly code: ErrorCode;
   readonly cause?: Error;
 }> {}
 
@@ -28,6 +31,7 @@ export class TransformationError extends Data.TaggedError("TransformationError")
 export class OutputError extends Data.TaggedError("OutputError")<{
   readonly message: string;
   readonly outputPath: string;
+  readonly code: ErrorCode;
   readonly cause?: Error;
 }> {}
 
@@ -43,7 +47,12 @@ export function createTablesFromCSV( // Export for testing
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
   basePath: string,
-): Effect.Effect<void, TransformationError> {
+): Effect.Effect<
+  void,
+  | TransformationError
+  | WorkspaceImportError,
+  never
+  > {
   // Using Effect.gen to handle asynchronous operations in a sequential and readable manner.
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
@@ -64,23 +73,40 @@ export function createTablesFromCSV( // Export for testing
 
       const fullPath = resolve(basePath, csvPath);
 
-      yield* _(Effect.tryPromise({
-        try: () =>
-          // Create a table from the CSV file, using the specified null values.
-          connection.run(
-            `CREATE TABLE IF NOT EXISTS ${tableName} AS SELECT * FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`,
-          ),
-        catch: (error) => {
-          console.error(error);
-          return new TransformationError({
-            message: `Failed to create table '${tableName}' from CSV`,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          });
-        },
-      }));
+      yield* _(WorkspaceImportCSV( connection, tableName, fullPath, nullStr));
     }
+  });
+}
 
-    // Execute any post-import SQL transformations defined in the configuration.
+/**
+ * Executes post-import transformation SQL queries on the given DuckDB connection.
+ * 
+ * This function runs a series of SQL transformations defined in the workspace configuration
+ * after data has been imported. It processes each transformation sequentially and handles
+ * any errors that occur during execution.
+ * 
+ * @param config - The workspace configuration containing transform settings
+ * @param connection - The DuckDB connection to execute transformations on
+ * @returns An Effect that completes when all transformations are executed successfully,
+ *          or fails with a TransformationError if any transformation fails
+ * 
+ * @remarks
+ * - If the config lacks a "transform" property or postImportTransforms array, the effect returns without executing anything
+ * - Transformations are executed sequentially in the order they appear in the configuration
+ * - Any errors during SQL execution are caught and wrapped in a TransformationError with context
+ */
+function runPostImportTransformations(
+  config: WorkspaceConfig, 
+  connection: duckdb.DuckDBConnection
+): Effect.Effect<void, TransformationError>  {
+  return Effect.gen(function* (_) {
+    // Type guard - ensure config has transform settings
+    if (!("transform" in config)) {
+      return;
+    }
+    if (!config.transform.postImportTransforms) {
+      return;
+    }
     for (const transformSQL of config.transform.postImportTransforms) {
       yield* _(Effect.tryPromise({
         try: () => connection.run(transformSQL),
@@ -88,6 +114,7 @@ export function createTablesFromCSV( // Export for testing
           console.error(error);
           return new TransformationError({
             message: `Failed to execute post-import transform SQL`,
+            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           });
         },
@@ -185,6 +212,7 @@ export function createTableFromSchema(
           catch: (error) =>
             new TransformationError({
               message: `Failed to create ENUM types for table '${tableName}'`,
+              code: ErrorCode.DATABASE_ERROR,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }));
@@ -198,6 +226,7 @@ export function createTableFromSchema(
           console.error(`Failing SQL: ${tableSql}`);
           return new TransformationError({
             message: `Failed to create table '${tableName}'`,
+            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           });
         },
@@ -229,6 +258,7 @@ export function populateSchemaFromDataTables( // Export for testing
         return yield* _(Effect.fail(
           new TransformationError({
             message: `No field definitions found in '${dataset?.name}'`,
+            code: ErrorCode.INVALID_CONFIG,
             cause: new Error(String("field property missing from dataset definition")),
           }),
         ));
@@ -246,6 +276,7 @@ export function populateSchemaFromDataTables( // Export for testing
         return yield* _(Effect.fail(
           new TransformationError({
             message: `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
+            code: ErrorCode.INVALID_CONFIG,
             cause: new Error(
               String(`Validation profile ${dataset.profile} not found for '${dataset?.name}'`),
             ),
@@ -270,6 +301,7 @@ export function populateSchemaFromDataTables( // Export for testing
           console.log(insertSQL);
           return new TransformationError({
             message: `Failed to populate table '${tableName}' from dataset '${dataset.name}'`,
+            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           });
         },
@@ -309,6 +341,7 @@ export function exportObisTablesToCSV(
               error instanceof Error ? error.message : String(error)
             }`,
             outputPath: outputPath,
+            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         ),
@@ -328,6 +361,7 @@ export function exportObisTablesToCSV(
                   error instanceof Error ? error.message : String(error)
                 }`,
                 outputPath,
+                code: ErrorCode.DATABASE_ERROR,
                 cause: error instanceof Error ? error : new Error(String(error)),
               }),
           }),
@@ -348,6 +382,7 @@ export function exportObisTablesToCSV(
                     error instanceof Error ? error.message : String(error)
                   }`,
                   outputPath,
+                  code: ErrorCode.DATABASE_ERROR,
                   cause: error instanceof Error ? error : new Error(String(error)),
                 }),
             }),
@@ -372,6 +407,7 @@ export function exportObisTablesToCSV(
                 error instanceof Error ? error.message : String(error)
               }`,
               outputPath,
+              code: ErrorCode.DATABASE_ERROR,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }),
@@ -389,6 +425,7 @@ export function exportObisTablesToCSV(
               error instanceof Error ? error.message : String(error)
             }`,
             outputPath: fullPath,
+            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -433,6 +470,7 @@ export function exportToPersistentDB(
           new OutputError({
             message: `Failed to create output directory: ${error}`,
             outputPath,
+            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         ),
@@ -444,8 +482,9 @@ export function exportToPersistentDB(
       try: () => Deno.stat(fullPath).then(() => true).catch(() => false),
       catch: (error) =>
         new OutputError({
-          message: `Failed export DB to ${fullPath}: ${error}`,
+          message: `Failed get statistics for DB at ${fullPath}: ${error}`,
           outputPath,
+          code: ErrorCode.FILE_NOT_FOUND,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
     }));
@@ -458,6 +497,7 @@ export function exportToPersistentDB(
           new OutputError({
             message: `Failed to delete existing output file: ${error}`,
             outputPath: fullPath,
+            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -486,6 +526,7 @@ export function exportToPersistentDB(
             new OutputError({
               message: `Failed export DB to ${fullPath}: ${error}`,
               outputPath,
+              code: ErrorCode.FILE_NOT_FOUND,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }),
@@ -507,6 +548,7 @@ export function transformFile(
   void,
   | TransformationError
   | OutputError
+  | WorkspaceImportError
   | ConfigNotFoundError
   | ConfigParseError
   | ConfigValidationError
@@ -524,6 +566,8 @@ export function transformFile(
 
         console.log("Creating tables from CSV files...");
         yield* _(createTablesFromCSV(connection, config, basePath));
+        // Execute any post-import SQL transformations defined in the configuration.
+        yield* _(runPostImportTransformations(config, connection));
 
         console.log("Creating OBIS tables from schema...");
         yield* _(createTableFromSchema(connection, config));

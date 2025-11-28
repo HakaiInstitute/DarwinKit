@@ -50,7 +50,40 @@ const WorkspaceValidationErrorBase = Data.TaggedClass("WorkspaceValidationError"
   readonly code: ErrorCode;
   readonly cause?: Error;
 }>;
+
+/**
+ * Represents an error that occurs during the data importing process.
+ */
+export class WorkspaceImportError extends WorkspaceValidationErrorBase { }
+
 export class WorkspaceValidationError extends WorkspaceValidationErrorBase {}
+
+
+export function WorkspaceImportCSV(connection: DuckDBConnection, tableName: string, fullPath: any, nullStr: any, dropTable: boolean = false): Effect.Effect<void, WorkspaceImportError> {
+  return Effect.gen(function* (_) {
+    yield* _(Effect.tryPromise({
+      try: () =>{
+        if (dropTable){
+          // Drop table if it exists, then create from CSV
+          connection.run( `DROP TABLE IF EXISTS ${tableName}`);
+        }
+        // Create a table from the CSV file, using the specified null values.
+        return connection.run(
+          `CREATE TABLE IF NOT EXISTS ${tableName} AS SELECT * FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`
+        )
+      },
+      catch: (error) => {
+        console.error(error);
+        return new WorkspaceImportError({
+          message: `Failed to create table '${tableName}' from CSV ${fullPath}`,
+          code: ErrorCode.DATABASE_ERROR,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        });
+      },
+    }));
+  });
+}
+
 
 /**
  * Workspace validator for config-based validation
@@ -238,33 +271,8 @@ function createWorkspaceFromConfig(
 
       // Build null values string for DuckDB
       const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`).join(", ");
-
-      // Drop table if it exists, then create from CSV
-      const dropTableQuery = `DROP TABLE IF EXISTS ${tableName}`;
-      const createTableQuery = `
-        CREATE TABLE ${tableName} AS
-        SELECT * FROM read_csv_auto('${filePath}', nullstr=[${nullStr}])
-      `;
-
-      // Drop existing table first - DDL operations should always work (defect if they fail)
-      yield* _(
-        Effect.tryPromise(() => connection.runAndReadAll(dropTableQuery)).pipe(
-          Effect.orDie,
-        ),
-      );
-
-      // Create table from CSV - this can fail with invalid user data (expected error)
-      yield* _(
-        Effect.tryPromise({
-          try: () => connection.runAndReadAll(createTableQuery),
-          catch: (error) =>
-            new WorkspaceValidationError({
-              message: `Failed to load dataset '${dataset.name}' from ${filePath}: ${error}`,
-              code: ErrorCode.VALIDATION_FAILED,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            }),
-        }),
-      );
+      const dropTable = true;
+      yield* _(WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable));
     }
 
     return { workspaceId, connection };
