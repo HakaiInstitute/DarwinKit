@@ -5,16 +5,16 @@
  * for profile inheritance and composition.
  */
 
+import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
 import type {
   field,
   FieldOverride,
   ValidationProfile,
   ValidationProfileRegistry,
 } from "../../types/validation-profile.ts";
-import { OBIS_BASE_PROFILE } from "./obis.ts";
+import { type FieldDefinition, normalizeField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
-import { type NormalizedField, normalizeField } from "../normalized-field.ts";
-import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
+import { OBIS_BASE_PROFILE } from "./obis.ts";
 /**
  * All available validation profiles
  */
@@ -89,7 +89,7 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
   const profile = jsonProfile as Record<string, unknown>;
 
   // Normalize fields if they exist
-  const normalizedFields: Record<string, NormalizedField> = {};
+  const normalizedFields: Record<string, FieldDefinition> = {};
 
   if (
     "fields" in profile &&

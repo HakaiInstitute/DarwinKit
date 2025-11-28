@@ -1,269 +1,195 @@
 /**
- * Enhanced field definition interface for specifications
+ * Field Definition
  *
- * Combines semantic types, parameterized validators, and controlled
- * vocabularies into a comprehensive field specification system.
+ * A normalized field structure derived from JSON schema fields.
+ * Used by validation logic to work with a consistent format.
+ *
+ * ## Purpose
+ *
+ * FieldDefinition provides a unified representation for validation by:
+ * - Converting string validators → ValidatorConfig objects
+ * - Converting values object → VocabularyConfig
+ * - Providing consistent property names and structure
+ *
+ * ## Usage
+ *
+ * - Validation code uses `profile.normalizedFields` (FieldDefinition)
+ * - Transformation code uses `profile.fields` (raw JSON schema format)
+ *
+ * See validation-profile.ts for details on the dual-purpose field storage.
  */
 
 import * as S from "effect/Schema";
-import type { BaseEntity, PrimitiveType } from "../types/common.ts";
-import type { SemanticType } from "./semantic-types.ts";
-import type { ValidatorConfig } from "./validators.ts";
-import type { VocabularyConfig } from "./vocabularies/config.ts";
-import { optionalBoolean, optionalNumber, optionalString } from "../schemas/util.ts";
-import type { NormalizedField } from "./normalized-field.ts";
 import type { field } from "../types/validation-profile.ts";
+import type { ValidatorConfig } from "./validators.ts";
+import { ValidatorConfigSchema } from "./validators.ts";
+import type { VocabularyConfig } from "./vocabularies/config.ts";
+import type { VocabularyKey } from "./vocabularies/registry.ts";
 
-/**
- * @deprecated Use NormalizedField instead.
- *
- * This interface predates the JSON schema refactor and has been superseded by
- * NormalizedField which provides a simpler, more consistent structure for validation.
- *
- * FieldDefinition was designed for TypeScript-defined field specifications,
- * but the system now uses JSON schemas as the source of truth with runtime
- * normalization to NormalizedField.
- *
- * Comprehensive field definition with semantic types and validation
- */
-export interface FieldDefinition extends BaseEntity {
-  readonly schemaId: string;
-  readonly name: string;
-  readonly semanticType: SemanticType;
-  readonly validators: readonly ValidatorConfig[];
-  readonly primitiveType: PrimitiveType;
-  readonly termIri: string;
-  readonly versionIri?: string;
-  readonly label: string;
-  readonly definition: string;
-  readonly examples?: readonly string[];
-  readonly comments?: string;
-
-  // Controlled vocabulary configuration (only when semanticType is "controlled-vocabulary")
-  readonly vocabulary?: VocabularyConfig;
-
-  // Semantic type-specific configurations
-  readonly measurement?: MeasurementConfig;
-  readonly location?: LocationConfig;
-  readonly taxonomy?: TaxonomyConfig;
-  readonly temporal?: TemporalConfig;
-  readonly identifier?: IdentifierConfig;
-}
-
-/**
- * Configuration for measurement fields
- */
-export interface MeasurementConfig {
-  readonly unit?: string;
-  readonly defaultUnit?: string;
-  readonly precision?: number;
-  readonly unitVocabularyKey?: string;
-  readonly conversionFactor?: number;
-  readonly measurementType?:
-    | "length"
-    | "area"
-    | "volume"
-    | "weight"
-    | "temperature"
-    | "count"
-    | "other";
-}
-
-/**
- * Configuration for location/geographic fields
- */
-export interface LocationConfig {
-  readonly coordinateSystem?: string;
-  readonly precision?: number;
-  readonly uncertaintyUnit?: string;
-  readonly geodeticDatum?: string;
-  readonly georeferenceSources?: readonly string[];
-  readonly spatialFit?: number;
-}
-
-/**
- * Configuration for taxonomic fields
- */
-export interface TaxonomyConfig {
-  readonly rank?: string;
-  readonly rankVocabularyKey?: string;
-  readonly nomenclaturalCode?: "ICZN" | "ICN" | "ICNP" | "ICTV";
-  readonly authorityPattern?: string;
-  readonly hybridFormula?: boolean;
-}
-
-/**
- * Configuration for temporal/date fields
- */
-export interface TemporalConfig {
-  readonly dateFormat?: "iso8601" | "verbatim" | "partial";
-  readonly allowFutureDates?: boolean;
-  readonly allowIncompleteDate?: boolean;
-  readonly minYear?: number;
-  readonly maxYear?: number;
-  readonly intervalSupported?: boolean;
-}
-
-/**
- * Configuration for identifier fields
- */
-export interface IdentifierConfig {
-  readonly identifierType?: "uuid" | "uri" | "urn" | "doi" | "local" | "other";
-  readonly namespace?: string;
-  readonly globallyUnique?: boolean;
-  readonly persistentIdentifier?: boolean;
-  readonly resolvable?: boolean;
-}
-
-/**
- * Effect Schema for FieldDefinition
- */
 export const FieldDefinitionSchema = S.Struct({
-  id: S.String,
-  schemaId: S.String,
   name: S.String,
-  semanticType: S.String,
-  validators: S.Array(S.Struct({
-    type: S.String,
-    enforcement: S.String,
-    params: S.optional(S.Record({ key: S.String, value: S.Unknown })),
-    message: optionalString,
-  })),
-  primitiveType: S.String,
-  termIri: S.String,
-  versionIri: optionalString,
-  label: S.String,
-  definition: S.String,
-  examples: S.optional(S.Array(S.String)),
-  comments: optionalString,
-  createdAt: S.Date,
-  updatedAt: S.Date,
+  label: S.optional(S.String),
+  validators: S.Array(ValidatorConfigSchema),
   vocabulary: S.optional(S.Struct({
     vocabularyKey: S.String,
-    enforcement: S.String,
-    allowCustomValues: optionalBoolean,
-    caseSensitive: optionalBoolean,
-    normalizeValues: optionalBoolean,
-    suggestionThreshold: optionalNumber,
+    caseSensitive: S.optional(S.Boolean),
+    enforcement: S.optional(S.Literal("strict", "recommended", "loose")),
   })),
-  measurement: S.optional(S.Struct({
-    unit: optionalString,
-    defaultUnit: optionalString,
-    precision: optionalNumber,
-    unitVocabularyKey: optionalString,
-    conversionFactor: optionalNumber,
-    measurementType: optionalString,
-  })),
-  location: S.optional(S.Struct({
-    coordinateSystem: optionalString,
-    precision: optionalNumber,
-    uncertaintyUnit: optionalString,
-    geodeticDatum: optionalString,
-    georeferenceSources: S.optional(S.Array(S.String)),
-    spatialFit: optionalNumber,
-  })),
-  taxonomy: S.optional(S.Struct({
-    rank: optionalString,
-    rankVocabularyKey: optionalString,
-    nomenclaturalCode: optionalString,
-    authorityPattern: optionalString,
-    hybridFormula: optionalBoolean,
-  })),
-  temporal: S.optional(S.Struct({
-    dateFormat: optionalString,
-    allowFutureDates: optionalBoolean,
-    allowIncompleteDate: optionalBoolean,
-    minYear: optionalNumber,
-    maxYear: optionalNumber,
-    intervalSupported: optionalBoolean,
-  })),
-  identifier: S.optional(S.Struct({
-    identifierType: optionalString,
-    namespace: optionalString,
-    globallyUnique: optionalBoolean,
-    persistentIdentifier: optionalBoolean,
-    resolvable: optionalBoolean,
-  })),
+  type: S.optional(S.String),
+  comments: S.optional(S.String),
+  examples: S.optional(S.String),
 });
 
-/**
- * Helper functions for working with field definitions
- */
+export type FieldDefinition = S.Schema.Type<typeof FieldDefinitionSchema>;
 
 /**
- * Check if a field uses controlled vocabulary
+ * Normalize a JSON schema field to a FieldDefinition
  *
- * Supports multiple field formats for backward compatibility:
- * - NormalizedField (recommended): has 'vocabulary' property
- * - FieldDefinition (deprecated): has 'semanticType' and 'vocabulary'
- * - Raw JSON schema: has 'values' object
+ * Converts:
+ * - validators: string[] → ValidatorConfig[]
+ * - values: Record<string, unknown> → vocabulary: VocabularyConfig
  */
-export function hasControlledVocabulary(
-  field: NormalizedField | FieldDefinition | field,
-): boolean {
-  // NormalizedField format (recommended - has 'vocabulary' but no 'semanticType')
-  if ("vocabulary" in field && field.vocabulary && !("semanticType" in field)) {
-    return true;
+export function normalizeField(jsonField: field): FieldDefinition {
+  // Convert validators to ValidatorConfig objects
+  // JSON schema validators can be either strings or objects
+  const validators: ValidatorConfig[] = jsonField.validators?.map((v) => {
+    // If already an object, use as-is (already ValidatorConfig format)
+    if (typeof v === "object" && v !== null && "type" in v) {
+      return v as unknown as ValidatorConfig;
+    }
+
+    // Convert string validators to ValidatorConfig objects
+    if (typeof v === "string") {
+      switch (v) {
+        case "uniqueIdentifier":
+        case "unique":
+          return {
+            type: "unique" as const,
+            enforcement: "required" as const,
+          };
+        case "required":
+          return {
+            type: "required" as const,
+            enforcement: "required" as const,
+          };
+        case "recommended":
+          return {
+            type: "required" as const,
+            enforcement: "recommended" as const,
+          };
+        case "optional":
+          return {
+            type: "required" as const,
+            enforcement: "optional" as const,
+          };
+        case "integer":
+        case "decimal":
+        case "date":
+        case "url":
+        case "iso8601Date":
+          // Type validators - these validate the data type
+          // Note: Some like "url" and "iso8601Date" are not in ValidatorType enum
+          // but are used in legacy schemas. We treat them as optional validators.
+          return {
+            type: v as ValidatorConfig["type"],
+            enforcement: "optional" as const,
+          };
+        default:
+          // Unknown validator string - skip with warning
+          console.warn(`Unknown validator string: ${v}`);
+          return {
+            type: "required" as const,
+            enforcement: "optional" as const,
+          };
+      }
+    }
+
+    // Fallback for unexpected format
+    return v as unknown as ValidatorConfig;
+  }) || [];
+
+  // Convert values object to vocabulary config
+  const vocabulary: VocabularyConfig | undefined = jsonField.values
+    ? {
+      // Derive vocabulary key from field type (cast to any valid key)
+      vocabularyKey: deriveVocabularyKey(jsonField),
+      caseSensitive: false,
+      enforcement: deriveVocabularyEnforcement(jsonField),
+    }
+    : undefined;
+
+  return {
+    name: jsonField.name,
+    label: jsonField.label,
+    validators,
+    vocabulary,
+    type: jsonField.type,
+    comments: jsonField.comments,
+    examples: jsonField.examples,
+  };
+}
+
+/**
+ * Derive vocabulary key from field
+ *
+ * Maps Darwin Core field names to their vocabulary keys.
+ * Returns the mapped key or the field name as a fallback (cast to any valid key).
+ */
+function deriveVocabularyKey(field: field): VocabularyKey {
+  // Common Darwin Core vocabulary mappings
+  const vocabularyMap: Record<string, string> = {
+    "type": "dctype",
+    "basisOfRecord": "basisOfRecord",
+    "occurrenceStatus": "occurrenceStatus",
+    "establishmentMeans": "establishmentMeans",
+    "degreeOfEstablishment": "degreeOfEstablishment",
+    "pathway": "pathway",
+    "reproductiveCondition": "reproductiveCondition",
+    "sex": "sex",
+    "lifeStage": "lifeStage",
+    "behavior": "behavior",
+    "vitality": "vitality",
+    "typeStatus": "typeStatus",
+    "disposition": "disposition",
+    "preparations": "preparations",
+    "georeferenceProtocol": "georeferenceProtocol",
+    "geodeticDatum": "geodeticDatum",
+    "identificationQualifier": "identificationQualifier",
+    "measurementType": "measurementType",
+    "measurementUnit": "measurementUnit",
+    "measurementMethod": "measurementMethod",
+  };
+
+  return (vocabularyMap[field.name] || field.name) as VocabularyKey;
+}
+
+/**
+ * Derive vocabulary enforcement level from field metadata
+ *
+ * Determines the appropriate enforcement level based on obis_required and gbif_required.
+ * This ensures that vocabulary violations produce appropriate severity levels:
+ * - strict: errors for required/strongly recommended fields
+ * - recommended: warnings for recommended fields
+ * - loose: info messages for optional fields
+ */
+function deriveVocabularyEnforcement(field: field): "strict" | "recommended" | "loose" {
+  const obisRequired = field.obis_required;
+  const gbifRequired = field.gbif_required;
+
+  // Check OBIS requirements first (preferred for marine biodiversity)
+  if (obisRequired === "required" || obisRequired === "strongly recommended") {
+    return "strict";
+  }
+  if (obisRequired === "recommended") {
+    return "recommended";
   }
 
-  // FieldDefinition format (deprecated)
-  if ("semanticType" in field && "vocabulary" in field) {
-    return field.semanticType === "controlled-vocabulary" && !!field.vocabulary;
+  // Fall back to GBIF requirements
+  if (gbifRequired === "true") {
+    return "strict";
   }
 
-  // JSON schema format (has 'values' object - used before normalization)
-  if ("values" in field && field.values) {
-    return typeof field.values === "object" && Object.keys(field.values).length > 0;
-  }
-
-  return false;
-}
-
-/**
- * Check if a field is a measurement
- */
-export function isMeasurementField(field: FieldDefinition): boolean {
-  return field.semanticType === "measurement" && !!field.measurement;
-}
-
-/**
- * Check if a field contains geographic information
- */
-export function isGeographicField(field: FieldDefinition): boolean {
-  return field.semanticType === "location" && !!field.location;
-}
-
-/**
- * Check if a field contains taxonomic information
- */
-export function isTaxonomicField(field: FieldDefinition): boolean {
-  return field.semanticType === "taxonomy" && !!field.taxonomy;
-}
-
-/**
- * Check if a field contains temporal information
- */
-export function isTemporalField(field: FieldDefinition): boolean {
-  return field.semanticType === "temporal" && !!field.temporal;
-}
-
-/**
- * Check if a field is an identifier
- */
-export function isIdentifierField(field: FieldDefinition): boolean {
-  return field.semanticType === "identifier" && !!field.identifier;
-}
-
-/**
- * Get required validators for a field
- */
-export function getRequiredValidators(field: FieldDefinition): ValidatorConfig[] {
-  return field.validators.filter((v) => v.enforcement === "required");
-}
-
-/**
- * Get recommended validators for a field
- */
-export function getRecommendedValidators(field: FieldDefinition): ValidatorConfig[] {
-  return field.validators.filter((v) => v.enforcement === "recommended");
+  // Default to loose for optional or unspecified fields
+  // This allows custom values with info-level notifications
+  return "loose";
 }

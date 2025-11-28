@@ -32,8 +32,8 @@ export const transformFieldSchema = S.Struct({
 // Re-export as fieldSchema for backward compatibility
 export const fieldSchema = transformFieldSchema;
 
-// Import NormalizedFieldSchema for validation use
-import { NormalizedFieldSchema } from "../specs/normalized-field.ts";
+// Import FieldDefinition for validation use
+import { FieldDefinitionSchema } from "../specs/field-definition.ts";
 
 // Validation profile schema
 export const validationProfileSchema = S.Struct({
@@ -48,7 +48,7 @@ export const validationProfileSchema = S.Struct({
   // - fields: Raw field metadata for SQL DDL generation (transform functionality)
   // - normalizedFields: Processed fields with structured validators for validation logic
   fields: S.optional(S.Record({ key: S.String, value: transformFieldSchema })),
-  normalizedFields: S.optional(S.Record({ key: S.String, value: NormalizedFieldSchema })),
+  normalizedFields: S.optional(S.Record({ key: S.String, value: FieldDefinitionSchema })),
 
   documentationUrl: S.optional(S.String),
   version: S.optional(S.String),

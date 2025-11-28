@@ -213,7 +213,7 @@ export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSever
  * Enrich a cross-dataset RawViolation with metadata
  *
  * Similar to enrichViolation but for cross-dataset relationships.
- * Since cross-dataset rules don't have FieldDefinitions, we use
+ * Since cross-dataset rules don't have field definitions, we use
  * rule metadata directly.
  *
  * @param raw - Minimal violation data

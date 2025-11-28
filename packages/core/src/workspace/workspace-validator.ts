@@ -16,7 +16,7 @@ import type {
   DatasetConfig,
   DatasetValidationResult,
   EnforcementLevel,
-  NormalizedField,
+  FieldDefinition,
   ValidationProfile,
   ValidationSettings,
   ValidationViolation,
@@ -277,16 +277,16 @@ function createWorkspaceFromConfig(
  * Priority: field override > profile > base spec
  */
 function mergeFieldDefinition(
-  baseField: NormalizedField | undefined,
+  baseField: FieldDefinition | undefined,
   profile: ValidationProfile | undefined,
   fieldMapping: WorkspaceFieldMapping,
-): NormalizedField | undefined {
+): FieldDefinition | undefined {
   if (!baseField) {
     return undefined;
   }
 
   // Start with base field
-  let merged: NormalizedField = { ...baseField };
+  let merged: FieldDefinition = { ...baseField };
 
   // Apply profile overrides if profile exists and has overrides for this field
   if (profile && profile.fieldOverrides[fieldMapping.targetName]) {
@@ -419,7 +419,7 @@ function validateDataset(
       // Get field from normalized profile (already normalized at load time)
       // Use normalizedFields for validation (keeps raw fields for transformation)
       const baseField = profile.normalizedFields?.[mapping.targetName] as
-        | NormalizedField
+        | FieldDefinition
         | undefined;
 
       // Validate that mapped fields exist in profile
@@ -508,7 +508,6 @@ function validateDataset(
         }
 
         // Uniqueness validation for fields with explicit unique validators
-        // Handle both JSON schema format (validators: string[]) and FieldDefinition format (validators: ValidatorConfig[])
         const hasUniqueValidator = specField.validators
           ? (specField.validators.some((v) =>
             typeof v === "string" ? v === "uniqueIdentifier" : v.type === "unique"
@@ -800,7 +799,7 @@ function findRangeViolations(
   tableName: string,
   fieldName: string,
   validator: ValidatorConfig,
-  specField: NormalizedField,
+  specField: FieldDefinition,
 ): Effect.Effect<RangeViolation[], never> {
   return Effect.gen(function* (_) {
     const { min, max, inclusive = true } = validator.params || {};
@@ -872,7 +871,7 @@ function validateRangeConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: NormalizedField,
+  specField: FieldDefinition,
 ): Effect.Effect<ValidationViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     const violations: ValidationViolation[] = [];
@@ -941,7 +940,7 @@ function vocabularyEnforcementToStandard(
 }
 
 /**
- * Find vocabulary violations using vocabulary key (TypeScript FieldDefinition format)
+ * Find vocabulary violations using vocabulary key
  *
  * Returns fully-formed VocabularyViolation objects with all metadata.
  */
@@ -950,7 +949,7 @@ function findVocabularyViolations(
   tableName: string,
   fieldName: string,
   vocabularyKey: VocabularyKey,
-  specField: NormalizedField,
+  specField: FieldDefinition,
   enforcement: EnforcementLevel,
   caseSensitive = false,
 ): Effect.Effect<VocabularyViolation[], WorkspaceValidationError> {
@@ -1038,7 +1037,7 @@ function validateVocabulary(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: NormalizedField,
+  specField: FieldDefinition,
 ): Effect.Effect<
   {
     enriched: ValidationViolation[];
@@ -1068,7 +1067,7 @@ function validateVocabulary(
         connection,
         tableName,
         fieldName,
-        vocabularyKey,
+        vocabularyKey as VocabularyKey,
         specField,
         standardEnforcement,
         caseSensitive,
@@ -1098,7 +1097,7 @@ function findUniquenessViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: NormalizedField,
+  specField: FieldDefinition,
   enforcement: EnforcementLevel,
 ): Effect.Effect<UniquenessViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
@@ -1174,7 +1173,7 @@ function validateUniqueness(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: NormalizedField,
+  specField: FieldDefinition,
 ): Effect.Effect<
   {
     enriched: ValidationViolation[];

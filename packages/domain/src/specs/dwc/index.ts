@@ -7,19 +7,18 @@
 
 // Base types and interfaces
 export type { DataSpecification, SpecificationError } from "../base.ts";
-export type { ValidatorConfig, ValidatorParams } from "../validators.ts";
 export type {
-  FieldDefinition,
   IdentifierConfig,
   LocationConfig,
   MeasurementConfig,
   TaxonomyConfig,
   TemporalConfig,
-} from "../field-definition.ts";
+} from "../field-config.ts";
+export type { ValidatorConfig, ValidatorParams } from "../validators.ts";
 
 // Vocabulary types and configurations
-export type { VocabularyKey, VocabularyValues } from "../vocabularies/registry.ts";
 export type { VocabularyConfig, VocabularyValidationResult } from "../vocabularies/config.ts";
+export type { VocabularyKey, VocabularyValues } from "../vocabularies/registry.ts";
 
 // Semantic types and descriptions
 export {
@@ -35,25 +34,16 @@ export { DARWIN_CORE_VALIDATORS, EnforcementLevel, ValidatorType } from "../vali
 
 // Controlled vocabularies
 export {
+  createVocabularyConfig,
+  DARWIN_CORE_VOCABULARY_CONFIGS,
+  VocabularyEnforcement,
+} from "../vocabularies/config.ts";
+export {
   getVocabularyKeys,
   getVocabularyValues,
   isValidVocabularyValue,
   VOCABULARIES,
 } from "../vocabularies/registry.ts";
-export {
-  createVocabularyConfig,
-  DARWIN_CORE_VOCABULARY_CONFIGS,
-  VocabularyEnforcement,
-} from "../vocabularies/config.ts";
 
 // Field definition utilities
-export {
-  getRecommendedValidators,
-  getRequiredValidators,
-  hasControlledVocabulary,
-  isGeographicField,
-  isIdentifierField,
-  isMeasurementField,
-  isTaxonomicField,
-  isTemporalField,
-} from "../field-definition.ts";
+export { hasControlledVocabulary } from "../field-config.ts";

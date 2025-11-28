@@ -55,20 +55,15 @@ export enum FieldRequirementLevel {
 }
 
 /**
- * Field definition from JSON schema
+ * Raw field definition from JSON schema
  *
  * Represents the raw structure of fields in the dwcSchema.json file.
  *
  * @internal This type is used internally for normalization and should not be used
  * directly in application code. Use NormalizedField instead for validation logic.
  *
- * Note: This is different from FieldDefinition (deprecated TypeScript structure).
+ * Validators can be either strings (legacy format) or ValidatorConfig objects.
  * The lowercase naming indicates this is a raw format from JSON schema.
- */
-/**
- * Raw field definition from JSON schema
- *
- * Validators can be either strings (legacy format) or ValidatorConfig objects
  */
 export interface field {
   readonly group: string;
