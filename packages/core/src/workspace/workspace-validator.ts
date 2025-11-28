@@ -5,11 +5,11 @@
  * Uses field mappings to validate CSV columns against spec field definitions.
  */
 
-import * as Effect from "effect/Effect";
-import * as Data from "effect/Data";
-import { dirname, resolve } from "@std/path";
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBConnection as DuckDB } from "@duckdb/node-api";
+import { dirname, resolve } from "@std/path";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
 
 import type {
   CrossDatasetValidationResult,
@@ -938,90 +938,6 @@ function vocabularyEnforcementToStandard(
     case "loose":
       return "optional"; // Not actually used - loose enforcement skips validation
   }
-}
-
-/**
- * Find vocabulary violations using a list of valid values (JSON schema format)
- *
- * Returns fully-formed VocabularyViolation objects with all metadata.
- */
-function findVocabularyViolationsFromValues(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  validValues: string[],
-  specField: NormalizedField,
-  enforcement: EnforcementLevel,
-  caseSensitive = false,
-): Effect.Effect<VocabularyViolation[], WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    // Get distinct values from the field with row numbers
-    const query = `
-      WITH numbered_rows AS (
-        SELECT
-          "${fieldName}",
-          row_number() OVER() as row_num
-        FROM ${tableName}
-        WHERE "${fieldName}" IS NOT NULL
-      )
-      SELECT
-        "${fieldName}" as value,
-        list(row_num) as row_numbers
-      FROM numbered_rows
-      GROUP BY "${fieldName}"
-    `;
-
-    // SQL query execution should work - query failure is a defect
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
-    );
-
-    const rows = result.getRowObjects();
-    const violations: VocabularyViolation[] = [];
-
-    for (const row of rows) {
-      const value = String(row.value);
-      const rawRowNumbers = row.row_numbers;
-
-      // DuckDB LIST types are returned as { items: [...] } objects
-      let rowNumbers: number[] = [];
-      if (Array.isArray(rawRowNumbers)) {
-        rowNumbers = rawRowNumbers.map((n) => Number(n));
-      } else if (rawRowNumbers && typeof rawRowNumbers === "object" && "items" in rawRowNumbers) {
-        rowNumbers = rawRowNumbers.items.map((n) => Number(n));
-      }
-
-      // Check if value is valid in vocabulary
-      let isValid = false;
-      if (caseSensitive) {
-        isValid = validValues.includes(value);
-      } else {
-        const lowerValue = value.toLowerCase();
-        isValid = validValues.some((v) => v.toLowerCase() === lowerValue);
-      }
-
-      if (!isValid) {
-        // Add violation for each row with this invalid value
-        for (const rowNum of rowNumbers) {
-          violations.push(
-            new VocabularyViolation({
-              enforcement,
-              severity: enforcementToSeverity(enforcement),
-              fieldName,
-              targetName: specField.name,
-              rowNumber: Number(rowNum),
-              value,
-              errorMessage: `Invalid vocabulary value: "${value}"`,
-              validatorType: "vocabulary",
-              // TODO: Add fuzzy matching for suggestions
-            }),
-          );
-        }
-      }
-    }
-
-    return violations;
-  });
 }
 
 /**

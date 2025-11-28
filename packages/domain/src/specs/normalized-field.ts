@@ -28,7 +28,7 @@ import type { field } from "../types/validation-profile.ts";
 import type { ValidatorConfig } from "./validators.ts";
 import { ValidatorConfigSchema } from "./validators.ts";
 import type { VocabularyConfig } from "./vocabularies/config.ts";
-import { VocabularyKey } from "./vocabularies/registry.ts";
+import type { VocabularyKey } from "./vocabularies/registry.ts";
 
 /**
  * Normalized field for validation
@@ -193,8 +193,8 @@ function deriveVocabularyKey(field: field): VocabularyKey {
  * - loose: info messages for optional fields
  */
 function deriveVocabularyEnforcement(field: field): "strict" | "recommended" | "loose" {
-  const obisRequired = (field as any).obis_required;
-  const gbifRequired = (field as any).gbif_required;
+  const obisRequired = field.obis_required;
+  const gbifRequired = field.gbif_required;
 
   // Check OBIS requirements first (preferred for marine biodiversity)
   if (obisRequired === "required" || obisRequired === "strongly recommended") {
@@ -205,7 +205,7 @@ function deriveVocabularyEnforcement(field: field): "strict" | "recommended" | "
   }
 
   // Fall back to GBIF requirements
-  if (gbifRequired === "true" || gbifRequired === true) {
+  if (gbifRequired === "true") {
     return "strict";
   }
 

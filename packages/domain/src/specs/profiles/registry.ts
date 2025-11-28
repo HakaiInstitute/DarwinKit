@@ -136,7 +136,7 @@ export function getValidationProfile(profileId: string): ValidationProfile | und
   }
 
   // Fall back to JSON schema (for base Darwin Core profiles like "Event", "Occurrence")
-  const rawJsonProfile = (DWC_SCHEMA as unknown as Record<string, any>)[profileId];
+  const rawJsonProfile = (DWC_SCHEMA as unknown as Record<string, unknown>)[profileId];
 
   if (!rawJsonProfile) return undefined;
 
