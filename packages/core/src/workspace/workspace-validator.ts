@@ -137,7 +137,7 @@ export class WorkspaceValidator {
         );
       }
 
-      if (!("datasets" in loadedConfig)) {
+      if (!("datasets" in loadedConfig.validation)) {
         return yield* _(
           Effect.fail(
             new WorkspaceValidationError({
@@ -165,7 +165,7 @@ export class WorkspaceValidator {
       const { workspaceId, connection } = yield* _(
         createWorkspaceFromConfig(
           config.id,
-          config.datasets,
+          config.validation.datasets,
           validationSettings,
           dirname(resolvedConfigPath),
         ),
@@ -177,7 +177,7 @@ export class WorkspaceValidator {
           // Validate each dataset
           const datasetResults: DatasetValidationResult[] = [];
 
-          for (const dataset of config.datasets) {
+          for (const dataset of config.validation.datasets) {
             // Use dataset-level profile if specified, otherwise use validation-level profile,
             // otherwise derive from spec field
             let datasetProfile = dataset.profile
