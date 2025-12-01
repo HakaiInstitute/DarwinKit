@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Data from "effect/Data";
 
 import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
-import { WorkspaceImportCSV } from "@dwkt/core";
+import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { getValidationProfile, ErrorCode } from "@dwkt/domain";
 import { json2csv } from "json-2-csv";
@@ -123,6 +123,8 @@ function runPostImportTransformations(
   });
 }
 
+
+
 /**
  * Creates tables based on the schema definitions in the workspace configuration.
  * This includes creating ENUM types for controlled vocabularies and defining table structures.
@@ -133,7 +135,7 @@ function runPostImportTransformations(
 export function createTableFromSchema(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
-): Effect.Effect<void, TransformationError> {
+): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
     if (!("transform" in config)) {
@@ -141,96 +143,7 @@ export function createTableFromSchema(
     }
 
     for (const dataset of config.transform.datasets) {
-      // Load validation profile if specified
-      const transformProfile = getValidationProfile(dataset.profile);
-      if (!transformProfile) {
-        console.warn(
-          `No validation profile found for ${dataset.profile}, skipping table creation.`,
-        );
-        continue;
-      }
-      const tableName = transformProfile.name.toLowerCase();
-
-      // 1. Create ENUM types for controlled vocabularies
-      const enums = Object.entries(transformProfile.fields || {}).map(
-        ([fieldName, field]) => {
-          // Check if this is a controlled vocabulary field
-          // Profile fields use `type === "controlled-vocabulary"` and may have `values`
-          if (field.type === "controlled-vocabulary" && field.values) {
-            const enumName = `${tableName}_${fieldName.toLowerCase()}_enum`;
-            const enumValues = Object.keys(field.values).map((v: string) => `'${v}'`).join(", ");
-            return `CREATE TYPE IF NOT EXISTS ${enumName} AS ENUM (${enumValues});`;
-          }
-          return null;
-        },
-      );
-
-      // 2. Generate Column Definition SQL
-      const columns = Object.keys(transformProfile.fields || {}).map((fieldName) => {
-        const field = transformProfile.fields![fieldName];
-        const fieldType = (field.type?.toUpperCase() || "TEXT")
-          .replace("IDENTIFIER", "TEXT")
-          .replace("CONTROLLED-VOCABULARY", `${tableName}_${fieldName.toLowerCase()}_enum`)
-          .replace("URI", "TEXT");
-        let fieldStr = `"${fieldName}" ${fieldType}`;
-        // Check if this field is the primary identifier for this table
-        // Profile fields use simple name matching (e.g., occurrenceID for Occurrence table)
-        // or check if field is marked as unique identifier
-        const isUniqueIdentifier = field.unique === "true";
-
-        if (fieldName === tableName + "ID" || (fieldName.endsWith("ID") && isUniqueIdentifier)) {
-          fieldStr += " PRIMARY KEY";
-        } else if (
-          transformProfile.fieldOverrides?.[fieldName]?.requirement === "required"
-        ) {
-          // Only apply NOT NULL if this specific profile marks the field as required
-          fieldStr += " NOT NULL";
-        }
-        // add foreign key constraints for fields
-        // Skip FK for this table's PK, but include it for other ID fields
-        const isPrimaryKey = fieldName === tableName + "ID" ||
-          (fieldName.endsWith("ID") && isUniqueIdentifier);
-        if (fieldName.endsWith("ID") && !isPrimaryKey) {
-          const referencedTable = fieldName.slice(0, -2).toLowerCase();
-          // check if referenced table exists in config
-          if (
-            config.transform.datasets.find((ds) =>
-              getValidationProfile(ds.profile)?.name.toLowerCase() === referencedTable
-            )
-          ) {
-            fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;
-          }
-        }
-        return fieldStr;
-      });
-
-      // 3. Create ENUM Types
-      const enumSql = enums.filter((e) => e !== null).join("\n");
-      if (enumSql) {
-        yield* _(Effect.tryPromise({
-          try: () => connection.run(enumSql),
-          catch: (error) =>
-            new TransformationError({
-              message: `Failed to create ENUM types for table '${tableName}'`,
-              code: ErrorCode.DATABASE_ERROR,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            }),
-        }));
-      }
-
-      // 4. Create Tables
-      const tableSql = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(", ")})`;
-      yield* _(Effect.tryPromise({
-        try: () => connection.run(tableSql),
-        catch: (error) => {
-          console.error(`Failing SQL: ${tableSql}`);
-          return new TransformationError({
-            message: `Failed to create table '${tableName}'`,
-            code: ErrorCode.DATABASE_ERROR,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          });
-        },
-      }));
+      yield* _(WorkspaceImportSchema(connection, dataset, config.transform.datasets));
     }
   });
 }
@@ -263,9 +176,7 @@ export function populateSchemaFromDataTables( // Export for testing
           }),
         ));
       }
-      const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string): string =>
-        `"${fieldName}"`
-      );
+
       // Create column calculations based on the transformations defined in the dataset fields
       const columnCalculations = Object.entries(dataset.fields)
         .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
@@ -283,6 +194,10 @@ export function populateSchemaFromDataTables( // Export for testing
           }),
         ));
       }
+
+      const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string): string =>
+        `"${fieldName}"`
+      );
       const tableName = transformProfile.name.toLowerCase();
       const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) => {
         // Simple table names don't contain spaces, just an identifier
@@ -290,6 +205,7 @@ export function populateSchemaFromDataTables( // Export for testing
         const isSimpleTable = !joinSQL.trim().includes(" ");
         return isSimpleTable ? `${joinSQL} AS ${tableName}` : `(${joinSQL}) AS ${tableName}`;
       }).join(", ");
+      
       const insertSQL = `INSERT INTO ${tableName} (${targetColumnNames.join(", ")}) SELECT ${
         columnCalculations.join(", ")
       } FROM ${tableSources};`;
