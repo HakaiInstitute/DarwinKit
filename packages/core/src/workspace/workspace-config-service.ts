@@ -232,9 +232,9 @@ export class WorkspaceConfigService {
     const base = basePath || dirname(Deno.cwd());
 
     return Effect.gen(function* (_) {
-      // Check validation datasets if present
-      if ("validation" in config && config.validation.datasets) {
-        for (const dataset of config.validation.datasets) {
+      // Check validation datasets if present (datasets are at root level)
+      if ("datasets" in config && config.datasets) {
+        for (const dataset of config.datasets) {
           const filePath = resolve(base, dataset.path);
 
           yield* _(

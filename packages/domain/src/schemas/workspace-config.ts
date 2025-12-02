@@ -37,7 +37,7 @@ export const datasetConfigSchema = S.Struct({
   spec: S.String,
   path: S.String,
   description: S.optional(S.String),
-  profile: S.String,
+  profile: S.optional(S.String),
   fieldMappings: S.Array(workspaceFieldMappingSchema),
 });
 
@@ -61,7 +61,6 @@ export const validationSettingsSchema = S.Struct({
   failFast: S.Boolean,
   outputDir: S.String,
   description: S.optional(S.String),
-  datasets: S.Array(datasetConfigSchema),
 });
 
 /**
@@ -100,12 +99,15 @@ const workspaceConfigBaseFields = S.Struct({
  * 1. Only validation (no transform)
  * 2. Only transform (no validation)
  * 3. Both validation and transform
+ *
+ * Note: datasets is at root level for validation workflows
  */
 export const workspaceConfigSchema = S.Union(
   // Only validation
   S.Struct({
     ...workspaceConfigBaseFields.fields,
     validation: validationSettingsSchema,
+    datasets: S.optional(S.Array(datasetConfigSchema)),
   }),
   // Only transform
   S.Struct({
@@ -117,6 +119,7 @@ export const workspaceConfigSchema = S.Union(
     ...workspaceConfigBaseFields.fields,
     validation: validationSettingsSchema,
     transform: transformSettingsSchema,
+    datasets: S.optional(S.Array(datasetConfigSchema)),
   }),
 );
 

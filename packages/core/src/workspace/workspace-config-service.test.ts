@@ -8,7 +8,7 @@ import { join } from "@std/path";
 import { WorkspaceConfigService } from "./workspace-config-service.ts";
 
 async function createTestConfig(tempDir: string, config: Partial<Record<string, unknown>>) {
-  // Extract datasets from config if provided, place inside validation
+  // Extract datasets from config if provided, place at root level
   const { datasets = [], ...restConfig } = config;
 
   const fullConfig = {
@@ -19,8 +19,8 @@ async function createTestConfig(tempDir: string, config: Partial<Record<string, 
       nullValues: ["", "NA"],
       failFast: false,
       outputDir: "./output",
-      datasets: datasets,
     },
+    datasets: datasets,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...restConfig,
@@ -118,13 +118,13 @@ Deno.test("WorkspaceConfigService - loads valid configuration", async () => {
     if (!("validation" in config)) {
       throw new Error("Config does not have validation settings");
     }
-    if (!config.validation.datasets) {
+    if (!("datasets" in config) || !config.datasets) {
       throw new Error("Config does not have datasets");
     }
 
-    assertEquals(config.validation.datasets.length, 1);
-    assertEquals(config.validation.datasets[0].name, "test_dataset");
-    assertEquals(config.validation.datasets[0].spec, "dwc-event");
+    assertEquals(config.datasets.length, 1);
+    assertEquals(config.datasets[0].name, "test_dataset");
+    assertEquals(config.datasets[0].spec, "dwc-event");
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -258,11 +258,11 @@ Deno.test("WorkspaceConfigService - discoverAndLoad end-to-end", async () => {
     if (!("validation" in config)) {
       throw new Error("Config does not have validation settings");
     }
-    if (!config.validation.datasets) {
+    if (!("datasets" in config) || !config.datasets) {
       throw new Error("Config does not have datasets");
     }
 
-    assertEquals(config.validation.datasets.length, 1);
+    assertEquals(config.datasets.length, 1);
     assertEquals(configPath, join(tempDir, "darwinkit.json"));
   } finally {
     await Deno.remove(tempDir, { recursive: true });

@@ -6,7 +6,7 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
-import { DuckDBConnection as DuckDB } from "@duckdb/node-api";
+import { DuckDBInstance } from "@duckdb/node-api";
 import { dirname, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -101,6 +101,16 @@ export function WorkspaceImportCSV(
 }
 
 /**
+ * Minimal dataset interface for schema import
+ * Works with both validation and transform dataset configs
+ */
+type DatasetWithProfile = {
+  readonly name: string;
+  readonly profile?: string;
+  readonly spec?: string;
+};
+
+/**
  * Generates and applies a database schema for a dataset based on its validation profile.
  *
  * This function:
@@ -144,8 +154,8 @@ export function WorkspaceImportCSV(
  *
  * Parameters:
  * - connection: DuckDBConnection used to execute DDL statements.
- * - dataset: DatasetConfig describing the dataset to import (profile-driven schema).
- * - datasets: readonly DatasetConfig[] used to resolve referenced tables for foreign keys.
+ * - dataset: Dataset config with name and profile/spec (works with both validation and transform configs).
+ * - datasets: readonly array of datasets used to resolve referenced tables for foreign keys.
  *
  * Returns:
  * - Effect.Effect<void, WorkspaceImportError> — an Effect which completes successfully
@@ -159,27 +169,37 @@ export function WorkspaceImportCSV(
  *   for the SQL dialect in use, that may need additional handling.
  */
 
-/**
- * Minimal dataset type required for schema import.
- * Both DatasetConfig and TransformDatasetConfig satisfy this interface.
- */
-type DatasetWithProfile = { name: string; profile: string };
-
 export function WorkspaceImportSchema(
   connection: DuckDBConnection,
   dataset: DatasetWithProfile,
   datasets: readonly DatasetWithProfile[],
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
-    // Load validation profile if specified
-    const spec = getValidationProfile(dataset.profile);
-    if (!spec) {
+    // Load validation profile - use profile if specified, otherwise derive from spec
+    let profileId = dataset.profile;
+    if (!profileId && dataset.spec) {
+      const parsed = parseSpecIdentifier(dataset.spec);
+      if (parsed) {
+        profileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+      }
+    }
+
+    if (!profileId) {
       console.warn(
-        `No validation profile found for ${dataset.profile}, skipping table creation.`,
+        `No profile or spec specified for dataset ${dataset.name}, skipping table creation.`,
       );
       return;
     }
-    const tableName = spec.name.toLowerCase();
+
+    const spec = getValidationProfile(profileId);
+    if (!spec) {
+      console.warn(
+        `No validation profile found for ${profileId}, skipping table creation.`,
+      );
+      return;
+    }
+    // Convert profile name to valid SQL table name using sanitizeTableName
+    const tableName = sanitizeTableName(spec.name).toLowerCase();
 
     // 1. Create ENUM types for controlled vocabularies
     const enums = Object.entries(spec.fields || {}).map(
@@ -224,9 +244,15 @@ export function WorkspaceImportSchema(
         const referencedTable = fieldName.slice(0, -2).toLowerCase();
         // check if referenced table exists in config
         if (
-          datasets.find((ds) =>
-            getValidationProfile(ds.profile)?.name.toLowerCase() === referencedTable
-          )
+          datasets.find((ds) => {
+            const profileName = ds.profile ||
+              (ds.spec
+                ? parseSpecIdentifier(ds.spec)?.type.charAt(0).toUpperCase() +
+                  ds.spec.slice(ds.spec.indexOf("-") + 1)
+                : undefined);
+            return profileName &&
+              getValidationProfile(profileName)?.name.toLowerCase() === referencedTable;
+          })
         ) {
           fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;
         }
@@ -249,7 +275,18 @@ export function WorkspaceImportSchema(
     }
 
     // 4. Create Tables
-    const tableSql = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(", ")})`;
+    // Drop table first to ensure clean state (handles cross-test contamination)
+    yield* _(Effect.tryPromise({
+      try: () => connection.run(`DROP TABLE IF EXISTS ${tableName}`),
+      catch: (error) =>
+        new WorkspaceImportError({
+          message: `Failed to drop table '${tableName}'`,
+          code: ErrorCode.DATABASE_ERROR,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        }),
+    }));
+
+    const tableSql = `CREATE TABLE ${tableName} (${columns.join(", ")})`;
     yield* _(Effect.tryPromise({
       try: () => connection.run(tableSql),
       catch: (error) => {
@@ -269,11 +306,11 @@ export function WorkspaceImportSchema(
  * Workspace validator for config-based validation
  */
 export class WorkspaceValidator {
-  private readonly workspacesDir: string;
+  // private readonly workspacesDir: string;
 
-  constructor({ workspacesDir = "./workspaces" }: { workspacesDir?: string } = {}) {
-    this.workspacesDir = workspacesDir;
-  }
+  // constructor({ workspacesDir = "./workspaces" }: { workspacesDir?: string } = {}) {
+  //   this.workspacesDir = workspacesDir;
+  // }
 
   /**
    * Validate workspace from configuration file
@@ -317,7 +354,7 @@ export class WorkspaceValidator {
         );
       }
 
-      if (!("datasets" in loadedConfig.validation)) {
+      if (!("datasets" in loadedConfig)) {
         return yield* _(
           Effect.fail(
             new WorkspaceValidationError({
@@ -336,11 +373,14 @@ export class WorkspaceValidator {
         ? { ...config.validation, failFast: options.failFast }
         : config.validation;
 
+      // Get datasets from root level
+      const datasets = "datasets" in config && config.datasets ? config.datasets : [];
+
       // Create workspace and load all datasets
-      const { workspaceId, connection } = yield* _(
+      const { workspaceId, connection, instance } = yield* _(
         createWorkspaceFromConfig(
           config.id,
-          config.validation.datasets,
+          datasets,
           validationSettings,
           dirname(resolvedConfigPath),
         ),
@@ -352,7 +392,7 @@ export class WorkspaceValidator {
           // Validate each dataset
           const datasetResults: DatasetValidationResult[] = [];
 
-          for (const dataset of config.validation.datasets) {
+          for (const dataset of datasets) {
             // Use dataset-level profile if specified, otherwise derive from spec field
             let datasetProfile = dataset.profile
               ? getValidationProfile(dataset.profile)
@@ -385,7 +425,7 @@ export class WorkspaceValidator {
           if (config.crossDatasetRules && !validationSettings.failFast) {
             for (const rule of config.crossDatasetRules) {
               const result = yield* _(
-                validateCrossDatasetRule(connection, rule),
+                validateCrossDatasetRule(connection, rule, datasets),
               );
               crossDatasetResults.push(result);
             }
@@ -412,8 +452,13 @@ export class WorkspaceValidator {
             summary,
           };
         }).pipe(
-          // Ensure connection is closed even if validation fails (ignores any errors during cleanup)
-          Effect.ensuring(Effect.try(() => connection.closeSync()).pipe(Effect.ignore)),
+          // Ensure connection and instance are closed even if validation fails
+          Effect.ensuring(
+            Effect.all([
+              Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
+              Effect.try(() => instance.closeSync()).pipe(Effect.ignore),
+            ]),
+          ),
         ),
       );
     });
@@ -429,13 +474,19 @@ function createWorkspaceFromConfig(
   validationSettings: ValidationSettings,
   basePath: string,
 ): Effect.Effect<
-  { workspaceId: string; connection: DuckDBConnection },
+  { workspaceId: string; connection: DuckDBConnection; instance: DuckDBInstance },
   WorkspaceValidationError
 > {
   return Effect.gen(function* (_) {
-    // Create DuckDB connection - failure is a system defect
+    // Create isolated DuckDB instance - each workspace gets its own in-memory database
+    // This prevents test contamination where tables from one test persist into another
+    const instance = yield* _(
+      Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(Effect.orDie),
+    );
+
+    // Create connection from isolated instance - failure is a system defect
     const connection = yield* _(
-      Effect.tryPromise(() => DuckDB.create()).pipe(Effect.orDie),
+      Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie),
     );
 
     // Load each dataset into DuckDB
@@ -451,7 +502,7 @@ function createWorkspaceFromConfig(
       yield* _(WorkspaceImportSchema(connection, dataset, datasets));
     }
 
-    return { workspaceId, connection };
+    return { workspaceId, connection, instance };
   });
 }
 
@@ -554,7 +605,27 @@ function validateDataset(
       String(row.column_name)
     );
 
-    const schemaTableName = `${sanitizeTableName(dataset.profile).toLowerCase()}`;
+    // Derive profile name - use profile.name if available (this is the actual table name),
+    // otherwise use dataset.profile, or derive from spec
+    let profileName: string | undefined;
+    if (profile) {
+      // Use the profile's name property (e.g., "OBIS Event Core")
+      // This must match what WorkspaceImportSchema uses to create the table
+      profileName = profile.name;
+    } else if (dataset.profile) {
+      // Fallback to profile ID from config (may not match actual profile name)
+      profileName = dataset.profile;
+    } else if (dataset.spec) {
+      // Derive from spec if neither profile nor profile ID available
+      const parsed = parseSpecIdentifier(dataset.spec);
+      if (parsed) {
+        profileName = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+      }
+    }
+
+    const schemaTableName = profileName
+      ? sanitizeTableName(profileName).toLowerCase()
+      : dataset.name.toLowerCase();
     const originFileColumns = dataset.fieldMappings.map((field) => `${field.originName}`);
     const targetColumnNames = dataset.fieldMappings.map((field) => `"${field.targetName}"`);
     const originColumnNames = dataset.fieldMappings.map((field) => `"${field.originName}"`);
@@ -584,17 +655,11 @@ function validateDataset(
 
     // TODO: this check should generate a warning not an error
     if (missingMappedFields.length) {
-      return yield* _(
-        Effect.fail(
-          new WorkspaceValidationError({
-            message:
-              `The dataset '${dataset.name}' mapped fields do not contain the data source columns ['${
-                missingMappedFields.join("','")
-              }']. Please check the dataset config.`,
-            code: ErrorCode.INVALID_CONFIG,
-            cause: Error(String("Dataset mapped field missing from source database table")),
-          }),
-        ),
+      // Log warning but don't fail - unmapped columns are acceptable
+      console.warn(
+        `Warning: The dataset '${dataset.name}' has unmapped source columns: ['${
+          missingMappedFields.join("','")
+        }']. These columns will be ignored during validation.`,
       );
     }
 
@@ -607,10 +672,18 @@ function validateDataset(
       catch: (error) => {
         console.error(error);
         console.log(insertSQL);
+        // Extract meaningful error message from DuckDB error
+        const dbError = error instanceof Error ? error : new Error(String(error));
+        const dbMessage = dbError.message || String(error);
+
+        // Provide context about what failed and include the database error details
+        const detailedMessage =
+          `Failed to populate table '${schemaTableName}' from dataset '${dataset.name}': ${dbMessage}`;
+
         return new WorkspaceValidationError({
-          message: `Failed to populate table '${schemaTableName}' from dataset '${dataset.name}'`,
+          message: detailedMessage,
           code: ErrorCode.DATABASE_ERROR,
-          cause: error instanceof Error ? error : new Error(String(error)),
+          cause: dbError,
         });
       },
     }));
@@ -831,6 +904,33 @@ function validateDataset(
  * Validate cross-dataset rule
  */
 /**
+ * Resolve dataset name to its schema table name
+ *
+ * Schema tables are named after profiles, not dataset names.
+ * For example, dataset "occurrences" with spec "dwc-occurrence" → table "occurrence"
+ */
+function resolveSchemaTableName(datasetName: string, datasets: readonly DatasetConfig[]): string {
+  const dataset = datasets.find((ds) => ds.name === datasetName);
+  if (!dataset) {
+    // Fallback to sanitized dataset name if not found
+    return sanitizeTableName(datasetName).toLowerCase();
+  }
+
+  // Derive profile name - same logic as in validateDataset
+  let profileName = dataset.profile;
+  if (!profileName && dataset.spec) {
+    const parsed = parseSpecIdentifier(dataset.spec);
+    if (parsed) {
+      profileName = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+    }
+  }
+
+  return profileName
+    ? sanitizeTableName(profileName).toLowerCase()
+    : sanitizeTableName(dataset.name).toLowerCase();
+}
+
+/**
  * Find cross-dataset foreign key violations
  *
  * Returns fully-formed CrossDatasetViolation objects with all metadata.
@@ -845,10 +945,12 @@ function findCrossDatasetViolations(
     targetField: string;
     enforcement?: EnforcementLevel;
   },
+  datasets: readonly DatasetConfig[],
 ): Effect.Effect<CrossDatasetViolation[], never> {
   return Effect.gen(function* (_) {
-    const sourceTable = sanitizeTableName(rule.sourceDataset);
-    const targetTable = sanitizeTableName(rule.targetDataset);
+    // Resolve dataset names to schema table names
+    const sourceTable = resolveSchemaTableName(rule.sourceDataset, datasets);
+    const targetTable = resolveSchemaTableName(rule.targetDataset, datasets);
 
     // Find values in source that don't exist in target
     const violationsQuery = `
@@ -907,6 +1009,7 @@ function validateCrossDatasetRule(
     enforcement?: string;
     description?: string;
   },
+  datasets: readonly DatasetConfig[],
 ): Effect.Effect<CrossDatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     // Map string enforcement to EnforcementLevel
@@ -918,7 +1021,7 @@ function validateCrossDatasetRule(
 
     // Get fully-formed violations
     const crossDatasetViolations = yield* _(
-      findCrossDatasetViolations(connection, { ...rule, enforcement }),
+      findCrossDatasetViolations(connection, { ...rule, enforcement }, datasets),
     );
 
     // Convert to old format for compatibility

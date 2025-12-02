@@ -34,22 +34,22 @@ E4,2022,6,32,2022-06-32`;
           nullValues: [""],
           failFast: false,
           outputDir: "./output",
-          datasets: [
-            {
-              name: "events",
-              spec: "dwc-event",
-              path: "./events.csv",
-              profile: "Event",
-              fieldMappings: [
-                { originName: "eventID", targetName: "eventID" },
-                { originName: "year", targetName: "year" },
-                { originName: "month", targetName: "month" },
-                { originName: "day", targetName: "day" },
-                { originName: "eventDate", targetName: "eventDate" },
-              ],
-            },
-          ],
         },
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            path: "./events.csv",
+            profile: "Event",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "year", targetName: "year" },
+              { originName: "month", targetName: "month" },
+              { originName: "day", targetName: "day" },
+              { originName: "eventDate", targetName: "eventDate" },
+            ],
+          },
+        ],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
