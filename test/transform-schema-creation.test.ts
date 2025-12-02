@@ -5,12 +5,12 @@
  * ENUM types, and constraints from a workspace configuration.
  */
 
+import { DuckDBConnection } from "@duckdb/node-api";
+import { createTableFromSchema, WorkspaceImportError } from "@dwkt/core";
+import type { WorkspaceConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { DuckDBConnection } from "@duckdb/node-api";
 import { expect, vi } from "vitest";
-import { createTableFromSchema, TransformationError } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
 
 interface TableInfoRow {
   name: string;
@@ -292,7 +292,7 @@ Deno.test("createTableFromSchema - does nothing for empty datasets", async () =>
   }
 });
 
-Deno.test("createTableFromSchema - returns TransformationError on SQL failure", async () => {
+Deno.test("createTableFromSchema - returns WorkspaceImportError on SQL failure", async () => {
   const connection = await DuckDBConnection.create();
 
   const config: WorkspaceConfig = {
@@ -329,7 +329,7 @@ Deno.test("createTableFromSchema - returns TransformationError on SQL failure", 
     const result = await Effect.runPromise(Effect.flip(createTableFromSchema(connection, config)));
 
     // Assert that the effect failed with the correct error type
-    assert(result instanceof TransformationError, "Should fail with TransformationError");
+    assert(result instanceof WorkspaceImportError, "Should fail with WorkspaceImportError");
     assertEquals(result.message, "Failed to create ENUM types for table 'occurrence'");
     assertEquals(result.cause, dbError);
   } finally {

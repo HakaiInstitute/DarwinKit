@@ -6,7 +6,7 @@ import * as Data from "effect/Data";
 import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
 import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { getValidationProfile, ErrorCode } from "@dwkt/domain";
+import { ErrorCode, getValidationProfile } from "@dwkt/domain";
 import { json2csv } from "json-2-csv";
 import type {
   ConfigNotFoundError,
@@ -52,7 +52,7 @@ export function createTablesFromCSV( // Export for testing
   | TransformationError
   | WorkspaceImportError,
   never
-  > {
+> {
   // Using Effect.gen to handle asynchronous operations in a sequential and readable manner.
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
@@ -73,32 +73,32 @@ export function createTablesFromCSV( // Export for testing
 
       const fullPath = resolve(basePath, csvPath);
 
-      yield* _(WorkspaceImportCSV( connection, tableName, fullPath, nullStr));
+      yield* _(WorkspaceImportCSV(connection, tableName, fullPath, nullStr));
     }
   });
 }
 
 /**
  * Executes post-import transformation SQL queries on the given DuckDB connection.
- * 
+ *
  * This function runs a series of SQL transformations defined in the workspace configuration
  * after data has been imported. It processes each transformation sequentially and handles
  * any errors that occur during execution.
- * 
+ *
  * @param config - The workspace configuration containing transform settings
  * @param connection - The DuckDB connection to execute transformations on
  * @returns An Effect that completes when all transformations are executed successfully,
  *          or fails with a TransformationError if any transformation fails
- * 
+ *
  * @remarks
  * - If the config lacks a "transform" property or postImportTransforms array, the effect returns without executing anything
  * - Transformations are executed sequentially in the order they appear in the configuration
  * - Any errors during SQL execution are caught and wrapped in a TransformationError with context
  */
 function runPostImportTransformations(
-  config: WorkspaceConfig, 
-  connection: duckdb.DuckDBConnection
-): Effect.Effect<void, TransformationError>  {
+  config: WorkspaceConfig,
+  connection: duckdb.DuckDBConnection,
+): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
     if (!("transform" in config)) {
@@ -123,14 +123,12 @@ function runPostImportTransformations(
   });
 }
 
-
-
 /**
  * Creates tables based on the schema definitions in the workspace configuration.
  * This includes creating ENUM types for controlled vocabularies and defining table structures.
  * @param connection - The active DuckDB connection.
  * @param config - The workspace configuration.
- * @returns An Effect that completes when all schema tables are created, or fails with a TransformationError.
+ * @returns An Effect that completes when all schema tables are created, or fails with a WorkspaceImportError.
  */
 export function createTableFromSchema(
   connection: duckdb.DuckDBConnection,
@@ -205,7 +203,7 @@ export function populateSchemaFromDataTables( // Export for testing
         const isSimpleTable = !joinSQL.trim().includes(" ");
         return isSimpleTable ? `${joinSQL} AS ${tableName}` : `(${joinSQL}) AS ${tableName}`;
       }).join(", ");
-      
+
       const insertSQL = `INSERT INTO ${tableName} (${targetColumnNames.join(", ")}) SELECT ${
         columnCalculations.join(", ")
       } FROM ${tableSources};`;

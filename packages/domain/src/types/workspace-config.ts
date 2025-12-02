@@ -29,6 +29,7 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
   nullValues: ["", "NA", "N/A", "NULL", "null"],
   failFast: false,
   outputDir: "./validation_results",
+  datasets: [],
 };
 
 /**

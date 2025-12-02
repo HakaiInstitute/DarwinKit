@@ -54,14 +54,13 @@ const WorkspaceValidationErrorBase = Data.TaggedClass("WorkspaceValidationError"
 /**
  * Represents an error that occurs during the data importing process.
  */
-export class WorkspaceImportError extends WorkspaceValidationErrorBase { }
+export class WorkspaceImportError extends WorkspaceValidationErrorBase {}
 
 export class WorkspaceValidationError extends WorkspaceValidationErrorBase {}
 
-
 /**
  * Imports a CSV file into a DuckDB table.
- * 
+ *
  * @param connection - The DuckDB connection to use for the import
  * @param tableName - The name of the table to create or import into
  * @param fullPath - The full file path to the CSV file to import
@@ -70,18 +69,24 @@ export class WorkspaceValidationError extends WorkspaceValidationErrorBase {}
  * @returns An Effect that completes when the CSV has been successfully imported, or fails with a WorkspaceImportError
  * @throws WorkspaceImportError - If the table creation or CSV import fails
  */
-export function WorkspaceImportCSV(connection: DuckDBConnection, tableName: string, fullPath: any, nullStr: any, dropTable: boolean = false): Effect.Effect<void, WorkspaceImportError> {
+export function WorkspaceImportCSV(
+  connection: DuckDBConnection,
+  tableName: string,
+  fullPath: string,
+  nullStr: string,
+  dropTable: boolean = false,
+): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
     yield* _(Effect.tryPromise({
-      try: () =>{
-        if (dropTable){
+      try: () => {
+        if (dropTable) {
           // Drop table if it exists, then create from CSV
-          connection.run( `DROP TABLE IF EXISTS ${tableName}`);
+          connection.run(`DROP TABLE IF EXISTS ${tableName}`);
         }
         // Create a table from the CSV file, using the specified null values.
         return connection.run(
-          `CREATE TABLE IF NOT EXISTS ${tableName} AS SELECT * FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`
-        )
+          `CREATE TABLE IF NOT EXISTS ${tableName} AS SELECT * FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`,
+        );
       },
       catch: (error) => {
         console.error(error);
@@ -153,10 +158,17 @@ export function WorkspaceImportCSV(connection: DuckDBConnection, tableName: stri
  *   without additional escaping; if enum keys contain characters that require escaping
  *   for the SQL dialect in use, that may need additional handling.
  */
+
+/**
+ * Minimal dataset type required for schema import.
+ * Both DatasetConfig and TransformDatasetConfig satisfy this interface.
+ */
+type DatasetWithProfile = { name: string; profile: string };
+
 export function WorkspaceImportSchema(
   connection: DuckDBConnection,
-  dataset: DatasetConfig,
-  datasets: readonly DatasetConfig[]
+  dataset: DatasetWithProfile,
+  datasets: readonly DatasetWithProfile[],
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
     // Load validation profile if specified
@@ -253,7 +265,6 @@ export function WorkspaceImportSchema(
   });
 }
 
-
 /**
  * Workspace validator for config-based validation
  */
@@ -284,14 +295,13 @@ export class WorkspaceValidator {
       // Discover and load configuration (schema already validates structure)
       const { config: loadedConfig, configPath: resolvedConfigPath } = yield* _(
         WorkspaceConfigService.discoverAndLoad(configPath).pipe(
-          Effect.mapError((error) =>{
+          Effect.mapError((error) => {
             return new WorkspaceValidationError({
               message: `Failed to load workspace config: ${error.message}`,
               code: ErrorCode.VALIDATION_FAILED,
               cause: error instanceof Error ? error : new Error(String(error)),
-            })
-          }
-          ),
+            });
+          }),
         ),
       );
 
@@ -326,11 +336,6 @@ export class WorkspaceValidator {
         ? { ...config.validation, failFast: options.failFast }
         : config.validation;
 
-      // Load validation profile if specified
-      const validationProfile = config.validation.profile
-        ? getValidationProfile(config.validation.profile)
-        : undefined;
-
       // Create workspace and load all datasets
       const { workspaceId, connection } = yield* _(
         createWorkspaceFromConfig(
@@ -348,11 +353,10 @@ export class WorkspaceValidator {
           const datasetResults: DatasetValidationResult[] = [];
 
           for (const dataset of config.validation.datasets) {
-            // Use dataset-level profile if specified, otherwise use validation-level profile,
-            // otherwise derive from spec field
+            // Use dataset-level profile if specified, otherwise derive from spec field
             let datasetProfile = dataset.profile
               ? getValidationProfile(dataset.profile)
-              : validationProfile;
+              : undefined;
 
             // If still no profile, try to derive from spec field
             if (!datasetProfile && dataset.spec) {
@@ -536,49 +540,67 @@ function validateDataset(
     const originTableColumnsResult = yield* _(
       Effect.tryPromise({
         try: () => connection.runAndReadAll(`SELECT column_name FROM (DESCRIBE '${tableName}')`),
-        catch: (error) =>{
+        catch: (error) => {
           console.error(error);
           return new WorkspaceValidationError({
             message: `Failed to Describe table: ${error}`,
-            code: ErrorCode.DATABASE_ERROR, 
+            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
-          })
+          });
         },
       }),
     );
-    const originTableColumns = originTableColumnsResult.getRowObjects().map((row) => String(row.column_name));
+    const originTableColumns = originTableColumnsResult.getRowObjects().map((row) =>
+      String(row.column_name)
+    );
 
     const schemaTableName = `${sanitizeTableName(dataset.profile).toLowerCase()}`;
-    const originFileColumns = dataset.fieldMappings.map(field => `${field.originName}`)
-    const targetColumnNames = dataset.fieldMappings.map(field => `"${field.targetName}"`)
-    const originColumnNames = dataset.fieldMappings.map(field => `"${field.originName}"`)
-    
-    const missingSourceFields = originFileColumns.filter((f: string) => !originTableColumns.includes(f));
-    const missingMappedFields = originTableColumns.filter((f: string) => !originFileColumns.includes(f));
-    
+    const originFileColumns = dataset.fieldMappings.map((field) => `${field.originName}`);
+    const targetColumnNames = dataset.fieldMappings.map((field) => `"${field.targetName}"`);
+    const originColumnNames = dataset.fieldMappings.map((field) => `"${field.originName}"`);
+
+    const missingSourceFields = originFileColumns.filter((f: string) =>
+      !originTableColumns.includes(f)
+    );
+    const missingMappedFields = originTableColumns.filter((f: string) =>
+      !originFileColumns.includes(f)
+    );
+
     // TODO: this check should generate a warning not an error
-    if (missingSourceFields.length){
+    if (missingSourceFields.length) {
       return yield* _(
-              Effect.fail((new WorkspaceValidationError({
-                message: `The data source for dataset '${dataset.name}' does not contain the mapped fields ['${missingSourceFields.join("','")}']. Please check the dataset config.`,
-        code: ErrorCode.INVALID_CONFIG, 
-        cause: Error(String('Dataset mapped field missing from source database table')),
-      }))))
+        Effect.fail(
+          new WorkspaceValidationError({
+            message:
+              `The data source for dataset '${dataset.name}' does not contain the mapped fields ['${
+                missingSourceFields.join("','")
+              }']. Please check the dataset config.`,
+            code: ErrorCode.INVALID_CONFIG,
+            cause: Error(String("Dataset mapped field missing from source database table")),
+          }),
+        ),
+      );
     }
-    
+
     // TODO: this check should generate a warning not an error
     if (missingMappedFields.length) {
       return yield* _(
-        Effect.fail((new WorkspaceValidationError({
-          message: `The dataset '${dataset.name}' mapped fields do not contain the data source columns ['${missingMappedFields.join("','")}']. Please check the dataset config.`,
-          code: ErrorCode.INVALID_CONFIG,
-          cause: Error(String('Dataset mapped field missing from source database table')),
-        }))))
+        Effect.fail(
+          new WorkspaceValidationError({
+            message:
+              `The dataset '${dataset.name}' mapped fields do not contain the data source columns ['${
+                missingMappedFields.join("','")
+              }']. Please check the dataset config.`,
+            code: ErrorCode.INVALID_CONFIG,
+            cause: Error(String("Dataset mapped field missing from source database table")),
+          }),
+        ),
+      );
     }
-    
+
     const insertSQL = `INSERT INTO ${schemaTableName} (${targetColumnNames.join(", ")}) SELECT ${
       originColumnNames.join(", ")
-      } FROM ${tableName};`;
+    } FROM ${tableName};`;
 
     yield* _(Effect.tryPromise({
       try: () => connection.run(insertSQL),
@@ -592,7 +614,6 @@ function validateDataset(
         });
       },
     }));
-
 
     // Validate field mappings based on spec
     // NEW: Collect all violations as ValidationViolation[] for partitioning

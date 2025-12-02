@@ -106,7 +106,6 @@ export const workspaceConfigSchema = S.Union(
   S.Struct({
     ...workspaceConfigBaseFields.fields,
     validation: validationSettingsSchema,
-
   }),
   // Only transform
   S.Struct({
