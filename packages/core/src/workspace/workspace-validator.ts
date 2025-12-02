@@ -50,7 +50,209 @@ const WorkspaceValidationErrorBase = Data.TaggedClass("WorkspaceValidationError"
   readonly code: ErrorCode;
   readonly cause?: Error;
 }>;
+
+/**
+ * Represents an error that occurs during the data importing process.
+ */
+export class WorkspaceImportError extends WorkspaceValidationErrorBase { }
+
 export class WorkspaceValidationError extends WorkspaceValidationErrorBase {}
+
+
+/**
+ * Imports a CSV file into a DuckDB table.
+ * 
+ * @param connection - The DuckDB connection to use for the import
+ * @param tableName - The name of the table to create or import into
+ * @param fullPath - The full file path to the CSV file to import
+ * @param nullStr - The string value(s) to treat as NULL in the CSV
+ * @param dropTable - If true, drops the table if it exists before creating it. Defaults to false
+ * @returns An Effect that completes when the CSV has been successfully imported, or fails with a WorkspaceImportError
+ * @throws WorkspaceImportError - If the table creation or CSV import fails
+ */
+export function WorkspaceImportCSV(connection: DuckDBConnection, tableName: string, fullPath: any, nullStr: any, dropTable: boolean = false): Effect.Effect<void, WorkspaceImportError> {
+  return Effect.gen(function* (_) {
+    yield* _(Effect.tryPromise({
+      try: () =>{
+        if (dropTable){
+          // Drop table if it exists, then create from CSV
+          connection.run( `DROP TABLE IF EXISTS ${tableName}`);
+        }
+        // Create a table from the CSV file, using the specified null values.
+        return connection.run(
+          `CREATE TABLE IF NOT EXISTS ${tableName} AS SELECT * FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`
+        )
+      },
+      catch: (error) => {
+        console.error(error);
+        return new WorkspaceImportError({
+          message: `Failed to create table '${tableName}' from CSV ${fullPath}`,
+          code: ErrorCode.DATABASE_ERROR,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        });
+      },
+    }));
+  });
+}
+
+/**
+ * Generates and applies a database schema for a dataset based on its validation profile.
+ *
+ * This function:
+ * - Loads a validation profile for `dataset` using `getValidationProfile(dataset.profile)`.
+ *   If no profile is found the function logs a warning and returns early (no DB changes).
+ * - Derives a table name from the profile's `name` (lowercased).
+ * - Creates ENUM types for any profile fields declared as controlled vocabularies
+ *   (profile field shape: `type === "controlled-vocabulary"` and having `values`).
+ *   - Enum type name format: `${tableName}_${fieldName}_enum`
+ *   - Enum members are derived from the keys of `field.values` and are quoted.
+ *   - ENUMs are created with `CREATE TYPE IF NOT EXISTS ... AS ENUM (...)`.
+ * - Builds a CREATE TABLE statement for the table:
+ *   - Column SQL type mapping:
+ *     - `IDENTIFIER` -> `TEXT`
+ *     - `CONTROLLED-VOCABULARY` -> `${tableName}_${fieldName}_enum`
+ *     - `URI` -> `TEXT`
+ *     - default -> `TEXT`
+ *   - Column names are quoted (`"fieldName"`).
+ *   - A column is marked PRIMARY KEY when either:
+ *     - its name equals `${tableName}ID`, or
+ *     - it ends with `ID` and the profile field has `unique === "true"`.
+ *   - A column is marked NOT NULL if `spec.fieldOverrides?.[fieldName]?.requirement === "required"`.
+ *   - Foreign key constraints:
+ *     - For any column ending with `ID` that is not treated as the table's primary key,
+ *       the code attempts to add `REFERENCES referencedTable(fieldName)` where
+ *       `referencedTable` = `fieldName.slice(0, -2).toLowerCase()` — only if a dataset
+ *       with that validation profile name exists in the provided `datasets` array.
+ * - Executes DDL against the given `connection` using Effect-wrapped promises:
+ *   - ENUM creation and table creation are executed via `connection.run(...)`
+ *     wrapped in `Effect.tryPromise`.
+ *   - SQL uses `IF NOT EXISTS` so repeated runs are safe (idempotent in typical cases).
+ * - Error handling:
+ *   - Database execution failures are converted into `WorkspaceImportError` values
+ *     with `ErrorCode.DATABASE_ERROR` and the original error attached as `cause`.
+ *   - The returned Effect fails with that `WorkspaceImportError` on DB errors.
+ *
+ * Side effects:
+ * - Mutates the target database by creating types and tables.
+ * - Logs a warning (console.warn) if the dataset has no validation profile.
+ * - Logs the failing SQL to console.error if table creation fails.
+ *
+ * Parameters:
+ * - connection: DuckDBConnection used to execute DDL statements.
+ * - dataset: DatasetConfig describing the dataset to import (profile-driven schema).
+ * - datasets: readonly DatasetConfig[] used to resolve referenced tables for foreign keys.
+ *
+ * Returns:
+ * - Effect.Effect<void, WorkspaceImportError> — an Effect which completes successfully
+ *   when DDL statements have been applied, or fails with WorkspaceImportError on error.
+ *
+ * Notes / caveats:
+ * - The function assumes profile field shapes and keys (e.g., `type`, `values`, `unique`,
+ *   and `fieldOverrides`) conform to the expected validation profile format.
+ * - ENUM member values are taken directly from the keys of `field.values` and quoted
+ *   without additional escaping; if enum keys contain characters that require escaping
+ *   for the SQL dialect in use, that may need additional handling.
+ */
+export function WorkspaceImportSchema(
+  connection: DuckDBConnection,
+  dataset: DatasetConfig,
+  datasets: readonly DatasetConfig[]
+): Effect.Effect<void, WorkspaceImportError> {
+  return Effect.gen(function* (_) {
+    // Load validation profile if specified
+    const spec = getValidationProfile(dataset.profile);
+    if (!spec) {
+      console.warn(
+        `No validation profile found for ${dataset.profile}, skipping table creation.`,
+      );
+      return;
+    }
+    const tableName = spec.name.toLowerCase();
+
+    // 1. Create ENUM types for controlled vocabularies
+    const enums = Object.entries(spec.fields || {}).map(
+      ([fieldName, field]) => {
+        // Check if this is a controlled vocabulary field
+        // Profile fields use `type === "controlled-vocabulary"` and may have `values`
+        if (field.type === "controlled-vocabulary" && field.values) {
+          const enumName = `${tableName}_${fieldName.toLowerCase()}_enum`;
+          const enumValues = Object.keys(field.values).map((v: string) => `'${v}'`).join(", ");
+          return `CREATE TYPE IF NOT EXISTS ${enumName} AS ENUM (${enumValues});`;
+        }
+        return null;
+      },
+    );
+
+    // 2. Generate Column Definition SQL
+    const columns = Object.keys(spec.fields || {}).map((fieldName) => {
+      const field = spec.fields![fieldName];
+      const fieldType = (field.type?.toUpperCase() || "TEXT")
+        .replace("IDENTIFIER", "TEXT")
+        .replace("CONTROLLED-VOCABULARY", `${tableName}_${fieldName.toLowerCase()}_enum`)
+        .replace("URI", "TEXT");
+      let fieldStr = `"${fieldName}" ${fieldType}`;
+      // Check if this field is the primary identifier for this table
+      // Profile fields use simple name matching (e.g., occurrenceID for Occurrence table)
+      // or check if field is marked as unique identifier
+      const isUniqueIdentifier = field.unique === "true";
+
+      if (fieldName === tableName + "ID" || (fieldName.endsWith("ID") && isUniqueIdentifier)) {
+        fieldStr += " PRIMARY KEY";
+      } else if (
+        spec.fieldOverrides?.[fieldName]?.requirement === "required"
+      ) {
+        // Only apply NOT NULL if this specific profile marks the field as required
+        fieldStr += " NOT NULL";
+      }
+      // add foreign key constraints for fields
+      // Skip FK for this table's PK, but include it for other ID fields
+      const isPrimaryKey = fieldName === tableName + "ID" ||
+        (fieldName.endsWith("ID") && isUniqueIdentifier);
+      if (fieldName.endsWith("ID") && !isPrimaryKey) {
+        const referencedTable = fieldName.slice(0, -2).toLowerCase();
+        // check if referenced table exists in config
+        if (
+          datasets.find((ds) =>
+            getValidationProfile(ds.profile)?.name.toLowerCase() === referencedTable
+          )
+        ) {
+          fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;
+        }
+      }
+      return fieldStr;
+    });
+
+    // 3. Create ENUM Types
+    const enumSql = enums.filter((e) => e !== null).join("\n");
+    if (enumSql) {
+      yield* _(Effect.tryPromise({
+        try: () => connection.run(enumSql),
+        catch: (error) =>
+          new WorkspaceImportError({
+            message: `Failed to create ENUM types for table '${tableName}'`,
+            code: ErrorCode.DATABASE_ERROR,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          }),
+      }));
+    }
+
+    // 4. Create Tables
+    const tableSql = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(", ")})`;
+    yield* _(Effect.tryPromise({
+      try: () => connection.run(tableSql),
+      catch: (error) => {
+        console.error(error);
+        console.error(`Failing SQL: ${tableSql}`);
+        return new WorkspaceImportError({
+          message: `Failed to create table '${tableName}'`,
+          code: ErrorCode.DATABASE_ERROR,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        });
+      },
+    }));
+  });
+}
+
 
 /**
  * Workspace validator for config-based validation
@@ -82,12 +284,13 @@ export class WorkspaceValidator {
       // Discover and load configuration (schema already validates structure)
       const { config: loadedConfig, configPath: resolvedConfigPath } = yield* _(
         WorkspaceConfigService.discoverAndLoad(configPath).pipe(
-          Effect.mapError((error) =>
-            new WorkspaceValidationError({
+          Effect.mapError((error) =>{
+            return new WorkspaceValidationError({
               message: `Failed to load workspace config: ${error.message}`,
               code: ErrorCode.VALIDATION_FAILED,
               cause: error instanceof Error ? error : new Error(String(error)),
             })
+          }
           ),
         ),
       );
@@ -104,7 +307,7 @@ export class WorkspaceValidator {
         );
       }
 
-      if (!("datasets" in loadedConfig)) {
+      if (!("datasets" in loadedConfig.validation)) {
         return yield* _(
           Effect.fail(
             new WorkspaceValidationError({
@@ -132,7 +335,7 @@ export class WorkspaceValidator {
       const { workspaceId, connection } = yield* _(
         createWorkspaceFromConfig(
           config.id,
-          config.datasets,
+          config.validation.datasets,
           validationSettings,
           dirname(resolvedConfigPath),
         ),
@@ -144,7 +347,7 @@ export class WorkspaceValidator {
           // Validate each dataset
           const datasetResults: DatasetValidationResult[] = [];
 
-          for (const dataset of config.datasets) {
+          for (const dataset of config.validation.datasets) {
             // Use dataset-level profile if specified, otherwise use validation-level profile,
             // otherwise derive from spec field
             let datasetProfile = dataset.profile
@@ -234,37 +437,14 @@ function createWorkspaceFromConfig(
     // Load each dataset into DuckDB
     for (const dataset of datasets) {
       const filePath = resolve(basePath, dataset.path);
-      const tableName = sanitizeTableName(dataset.name);
+      // prepend'raw_' to table name becouse dataset.name and spec/profile can not be the same name otherwise the tables conflict
+      const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
       // Build null values string for DuckDB
       const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`).join(", ");
-
-      // Drop table if it exists, then create from CSV
-      const dropTableQuery = `DROP TABLE IF EXISTS ${tableName}`;
-      const createTableQuery = `
-        CREATE TABLE ${tableName} AS
-        SELECT * FROM read_csv_auto('${filePath}', nullstr=[${nullStr}])
-      `;
-
-      // Drop existing table first - DDL operations should always work (defect if they fail)
-      yield* _(
-        Effect.tryPromise(() => connection.runAndReadAll(dropTableQuery)).pipe(
-          Effect.orDie,
-        ),
-      );
-
-      // Create table from CSV - this can fail with invalid user data (expected error)
-      yield* _(
-        Effect.tryPromise({
-          try: () => connection.runAndReadAll(createTableQuery),
-          catch: (error) =>
-            new WorkspaceValidationError({
-              message: `Failed to load dataset '${dataset.name}' from ${filePath}: ${error}`,
-              code: ErrorCode.VALIDATION_FAILED,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            }),
-        }),
-      );
+      const dropTable = true;
+      yield* _(WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable));
+      yield* _(WorkspaceImportSchema(connection, dataset, datasets));
     }
 
     return { workspaceId, connection };
@@ -328,7 +508,7 @@ function validateDataset(
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     const startTime = Date.now();
-    const tableName = sanitizeTableName(dataset.name);
+    const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
     // Get row count - infrastructure query should always work (defect if it fails)
     const countResult = yield* _(
@@ -352,6 +532,67 @@ function validateDataset(
         ),
       );
     }
+
+    const originTableColumnsResult = yield* _(
+      Effect.tryPromise({
+        try: () => connection.runAndReadAll(`SELECT column_name FROM (DESCRIBE '${tableName}')`),
+        catch: (error) =>{
+          console.error(error);
+          return new WorkspaceValidationError({
+            message: `Failed to Describe table: ${error}`,
+            code: ErrorCode.DATABASE_ERROR, 
+            cause: error instanceof Error ? error : new Error(String(error)),
+          })
+        },
+      }),
+    );
+    const originTableColumns = originTableColumnsResult.getRowObjects().map((row) => String(row.column_name));
+
+    const schemaTableName = `${sanitizeTableName(dataset.profile).toLowerCase()}`;
+    const originFileColumns = dataset.fieldMappings.map(field => `${field.originName}`)
+    const targetColumnNames = dataset.fieldMappings.map(field => `"${field.targetName}"`)
+    const originColumnNames = dataset.fieldMappings.map(field => `"${field.originName}"`)
+    
+    const missingSourceFields = originFileColumns.filter((f: string) => !originTableColumns.includes(f));
+    const missingMappedFields = originTableColumns.filter((f: string) => !originFileColumns.includes(f));
+    
+    // TODO: this check should generate a warning not an error
+    if (missingSourceFields.length){
+      return yield* _(
+              Effect.fail((new WorkspaceValidationError({
+                message: `The data source for dataset '${dataset.name}' does not contain the mapped fields ['${missingSourceFields.join("','")}']. Please check the dataset config.`,
+        code: ErrorCode.INVALID_CONFIG, 
+        cause: Error(String('Dataset mapped field missing from source database table')),
+      }))))
+    }
+    
+    // TODO: this check should generate a warning not an error
+    if (missingMappedFields.length) {
+      return yield* _(
+        Effect.fail((new WorkspaceValidationError({
+          message: `The dataset '${dataset.name}' mapped fields do not contain the data source columns ['${missingMappedFields.join("','")}']. Please check the dataset config.`,
+          code: ErrorCode.INVALID_CONFIG,
+          cause: Error(String('Dataset mapped field missing from source database table')),
+        }))))
+    }
+    
+    const insertSQL = `INSERT INTO ${schemaTableName} (${targetColumnNames.join(", ")}) SELECT ${
+      originColumnNames.join(", ")
+      } FROM ${tableName};`;
+
+    yield* _(Effect.tryPromise({
+      try: () => connection.run(insertSQL),
+      catch: (error) => {
+        console.error(error);
+        console.log(insertSQL);
+        return new WorkspaceValidationError({
+          message: `Failed to populate table '${schemaTableName}' from dataset '${dataset.name}'`,
+          code: ErrorCode.DATABASE_ERROR,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        });
+      },
+    }));
+
 
     // Validate field mappings based on spec
     // NEW: Collect all violations as ValidationViolation[] for partitioning

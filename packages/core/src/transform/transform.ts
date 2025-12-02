@@ -4,14 +4,16 @@ import * as Effect from "effect/Effect";
 import * as Data from "effect/Data";
 
 import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
+import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { getValidationProfile } from "@dwkt/domain";
+import { getValidationProfile, ErrorCode } from "@dwkt/domain";
 import { json2csv } from "json-2-csv";
 import type {
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
+  WorkspaceImportError,
 } from "@dwkt/core";
 
 /**
@@ -19,6 +21,7 @@ import type {
  */
 export class TransformationError extends Data.TaggedError("TransformationError")<{
   readonly message: string;
+  readonly code: ErrorCode;
   readonly cause?: Error;
 }> {}
 
@@ -28,6 +31,7 @@ export class TransformationError extends Data.TaggedError("TransformationError")
 export class OutputError extends Data.TaggedError("OutputError")<{
   readonly message: string;
   readonly outputPath: string;
+  readonly code: ErrorCode;
   readonly cause?: Error;
 }> {}
 
@@ -43,7 +47,12 @@ export function createTablesFromCSV( // Export for testing
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
   basePath: string,
-): Effect.Effect<void, TransformationError> {
+): Effect.Effect<
+  void,
+  | TransformationError
+  | WorkspaceImportError,
+  never
+  > {
   // Using Effect.gen to handle asynchronous operations in a sequential and readable manner.
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
@@ -64,23 +73,40 @@ export function createTablesFromCSV( // Export for testing
 
       const fullPath = resolve(basePath, csvPath);
 
-      yield* _(Effect.tryPromise({
-        try: () =>
-          // Create a table from the CSV file, using the specified null values.
-          connection.run(
-            `CREATE TABLE IF NOT EXISTS ${tableName} AS SELECT * FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`,
-          ),
-        catch: (error) => {
-          console.error(error);
-          return new TransformationError({
-            message: `Failed to create table '${tableName}' from CSV`,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          });
-        },
-      }));
+      yield* _(WorkspaceImportCSV( connection, tableName, fullPath, nullStr));
     }
+  });
+}
 
-    // Execute any post-import SQL transformations defined in the configuration.
+/**
+ * Executes post-import transformation SQL queries on the given DuckDB connection.
+ * 
+ * This function runs a series of SQL transformations defined in the workspace configuration
+ * after data has been imported. It processes each transformation sequentially and handles
+ * any errors that occur during execution.
+ * 
+ * @param config - The workspace configuration containing transform settings
+ * @param connection - The DuckDB connection to execute transformations on
+ * @returns An Effect that completes when all transformations are executed successfully,
+ *          or fails with a TransformationError if any transformation fails
+ * 
+ * @remarks
+ * - If the config lacks a "transform" property or postImportTransforms array, the effect returns without executing anything
+ * - Transformations are executed sequentially in the order they appear in the configuration
+ * - Any errors during SQL execution are caught and wrapped in a TransformationError with context
+ */
+function runPostImportTransformations(
+  config: WorkspaceConfig, 
+  connection: duckdb.DuckDBConnection
+): Effect.Effect<void, TransformationError>  {
+  return Effect.gen(function* (_) {
+    // Type guard - ensure config has transform settings
+    if (!("transform" in config)) {
+      return;
+    }
+    if (!config.transform.postImportTransforms) {
+      return;
+    }
     for (const transformSQL of config.transform.postImportTransforms) {
       yield* _(Effect.tryPromise({
         try: () => connection.run(transformSQL),
@@ -88,6 +114,7 @@ export function createTablesFromCSV( // Export for testing
           console.error(error);
           return new TransformationError({
             message: `Failed to execute post-import transform SQL`,
+            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           });
         },
@@ -95,6 +122,8 @@ export function createTablesFromCSV( // Export for testing
     }
   });
 }
+
+
 
 /**
  * Creates tables based on the schema definitions in the workspace configuration.
@@ -106,7 +135,7 @@ export function createTablesFromCSV( // Export for testing
 export function createTableFromSchema(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
-): Effect.Effect<void, TransformationError> {
+): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
     if (!("transform" in config)) {
@@ -114,94 +143,7 @@ export function createTableFromSchema(
     }
 
     for (const dataset of config.transform.datasets) {
-      // Load validation profile if specified
-      const transformProfile = getValidationProfile(dataset.profile);
-      if (!transformProfile) {
-        console.warn(
-          `No validation profile found for ${dataset.profile}, skipping table creation.`,
-        );
-        continue;
-      }
-      const tableName = transformProfile.name.toLowerCase();
-
-      // 1. Create ENUM types for controlled vocabularies
-      const enums = Object.entries(transformProfile.fields || {}).map(
-        ([fieldName, field]) => {
-          // Check if this is a controlled vocabulary field
-          // Profile fields use `type === "controlled-vocabulary"` and may have `values`
-          if (field.type === "controlled-vocabulary" && field.values) {
-            const enumName = `${tableName}_${fieldName.toLowerCase()}_enum`;
-            const enumValues = Object.keys(field.values).map((v: string) => `'${v}'`).join(", ");
-            return `CREATE TYPE IF NOT EXISTS ${enumName} AS ENUM (${enumValues});`;
-          }
-          return null;
-        },
-      );
-
-      // 2. Generate Column Definition SQL
-      const columns = Object.keys(transformProfile.fields || {}).map((fieldName) => {
-        const field = transformProfile.fields![fieldName];
-        const fieldType = (field.type?.toUpperCase() || "TEXT")
-          .replace("IDENTIFIER", "TEXT")
-          .replace("CONTROLLED-VOCABULARY", `${tableName}_${fieldName.toLowerCase()}_enum`)
-          .replace("URI", "TEXT");
-        let fieldStr = `"${fieldName}" ${fieldType}`;
-        // Check if this field is the primary identifier for this table
-        // Profile fields use simple name matching (e.g., occurrenceID for Occurrence table)
-        // or check if field is marked as unique identifier
-        const isUniqueIdentifier = field.unique === "true";
-
-        if (fieldName === tableName + "ID" || (fieldName.endsWith("ID") && isUniqueIdentifier)) {
-          fieldStr += " PRIMARY KEY";
-        } else if (
-          transformProfile.fieldOverrides?.[fieldName]?.requirement === "required"
-        ) {
-          // Only apply NOT NULL if this specific profile marks the field as required
-          fieldStr += " NOT NULL";
-        }
-        // add foreign key constraints for fields
-        // Skip FK for this table's PK, but include it for other ID fields
-        const isPrimaryKey = fieldName === tableName + "ID" ||
-          (fieldName.endsWith("ID") && isUniqueIdentifier);
-        if (fieldName.endsWith("ID") && !isPrimaryKey) {
-          const referencedTable = fieldName.slice(0, -2).toLowerCase();
-          // check if referenced table exists in config
-          if (
-            config.transform.datasets.find((ds) =>
-              getValidationProfile(ds.profile)?.name.toLowerCase() === referencedTable
-            )
-          ) {
-            fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;
-          }
-        }
-        return fieldStr;
-      });
-
-      // 3. Create ENUM Types
-      const enumSql = enums.filter((e) => e !== null).join("\n");
-      if (enumSql) {
-        yield* _(Effect.tryPromise({
-          try: () => connection.run(enumSql),
-          catch: (error) =>
-            new TransformationError({
-              message: `Failed to create ENUM types for table '${tableName}'`,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            }),
-        }));
-      }
-
-      // 4. Create Tables
-      const tableSql = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(", ")})`;
-      yield* _(Effect.tryPromise({
-        try: () => connection.run(tableSql),
-        catch: (error) => {
-          console.error(`Failing SQL: ${tableSql}`);
-          return new TransformationError({
-            message: `Failed to create table '${tableName}'`,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          });
-        },
-      }));
+      yield* _(WorkspaceImportSchema(connection, dataset, config.transform.datasets));
     }
   });
 }
@@ -229,13 +171,12 @@ export function populateSchemaFromDataTables( // Export for testing
         return yield* _(Effect.fail(
           new TransformationError({
             message: `No field definitions found in '${dataset?.name}'`,
+            code: ErrorCode.INVALID_CONFIG,
             cause: new Error(String("field property missing from dataset definition")),
           }),
         ));
       }
-      const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string): string =>
-        `"${fieldName}"`
-      );
+
       // Create column calculations based on the transformations defined in the dataset fields
       const columnCalculations = Object.entries(dataset.fields)
         .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
@@ -246,12 +187,17 @@ export function populateSchemaFromDataTables( // Export for testing
         return yield* _(Effect.fail(
           new TransformationError({
             message: `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
+            code: ErrorCode.INVALID_CONFIG,
             cause: new Error(
               String(`Validation profile ${dataset.profile} not found for '${dataset?.name}'`),
             ),
           }),
         ));
       }
+
+      const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string): string =>
+        `"${fieldName}"`
+      );
       const tableName = transformProfile.name.toLowerCase();
       const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) => {
         // Simple table names don't contain spaces, just an identifier
@@ -259,6 +205,7 @@ export function populateSchemaFromDataTables( // Export for testing
         const isSimpleTable = !joinSQL.trim().includes(" ");
         return isSimpleTable ? `${joinSQL} AS ${tableName}` : `(${joinSQL}) AS ${tableName}`;
       }).join(", ");
+      
       const insertSQL = `INSERT INTO ${tableName} (${targetColumnNames.join(", ")}) SELECT ${
         columnCalculations.join(", ")
       } FROM ${tableSources};`;
@@ -270,6 +217,7 @@ export function populateSchemaFromDataTables( // Export for testing
           console.log(insertSQL);
           return new TransformationError({
             message: `Failed to populate table '${tableName}' from dataset '${dataset.name}'`,
+            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           });
         },
@@ -309,6 +257,7 @@ export function exportObisTablesToCSV(
               error instanceof Error ? error.message : String(error)
             }`,
             outputPath: outputPath,
+            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         ),
@@ -328,6 +277,7 @@ export function exportObisTablesToCSV(
                   error instanceof Error ? error.message : String(error)
                 }`,
                 outputPath,
+                code: ErrorCode.DATABASE_ERROR,
                 cause: error instanceof Error ? error : new Error(String(error)),
               }),
           }),
@@ -348,6 +298,7 @@ export function exportObisTablesToCSV(
                     error instanceof Error ? error.message : String(error)
                   }`,
                   outputPath,
+                  code: ErrorCode.DATABASE_ERROR,
                   cause: error instanceof Error ? error : new Error(String(error)),
                 }),
             }),
@@ -372,6 +323,7 @@ export function exportObisTablesToCSV(
                 error instanceof Error ? error.message : String(error)
               }`,
               outputPath,
+              code: ErrorCode.DATABASE_ERROR,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }),
@@ -389,6 +341,7 @@ export function exportObisTablesToCSV(
               error instanceof Error ? error.message : String(error)
             }`,
             outputPath: fullPath,
+            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -433,6 +386,7 @@ export function exportToPersistentDB(
           new OutputError({
             message: `Failed to create output directory: ${error}`,
             outputPath,
+            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         ),
@@ -444,8 +398,9 @@ export function exportToPersistentDB(
       try: () => Deno.stat(fullPath).then(() => true).catch(() => false),
       catch: (error) =>
         new OutputError({
-          message: `Failed export DB to ${fullPath}: ${error}`,
+          message: `Failed get statistics for DB at ${fullPath}: ${error}`,
           outputPath,
+          code: ErrorCode.FILE_NOT_FOUND,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
     }));
@@ -458,6 +413,7 @@ export function exportToPersistentDB(
           new OutputError({
             message: `Failed to delete existing output file: ${error}`,
             outputPath: fullPath,
+            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -486,6 +442,7 @@ export function exportToPersistentDB(
             new OutputError({
               message: `Failed export DB to ${fullPath}: ${error}`,
               outputPath,
+              code: ErrorCode.FILE_NOT_FOUND,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }),
@@ -507,6 +464,7 @@ export function transformFile(
   void,
   | TransformationError
   | OutputError
+  | WorkspaceImportError
   | ConfigNotFoundError
   | ConfigParseError
   | ConfigValidationError
@@ -524,6 +482,8 @@ export function transformFile(
 
         console.log("Creating tables from CSV files...");
         yield* _(createTablesFromCSV(connection, config, basePath));
+        // Execute any post-import SQL transformations defined in the configuration.
+        yield* _(runPostImportTransformations(config, connection));
 
         console.log("Creating OBIS tables from schema...");
         yield* _(createTableFromSchema(connection, config));
