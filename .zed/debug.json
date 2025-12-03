@@ -1,0 +1,21 @@
+[
+  {
+    "adapter": "JavaScript",
+    "label": "Deno test",
+    "request": "launch",
+    "type": "pwa-node",
+    "cwd": "$ZED_WORKTREE_ROOT/packages/cli",
+    "runtimeExecutable": "deno",
+    "runtimeArgs": [
+      "test",
+      "--inspect-brk",
+      "--allow-run",
+      "--allow-read",
+      "--allow-write",
+      "--allow-ffi",
+      "--allow-sys"
+    ],
+    "trace": true,
+    "attachSimplePort": 9229
+  }
+]

@@ -1,0 +1,78 @@
+{
+  "id": "obis-marine-survey",
+  "name": "OBIS Marine Survey Example",
+  "version": "1.0.0",
+  "description": "Example configuration using OBIS Event validation profile",
+  "createdAt": "2024-10-06T00:00:00.000Z",
+  "updatedAt": "2024-10-06T00:00:00.000Z",
+  "validation": {
+    "profile": "obis-event",
+    "nullValues": [
+      "NA",
+      "N/A",
+      "",
+      "NULL",
+      "null"
+    ],
+    "failFast": false,
+    "outputDir": "./validation_results"
+  },
+  "datasets": [
+    {
+      "name": "events",
+      "spec": "dwc-event",
+      "path": "./data/marine_events.csv",
+      "description": "Marine sampling events for OBIS",
+      "fieldMappings": [
+        {
+          "originName": "eventID",
+          "targetName": "eventID"
+        },
+        {
+          "originName": "eventDate",
+          "targetName": "eventDate"
+        },
+        {
+          "originName": "decimalLatitude",
+          "targetName": "decimalLatitude"
+        },
+        {
+          "originName": "decimalLongitude",
+          "targetName": "decimalLongitude"
+        },
+        {
+          "originName": "geodeticDatum",
+          "targetName": "geodeticDatum"
+        },
+        {
+          "originName": "country",
+          "targetName": "country"
+        },
+        {
+          "originName": "countryCode",
+          "targetName": "countryCode"
+        },
+        {
+          "originName": "locality",
+          "targetName": "locality"
+        },
+        {
+          "originName": "minDepth",
+          "targetName": "minimumDepthInMeters",
+          "constraints": {
+            "minValue": 0,
+            "maxValue": 11000
+          }
+        },
+        {
+          "originName": "maxDepth",
+          "targetName": "maximumDepthInMeters",
+          "constraints": {
+            "minValue": 0,
+            "maxValue": 11000
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "name": "FC2022_event_schema",
+  "version": "1.0",
+  "description": "Event data schema for FC2022 survey - sampling locations and metadata",
+
+  "fields": {
+    "eventID": {
+      "type": "VARCHAR",
+      "required": true,
+      "description": "Unique identifier for the event"
+    },
+    "language": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Language of the data"
+    },
+    "license": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Data license information"
+    },
+    "bibliographicCitation": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Citation for the dataset"
+    },
+    "rightsHolder": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Rights holder information"
+    },
+    "modified": {
+      "type": "DATE",
+      "required": false,
+      "description": "Date the record was last modified"
+    },
+    "country": {
+      "type": "VARCHAR",
+      "required": true,
+      "description": "Country where sampling occurred"
+    },
+    "countryCode": {
+      "type": "VARCHAR",
+      "required": true,
+      "description": "ISO country code"
+    },
+    "geodeticDatum": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Geodetic datum used for coordinates"
+    },
+    "stateProvince": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "State or province"
+    },
+    "county": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "County or region"
+    },
+    "verbatimEventDate": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Event date as originally recorded"
+    },
+    "decimalLatitude": {
+      "type": "DOUBLE",
+      "required": false,
+      "description": "Latitude in decimal degrees",
+      "constraints": {
+        "minValue": -90,
+        "maxValue": 90
+      }
+    },
+    "decimalLongitude": {
+      "type": "DOUBLE",
+      "required": false,
+      "description": "Longitude in decimal degrees",
+      "constraints": {
+        "minValue": -180,
+        "maxValue": 180
+      }
+    },
+    "verbatimLocality": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Locality as originally recorded"
+    },
+    "parentEventID": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Parent event identifier"
+    },
+    "eventType": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Type of sampling event"
+    },
+    "month": {
+      "type": "INTEGER",
+      "required": false,
+      "description": "Month of sampling",
+      "constraints": {
+        "minValue": 1,
+        "maxValue": 12
+      }
+    },
+    "day": {
+      "type": "INTEGER",
+      "required": false,
+      "description": "Day of sampling",
+      "constraints": {
+        "minValue": 1,
+        "maxValue": 31
+      }
+    },
+    "year": {
+      "type": "INTEGER",
+      "required": false,
+      "description": "Year of sampling",
+      "constraints": {
+        "minValue": 1900,
+        "maxValue": 2100
+      }
+    },
+    "eventDate": {
+      "type": "DATE",
+      "required": false,
+      "description": "Date of the sampling event"
+    },
+    "minimumDepthInMeters": {
+      "type": "DOUBLE",
+      "required": false,
+      "description": "Minimum depth in meters",
+      "constraints": {
+        "minValue": 0
+      }
+    },
+    "maximumDepthInMeters": {
+      "type": "DOUBLE",
+      "required": false,
+      "description": "Maximum depth in meters",
+      "constraints": {
+        "minValue": 0
+      }
+    },
+    "institutionCode": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Institution code"
+    },
+    "institutionID": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Institution identifier"
+    },
+    "samplingProtocol": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Sampling protocol used"
+    },
+    "habitat": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Habitat description"
+    },
+    "collectionCode": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Collection code"
+    },
+    "municipality": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Municipality"
+    },
+    "fieldNotes": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Field notes"
+    },
+    "eventRemarks": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Event remarks"
+    }
+  },
+
+  "darwinCore": {
+    "requiredFields": ["eventID", "country", "countryCode"],
+    "coordinateValidation": {
+      "enabled": true,
+      "validRange": {
+        "lat": [-90, 90],
+        "lng": [-180, 180]
+      }
+    },
+    "dateValidation": {
+      "enabled": true,
+      "format": "YYYY-MM-DD",
+      "allowFutureDates": false,
+      "minYear": 1990,
+      "maxYear": 2030
+    }
+  }
+}

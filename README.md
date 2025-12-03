@@ -1,14 +1,117 @@
 # DarwinKit
 
-WIP
+[![Test Suite](https://github.com/HakaiInstitute/DarwinKit/actions/workflows/test.yml/badge.svg)](https://github.com/HakaiInstitute/DarwinKit/actions/workflows/test.yml)
 
-DarwinKit is a tool for mapping and/or validating tabular biodiversity data with the Darwin Core standard (DwC).
+A modular biodiversity data processing toolkit for mapping tabular data to Darwin Core standards.
 
-The core features are a mapping component, a transforming component, and a validating component. The underlying system utilizes declarative, deterministic configuration which describes the mapping, transforming, and validation procedures.
+## Architecture
 
-The configuration allows for using each component independently. Mapping can produce pass-through outputs if desired, directly mapping the source fields to target fields. Transformation can also occur on given fields without them needing to be mapped. Finally, Mapping could be defined which is than validated, without a transformation step. Although the components can be defined with interdependent values and behaviours (column A implies conditions for column B during validation), they can operate with entirely isolated behaviours.
+DarwinKit is organized as a Deno workspace with separate packages:
 
-## Why?
+- **@dwkt/shared** - Universal types, schemas, and constants (works in browser and Node.js)
+- **@dwkt/core** - Core business logic and Node.js-specific implementations 
+- **@dwkt/cli** - Command-line interface for data processing
+- **@dwkt/api** - HTTP API server
+- **@dwkt/gui** - Web-based user interface
+
+## Quick Start
+
+### Prerequisites
+
+- [Deno 2.0+](https://deno.land/) with workspace support
+- PostgreSQL database (optional, for user authentication)
+
+### Development
+
+```bash
+# Start both API server and GUI
+deno task dev
+
+# This runs:
+# - API server on http://localhost:3001  
+# - GUI development server on http://localhost:3000
+```
+
+### CLI Usage
+
+```bash
+# List workspaces
+deno task dev:cli workspace list
+
+# Create workspace from CSV
+deno task dev:cli workspace create "Marine Survey 2024" /path/to/survey-data.csv
+
+# Show workspace details and schema  
+deno task dev:cli workspace show <workspace-id>
+```
+
+### Individual Package Development
+
+```bash
+# Work on specific packages
+deno task dev:api      # API server only (port 3001)
+deno task dev:gui      # GUI dev server only (port 3000)
+deno task dev:cli      # Run CLI commands interactively
+
+# Testing and Quality
+deno test              # Run all tests
+deno test:e2e          # Run end-to-end tests
+deno fmt               # Format code
+deno lint              # Lint TypeScript files
+```
+
+## Package Structure
+
+```
+packages/
+├── shared/           # Universal code (browser + Node.js compatible)
+│   ├── types/        # TypeScript interfaces
+│   ├── schemas/      # Zod validation schemas  
+│   ├── errors/       # Error codes and types
+│   └── constants/    # Darwin Core vocabularies
+│
+├── core/            # Backend business logic (Node.js only)
+│   ├── workspace/   # Workspace management
+│   ├── parsing/     # CSV parsing with DuckDB
+│   └── database/    # PostgreSQL client
+│
+├── cli/             # Command-line interface
+│   ├── commands/    # CLI commands
+│   └── formatters/  # Terminal output formatting
+│
+├── api/             # HTTP API server
+│   └── routes/      # API routes (workspaces, auth)
+│
+└── gui/             # Web interface
+    ├── components/  # React components
+    ├── routes/      # Frontend routes  
+    └── api/         # API client
+```
+
+## Development Workflow
+
+The Deno workspace architecture provides:
+
+1. **Modular development** - Work on packages independently or together
+2. **Shared type safety** - Common schemas ensure consistency across all packages
+3. **Platform separation** - Universal code (shared) vs Node-specific (core) vs browser (GUI)
+4. **No installation friction** - Deno handles dependencies automatically
+5. **Independent deployment** - Each package can be built and deployed separately
+
+## Core Concepts
+
+### Workspaces
+Self-contained environments for processing CSV biodiversity data with automatic schema inference, sample extraction, and Darwin Core mapping tools. Each workspace stores parsed metadata as JSON files for portability and caching.
+
+### Schema Inference  
+Uses DuckDB to automatically detect column types, extract sample values, and analyze data structure without loading entire files into memory. Supports large datasets with configurable sampling strategies.
+
+### Darwin Core Mapping
+Interactive tools for mapping source columns to Darwin Core standard fields, with validation against controlled vocabularies and support for data transformation rules.
+
+---
+
+## Why DarwinKit?
 
 ### We work with DwC data
 
@@ -49,90 +152,6 @@ Ensuring we stay close to the DwC standard provides us with many advantages with
 4. **Tool interoperability**: GBIF, iNaturalist, and other platforms can directly ingest standardized data
 5. **Quality assurance**: Validation catches errors before they propagate through analysis pipelines
 
-### Collaboration and data sharing benefits
+## License
 
-Working with standardized data transforms how science teams collaborate:
-
-- **Cross-project integration**: Combine data from multiple field seasons or research groups without custom merge scripts
-- **Publication readiness**: Journals increasingly expect data in standard formats for supplementary materials
-- **Grant compliance**: Funding agencies require data management plans that often specify standard formats
-- **Global contribution**: Data can be contributed to international databases like GBIF, Ocean Biogeographic Information System, and GenBank seamlessly
-
-### Preventing downstream analysis failures
-
-Validation catches problems that would otherwise surface as:
-
-- **Statistical analysis errors**: Mixed coordinate systems causing incorrect distance calculations in species distribution models
-- **Visualization failures**: Malformed dates breaking temporal plots in biodiversity trend analysis  
-- **Database import rejections**: Invalid taxonomic names preventing upload to repository systems
-- **Reproducibility issues**: Undocumented transformations making published analyses impossible to replicate
-- **Collaboration bottlenecks**: Data quality questions consuming weeks of back-and-forth communication
-
-
-## Workflow
-
-There are multiple ways of using this logic. Fundamentally, it operates on files containing tabular data. A source file with a corresponding configuration file can be deterministically mapped, transformed, and validated.
-
-One abstraction on this concept is a GUI which defines projects containing files. These files can each have respective configurations.
-
-Another would be defining mapping as JSON and performing it in a Github action, or validations as JSON. This would allow taking arbitrary data and validating it according to the instructions in the JSON.
-
-In the case of the GUI, project data would be stored in a database for future reference, to ensure data is normalized and stewarded by the application layer logic over time. This removes cognitve overhead from the scientists doing this work.
-
-In all cases, validations are performed by functions within this code base. Efforts should be made in order to ensure that validation is normalized, type safe, versioned, and fully tested against many sample datasets.
-
-### Users
-
-Users are scientists 
-
-## Components
-
-### Mapping
-
-The mapping component allows users to define how source data's columns align with the Darwin Core standard. For example, if you store your organism sex data in a column called 'gender', you can declare that it is meant to be the "sex" field in Darwin Core.
-
-### Transforming
-
-Then, if your 'gender' column uses values like "F" for female, "M" for male, "H" for hermaphrodite, etc. then you can transform this data by declaring how it maps to the controlled vocabulary for 'sex' in Darwin Core.
-
-This transformation could also be used for formatting GCS coordinates properly, other controlled vocabularies, generating taxonomy from the WoRMS registry, formatting dates, and more.
-
-### Validating
-
-Each target field has its own means of being validated by default, so upon executing a mapping and transforming process, validation can be applied according to the known validations attached to the output fields.
-
-In controlled vocabularies, we know that if the vocabulary is strict, it must only contain the controlled terms. Sometimes, the vocabulary is only recommended, and we can warn for fields which do not adhere to the vocabulary but still pass the validation.
-
-With dates, we can ensure that all values passed into the transformation were able to be inferred as dates reliably, and that their outputs are valid dates as well.
-
-GCS coordinates should always be within their respective numeric bounds.
-
-There are many other ways to validate the data, but this is an overview.
-
-## Target standards
-
-The initial target is Darwin Core, as all of our source data is biodiversity and eDNA research at the moment. Over time, other standards and extensions will be included.
-
-### Versions
-
-Each standard can have a version. Versioning can occur at the field level, or at the standard level; it's up to the implementor to choose which tier dictates the version. In some standards, a field can be updated to use new semantics or validation strategies without the entire standard upgrading to a new version. As such, a standard should be maintained accordingly in our database. Ideally, a version is pinned to the standard itself and the verison field on related fields inherits from the parent standard.
-
-### Extensions
-
-Standards can be extended with non-standard fields. These extensions and their respective fields must be grouped and clearly defined as extensions. This allows for adding fields for the eMoF or DNADerivedData.
-
-## Types and Semantics
-
-As source data represents data which has both primitive types (string, integer, boolean) and semantic types (dates, vocabularies, measurements), source fields should indicate their primitive and semantic types as clearly as possible. This allows for coarse and refined compatibility for determining how fields can be mapped, transformed, and ultimately validated.
-
-The system driving field compatibility and validation is a faceted semantic system which allows us to define how humans think of and mentally/intuitively group fields within standards, how types are semantically compatible, and ultimately, how field data can be semantically valid. This allows us to provide guided user interfaces, such as:
-
-- A GUI which presents only compatible fields as options for targets for a source field according to the source's semantics
-- Capturing incompatible field configurations and outputting errors which explain the incompatibility and suggest compatible options as alternatives
-- Providing an interactive CLI which narrows down mapping/transformation options to prevent overwhelming lists that are slow to navigate through
-
-## Using this code
-
-The core of this tool is designed to be highly portable such that it can power a CLI, HTTP API, or GUI. The functions can all be tested in isolation or as parts of larger programs such as a CLI tool which validates files at rest in Github actions.
-
-At the moment, these programs are not defined, but will eventually exist here as part of a monorepo.
+MIT

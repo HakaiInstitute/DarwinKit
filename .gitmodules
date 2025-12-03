@@ -1,0 +1,6 @@
+[submodule "external/rs_gbif"]
+	path = external/rs_gbif
+	url = https://github.com/gbif/rs.gbif.org.git
+[submodule "external/rocky-subtidal-fish-invertebrate"]
+	path = external/rocky-subtidal-fish-invertebrate
+	url = git@github.com:HakaiInstitute/rocky-subtidal-fish-invertebrate.git

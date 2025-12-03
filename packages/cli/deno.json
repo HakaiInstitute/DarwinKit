@@ -1,0 +1,45 @@
+{
+  "version": "1.2.2",
+  "tasks": {
+    "dev": "deno run --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net main.ts",
+    "compile:macos": "deno compile --target aarch64-apple-darwin --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --output ./dist/darwinkit_aarch64-apple-darwin main.ts",
+    "compile:linux": "deno compile --target x86_64-unknown-linux-gnu --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --output ./dist/darwinkit_x86_64-unknown-linux-gnu main.ts",
+    "test": "deno test --allow-write --allow-env --allow-read --allow-run --allow-ffi --allow-net --fail-fast --reporter=dot"
+  },
+  "imports": {
+    "@cliffy/ansi": "jsr:@cliffy/ansi@^1.0.0-rc.7",
+    "@cliffy/command": "jsr:@cliffy/command@^1.0.0-rc.7",
+    "@cliffy/table": "jsr:@cliffy/table@^1.0.0-rc.7",
+    "@cliffy/testing": "jsr:@cliffy/testing@1.0.0-rc.7",
+    "@dwkt/domain": "../domain/mod.ts",
+    "@dwkt/core": "../core/mod.ts",
+    "@dwkt/api": "./packages/api/mod.ts",
+    "@outloudvi/tiny-invariant": "jsr:@outloudvi/tiny-invariant@^0.0.2",
+    "@std/cli": "jsr:@std/cli@^1.0.7",
+    "@std/csv": "jsr:@std/csv@^1.0.4",
+    "@std/expect": "jsr:@std/expect@^1.0.17",
+    "@std/fmt": "jsr:@std/fmt@^1.0.8",
+    "@std/fs": "jsr:@std/fs@^1.0.6",
+    "@std/path": "jsr:@std/path@^1.0.8",
+    "git-cliff": "npm:git-cliff@^2.7.0",
+    "ts-pattern": "npm:ts-pattern@^5.6.0",
+    "xstate": "npm:xstate@^5.19.0",
+    "effect": "npm:effect@^3.10.0"
+  },
+  "fmt": {
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "singleQuote": true
+  },
+  "compilerOptions": {
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true,
+    "strictBindCallApply": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false
+  }
+}

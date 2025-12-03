@@ -1,0 +1,115 @@
+{
+  "name": "FC2022_emof_schema",
+  "version": "1.0",
+  "description": "Extended measurement or fact data schema",
+
+  "fields": {
+    "eventID": {
+      "type": "VARCHAR",
+      "required": true,
+      "description": "Reference to the event"
+    },
+    "occurrenceID": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Reference to the occurrence"
+    },
+    "DNA_sequence": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "DNA sequence data"
+    },
+    "sop": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Standard operating procedure"
+    },
+    "samp_collect_device": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Sample collection device"
+    },
+    "target_gene": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Target gene for sequencing"
+    },
+    "target_subfragment": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Target subfragment"
+    },
+    "sample_vol_we_dna_ext": {
+      "type": "DOUBLE",
+      "required": false,
+      "description": "Sample volume for DNA extraction",
+      "constraints": {
+        "minValue": 0
+      }
+    },
+    "pcr_primer_forward": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Forward PCR primer sequence"
+    },
+    "pcr_primer_reverse": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Reverse PCR primer sequence"
+    },
+    "pcr_primer_name_forward": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Forward PCR primer name"
+    },
+    "pcr_primer_name_reverse": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Reverse PCR primer name"
+    },
+    "env_broad_scale": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Environmental broad scale context"
+    },
+    "env_local_scale": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Environmental local scale context"
+    },
+    "env_medium": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Environmental medium"
+    },
+    "lib_layout": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Library layout"
+    },
+    "seq_meth": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "Sequencing method"
+    },
+    "otu_class_appr": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "OTU classification approach"
+    },
+    "otu_seq_comp_appr": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "OTU sequence comparison approach"
+    },
+    "otu_db": {
+      "type": "VARCHAR",
+      "required": false,
+      "description": "OTU database used"
+    }
+  },
+
+  "darwinCore": {
+    "requiredFields": ["eventID"]
+  }
+}
