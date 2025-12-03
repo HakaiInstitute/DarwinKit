@@ -14,6 +14,7 @@ const darwinkit = new Command()
   .action(function () {
     this.showHelp();
   })
+  .command('import', importCommand)
   .command('validate', validateCommand)
   .command('transform', transformCommand);
 
