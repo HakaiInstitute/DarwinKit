@@ -3,6 +3,17 @@
  *
  * These types represent validation results when validating multiple datasets
  * within a workspace using spec-based field mappings.
+ *
+ * DESIGN DECISION: Kept as pure TypeScript interfaces rather than Effect Schemas because:
+ * 1. OUTPUT-ONLY types - Never parsed from external input
+ * 2. Internal contracts - These define the internal API contract for validation results
+ *    between core, cli, and api packages
+ * 3. Constructed internally - Built by the validation system, not from external data
+ * 4. Complex nested structures - Creating schemas would add complexity without benefit
+ *
+ * The types aggregate results from multiple validators and datasets, providing
+ * a comprehensive view of validation outcomes partitioned by enforcement level
+ * (errors, warnings, info).
  */
 
 import type { TransformationChain } from "./transformation.ts";
@@ -46,57 +57,6 @@ export interface DatasetValidationResult {
     readonly fieldName: string;
     readonly targetName: string;
     readonly message: string;
-  }>;
-
-  /**
-   * @deprecated Use violations.errors instead. This field will be removed in a future version.
-   * Controlled vocabulary errors (from spec)
-   */
-  readonly vocabularyErrors: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly violations: ReadonlyArray<{
-      readonly rowNumber: number;
-      readonly value: string; // Deprecated: use csvValue for source, transformedValue for final
-      readonly csvValue?: string; // Original value in CSV file
-      readonly transformedValue?: unknown; // Value after transformations
-      readonly transformationChain?: TransformationChain; // Full transformation history
-      readonly errorMessage?: string; // Enhanced error message with transformation context
-      readonly suggestedValues?: ReadonlyArray<string>;
-    }>;
-  }>;
-
-  /**
-   * @deprecated Use violations.errors/warnings instead. This field will be removed in a future version.
-   * Uniqueness violations (from spec)
-   */
-  readonly uniquenessViolations: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly duplicateValue: string; // Deprecated: use csvValue/transformedValue
-    readonly csvValue?: string; // Original value in CSV file
-    readonly transformedValue?: unknown; // Value after transformations
-    readonly transformationChain?: TransformationChain; // Full transformation history
-    readonly occurrenceCount: number;
-    readonly affectedRows: ReadonlyArray<number>;
-  }>;
-
-  /**
-   * @deprecated Use violations.errors/warnings/info instead. This field will be removed in a future version.
-   * Range/constraint violations (from spec validators)
-   */
-  readonly constraintViolations: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly constraintType: string;
-    readonly violations: ReadonlyArray<{
-      readonly rowNumber: number;
-      readonly value: string; // Deprecated: use csvValue for source, transformedValue for final
-      readonly csvValue?: string; // Original value in CSV file
-      readonly transformedValue?: unknown; // Value after transformations
-      readonly transformationChain?: TransformationChain; // Full transformation history
-      readonly errorMessage: string;
-    }>;
   }>;
 
   // Field warnings (strongly recommended fields that are missing)

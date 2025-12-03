@@ -89,7 +89,7 @@ export const ValidatorConfigSchema = S.Struct({
     maxLength: S.optional(S.Number),
     pattern: S.optional(S.String),
     flags: S.optional(S.String),
-    format: S.optional(S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees")),
+    format: S.optional(S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees", "integer")),
     allowEmpty: S.optional(S.Boolean),
     allowWhitespace: S.optional(S.Boolean),
     custom: S.optional(S.Record({ key: S.String, value: S.Unknown })),
@@ -193,7 +193,7 @@ export const DARWIN_CORE_VALIDATORS = {
     message: "Web identifier should be a valid URL",
   }),
 
-    // URL format for web identifiers
+  // URL format for web identifiers
   integer: (): ValidatorConfig => ({
     type: "format",
     enforcement: "required",

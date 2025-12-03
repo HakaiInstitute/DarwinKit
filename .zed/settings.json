@@ -5,23 +5,19 @@
 {
   // Enable format on save
   "format_on_save": "on",
-
   // Configure ESLint to run fixes on save
   "code_actions_on_format": {
     "source.fixAll.eslint": true,
     "source.organizeImports": true
   },
-
   "context_servers": {
     "postgres-context-server": {
-      "source": "extension",
       "enabled": true,
       "settings": {
         "database_url": "postgresql://darwin:U1tr4.M3g4@localhost:5432/darwin_kit"
       }
     }
   },
-
   // Language-specific configurations
   "languages": {
     "TypeScript": {
@@ -32,7 +28,11 @@
         "source.organizeImports": true
       },
       // Use Deno language server for TypeScript support
-      "language_servers": ["deno", "!vtsls", "!typescript-language-server"]
+      "language_servers": [
+        "deno",
+        "!vtsls",
+        "!typescript-language-server"
+      ]
     },
     "TSX": {
       // Use Deno's built-in formatter for TSX files
@@ -42,14 +42,21 @@
         "source.organizeImports": true
       },
       // Use Deno language server for TSX support
-      "language_servers": ["deno", "!vtsls", "!typescript-language-server"]
+      "language_servers": [
+        "deno",
+        "!vtsls",
+        "!typescript-language-server"
+      ]
     },
     "JavaScript": {
       // Use Prettier as the formatter for JavaScript files
       "formatter": {
         "external": {
           "command": "node_modules/.bin/prettier",
-          "arguments": ["--stdin-filepath", "{buffer_path}"]
+          "arguments": [
+            "--stdin-filepath",
+            "{buffer_path}"
+          ]
         }
       },
       // Run ESLint fixes on format
@@ -58,7 +65,10 @@
         "source.organizeImports": true
       },
       // Language servers for JavaScript
-      "language_servers": ["vtsls", "eslint"]
+      "language_servers": [
+        "vtsls",
+        "eslint"
+      ]
     }
     // "JSX": {
     //   // Use Prettier as the formatter for JSX files
@@ -80,7 +90,6 @@
     //   "language_servers": ["vtsls", "eslint"]
     // }
   },
-
   // LSP (Language Server Protocol) configurations
   "lsp": {
     // vtsls configuration (Vue/TypeScript Language Server - faster than typescript-language-server)
@@ -156,7 +165,6 @@
         }
       }
     },
-
     // ESLint configuration
     "eslint": {
       "settings": {
@@ -184,11 +192,9 @@
       }
     }
   },
-
   // Tab and indentation settings
   "tab_size": 2,
   "hard_tabs": false,
-
   // File exclude patterns (don't show these in file tree)
   "file_scan_exclusions": [
     "**/.git",

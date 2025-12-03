@@ -3,9 +3,7 @@
  */
 
 import * as S from "effect/Schema";
-import { EnforcementLevel } from "../specs/validators.ts";
-
-
+import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
 
 /**
  * Workspace field mapping schema
@@ -14,6 +12,8 @@ export const workspaceFieldMappingSchema = S.Struct({
   originName: S.String,
   targetName: S.String,
   isRequired: S.optional(S.Boolean),
+  constraints: S.optional(S.Record({ key: S.String, value: S.Unknown })),
+  validators: S.optional(S.Array(ValidatorConfigSchema)),
 });
 
 /**
@@ -30,17 +30,27 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
 });
 
 /**
- * Dataset configuration schema
+ * Dataset configuration schema for validation
  */
 export const datasetConfigSchema = S.Struct({
   name: S.String,
-  spec: S.optional(S.String),
-  path: S.optional(S.String),
+  spec: S.String,
+  path: S.String,
+  description: S.optional(S.String),
+  profile: S.optional(S.String),
+  fieldMappings: S.Array(workspaceFieldMappingSchema),
+});
+
+/**
+ * Dataset configuration schema for transform
+ * (includes additional fields needed for transformation)
+ */
+export const transformDatasetConfigSchema = S.Struct({
+  name: S.String,
+  profile: S.String,
   source: S.optional(S.Object),
   description: S.optional(S.String),
-  profile: S.String,
-  fieldMappings: S.optional(S.Array(workspaceFieldMappingSchema)),
-  fields: S.optional(S.Object)
+  fields: S.optional(S.Object),
 });
 
 /**
@@ -50,7 +60,9 @@ export const validationSettingsSchema = S.Struct({
   nullValues: S.Array(S.String),
   failFast: S.Boolean,
   outputDir: S.String,
-  datasets: S.Array(datasetConfigSchema),
+  description: S.optional(S.String),
+  maxViolationsPerField: S.optional(S.Number), // Limit violations per field (default: unlimited)
+  enableSuggestions: S.optional(S.Boolean), // Enable fuzzy matching for vocabulary violations (default: true)
 });
 
 /**
@@ -60,7 +72,7 @@ export const transformSettingsSchema = S.Struct({
   nullValues: S.Array(S.String),
   inputs: S.Object,
   postImportTransforms: S.Array(S.String),
-  datasets: S.Array(datasetConfigSchema),
+  datasets: S.Array(transformDatasetConfigSchema),
   output: S.Struct({
     outputDir: S.String,
     outputFilesWithTimestamp: S.optional(S.Boolean),
@@ -71,27 +83,46 @@ export const transformSettingsSchema = S.Struct({
 });
 
 /**
- * Complete workspace configuration schema
+ * Base fields shared by all workspace configurations
  */
-const workspaceConfigBaseSchema = S.Struct({
+const workspaceConfigBaseFields = S.Struct({
   id: S.String,
   name: S.String,
   version: S.String,
   description: S.optional(S.String),
-  transform: transformSettingsSchema,
-  validation: validationSettingsSchema,
   crossDatasetRules: S.optional(S.Array(workspaceCrossDatasetRuleSchema)),
   createdAt: S.Date,
   updatedAt: S.Date,
 });
 
 /**
- * Workspace configuration schema that allows either validation or transform settings to be omitted, but not both.
+ * Workspace configuration schema that requires at least one of validation or transform.
+ * This creates a proper discriminated union with three variants:
+ * 1. Only validation (no transform)
+ * 2. Only transform (no validation)
+ * 3. Both validation and transform
+ *
+ * Note: datasets is at root level for validation workflows
  */
 export const workspaceConfigSchema = S.Union(
-  workspaceConfigBaseSchema.pipe(S.omit("validation")),
-  workspaceConfigBaseSchema.pipe(S.omit("transform")),
-  workspaceConfigBaseSchema
+  // Only validation
+  S.Struct({
+    ...workspaceConfigBaseFields.fields,
+    validation: validationSettingsSchema,
+    datasets: S.optional(S.Array(datasetConfigSchema)),
+  }),
+  // Only transform
+  S.Struct({
+    ...workspaceConfigBaseFields.fields,
+    transform: transformSettingsSchema,
+  }),
+  // Both validation and transform
+  S.Struct({
+    ...workspaceConfigBaseFields.fields,
+    validation: validationSettingsSchema,
+    transform: transformSettingsSchema,
+    datasets: S.optional(S.Array(datasetConfigSchema)),
+  }),
 );
 
 // Note: Type exports are defined in types/workspace-config.ts to avoid duplication

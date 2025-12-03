@@ -1,5 +1,7 @@
 # DarwinKit
 
+[![Test Suite](https://github.com/HakaiInstitute/DarwinKit/actions/workflows/test.yml/badge.svg)](https://github.com/HakaiInstitute/DarwinKit/actions/workflows/test.yml)
+
 A modular biodiversity data processing toolkit for mapping tabular data to Darwin Core standards.
 
 ## Architecture

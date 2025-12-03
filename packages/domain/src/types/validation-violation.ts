@@ -4,95 +4,284 @@
  * Defines the minimal and enriched violation types for validation errors.
  * Validators return RawViolation (minimal data), infrastructure enriches
  * to ValidationViolation (full metadata for routing and reporting).
+ *
+ * DESIGN DECISION: ValidationViolation uses Effect's Data.TaggedClass for discriminated unions:
+ * 1. TYPE-SAFE pattern matching - Use switch on _tag for exhaustive case handling
+ * 2. TYPE GUARDS - Use provided helper functions (isRangeViolation, etc.) for filtering violations by type
+ * 3. Two-tier design pattern:
+ *    - RawViolation: Minimal data returned by validators (lightweight, fast)
+ *    - ValidationViolation: Enriched with metadata for routing/reporting (complete)
+ * 4. Internal contracts - These define how validators communicate with the validation infrastructure
+ * 5. No runtime validation needed - These types are constructed by trusted internal code
+ *
+ * This separation allows validators to return minimal data while the validation
+ * infrastructure handles metadata enrichment (field names, enforcement mapping,
+ * severity calculation, error messages, etc.).
+ *
+ * Validators return RawViolation; infrastructure enriches to ValidationViolation.
  */
 
-import type { EnforcementLevel, ValidatorConfig } from "../specs/validators.ts";
-import type { FieldDefinition } from "../specs/field-definition.ts";
+import { Data } from "effect";
+import type { EnforcementLevel } from "../specs/validators.ts";
 import type { TransformationChain } from "./transformation.ts";
 import { ErrorSeverity } from "../errors/severity.ts";
 
 /**
- * Minimal violation data returned by validators
+ * Common fields shared by all validation violations
  *
- * Validators return this lightweight structure. Infrastructure
- * enriches it with metadata to create ValidationViolation.
- *
- * @example Simple validator (no conditional logic)
- * ```typescript
- * return rows.map((row) => ({
- *   rowNumber: Number(row.row_num),
- *   value: row.value,
- * }));
- * ```
- *
- * @example Conditional enforcement
- * ```typescript
- * return rows.map((row) => ({
- *   rowNumber: Number(row.row_num),
- *   value: row.value,
- *   enforcement: extremeOutOfRange ? "required" : "recommended",
- *   message: "Custom message",
- * }));
- * ```
+ * DESIGN DECISION: Kept as plain TypeScript interface rather than Effect Schema because:
+ * 1. Internal-only type - Used as base for Data.TaggedClass violations, not for parsing
+ * 2. OUTPUT-ONLY - These violations are constructed internally, never parsed from external input
+ * 3. TransformationChain dependency - Would require creating schemas for complex nested types
+ * 4. Performance - No runtime validation overhead for internally-constructed objects
  */
-export interface RawViolation {
-  /** Row number where violation occurred (required) */
-  readonly rowNumber: number;
-
-  /** Value that violated the constraint (required) */
-  readonly value: unknown;
-
-  /** Optional override of validator's enforcement level (for conditional severity) */
-  readonly enforcement?: EnforcementLevel;
-
-  /** Optional custom message (overrides validator's default message) */
-  readonly message?: string;
-
-  /** Original CSV value (before transformations) */
-  readonly csvValue?: string;
-
-  /** Value after transformations */
-  readonly transformedValue?: unknown;
-
-  /** Full transformation history */
-  readonly transformationChain?: TransformationChain;
-
-  /** Suggested valid values (for vocabulary violations) */
-  readonly suggestedValues?: ReadonlyArray<string>;
-}
-
-/**
- * Enriched validation violation with full metadata
- *
- * Created by infrastructure from RawViolation. Contains all
- * metadata needed for routing, formatting, and reporting.
- *
- * This is the internal representation used for partitioning
- * violations by enforcement level before transforming into
- * external API result types.
- */
-export interface ValidationViolation {
-  // Enforcement metadata (determines routing)
+interface ViolationBase {
   readonly enforcement: EnforcementLevel;
   readonly severity: ErrorSeverity;
-
-  // Location metadata
   readonly fieldName: string;
   readonly targetName: string;
   readonly rowNumber: number;
-
-  // Violation details
-  readonly violationType: "range" | "vocabulary" | "uniqueness" | "temporal" | "cross-dataset";
   readonly value: string;
   readonly csvValue?: string;
   readonly transformedValue?: unknown;
   readonly transformationChain?: TransformationChain;
   readonly errorMessage: string;
-  readonly suggestedValues?: ReadonlyArray<string>;
-
-  // Validator metadata
   readonly validatorType: string;
-  readonly params?: Record<string, unknown>;
+}
+
+/**
+ * Range validation violation (numeric/date range constraints)
+ */
+export class RangeViolation extends Data.TaggedClass("RangeViolation")<
+  ViolationBase & {
+    readonly params?: { min?: number; max?: number };
+  }
+> {}
+
+/**
+ * Vocabulary validation violation (controlled vocabulary constraints)
+ */
+export class VocabularyViolation extends Data.TaggedClass("VocabularyViolation")<
+  ViolationBase & {
+    readonly suggestedValues?: ReadonlyArray<string>;
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Uniqueness validation violation (duplicate identifier constraints)
+ */
+export class UniquenessViolation extends Data.TaggedClass("UniquenessViolation")<
+  ViolationBase & {
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Temporal validation violation (date/time consistency constraints)
+ */
+export class TemporalViolation extends Data.TaggedClass("TemporalViolation")<
+  ViolationBase & {
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Cross-dataset validation violation (foreign key/referential integrity)
+ */
+export class CrossDatasetViolation extends Data.TaggedClass("CrossDatasetViolation")<
+  ViolationBase & {
+    readonly params?: {
+      sourceDataset?: string;
+      targetDataset?: string;
+      targetField?: string;
+    };
+  }
+> {}
+
+/**
+ * Primary key constraint violation (duplicate or null primary key)
+ */
+export class PrimaryKeyViolation extends Data.TaggedClass("PrimaryKeyViolation")<
+  ViolationBase & {
+    readonly constraintType: "duplicate" | "null";
+    readonly duplicateCount?: number;
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Not null constraint violation (required field is null)
+ */
+export class NotNullViolation extends Data.TaggedClass("NotNullViolation")<
+  ViolationBase & {
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Enum constraint violation (value not in controlled vocabulary)
+ */
+export class EnumViolation extends Data.TaggedClass("EnumViolation")<
+  ViolationBase & {
+    readonly enumType: string;
+    readonly allowedValues: ReadonlyArray<string>;
+    readonly suggestedValue?: string;
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Foreign key constraint violation (referenced value doesn't exist)
+ */
+export class ForeignKeyViolation extends Data.TaggedClass("ForeignKeyViolation")<
+  ViolationBase & {
+    readonly referencedTable: string;
+    readonly referencedField: string;
+    readonly params?: {
+      targetDataset?: string;
+      targetField?: string;
+    };
+  }
+> {}
+
+/**
+ * Discriminated union of all validation violation types
+ *
+ * Use the provided type guard helpers for filtering:
+ *
+ * @example Type guard filtering
+ * ```typescript
+ * const rangeErrors = violations.filter(isRangeViolation);
+ * const vocabErrors = violations.filter(isVocabularyViolation);
+ * ```
+ */
+export type ValidationViolation =
+  | RangeViolation
+  | VocabularyViolation
+  | UniquenessViolation
+  | TemporalViolation
+  | CrossDatasetViolation
+  | PrimaryKeyViolation
+  | NotNullViolation
+  | EnumViolation
+  | ForeignKeyViolation;
+
+/**
+ * Type guard helper for RangeViolation
+ *
+ * @example
+ * ```typescript
+ * const rangeErrors = violations.filter(isRangeViolation);
+ * // TypeScript knows rangeErrors is RangeViolation[]
+ * ```
+ */
+export function isRangeViolation(v: ValidationViolation): v is RangeViolation {
+  return v._tag === "RangeViolation";
+}
+
+/**
+ * Type guard helper for VocabularyViolation
+ *
+ * @example
+ * ```typescript
+ * const vocabErrors = violations.filter(isVocabularyViolation);
+ * // TypeScript knows vocabErrors is VocabularyViolation[]
+ * ```
+ */
+export function isVocabularyViolation(v: ValidationViolation): v is VocabularyViolation {
+  return v._tag === "VocabularyViolation";
+}
+
+/**
+ * Type guard helper for UniquenessViolation
+ *
+ * @example
+ * ```typescript
+ * const uniquenessErrors = violations.filter(isUniquenessViolation);
+ * // TypeScript knows uniqueErrors is UniquenessViolation[]
+ * ```
+ */
+export function isUniquenessViolation(v: ValidationViolation): v is UniquenessViolation {
+  return v._tag === "UniquenessViolation";
+}
+
+/**
+ * Type guard helper for TemporalViolation
+ *
+ * @example
+ * ```typescript
+ * const temporalErrors = violations.filter(isTemporalViolation);
+ * // TypeScript knows temporalErrors is TemporalViolation[]
+ * ```
+ */
+export function isTemporalViolation(v: ValidationViolation): v is TemporalViolation {
+  return v._tag === "TemporalViolation";
+}
+
+/**
+ * Type guard helper for CrossDatasetViolation
+ *
+ * @example
+ * ```typescript
+ * const crossErrors = violations.filter(isCrossDatasetViolation);
+ * // TypeScript knows crossErrors is CrossDatasetViolation[]
+ * ```
+ */
+export function isCrossDatasetViolation(v: ValidationViolation): v is CrossDatasetViolation {
+  return v._tag === "CrossDatasetViolation";
+}
+
+/**
+ * Type guard helper for PrimaryKeyViolation
+ *
+ * @example
+ * ```typescript
+ * const pkErrors = violations.filter(isPrimaryKeyViolation);
+ * // TypeScript knows pkErrors is PrimaryKeyViolation[]
+ * ```
+ */
+export function isPrimaryKeyViolation(v: ValidationViolation): v is PrimaryKeyViolation {
+  return v._tag === "PrimaryKeyViolation";
+}
+
+/**
+ * Type guard helper for NotNullViolation
+ *
+ * @example
+ * ```typescript
+ * const notNullErrors = violations.filter(isNotNullViolation);
+ * // TypeScript knows notNullErrors is NotNullViolation[]
+ * ```
+ */
+export function isNotNullViolation(v: ValidationViolation): v is NotNullViolation {
+  return v._tag === "NotNullViolation";
+}
+
+/**
+ * Type guard helper for EnumViolation
+ *
+ * @example
+ * ```typescript
+ * const enumErrors = violations.filter(isEnumViolation);
+ * // TypeScript knows enumErrors is EnumViolation[]
+ * ```
+ */
+export function isEnumViolation(v: ValidationViolation): v is EnumViolation {
+  return v._tag === "EnumViolation";
+}
+
+/**
+ * Type guard helper for ForeignKeyViolation
+ *
+ * @example
+ * ```typescript
+ * const fkErrors = violations.filter(isForeignKeyViolation);
+ * // TypeScript knows fkErrors is ForeignKeyViolation[]
+ * ```
+ */
+export function isForeignKeyViolation(v: ValidationViolation): v is ForeignKeyViolation {
+  return v._tag === "ForeignKeyViolation";
 }
 
 /**
@@ -126,7 +315,7 @@ export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSever
  * Enrich a cross-dataset RawViolation with metadata
  *
  * Similar to enrichViolation but for cross-dataset relationships.
- * Since cross-dataset rules don't have FieldDefinitions, we use
+ * Since cross-dataset rules don't have field definitions, we use
  * rule metadata directly.
  *
  * @param raw - Minimal violation data
@@ -163,126 +352,3 @@ export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSever
  * // }
  * ```
  */
-export function enrichCrossDatasetViolation(
-  raw: RawViolation,
-  rule: {
-    readonly sourceDataset: string;
-    readonly sourceField: string;
-    readonly targetDataset: string;
-    readonly targetField: string;
-    readonly enforcement?: EnforcementLevel;
-    readonly ruleType?: string;
-  },
-): ValidationViolation {
-  // Use rule enforcement override if provided, otherwise default to "required"
-  const enforcement = raw.enforcement ?? rule.enforcement ?? "required";
-
-  const defaultMessage =
-    `Value '${raw.value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`;
-
-  return {
-    // Enforcement
-    enforcement,
-    severity: enforcementToSeverity(enforcement),
-
-    // Location (use source field as both fieldName and targetName for cross-dataset)
-    fieldName: rule.sourceField,
-    targetName: rule.targetField,
-    rowNumber: raw.rowNumber,
-
-    // Violation details
-    violationType: "cross-dataset",
-    value: String(raw.value),
-    csvValue: raw.csvValue,
-    transformedValue: raw.transformedValue,
-    transformationChain: raw.transformationChain,
-    errorMessage: raw.message || defaultMessage,
-    suggestedValues: raw.suggestedValues,
-
-    // Validator metadata (use rule type as validator type)
-    validatorType: rule.ruleType || "foreignKey",
-    params: {
-      sourceDataset: rule.sourceDataset,
-      targetDataset: rule.targetDataset,
-      targetField: rule.targetField,
-    },
-  };
-}
-
-/**
- * Enrich a RawViolation with metadata
- *
- * Converts minimal validator output into full ValidationViolation
- * with all metadata needed for routing and reporting.
- *
- * This separation allows validators to return minimal data (just
- * rowNumber and value) while infrastructure handles all the
- * metadata (field names, types, enforcement mapping, etc.).
- *
- * @param raw - Minimal violation data from validator
- * @param validator - Validator config with enforcement and message
- * @param specField - Field definition with name and metadata
- * @param fieldName - Original field name in CSV
- * @returns Enriched violation with full metadata
- *
- * @example
- * ```typescript
- * const raw: RawViolation = {
- *   rowNumber: 5,
- *   value: 95.0,
- * };
- *
- * const validator: ValidatorConfig = {
- *   type: "range",
- *   enforcement: "required",
- *   params: { min: -90, max: 90 },
- *   message: "Latitude must be between -90 and 90",
- * };
- *
- * const enriched = enrichViolation(raw, validator, specField, "lat");
- * // => {
- * //   enforcement: "required",
- * //   severity: ErrorSeverity.ERROR,
- * //   fieldName: "lat",
- * //   targetName: "decimalLatitude",
- * //   rowNumber: 5,
- * //   violationType: "range",
- * //   value: "95.0",
- * //   errorMessage: "Latitude must be between -90 and 90",
- * //   ...
- * // }
- * ```
- */
-export function enrichViolation(
-  raw: RawViolation,
-  validator: ValidatorConfig,
-  specField: FieldDefinition,
-  fieldName: string,
-): ValidationViolation {
-  // Use raw enforcement override if provided, otherwise use validator's default
-  const enforcement = raw.enforcement ?? validator.enforcement;
-
-  return {
-    // Enforcement (use override or default)
-    enforcement,
-    severity: enforcementToSeverity(enforcement),
-
-    // Location
-    fieldName,
-    targetName: specField.name,
-    rowNumber: raw.rowNumber,
-
-    // Violation details
-    violationType: validator.type as ValidationViolation["violationType"],
-    value: String(raw.value),
-    csvValue: raw.csvValue,
-    transformedValue: raw.transformedValue,
-    transformationChain: raw.transformationChain,
-    errorMessage: raw.message || validator.message || "Validation failed",
-    suggestedValues: raw.suggestedValues,
-
-    // Validator metadata
-    validatorType: validator.type,
-    params: validator.params as Record<string, unknown> | undefined,
-  };
-}

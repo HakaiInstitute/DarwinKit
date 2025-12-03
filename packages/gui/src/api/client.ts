@@ -34,19 +34,7 @@ export async function getWorkspace(id: string): Promise<Workspace> {
     throw new Error(`Failed to fetch workspace: ${response.statusText}`);
   }
   const data = await response.json();
-  const decoded = S.decodeUnknownSync(workspaceSchema)(data);
-
-  // Convert fields array to ReadonlyMap
-  return {
-    ...decoded,
-    schema: {
-      ...decoded.schema,
-      fields: new Map(decoded.schema.fields) as ReadonlyMap<
-        string,
-        typeof decoded.schema.fields[number][1]
-      >,
-    },
-  };
+  return S.decodeUnknownSync(workspaceSchema)(data);
 }
 
 /**

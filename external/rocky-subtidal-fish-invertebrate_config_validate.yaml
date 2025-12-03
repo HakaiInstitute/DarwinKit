@@ -8,9 +8,9 @@ validation:
   nullValues:
     - NA
     - N/A
-    - ""
-    - "NULL"
-    - "null"
+    - ''
+    - 'NULL'
+    - 'null'
   failFast: false
   outputDir: ./validation_results
   datasets:
@@ -135,7 +135,6 @@ validation:
     - name: extendedMeasurementOrFact
       spec: dwc-eMOF
       path: ../packages/cli/transform_results/extendedMeasurementOrFact.csv
-
       description: Marine sampling Extended Measurement Or Fact for OBIS
       profile: ExtendedMeasurementOrFact
       fieldMappings:

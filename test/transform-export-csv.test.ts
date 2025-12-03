@@ -18,7 +18,7 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-export-test-" });
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -29,12 +29,13 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", profile: "dwc-event", source: {}, fields: {} },
-        { name: "Occurrence", profile: "dwc-occurrence", source: {}, fields: {} },
+        { name: "Event", profile: "Event", source: {}, fields: {} },
+        { name: "Occurrence", profile: "Occurrence", source: {}, fields: {} },
       ],
       output: {
         outputDir: outputDir,
         outputFilesWithTimestamp: false, // For predictable filenames
+        exportDB: false,
       },
     },
   };
@@ -52,17 +53,17 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
 
     // 4. Assert: Verify the CSV files and their contents
     // Check event.csv
-    const eventCsvPath = `${outputDir}/dwc-event.csv`;
+    const eventCsvPath = `${outputDir}/event.csv`;
     const eventCsvContent = await Deno.readTextFile(eventCsvPath);
     assertExists(eventCsvContent, "event.csv should be created");
-    // json-2-csv adds quotes
-    assertEquals(eventCsvContent.trim(), `"eventID","year"\n"evt1",2023`);
+    // json-2-csv default format (unquoted headers and text values)
+    assertEquals(eventCsvContent.trim(), `eventID,year\nevt1,2023`);
 
     // Check occurrence.csv
-    const occurrenceCsvPath = `${outputDir}/dwc-occurrence.csv`;
+    const occurrenceCsvPath = `${outputDir}/occurrence.csv`;
     const occurrenceCsvContent = await Deno.readTextFile(occurrenceCsvPath);
     assertExists(occurrenceCsvContent, "occurrence.csv should be created");
-    assertEquals(occurrenceCsvContent.trim(), `"occurrenceID","eventID"\n"occ1","evt1"`);
+    assertEquals(occurrenceCsvContent.trim(), `occurrenceID,eventID\nocc1,evt1`);
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
@@ -72,11 +73,11 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
 
 Deno.test("exportObisTablesToCSV - drops null columns when configured", async () => {
   // 1. Setup
-  const connection = await DuckDBConnection.create()
+  const connection = await DuckDBConnection.create();
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-export-null-test-" });
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -86,10 +87,11 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
       nullValues: [],
       inputs: {},
       postImportTransforms: [],
-      datasets: [{ name: "Event", profile: "dwc-event", source: {}, fields: {} }],
+      datasets: [{ name: "Event", profile: "Event", source: {}, fields: {} }],
       output: {
         outputDir: outputDir,
         outputFilesWithTimestamp: false,
+        exportDB: false,
         dropNullColumns: true, // Enable dropping null columns
       },
     },
@@ -97,30 +99,35 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 
   try {
     // 2. Arrange: Create a table with a column that is entirely NULL
-    await connection.run("CREATE TABLE event (eventID TEXT, year INTEGER, month INTEGER, remarks TEXT);");
-    await connection.run("INSERT INTO event VALUES ('evt1', 2023, 1, NULL), ('evt2', 2024, 2, NULL);");
+    await connection.run("DROP TABLE IF EXISTS event;");
+    await connection.run(
+      "CREATE TABLE event (eventID TEXT, year INTEGER, month INTEGER, remarks TEXT);",
+    );
+    await connection.run(
+      "INSERT INTO event VALUES ('evt1', 2023, 1, NULL), ('evt2', 2024, 2, NULL);",
+    );
 
     // 3. Act
     const effect = exportObisTablesToCSV(connection, config);
     await Effect.runPromise(effect);
 
     // 4. Assert
-    const csvPath = `${outputDir}/dwc-event.csv`;
+    const csvPath = `${outputDir}/event.csv`;
     const csvContent = await Deno.readTextFile(csvPath);
     assertExists(csvContent, "CSV file should be created");
 
     const [header, ...rows] = csvContent.trim().split("\n");
 
     // The 'remarks' column should not be in the header
-    assert(header.includes('"eventID"'), "Header should contain eventID");
-    assert(header.includes('"year"'), "Header should contain year");
-    assert(header.includes('"month"'), "Header should contain month");
-    assert(!header.includes('"remarks"'), "Header should NOT contain the null column 'remarks'");
+    // Note: json-2-csv default format is unquoted
+    assert(header.includes("eventID"), "Header should contain eventID");
+    assert(header.includes("year"), "Header should contain year");
+    assert(header.includes("month"), "Header should contain month");
+    assert(!header.includes("remarks"), "Header should NOT contain the null column 'remarks'");
 
     assertEquals(rows.length, 2, "CSV should contain 2 data rows");
-    assertEquals(rows[0], `"evt1",2023,1`);
-    assertEquals(rows[1], `"evt2",2024,2`);
-
+    assertEquals(rows[0], `evt1,2023,1`);
+    assertEquals(rows[1], `evt2,2024,2`);
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
@@ -129,12 +136,12 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 });
 
 Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", async () => {
-  const connection = await DuckDBConnection.create()
+  const connection = await DuckDBConnection.create();
   // Invalid path to trigger a file system error
   const invalidOutputDir = "/non_existent_dir/sub_dir";
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -144,8 +151,8 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
       inputs: {},
       postImportTransforms: [],
       nullValues: [],
-      datasets: [{ name: "Event", profile: "dwc-event", source: {}, fields: {} }],
-      output: { outputDir: invalidOutputDir },
+      datasets: [{ name: "Event", profile: "Event", source: {}, fields: {} }],
+      output: { outputDir: invalidOutputDir, exportDB: false },
     },
   };
 
@@ -156,5 +163,4 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
   assertEquals(result.outputPath, invalidOutputDir);
 
   connection.closeSync();
-
 });

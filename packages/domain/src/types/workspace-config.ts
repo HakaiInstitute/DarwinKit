@@ -6,99 +6,21 @@
  * specification (e.g., Darwin Core) with explicit field mappings.
  */
 
-import type { BaseEntity } from "./common.ts";
-import type { EnforcementLevel } from "../specs/validators.ts";
+import type * as S from "effect/Schema";
+import type {
+  datasetConfigSchema,
+  validationSettingsSchema,
+  workspaceConfigSchema,
+  workspaceCrossDatasetRuleSchema,
+  workspaceFieldMappingSchema,
+} from "../schemas/workspace-config.ts";
 
-
-
-/**
- * Field mapping from CSV column to spec field
- * Re-export from field-mapping types for workspace config
- */
-export interface WorkspaceFieldMapping {
-  readonly originName: string;
-  readonly targetName: string;
-  readonly isRequired?: boolean;
-
-  /**
-   * Field-level validation overrides
-   *
-   * Allows project-specific constraints or validators to override
-   * both the base spec and validation profile.
-   *
-   * Priority: field override > profile > base spec
-   */
-  readonly constraints?: Record<string, unknown>;
-  readonly validators?: readonly import("../specs/validators.ts").ValidatorConfig[];
-}
-
-/**
- * Cross-dataset validation rule for workspace config
- */
-export interface WorkspaceCrossDatasetRule {
-  readonly ruleType: "foreignKey" | "referentialIntegrity";
-  readonly sourceDataset: string;
-  readonly sourceField: string;
-  readonly targetDataset: string;
-  readonly targetField: string;
-  readonly enforcement?: EnforcementLevel; // Defaults to "required" if not specified
-  readonly description?: string;
-}
-
-/**
- * Individual dataset configuration within a workspace
- */
-export interface DatasetConfig {
-  readonly name: string;
-  readonly spec?: string; // e.g., "dwc-event", "dwc-occurrence", "metadata-v1"
-  readonly path?: string; // Path to CSV file
-  readonly description?: string;
-  readonly source?: Record<string, string>; // SQL source definitions for data import
-  readonly profile: string;
-  readonly fieldMappings?: WorkspaceFieldMapping[];
-  readonly fields?: Record<string, string>; // Additional field transformations
-}
-
-/**
- * Validation settings for the workspace
- */
-export interface ValidationSettings {
-  readonly nullValues: string[];
-  readonly failFast: boolean;
-  readonly outputDir: string;
-  readonly datasets: DatasetConfig[];
-}
-
-export interface outputConfig {
-  readonly outputDir?: string;
-  readonly exportDB?: boolean;
-  readonly exportDBFileName?: string;
-  readonly outputFilesWithTimestamp?: boolean;
-  readonly dropNullColumns?: boolean;
-}
-
-/**
- * Transformation settings for the workspace
- */
-export interface TransformSettings {
-  readonly nullValues: string[];
-  readonly inputs: Record<string, string>;
-  readonly postImportTransforms: string[];
-  readonly output: outputConfig;
-  readonly datasets: DatasetConfig[];
-}
-
-/**
- * Complete workspace configuration
- */
-export interface WorkspaceConfig extends BaseEntity {
-  readonly name: string;
-  readonly version: string | number;
-  readonly description?: string;
-  readonly transform?: TransformSettings;
-  readonly validation?: ValidationSettings;
-  readonly crossDatasetRules?: WorkspaceCrossDatasetRule[];
-}
+// Types derived from schemas
+export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
+export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
+export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
+export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
+export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
 
 /**
  * Default validation settings
@@ -107,7 +29,8 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
   nullValues: ["", "NA", "N/A", "NULL", "null"],
   failFast: false,
   outputDir: "./validation_results",
-  datasets:[],
+  // maxViolationsPerField: undefined, // Optional: defaults to unlimited
+  // enableSuggestions: true, // Optional: defaults to true
 };
 
 /**
@@ -117,9 +40,9 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
  * Each spec defines its own field definitions and validators.
  */
 export type SpecIdentifier =
-  | "dwc-event"
-  | "dwc-occurrence"
-  | "dwc-extendedMeasurementOrFacts"
+  | "Event"
+  | "Occurrence"
+  | "ExtendedMeasurementOrFact"
   | "dwc-resourceRelationship"
   | "metadata-v1";
 
@@ -129,8 +52,9 @@ export type SpecIdentifier =
 export function parseSpecIdentifier(
   specId: string | undefined,
 ): { spec: string; type: string } | null {
-  if (!specId)
+  if (!specId) {
     return null;
+  }
   const parts = specId.split("-");
   if (parts.length < 2) {
     return null;
@@ -147,9 +71,9 @@ export function parseSpecIdentifier(
  */
 export function isValidSpecIdentifier(specId: string): specId is SpecIdentifier {
   const validSpecs: readonly string[] = [
-    "dwc-event",
-    "dwc-occurrence",
-    "dwc-extendedMeasurementOrFacts",
+    "Event",
+    "Occurrence",
+    "ExtendedMeasurementOrFact",
     "dwc-resourceRelationship",
     "metadata-v1",
   ];

@@ -298,7 +298,7 @@
     },
     {
       "name": "emof_data",
-      "spec": "dwc-extendedMeasurementOrFacts",
+      "spec": "dwc-extendedMeasurementOrFact",
       "path": "data/FC2022_eMOF.csv",
       "description": "Extended measurement or fact data",
       "fieldMappings": [

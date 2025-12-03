@@ -25,6 +25,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
   description:
     "Core validation requirements for all data to be published to the Ocean Biodiversity Information System (OBIS)",
   targetSchema: "obis",
+  extends: "Event", // Inherit field definitions from Event core
   documentationUrl: "https://manual.obis.org/",
   version: "2024",
 

@@ -32,4 +32,5 @@ backend/db/*
 *.sln
 *.sw?
 
-./packages/cli/test-fixtures/valid-datasets/fc2022-complete/validation_results/
+packages/cli/test-fixtures/valid-datasets/fc2022-complete/validation_results/
+packages/cli/transform_results

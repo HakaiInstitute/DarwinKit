@@ -5,10 +5,32 @@
  * base Darwin Core specifications. Profiles represent target-specific needs
  * (e.g., OBIS, GBIF) or custom validation criteria.
  *
+ * ## Dual-Purpose Field Storage
+ *
+ * ValidationProfile maintains two representations of field metadata:
+ *
+ * 1. **fields**: Raw field metadata from JSON schema
+ *    - Used by transformation logic for SQL DDL generation
+ *    - Contains: type, unique, values (controlled vocabularies)
+ *    - Format matches Darwin Core JSON schema structure
+ *
+ * 2. **normalizedFields**: Processed field definitions
+ *    - Used by validation logic for data quality checks
+ *    - Contains: validators (structured), vocabulary (processed)
+ *    - Provides consistent structure regardless of source format
+ *
+ * This separation allows transformation and validation to operate independently
+ * while sharing the same profile definition.
+ *
  * Merge Priority: field override > profile > base spec
  */
 
-import type { ValidatorConfig } from "../specs/validators.ts";
+import type * as S from "effect/Schema";
+import type {
+  fieldOverrideSchema,
+  validationProfileRegistrySchema,
+  validationProfileSchema,
+} from "../schemas/validation-profile.ts";
 
 /**
  * Field requirement levels for validation profiles
@@ -33,22 +55,16 @@ export enum FieldRequirementLevel {
 }
 
 /**
- * Field-level validation overrides
+ * Raw field definition from JSON schema
  *
- * Allows profiles to modify validation behavior for specific fields
- * without changing the base spec.
+ * Represents the raw structure of fields in the dwcSchema.json file.
+ *
+ * @internal This type is used internally for normalization and should not be used
+ * directly in application code. Use NormalizedField instead for validation logic.
+ *
+ * Validators can be either strings (legacy format) or ValidatorConfig objects.
+ * The lowercase naming indicates this is a raw format from JSON schema.
  */
-export interface FieldOverride {
-  /** Requirement level for this field in the profile */
-  readonly requirement?: FieldRequirementLevel;
-
-  /** Add or override validators */
-  readonly validators?: readonly ValidatorConfig[];
-
-  /** Override enforcement level for existing validators */
-  readonly enforcement?: "required" | "recommended" | "optional";
-}
-
 export interface field {
   readonly group: string;
   readonly name: string;
@@ -60,55 +76,14 @@ export interface field {
   readonly gbif_required: string;
   readonly type: string;
   readonly obis_required: string;
-  readonly validators: string[];
-  readonly values?: string[];
+  readonly validators?: ReadonlyArray<string | Record<string, unknown>>;
+  readonly values?: Record<string, unknown>;
+  readonly comments?: string;
+  readonly examples?: string;
+  readonly unique?: string;
 }
 
-
-/**
- * Validation Profile
- *
- * Defines a set of validation requirements for a specific target or purpose.
- * Profiles are layered on top of base Darwin Core specifications and can
- * extend other profiles to create a hierarchy.
- */
-export interface ValidationProfile {
-  /** Unique profile identifier (e.g., "obis-event", "gbif-occurrence") */
-  readonly id: string;
-
-  /** Human-readable name */
-  readonly name: string;
-
-  /** Description of profile purpose and requirements */
-  readonly description: string;
-
-  /** Target schema or system */
-  readonly targetSchema: "obis" | "gbif" | "custom";
-
-  /** Parent profile to inherit from (e.g., "obis" for "obis-event") */
-  readonly extends?: string;
-
-  /** Field-specific validation overrides and requirements */
-  readonly fieldOverrides: Record<string, FieldOverride>;
-
-  readonly fields?: Record<string, field>;
-  /** External documentation URL */
-  readonly documentationUrl?: string;
-
-  /** Profile version */
-  readonly version?: string;
-
-  /** Profile metadata */
-  readonly metadata?: {
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-    readonly author?: string;
-  };
-}
-
-/**
- * Registry of available validation profiles
- */
-export interface ValidationProfileRegistry {
-  readonly [profileId: string]: ValidationProfile;
-}
+// Types derived from schemas
+export type FieldOverride = S.Schema.Type<typeof fieldOverrideSchema>;
+export type ValidationProfile = S.Schema.Type<typeof validationProfileSchema>;
+export type ValidationProfileRegistry = S.Schema.Type<typeof validationProfileRegistrySchema>;
