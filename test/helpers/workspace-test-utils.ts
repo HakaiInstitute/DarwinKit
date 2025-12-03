@@ -173,19 +173,26 @@ export function getFieldType(workspace: Workspace, fieldName: string): string | 
 
 /**
  * Checks if an error is related to file access issues
- * This provides a resilient way to test for file-related errors without
- * depending on specific error message strings that might change
+ * This provides a resilient way to test for file-related errors using
+ * Effect's tagged error system for type-safe error handling.
  */
 export function isFileAccessError(error: unknown): boolean {
   if (!error) return false;
 
-  // Check for our custom error types
-  // deno-lint-ignore no-explicit-any
-  if ((error as any)._tag === "WorkspaceFileAccessError") return true;
-  // deno-lint-ignore no-explicit-any
-  if ((error as any).constructor?.name === "WorkspaceFileAccessError") return true;
+  // Check for Effect tagged errors using the _tag property
+  // This is type-safe and works with catchTags
+  if (typeof error === "object" && error !== null && "_tag" in error) {
+    const tag = (error as { _tag: unknown })._tag;
 
-  // Check for common file-related error patterns (case-insensitive)
+    // File-related error tags from the codebase
+    return tag === "ParseError" ||
+      tag === "WorkspaceIOError" ||
+      tag === "WorkspaceError" ||
+      tag === "ConfigNotFoundError" ||
+      tag === "DatasetFileNotFoundError";
+  }
+
+  // Fallback for non-tagged errors (shouldn't happen with proper Effect usage)
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
     return message.includes("file") ||

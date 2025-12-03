@@ -3,6 +3,16 @@
  *
  * Types for tracking data transformations applied during validation.
  * Transformations can be automatic (DuckDB coercion) or explicit (configured functions).
+ *
+ * DESIGN DECISION: Kept as pure TypeScript interfaces rather than Effect Schemas because:
+ * 1. Complex type relationships - TransformationFunctionName is derived from const registry keys
+ * 2. Internal-only usage - Used for data provenance tracking, not API validation
+ * 3. Programmatic construction - These types are constructed internally by the validation system,
+ *    never parsed from external input
+ * 4. Helper functions - createAutomaticTransformation and createExplicitTransformation work well as-is
+ *
+ * These types are constructed internally by the validation system and returned as part
+ * of validation results. They don't need runtime validation via Effect Schema.
  */
 
 /**

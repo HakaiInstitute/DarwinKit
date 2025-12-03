@@ -68,15 +68,11 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
     const result = await Effect.runPromiseExit(apiCall);
 
     if (Exit.isFailure(result)) {
-      console.log("\n=== Custom API Error Formatting ===");
       const formatted = prettyPrintCause(result.cause, formatApiError);
-      console.log(formatted);
 
       assertEquals(formatted.includes("Network request failed"), true);
       assertEquals(formatted.includes("/api/users"), true);
       assertEquals(formatted.includes("504"), true);
-
-      console.log("\n✓ Generic formatter works with custom error types!");
     }
   });
 
@@ -102,9 +98,7 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
     const result = await Effect.runPromiseExit(validation);
 
     if (Exit.isFailure(result)) {
-      console.log("\n=== Validation Error Formatting ===");
       const formatted = prettyPrintCause(result.cause, formatApiError);
-      console.log(formatted);
 
       assertEquals(formatted.includes("email"), true);
       assertEquals(formatted.includes("not-an-email"), true);
@@ -146,16 +140,12 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
     );
 
     if (Exit.isFailure(result)) {
-      console.log("\n=== Multiple Validation Errors ===");
       const formatted = prettyPrintCause(result.cause, formatApiError);
-      console.log(formatted);
 
       // Should show both errors
       assertEquals(formatted.includes("email"), true);
       assertEquals(formatted.includes("password"), true);
       assertEquals(formatted.includes("Multiple errors"), true);
-
-      console.log("\n✓ Multiple errors formatted together!");
     }
   });
 
@@ -172,8 +162,6 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
     const result = await Effect.runPromiseExit(simpleError);
 
     if (Exit.isFailure(result)) {
-      console.log("\n=== Simple Inline Formatter ===");
-
       // Just pass a function directly
       const formatted = prettyPrintCause(result.cause, (error) => {
         if (error instanceof NetworkError) {
@@ -182,11 +170,7 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
         return String(error);
       });
 
-      console.log(formatted);
-
       assertEquals(formatted.includes("API Error 500"), true);
-
-      console.log("\n✓ Simple inline formatters work too!");
     }
   });
 });
@@ -224,12 +208,9 @@ Deno.test("Generic Cause Formatter - Reusability across domains", async (t) => {
     const result = await Effect.runPromiseExit(dbOperation);
 
     if (Exit.isFailure(result)) {
-      console.log("\n=== Database Error Formatting ===");
       const formatted = prettyPrintCause(result.cause, formatDbError);
-      console.log(formatted);
 
       assertEquals(formatted.includes("localhost:5432"), true);
-      console.log("\n✓ Works for database errors!");
     }
   });
 
@@ -267,13 +248,10 @@ Deno.test("Generic Cause Formatter - Reusability across domains", async (t) => {
     const result = await Effect.runPromiseExit(fileOp);
 
     if (Exit.isFailure(result)) {
-      console.log("\n=== File System Error Formatting ===");
       const formatted = prettyPrintCause(result.cause, formatFsError);
-      console.log(formatted);
 
       assertEquals(formatted.includes("Permission denied"), true);
       assertEquals(formatted.includes("/etc/secret.conf"), true);
-      console.log("\n✓ Works for file system errors!");
     }
   });
 });
@@ -303,8 +281,6 @@ Deno.test("createMultiErrorFormatter - Fallback behavior", async (t) => {
 
     if (Exit.isFailure(knownResult)) {
       const formatted = prettyPrintCause(knownResult.cause, formatter);
-      console.log("\n=== Known Error ===");
-      console.log(formatted);
       assertEquals(formatted.includes("Known: test"), true);
     }
 
@@ -315,10 +291,7 @@ Deno.test("createMultiErrorFormatter - Fallback behavior", async (t) => {
 
     if (Exit.isFailure(unknownResult)) {
       const formatted = prettyPrintCause(unknownResult.cause, formatter);
-      console.log("\n=== Unknown Error (fallback) ===");
-      console.log(formatted);
       assertEquals(formatted.includes("Unexpected error type"), true);
-      console.log("\n✓ Fallback formatter handles unknown types!");
     }
   });
 });

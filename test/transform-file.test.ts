@@ -8,7 +8,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
-import {DuckDBConnection} from "@duckdb/node-api";
+import { DuckDBConnection } from "@duckdb/node-api";
 import { transformFile } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { join } from "@std/path";
@@ -21,7 +21,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
   const sourceCsvPath = join(workspaceDir, "source_data.csv");
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -36,7 +36,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
       datasets: [
         {
           name: "Event",
-          profile: "dwc-event",
+          profile: "Event",
           source: { "source_data": "source_data" },
           fields: {
             "eventID": "source_data.event_id",
@@ -45,7 +45,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
         },
         {
           name: "Occurrence",
-          profile: "dwc-occurrence",
+          profile: "Occurrence",
           source: { "source_data": "source_data" },
           fields: {
             "occurrenceID": "source_data.occ_id",
@@ -59,6 +59,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
         exportDB: true,
         outputFilesWithTimestamp: false,
         exportDBFileName: "final_db",
+        dropNullColumns: true,
       },
     },
   };
@@ -72,18 +73,17 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     );
 
     // 3. Act: Run the entire transformation process
-    const effect = transformFile(configPath);
-    await Effect.runPromise(effect);
+    await Effect.runPromise(transformFile(configPath));
 
     // 4. Assert: Verify the output files
-    // Assert CSV output
-    const eventCsvContent = await Deno.readTextFile(join(outputDir, "dwc-event.csv"));
-    assertEquals(eventCsvContent.trim(), `"eventID","year"\n"evt01",2024`);
+    // Assert CSV output (json-2-csv default format is unquoted)
+    const eventCsvContent = await Deno.readTextFile(join(outputDir, "event.csv"));
+    assertEquals(eventCsvContent.trim(), `eventID,year\nevt01,2024`);
 
-    const occCsvContent = await Deno.readTextFile(join(outputDir, "dwc-occurrence.csv"));
+    const occCsvContent = await Deno.readTextFile(join(outputDir, "occurrence.csv"));
     assertEquals(
       occCsvContent.trim(),
-      `"occurrenceID","eventID","basisOfRecord"\n"occ01","evt01","HumanObservation"`,
+      `basisOfRecord,occurrenceID,eventID\nHumanObservation,occ01,evt01`,
     );
 
     // Assert persistent DB output
@@ -92,20 +92,22 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     assertExists(stat.isFile, "Database file should be created");
 
     // Connect to the created DB and verify its contents
-    const connection = await DuckDBConnection.create()
+    const dbConnection = await DuckDBConnection.create();
+    await dbConnection.run(`ATTACH '${dbPath}' AS persisted_db;`);
 
-    const eventRows = (await connection.runAndReadAll("SELECT * FROM event;")).getRowObjects();
+    const eventRows = (await dbConnection.runAndReadAll("SELECT * FROM persisted_db.event;"))
+      .getRowObjects();
     assertEquals(eventRows.length, 1);
     assertEquals(eventRows[0].eventID, "evt01");
     assertEquals(eventRows[0].year, 2024);
 
-    const occRows = (await connection.runAndReadAll("SELECT * FROM occurrence;")).getRowObjects();
+    const occRows = (await dbConnection.runAndReadAll("SELECT * FROM persisted_db.occurrence;"))
+      .getRowObjects();
     assertEquals(occRows.length, 1);
     assertEquals(occRows[0].occurrenceID, "occ01");
     assertEquals(occRows[0].basisOfRecord, "HumanObservation");
 
-    connection.closeSync();
-
+    dbConnection.closeSync();
   } finally {
     // 5. Teardown
     await Deno.remove(workspaceDir, { recursive: true });
@@ -115,8 +117,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 Deno.test("transformFile - returns ConfigError for non-existent config", async () => {
   const nonExistentConfigPath = "/path/to/nothing/workspace.dwc.json";
 
-  const effect = transformFile(nonExistentConfigPath);
-  const result = await Effect.runPromise(Effect.flip(effect));
+  const result = await Effect.runPromise(Effect.flip(transformFile(nonExistentConfigPath)));
 
   assertExists(result, "Effect should fail");
   // assertEquals(result._tag, "ConfigError", "Error should be a ConfigError");

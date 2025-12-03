@@ -6,6 +6,7 @@ export enum ErrorCode {
   // General errors
   UNKNOWN_ERROR = "UNKNOWN_ERROR",
   INVALID_INPUT = "INVALID_INPUT",
+  INVALID_CONFIG = "INVALID_CONFIG",
 
   // Workspace errors
   WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND",

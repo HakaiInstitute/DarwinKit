@@ -7,8 +7,15 @@ import * as Cause from 'effect/Cause';
 import * as Data from 'effect/Data';
 import { join } from '@std/path';
 
-import { prettyPrintConfigError, WorkspaceValidator } from '@dwkt/core';
-import type { WorkspaceValidationResult } from '@dwkt/domain';
+import {
+  ConfigNotFoundError,
+  ConfigParseError,
+  ConfigValidationError,
+  DatasetFileNotFoundError,
+  prettyPrintConfigError,
+  WorkspaceValidator,
+} from '@dwkt/core';
+import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { ErrorCode } from '@dwkt/domain';
 import * as Match from 'effect/Match';
 import { Output } from '../../utils/output.ts';
@@ -276,10 +283,10 @@ function handleCLIErrorWithCause(
   try {
     const prettyMessage = prettyPrintConfigError(
       cause as Cause.Cause<
-        | import('@dwkt/core').ConfigNotFoundError
-        | import('@dwkt/core').ConfigParseError
-        | import('@dwkt/core').ConfigValidationError
-        | import('@dwkt/core').DatasetFileNotFoundError
+        | ConfigNotFoundError
+        | ConfigParseError
+        | ConfigValidationError
+        | DatasetFileNotFoundError
       >,
     );
     Output.error('❌ Configuration Error:\n');
@@ -476,9 +483,9 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
   // Helper function to group violations by field
   function groupViolationsByField(
-    violations: ReadonlyArray<import('@dwkt/domain').ValidationViolation>,
-  ): Map<string, import('@dwkt/domain').ValidationViolation[]> {
-    const grouped = new Map<string, import('@dwkt/domain').ValidationViolation[]>();
+    violations: ReadonlyArray<ValidationViolation>,
+  ): Map<string, ValidationViolation[]> {
+    const grouped = new Map<string, ValidationViolation[]>();
 
     for (const violation of violations) {
       if (!grouped.has(violation.fieldName)) {

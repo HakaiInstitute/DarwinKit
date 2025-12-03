@@ -16,11 +16,9 @@ import { ErrorCode } from "@dwkt/domain";
 import { workspaceConfigSchema } from "@dwkt/domain";
 import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
 import * as YAML from "js-yaml";
-import { cons } from "effect/List";
-
 
 // Configuration file constants
-const CONFIG_FILENAME = "darwinkit.json";
+const DEFAULT_CONFIG_FILENAME = "darwinkit.json";
 const MAX_SEARCH_DEPTH = 10;
 
 /**
@@ -95,11 +93,11 @@ export class WorkspaceConfigService {
       const statResult = yield* Effect.tryPromise(() => Deno.stat(currentDir)).pipe(Effect.option);
 
       if (statResult._tag === "Some" && statResult.value.isFile) {
-        return currentDir
+        return currentDir;
       }
 
       while (depth < MAX_SEARCH_DEPTH) {
-        const configPath = join(currentDir, CONFIG_FILENAME);
+        const configPath = join(currentDir, DEFAULT_CONFIG_FILENAME);
         searchedPaths.push(configPath);
 
         // Check if config exists at this level
@@ -134,7 +132,7 @@ export class WorkspaceConfigService {
         Effect.fail(
           new ConfigNotFoundError({
             message:
-              `Configuration file '${CONFIG_FILENAME}' not found in '${searchDir}' or any parent directory`,
+              `Configuration file '${DEFAULT_CONFIG_FILENAME}' not found in '${searchDir}' or any parent directory`,
             searchDir,
             searchedPaths,
           }),
@@ -163,8 +161,9 @@ export class WorkspaceConfigService {
         }),
       );
 
-      let configJson: Object;
-      if(configPath.endsWith('.yaml') || configPath.endsWith('.yml')) {
+      // Parse as unknown - will be validated by WorkspaceConfig schema below
+      let configJson: unknown;
+      if (configPath.endsWith(".yaml") || configPath.endsWith(".yml")) {
         // Parse YAML
         configJson = yield* _(
           Effect.try({
@@ -195,24 +194,27 @@ export class WorkspaceConfigService {
       }
 
       // Add metadata if missing (keep as strings for schema validation)
+      // Cast to Record to access properties - will be validated by schema below
+      const configRecord = configJson as Record<string, unknown>;
       const configWithMeta = {
-        id: configJson.id || "workspace-" + Date.now(),
-        ...configJson,
-        createdAt: configJson.createdAt || new Date().toISOString(),
-        updatedAt: configJson.updatedAt || new Date().toISOString(),
+        id: configRecord.id || "workspace-" + Date.now(),
+        ...configRecord,
+        createdAt: configRecord.createdAt || new Date().toISOString(),
+        updatedAt: configRecord.updatedAt || new Date().toISOString(),
       };
 
       // Validate against schema
       const config = yield* _(
         Effect.try({
           try: () => Schema.decodeUnknownSync(workspaceConfigSchema)(configWithMeta),
-          catch: (error) =>{
+          catch: (error) => {
             console.error(error);
             return new ConfigValidationError({
               message: `Configuration validation failed`,
               configPath,
               validationErrors: [String(error)],
-            })},
+            });
+          },
         }),
       );
 
@@ -230,35 +232,44 @@ export class WorkspaceConfigService {
     const base = basePath || dirname(Deno.cwd());
 
     return Effect.gen(function* (_) {
-      for (const dataset of config.validation?.datasets || []) {
-        const filePath = resolve(base, dataset.path);
+      // Check validation datasets if present (datasets are at root level)
+      if ("datasets" in config && config.datasets) {
+        for (const dataset of config.datasets) {
+          const filePath = resolve(base, dataset.path);
 
-        yield* _(
-          Effect.tryPromise({
-            try: () => Deno.stat(filePath),
-            catch: () =>
-              new DatasetFileNotFoundError({
-                message: `Dataset file not found: ${filePath}`,
-                datasetName: dataset.name,
-                filePath,
-              }),
-          }),
-        );
+          yield* _(
+            Effect.tryPromise({
+              try: () => Deno.stat(filePath),
+              catch: () =>
+                new DatasetFileNotFoundError({
+                  message: `Dataset file not found: ${filePath}`,
+                  datasetName: dataset.name,
+                  filePath,
+                }),
+            }),
+          );
+        }
       }
-      for (const path of Object.values(config.transform?.inputs || [])) {
-        const filePath = resolve(base, path);
 
-        yield* _(
-          Effect.tryPromise({
-            try: () => Deno.stat(filePath),
-            catch: () =>
-              new DatasetFileNotFoundError({
-                message: `Dataset file not found: ${filePath}`,
-                datasetName: dataset.name,
-                filePath,
-              }),
-          }),
-        );
+      // Check transform inputs if present
+      if ("transform" in config && config.transform) {
+        for (const [inputName, path] of Object.entries(config.transform.inputs)) {
+          if (typeof path !== "string") continue;
+
+          const filePath = resolve(base, path);
+
+          yield* _(
+            Effect.tryPromise({
+              try: () => Deno.stat(filePath),
+              catch: () =>
+                new DatasetFileNotFoundError({
+                  message: `Transform input file not found: ${filePath}`,
+                  datasetName: inputName,
+                  filePath,
+                }),
+            }),
+          );
+        }
       }
     });
   }
@@ -301,7 +312,7 @@ const formatConfigError = createTaggedFormatter<ConfigError>({
   ConfigNotFoundError: (error) => {
     // error is automatically typed as ConfigNotFoundError!
     const pathsList = error.searchedPaths.map((p) => `  - ${p}`).join("\n");
-    return `${error.message}\n\nSearched paths:\n${pathsList}\n\nSuggestion: Create '${CONFIG_FILENAME}' in your project directory or a parent directory.`;
+    return `${error.message}\n\nSearched paths:\n${pathsList}\n\nSuggestion: Create '${DEFAULT_CONFIG_FILENAME}' in your project directory or a parent directory.`;
   },
   ConfigParseError: (error) => {
     // error is automatically typed as ConfigParseError!

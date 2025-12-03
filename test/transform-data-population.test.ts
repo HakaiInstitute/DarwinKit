@@ -6,21 +6,18 @@
  * in the workspace configuration.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { DuckDBConnection } from "@duckdb/node-api";
-import {
-  createTableFromSchema,
-  populateSchemaFromDataTables,
-} from "@dwkt/core";
+import { createTableFromSchema, populateSchemaFromDataTables } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 
 Deno.test("populateSchemaFromDataTables - populates schema from source tables", async () => {
   // 1. Setup: In-memory DuckDB and test configuration
-  const connection = await DuckDBConnection.create()
+  const connection = await DuckDBConnection.create();
 
   const config: WorkspaceConfig = {
-    version: 1,
+    version: "1",
     name: "Data Population Test Workspace",
     id: "data-population-test-workspace",
     createdAt: new Date(),
@@ -32,7 +29,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
       datasets: [
         {
           name: "Event",
-          profile: "dwc-event",
+          profile: "Event",
           source: {
             "source_events": "source_events",
           },
@@ -44,7 +41,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
         },
         {
           name: "Occurrence",
-          profile: "dwc-occurrence",
+          profile: "Occurrence",
           source: {
             "source_occurrences": "source_occurrences",
           },
@@ -56,7 +53,10 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
           },
         },
       ],
-      output: {},
+      output: {
+        outputDir: "/tmp/output",
+        exportDB: false,
+      },
     },
   };
 
