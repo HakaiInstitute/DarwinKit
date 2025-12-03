@@ -1,5 +1,4 @@
 import { Command } from '@cliffy/command';
-import { importCommand } from './src/cmd/import/import.ts';
 import { validateCommand } from './src/cmd/validate/validate.ts';
 import { transformCommand } from './src/cmd/transform/transform.ts';
 import packageInfo from './deno.json' with { type: 'json' };
