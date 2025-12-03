@@ -100,6 +100,52 @@ export class CrossDatasetViolation extends Data.TaggedClass("CrossDatasetViolati
 > {}
 
 /**
+ * Primary key constraint violation (duplicate or null primary key)
+ */
+export class PrimaryKeyViolation extends Data.TaggedClass("PrimaryKeyViolation")<
+  ViolationBase & {
+    readonly constraintType: "duplicate" | "null";
+    readonly duplicateCount?: number;
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Not null constraint violation (required field is null)
+ */
+export class NotNullViolation extends Data.TaggedClass("NotNullViolation")<
+  ViolationBase & {
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Enum constraint violation (value not in controlled vocabulary)
+ */
+export class EnumViolation extends Data.TaggedClass("EnumViolation")<
+  ViolationBase & {
+    readonly enumType: string;
+    readonly allowedValues: ReadonlyArray<string>;
+    readonly suggestedValue?: string;
+    readonly params?: Record<string, unknown>;
+  }
+> {}
+
+/**
+ * Foreign key constraint violation (referenced value doesn't exist)
+ */
+export class ForeignKeyViolation extends Data.TaggedClass("ForeignKeyViolation")<
+  ViolationBase & {
+    readonly referencedTable: string;
+    readonly referencedField: string;
+    readonly params?: {
+      targetDataset?: string;
+      targetField?: string;
+    };
+  }
+> {}
+
+/**
  * Discriminated union of all validation violation types
  *
  * Use the provided type guard helpers for filtering:
@@ -115,7 +161,11 @@ export type ValidationViolation =
   | VocabularyViolation
   | UniquenessViolation
   | TemporalViolation
-  | CrossDatasetViolation;
+  | CrossDatasetViolation
+  | PrimaryKeyViolation
+  | NotNullViolation
+  | EnumViolation
+  | ForeignKeyViolation;
 
 /**
  * Type guard helper for RangeViolation
@@ -180,6 +230,58 @@ export function isTemporalViolation(v: ValidationViolation): v is TemporalViolat
  */
 export function isCrossDatasetViolation(v: ValidationViolation): v is CrossDatasetViolation {
   return v._tag === "CrossDatasetViolation";
+}
+
+/**
+ * Type guard helper for PrimaryKeyViolation
+ *
+ * @example
+ * ```typescript
+ * const pkErrors = violations.filter(isPrimaryKeyViolation);
+ * // TypeScript knows pkErrors is PrimaryKeyViolation[]
+ * ```
+ */
+export function isPrimaryKeyViolation(v: ValidationViolation): v is PrimaryKeyViolation {
+  return v._tag === "PrimaryKeyViolation";
+}
+
+/**
+ * Type guard helper for NotNullViolation
+ *
+ * @example
+ * ```typescript
+ * const notNullErrors = violations.filter(isNotNullViolation);
+ * // TypeScript knows notNullErrors is NotNullViolation[]
+ * ```
+ */
+export function isNotNullViolation(v: ValidationViolation): v is NotNullViolation {
+  return v._tag === "NotNullViolation";
+}
+
+/**
+ * Type guard helper for EnumViolation
+ *
+ * @example
+ * ```typescript
+ * const enumErrors = violations.filter(isEnumViolation);
+ * // TypeScript knows enumErrors is EnumViolation[]
+ * ```
+ */
+export function isEnumViolation(v: ValidationViolation): v is EnumViolation {
+  return v._tag === "EnumViolation";
+}
+
+/**
+ * Type guard helper for ForeignKeyViolation
+ *
+ * @example
+ * ```typescript
+ * const fkErrors = violations.filter(isForeignKeyViolation);
+ * // TypeScript knows fkErrors is ForeignKeyViolation[]
+ * ```
+ */
+export function isForeignKeyViolation(v: ValidationViolation): v is ForeignKeyViolation {
+  return v._tag === "ForeignKeyViolation";
 }
 
 /**

@@ -61,6 +61,8 @@ export const validationSettingsSchema = S.Struct({
   failFast: S.Boolean,
   outputDir: S.String,
   description: S.optional(S.String),
+  maxViolationsPerField: S.optional(S.Number), // Limit violations per field (default: unlimited)
+  enableSuggestions: S.optional(S.Boolean), // Enable fuzzy matching for vocabulary violations (default: true)
 });
 
 /**

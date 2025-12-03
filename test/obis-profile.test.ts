@@ -4,12 +4,9 @@
 
 import * as Effect from "effect/Effect";
 import { assert, assertEquals, assertExists } from "@std/assert";
-import {
-  WorkspaceValidationError,
-  WorkspaceValidator,
-} from "../packages/core/src/workspace/workspace-validator.ts";
+import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
 import { join } from "@std/path";
-import { ErrorCode, isRangeViolation } from "../packages/domain/mod.ts";
+import { isRangeViolation } from "../packages/domain/mod.ts";
 
 Deno.test({
   name: "OBIS Profile - validates required fields",
@@ -150,26 +147,30 @@ E2,2022-09-16,49.9012,-125.4789`;
       const validator = new WorkspaceValidator();
 
       // NOTE: This test is missing the geodeticDatum field mapping, and geodeticDatum
-      // is marked as NOT NULL in the OBIS Event Core profile schema. The INSERT fails
-      // with a constraint violation before validation logic can detect the missing field.
-      // This is expected behavior with schema-driven validation.
-      const error = await Effect.runPromise(
-        Effect.flip(validator.validateFromConfig(tempDir)),
+      // is marked as NOT NULL in the OBIS Event Core profile schema.
+      // The validation detects this as a required field error and marks the dataset as failed.
+      const result = await Effect.runPromise(
+        validator.validateFromConfig(tempDir),
       );
 
-      // Verify we get a database error about NOT NULL constraint violation
-      assert(
-        error instanceof WorkspaceValidationError,
-        "Expected WorkspaceValidationError",
+      // Verify we get a failed validation result
+      assertEquals(result.overallStatus, "fail", "Should fail when required fields are missing");
+      assertEquals(result.datasetResults.length, 1, "Should have 1 dataset");
+
+      const eventsResult = result.datasetResults[0];
+      assertEquals(eventsResult.status, "fail", "Events dataset should fail");
+
+      // Verify that geodeticDatum is reported as a missing required field
+      const missingFieldError = eventsResult.requiredFieldErrors.find((e) =>
+        e.fieldName === "geodeticDatum" || e.targetName === "geodeticDatum"
       );
-      assertEquals(error.code, ErrorCode.DATABASE_ERROR);
       assert(
-        error.message.includes("NOT NULL constraint failed"),
-        `Expected NOT NULL constraint error, got: ${error.message}`,
+        missingFieldError,
+        "Should have error about missing geodeticDatum field",
       );
       assert(
-        error.message.includes("geodeticDatum"),
-        `Expected error to mention missing field 'geodeticDatum', got: ${error.message}`,
+        missingFieldError.message.includes("geodeticDatum"),
+        `Error message should mention geodeticDatum: ${missingFieldError.message}`,
       );
     } finally {
       // Cleanup

@@ -29,6 +29,8 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
   nullValues: ["", "NA", "N/A", "NULL", "null"],
   failFast: false,
   outputDir: "./validation_results",
+  // maxViolationsPerField: undefined, // Optional: defaults to unlimited
+  // enableSuggestions: true, // Optional: defaults to true
 };
 
 /**

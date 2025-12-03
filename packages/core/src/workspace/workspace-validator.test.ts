@@ -376,26 +376,29 @@ O3,PreservedSpecimen,Panthera tigris`;
     const validator = new WorkspaceValidator();
 
     // NOTE: This test contains an invalid vocabulary value ('InvalidBasis' in basisOfRecord).
-    // With ENUMs enabled, the INSERT fails due to ENUM constraint violation before validation
-    // logic can detect the invalid value. This is expected behavior.
-    const error = await Effect.runPromise(
-      Effect.flip(validator.validateFromConfig(tempDir)),
+    // With the new row-by-row validation, we detect ENUM violations before INSERT
+    // and return them as structured EnumViolation objects.
+    const result = await Effect.runPromise(
+      validator.validateFromConfig(tempDir),
     );
 
-    // Verify we get a database error about ENUM conversion failure
-    assert(
-      error instanceof WorkspaceValidationError,
-      "Expected WorkspaceValidationError",
+    // Verify we get structured violations
+    assertEquals(result.overallStatus, "fail");
+    assertEquals(result.datasetResults.length, 1);
+
+    const datasetResult = result.datasetResults[0];
+    assertEquals(datasetResult.violations.errors.length, 1);
+
+    const enumViolations = datasetResult.violations.errors.filter((v) =>
+      v._tag === "EnumViolation"
     );
-    assertEquals(error.code, ErrorCode.DATABASE_ERROR);
-    assert(
-      error.message.includes("Conversion Error") || error.message.includes("Could not convert"),
-      `Expected ENUM conversion error, got: ${error.message}`,
-    );
-    assert(
-      error.message.includes("InvalidBasis") || error.message.includes("basisOfRecord"),
-      `Expected error to mention invalid vocabulary value, got: ${error.message}`,
-    );
+    assertEquals(enumViolations.length, 1);
+
+    const violation = enumViolations[0];
+    assertEquals(violation.fieldName, "basisOfRecord");
+    assertEquals(violation.value, "InvalidBasis");
+    assertEquals(violation.csvValue, "InvalidBasis");
+    assertEquals(violation.rowNumber, 2); // Second row (1-indexed, after header)
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -446,30 +449,37 @@ E1,Mexico`;
     const validator = new WorkspaceValidator();
 
     // NOTE: This test contains duplicate eventIDs (E1 appears twice).
-    // With schema-driven validation, the INSERT fails due to PRIMARY KEY constraint
-    // before validation logic can detect the duplicates. This is expected behavior.
-    const error = await Effect.runPromise(
-      Effect.flip(validator.validateFromConfig(tempDir)),
+    // With the new row-by-row validation, we detect PRIMARY KEY duplicates before INSERT
+    // and return them as structured PrimaryKeyViolation objects.
+    const result = await Effect.runPromise(
+      validator.validateFromConfig(tempDir),
     );
 
-    // Verify we get a database error about constraint violation
-    assert(
-      error instanceof WorkspaceValidationError,
-      "Expected WorkspaceValidationError",
+    // Verify we get structured violations
+    assertEquals(result.overallStatus, "fail");
+    assertEquals(result.datasetResults.length, 1);
+
+    const datasetResult = result.datasetResults[0];
+
+    // Should have 2 PrimaryKeyViolations (one for each duplicate row)
+    const pkViolations = datasetResult.violations.errors.filter((v) =>
+      v._tag === "PrimaryKeyViolation"
     );
-    assertEquals(error.code, ErrorCode.DATABASE_ERROR);
-    assert(
-      error.message.includes("PRIMARY KEY or UNIQUE constraint violation"),
-      `Expected constraint violation error, got: ${error.message}`,
-    );
-    assert(
-      error.message.includes("duplicate key"),
-      `Expected duplicate key message, got: ${error.message}`,
-    );
-    assert(
-      error.message.includes("E1"),
-      `Expected error to mention duplicate value 'E1', got: ${error.message}`,
-    );
+    assertEquals(pkViolations.length, 2);
+
+    // Verify both violations reference the duplicate value "E1"
+    assertEquals(pkViolations[0].value, "E1");
+    assertEquals(pkViolations[1].value, "E1");
+    assertEquals(pkViolations[0].csvValue, "E1");
+    assertEquals(pkViolations[1].csvValue, "E1");
+
+    // Verify constraint type is "duplicate"
+    assertEquals(pkViolations[0].constraintType, "duplicate");
+    assertEquals(pkViolations[1].constraintType, "duplicate");
+
+    // Verify duplicate count
+    assertEquals(pkViolations[0].duplicateCount, 2);
+    assertEquals(pkViolations[1].duplicateCount, 2);
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }

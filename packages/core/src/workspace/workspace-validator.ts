@@ -29,13 +29,16 @@ import type {
 import {
   CrossDatasetViolation,
   enforcementToSeverity,
+  EnumViolation,
   ErrorCode,
   FieldRequirementLevel,
   getValidationProfile,
   getVocabularyValues,
   hasControlledVocabulary,
   isValidVocabularyValue,
+  NotNullViolation,
   parseSpecIdentifier,
+  PrimaryKeyViolation,
   RangeViolation,
   UniquenessViolation,
   VocabularyViolation,
@@ -409,7 +412,7 @@ export class WorkspaceValidator {
             }
 
             const result = yield* _(
-              validateDataset(connection, dataset, datasetProfile),
+              validateDataset(connection, dataset, datasetProfile, validationSettings),
             );
 
             datasetResults.push(result);
@@ -560,6 +563,7 @@ function validateDataset(
   connection: DuckDBConnection,
   dataset: DatasetConfig,
   profile?: ValidationProfile,
+  validationSettings?: ValidationSettings,
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     const startTime = Date.now();
@@ -663,34 +667,59 @@ function validateDataset(
       );
     }
 
+    // Collect all violations as ValidationViolation[] for partitioning
+    const allViolations: ValidationViolation[] = [];
+
+    // Build column mappings for INSERT
+    const columnMappings = dataset.fieldMappings.map((m) => ({
+      origin: m.originName,
+      target: m.targetName,
+    }));
+
+    // Prepare bulk INSERT SQL
     const insertSQL = `INSERT INTO ${schemaTableName} (${targetColumnNames.join(", ")}) SELECT ${
       originColumnNames.join(", ")
     } FROM ${tableName};`;
 
-    yield* _(Effect.tryPromise({
-      try: () => connection.run(insertSQL),
-      catch: (error) => {
-        console.error(error);
-        console.log(insertSQL);
-        // Extract meaningful error message from DuckDB error
-        const dbError = error instanceof Error ? error : new Error(String(error));
-        const dbMessage = dbError.message || String(error);
+    // STRATEGY: Try bulk INSERT first (fast path)
+    // If it fails, fall back to row-by-row INSERT (correctness path)
+    const bulkInsertResult = yield* _(
+      Effect.tryPromise({
+        try: () => connection.run(insertSQL),
+        catch: (error) => error,
+      }).pipe(Effect.either),
+    );
 
-        // Provide context about what failed and include the database error details
-        const detailedMessage =
-          `Failed to populate table '${schemaTableName}' from dataset '${dataset.name}': ${dbMessage}`;
+    if (bulkInsertResult._tag === "Left") {
+      // Bulk INSERT failed - fall back to row-by-row insertion
+      const error = bulkInsertResult.left;
+      console.log(
+        `Bulk INSERT failed for dataset '${dataset.name}' - falling back to row-by-row insertion to collect detailed violations`,
+      );
+      if (error instanceof Error) {
+        console.log(`Bulk INSERT error: ${error.message}`);
+      }
 
-        return new WorkspaceValidationError({
-          message: detailedMessage,
-          code: ErrorCode.DATABASE_ERROR,
-          cause: dbError,
-        });
-      },
-    }));
+      // Insert rows one-by-one and collect violations
+      if (profile) {
+        const constraintViolations = yield* _(
+          insertRowByRow(
+            connection,
+            tableName,
+            schemaTableName,
+            columnMappings,
+            profile,
+            validationSettings,
+          ),
+        );
+        allViolations.push(...constraintViolations);
+      }
+    } else {
+      // Bulk INSERT succeeded - no constraint violations
+      console.log(`Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`);
+    }
 
     // Validate field mappings based on spec
-    // NEW: Collect all violations as ValidationViolation[] for partitioning
-    const allViolations: ValidationViolation[] = [];
 
     // OLD: Keep old structure for backward compatibility (will be deprecated)
     const typeErrors: Array<DatasetValidationResult["typeErrors"][number]> = [];
@@ -825,8 +854,14 @@ function validateDataset(
         }
 
         // Vocabulary validation
+        // Skip if this field was already validated as an ENUM constraint
         const hasVocab = hasControlledVocabulary(specField);
-        if (hasVocab) {
+        // Check raw field for values property
+        const rawFieldForVocab = profile.fields?.[mapping.targetName];
+        const hasEnumConstraint = rawFieldForVocab?.type === "controlled-vocabulary" &&
+          rawFieldForVocab?.values;
+
+        if (hasVocab && !hasEnumConstraint) {
           const vocabResult = yield* _(
             validateVocabulary(
               connection,
@@ -843,12 +878,18 @@ function validateDataset(
         }
 
         // Uniqueness validation for fields with explicit unique validators
+        // Skip PKs because row-by-row INSERT queries for ALL duplicate rows
+        const rawFieldForUnique = profile.fields?.[mapping.targetName];
+        const isPrimaryKeyField = mapping.targetName === schemaTableName + "ID" ||
+          (mapping.targetName.endsWith("ID") && rawFieldForUnique?.unique === "true");
+
         const hasUniqueValidator = specField.validators
           ? (specField.validators.some((v) =>
             typeof v === "string" ? v === "uniqueIdentifier" : v.type === "unique"
           ))
           : false;
-        if (hasUniqueValidator) {
+
+        if (hasUniqueValidator && !isPrimaryKeyField) {
           const uniqueResult = yield* _(
             validateUniqueness(
               connection,
@@ -1592,4 +1633,395 @@ function validateUniqueness(
  */
 function sanitizeTableName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, "_");
+}
+
+/**
+ * Parse DuckDB error into structured violation information
+ */
+interface ParsedErrorInfo {
+  readonly type: "primary-key" | "not-null" | "enum" | "foreign-key" | "check" | "unknown";
+  readonly fieldName?: string;
+  readonly value?: string;
+  readonly message: string;
+}
+
+function parseDuckDBError(error: Error): ParsedErrorInfo {
+  const message = error.message;
+
+  // PRIMARY KEY or UNIQUE constraint violation
+  // Example 1: "Constraint Error: PRIMARY KEY or UNIQUE constraint violation: duplicate key "E1""
+  // Example 2: "Constraint Error: Duplicate key "eventID: E1" violates primary key constraint."
+  let pkMatch = message.match(
+    /PRIMARY KEY or UNIQUE constraint violation: duplicate key "([^"]+)"/,
+  );
+  if (pkMatch) {
+    return {
+      type: "primary-key",
+      value: pkMatch[1],
+      message,
+    };
+  }
+
+  // Alternative format for duplicate keys
+  pkMatch = message.match(/Duplicate key "(?:\w+:\s*)?([^"]+)" violates primary key constraint/);
+  if (pkMatch) {
+    return {
+      type: "primary-key",
+      value: pkMatch[1],
+      message,
+    };
+  }
+
+  // NOT NULL constraint violation
+  // Example: "Constraint Error: NOT NULL constraint failed: column_name"
+  const notNullMatch = message.match(/NOT NULL constraint failed:?\s*(.+)?/i);
+  if (notNullMatch) {
+    return {
+      type: "not-null",
+      fieldName: notNullMatch[1]?.trim(),
+      message,
+    };
+  }
+
+  // ENUM/Type conversion error
+  // Example: "Conversion Error: Could not convert string 'InvalidBasis' to UINT8 when casting from source column basisOfRecord"
+  const enumMatch = message.match(/Could not convert string '([^']+)'.+from source column (\w+)/);
+  if (enumMatch) {
+    return {
+      type: "enum",
+      value: enumMatch[1],
+      fieldName: enumMatch[2],
+      message,
+    };
+  }
+
+  // FOREIGN KEY constraint violation
+  const fkMatch = message.match(/FOREIGN KEY constraint/i);
+  if (fkMatch) {
+    return {
+      type: "foreign-key",
+      message,
+    };
+  }
+
+  // CHECK constraint violation
+  const checkMatch = message.match(/CHECK constraint/i);
+  if (checkMatch) {
+    return {
+      type: "check",
+      message,
+    };
+  }
+
+  return {
+    type: "unknown",
+    message,
+  };
+}
+
+/**
+ * Get original CSV value for a specific row and field
+ */
+function getOriginalCsvValue(
+  connection: DuckDBConnection,
+  rawTableName: string,
+  fieldName: string,
+  rowNumber: number,
+): Effect.Effect<string, WorkspaceValidationError> {
+  return Effect.gen(function* (_) {
+    const query = `
+      SELECT "${fieldName}" as value
+      FROM (
+        SELECT "${fieldName}", row_number() OVER() as row_num
+        FROM ${rawTableName}
+      )
+      WHERE row_num = ${rowNumber}
+    `;
+
+    const result = yield* _(
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    );
+
+    const rows = result.getRowObjects();
+    if (rows.length === 0) {
+      return "";
+    }
+
+    return String(rows[0].value ?? "");
+  });
+}
+
+/**
+ * Calculate Levenshtein distance between two strings (for fuzzy matching)
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const aLen = a.length;
+  const bLen = b.length;
+
+  if (aLen === 0) return bLen;
+  if (bLen === 0) return aLen;
+
+  const matrix: number[][] = [];
+
+  // Initialize first column
+  for (let i = 0; i <= aLen; i++) {
+    matrix[i] = [i];
+  }
+
+  // Initialize first row
+  for (let j = 0; j <= bLen; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Fill in the rest of the matrix
+  for (let i = 1; i <= aLen; i++) {
+    for (let j = 1; j <= bLen; j++) {
+      const cost = a[i - 1].toLowerCase() === b[j - 1].toLowerCase() ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1, // deletion
+        matrix[i][j - 1] + 1, // insertion
+        matrix[i - 1][j - 1] + cost, // substitution
+      );
+    }
+  }
+
+  return matrix[aLen][bLen];
+}
+
+/**
+ * Find suggested value using fuzzy matching (Levenshtein distance)
+ */
+function findSuggestedValue(
+  invalidValue: string,
+  allowedValues: ReadonlyArray<string>,
+  threshold: number = 3,
+): string | undefined {
+  let bestMatch: string | undefined;
+  let bestDistance = threshold;
+
+  for (const allowed of allowedValues) {
+    const distance = levenshteinDistance(invalidValue, allowed);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestMatch = allowed;
+    }
+  }
+
+  return bestMatch;
+}
+
+/**
+ * Insert rows one-by-one, collecting violations for any that fail
+ */
+function insertRowByRow(
+  connection: DuckDBConnection,
+  rawTableName: string,
+  schemaTableName: string,
+  columnMappings: { origin: string; target: string }[],
+  profile: ValidationProfile,
+  validationSettings?: ValidationSettings,
+): Effect.Effect<ValidationViolation[], WorkspaceValidationError> {
+  return Effect.gen(function* (_) {
+    const violations: ValidationViolation[] = [];
+    const enableSuggestions = validationSettings?.enableSuggestions ?? true;
+    const processedDuplicates = new Set<string>(); // Track duplicate PKs we've already processed
+
+    // Get total row count
+    const countResult = yield* _(
+      Effect.tryPromise(() =>
+        connection.runAndReadAll(`SELECT COUNT(*) as count FROM ${rawTableName}`)
+      ).pipe(Effect.orDie),
+    );
+    const totalRows = Number(countResult.getRowObjects()[0]?.count ?? 0);
+
+    // Build column lists for INSERT
+    const targetColumns = columnMappings.map((m) => `"${m.target}"`).join(", ");
+    const originColumns = columnMappings.map((m) => `"${m.origin}"`).join(", ");
+
+    // Insert each row individually
+    for (let rowNum = 1; rowNum <= totalRows; rowNum++) {
+      const insertSQL = `
+        INSERT INTO ${schemaTableName} (${targetColumns})
+        SELECT ${originColumns}
+        FROM (
+          SELECT ${originColumns}, row_number() OVER() as row_num
+          FROM ${rawTableName}
+        )
+        WHERE row_num = ${rowNum}
+      `;
+
+      const result = yield* _(
+        Effect.tryPromise({
+          try: () => connection.run(insertSQL),
+          catch: (error) => error,
+        }).pipe(Effect.either),
+      );
+
+      if (result._tag === "Left") {
+        const error = result.left;
+        if (!(error instanceof Error)) continue;
+
+        // Parse the error to determine violation type
+        const parsed = parseDuckDBError(error);
+
+        // Create structured violation based on error type
+        switch (parsed.type) {
+          case "primary-key": {
+            // Find the PK field from mappings
+            const pkMapping = columnMappings.find((m) =>
+              m.target === schemaTableName + "ID" ||
+              (m.target.endsWith("ID") &&
+                profile.fields?.[m.target]?.unique === "true")
+            );
+
+            if (pkMapping && parsed.value && !processedDuplicates.has(parsed.value)) {
+              const specField = profile.normalizedFields?.[pkMapping.target];
+              if (!specField) break;
+
+              // Mark this duplicate value as processed
+              processedDuplicates.add(parsed.value);
+
+              // Query the raw table to find ALL rows with this duplicate value
+              // This gives us complete information about all instances of the duplicate
+              const duplicateQuery = `
+                WITH numbered_rows AS (
+                  SELECT "${pkMapping.origin}", row_number() OVER() as row_num
+                  FROM ${rawTableName}
+                )
+                SELECT row_num
+                FROM numbered_rows
+                WHERE "${pkMapping.origin}" = '${parsed.value}'
+              `;
+
+              const duplicateResult = yield* _(
+                Effect.tryPromise(() => connection.runAndReadAll(duplicateQuery)).pipe(
+                  Effect.orDie,
+                ),
+              );
+
+              const duplicateRows = duplicateResult.getRowObjects();
+              const duplicateCount = duplicateRows.length;
+
+              // Create a violation for each row that has the duplicate value
+              for (const dupRow of duplicateRows) {
+                const dupRowNum = Number(dupRow.row_num);
+                const csvValue = yield* _(
+                  getOriginalCsvValue(
+                    connection,
+                    rawTableName,
+                    pkMapping.origin,
+                    dupRowNum,
+                  ),
+                );
+
+                violations.push(
+                  new PrimaryKeyViolation({
+                    enforcement: "required",
+                    severity: enforcementToSeverity("required"),
+                    fieldName: pkMapping.origin,
+                    targetName: pkMapping.target,
+                    rowNumber: dupRowNum,
+                    value: parsed.value,
+                    csvValue,
+                    constraintType: "duplicate",
+                    duplicateCount,
+                    errorMessage: `Duplicate primary key: "${parsed.value}"`,
+                    validatorType: "primary-key",
+                  }),
+                );
+              }
+            }
+            break;
+          }
+
+          case "not-null": {
+            // Find the field that caused the NOT NULL violation
+            const notNullMapping = columnMappings.find((m) =>
+              parsed.fieldName ? m.target === parsed.fieldName : false
+            );
+
+            if (notNullMapping) {
+              const specField = profile.normalizedFields?.[notNullMapping.target];
+              if (!specField) break;
+
+              violations.push(
+                new NotNullViolation({
+                  enforcement: "required",
+                  severity: enforcementToSeverity("required"),
+                  fieldName: notNullMapping.origin,
+                  targetName: notNullMapping.target,
+                  rowNumber: rowNum,
+                  value: "",
+                  csvValue: "",
+                  errorMessage: `Required field "${notNullMapping.origin}" cannot be NULL`,
+                  validatorType: "not-null",
+                }),
+              );
+            }
+            break;
+          }
+
+          case "enum": {
+            // Find the field that caused the ENUM violation
+            const enumMapping = columnMappings.find((m) =>
+              m.origin === parsed.fieldName || m.target === parsed.fieldName
+            );
+
+            if (enumMapping && parsed.value) {
+              const specField = profile.normalizedFields?.[enumMapping.target];
+              const rawField = profile.fields?.[enumMapping.target];
+
+              if (!specField || !rawField?.values) break;
+
+              const allowedValues = Object.keys(rawField.values);
+              const suggestedValue = enableSuggestions
+                ? findSuggestedValue(parsed.value, allowedValues)
+                : undefined;
+
+              const vocabValidator = specField.validators?.find((v) =>
+                v.type === "unique" || v.type === "required"
+              );
+              const enforcement = vocabValidator?.enforcement ?? "required";
+
+              violations.push(
+                new EnumViolation({
+                  enforcement,
+                  severity: enforcementToSeverity(enforcement),
+                  fieldName: enumMapping.origin,
+                  targetName: enumMapping.target,
+                  rowNumber: rowNum,
+                  value: parsed.value,
+                  csvValue: parsed.value,
+                  enumType: `${schemaTableName}_${enumMapping.target.toLowerCase()}_enum`,
+                  allowedValues,
+                  suggestedValue,
+                  errorMessage: suggestedValue
+                    ? `Invalid value "${parsed.value}" (did you mean "${suggestedValue}"?)`
+                    : `Invalid value "${parsed.value}" (must be one of: ${
+                      allowedValues.join(", ")
+                    })`,
+                  validatorType: "enum",
+                }),
+              );
+            }
+            break;
+          }
+
+          case "foreign-key": {
+            // For FK violations, we need more context - log for now
+            console.warn(`Foreign key violation at row ${rowNum}: ${parsed.message}`);
+            break;
+          }
+
+          default: {
+            // Unknown error type - log it
+            console.warn(`Unknown constraint violation at row ${rowNum}: ${parsed.message}`);
+            break;
+          }
+        }
+      }
+    }
+
+    return violations;
+  });
 }
