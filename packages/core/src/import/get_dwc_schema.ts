@@ -4,7 +4,8 @@
 //  deno run external/get_dc_schema.cjs
 //
 import fs from 'node:fs';
-import * as txml from 'txml';
+import type { tNode } from 'txml';
+import { parse, simplifyLostLess } from 'txml';
 import fetch  from 'node-fetch';
 import csv from 'csvtojson';
 
@@ -19,33 +20,33 @@ const obisChecklistUrl = 'https://raw.githubusercontent.com/iobis/manual/master/
 
 // map thesaurus urls to local files, parse out their values, and return the new array to be 
 // added to the relevent schema field
-const xmlThesaurusToJson = (inputID) => {
+const xmlThesaurusToJson = (inputID: string) => {
 
     const thesaurusPath = inputID.replace('http://rs.gbif.org/', '../../external/rs_gbif/').replace('https://rs.gbif.org/', '../../external/rs_gbif/');
     console.log(`    Getting vocabulary from ${thesaurusPath}`);
     const thesaurusXml = fs.readFileSync(thesaurusPath, 'utf8');
-    const xmlObject = txml.parse(thesaurusXml.replaceAll("<voc:", "<").replaceAll("</voc:", "</"));
-    const simplifiedJson = txml.simplifyLostLess(xmlObject);
+    const xmlObject: (tNode | string)[] = parse(thesaurusXml.replaceAll("<voc:", "<").replaceAll("</voc:", "</"));
+    const simplifiedJson: Record<string, any> = simplifyLostLess(xmlObject as tNode[]);
 
-    simplifiedJson.thesaurus[0].concept = simplifiedJson.thesaurus[0].concept.reduce((acc, concept) => {
+    simplifiedJson.thesaurus[0].concept = simplifiedJson.thesaurus[0].concept.reduce((acc: Record<string, any>, concept: Record<string, any>) => {
         const { _attributes, preferred, alternative, } = concept;
-        let AltRepresentations = []
+        let AltRepresentations: string[] = []
         // Each value has a perfered and alternative in multiple languages. The number of languages are not 
         // consistent and may not contain an english version
-        preferred?.forEach(alt => {
-            AltRepresentations = AltRepresentations.concat(alt.term?.filter(term => term._attributes["xml:lang"] === 'en'));
+        preferred?.forEach((alt: Record<string, any>) => {
+            AltRepresentations = AltRepresentations.concat(alt.term?.filter((term: Record<string, any>) => term._attributes["xml:lang"] === 'en'));
         });
-        alternative?.forEach(alt => {
-            AltRepresentations = AltRepresentations.concat(alt.term?.filter(term => term._attributes["xml:lang"] === 'en'));
+        alternative?.forEach((alt: Record<string, any>) => {
+            AltRepresentations = AltRepresentations.concat(alt.term?.filter((term: Record<string, any>) => term._attributes["xml:lang"] === 'en'));
         });
         // some alternatives are empty lists  so when geting dc:title we need to filter out nulls 
-        AltRepresentations = AltRepresentations.map(alt => alt?._attributes["dc:title"]).filter(x  => x);
+        AltRepresentations = AltRepresentations.map(term => (term as unknown as Record<string, any>)?._attributes["dc:title"]).filter((x: string)  => x);
         const { "dc:identifier": identifier, ...restAttrs } = _attributes;
         return { ...acc, [identifier]: { ...restAttrs, "names": AltRepresentations }, };
     }, {});
 
     simplifiedJson.thesaurus =
-        simplifiedJson.thesaurus.reduce((acc, prop) => {
+        simplifiedJson.thesaurus.reduce((acc: Record<string, any>, prop: Record<string, any>) => {
             const { _attributes, ...restProps } = prop;
             return { ...acc, ..._attributes, ...restProps };
         }, {}
@@ -54,27 +55,32 @@ const xmlThesaurusToJson = (inputID) => {
     return simplifiedJson.thesaurus
 }
 
+interface Options {
+    group?: string;
+    idFieldName: string;
+}
+
 // convert darwin core xml schemas into json
-const xmlSchemaToJson = (filePath,options) => {
+const xmlSchemaToJson = (filePath: string, options: Options) => {
     const { group, idFieldName } = options;
     console.log(`Reading Schema file ${filePath}`,)
 
     const inputXML = fs.readFileSync(filePath, 'utf8');
    
     // Parse the XML string
-    const xmlObject = txml.parse(inputXML);
+    const xmlObject: (tNode | string)[] = parse(inputXML);
 
     // Simplify the parsed object into a more straightforward JSON structure
-    const simplifiedJson = txml.simplifyLostLess(xmlObject);
+    const simplifiedJson: Record<string, any> = simplifyLostLess(xmlObject as tNode[]);
 
     simplifiedJson.extension[0].property = 
-        simplifiedJson.extension[0].property.reduce((acc, prop) => {
+        simplifiedJson.extension[0].property.reduce((acc: Record<string, any>, prop: Record<string, any>) => {
             const { name, thesaurus, required, "group": propGroup, ...rest } = prop._attributes;
 
             let label = name.split(/(?<![A-Z])(?=[A-Z])/).join(" ");
             label = label[0].toUpperCase() + label.slice(1); 
 
-            let collection = {
+            let collection: Record<string, any> = {
                 ...acc,
                 [name]: { "group": propGroup, name, label, ...rest, "gbif_required": required}
             }
@@ -91,7 +97,7 @@ const xmlSchemaToJson = (filePath,options) => {
             if (name == idFieldName) {
                 collection[name].unique = "true";
                 collection[name].type = "identifier"
-            }else if (!collection[name]?.type & name.endsWith("ID")) {
+            }else if (!collection[name]?.type && name.endsWith("ID")) {
                 collection[name].type = "identifier"
             }
             return collection
@@ -99,7 +105,7 @@ const xmlSchemaToJson = (filePath,options) => {
         );
 
     simplifiedJson.extension =
-        simplifiedJson.extension.reduce((acc, prop) => {
+        simplifiedJson.extension.reduce((acc: Record<string, any>, prop: Record<string, any>) => {
             const { _attributes, property, ...restProps } = prop;
             const { name, ...rest } = _attributes;
             return { ...acc, [name]: { ...rest, name, "fieldOverrides": {}, "fields": property, ...restProps} };
@@ -159,8 +165,8 @@ export async function import_schema() {
         Object.keys(table.fields).forEach(fieldname => {
             const field = table.fields[fieldname]
             const validators = []
-            if (field.obis_required == "required" | field.obis_required == "required (if exists)") validators.push("required");
-            if (field.obis_required == "recommended" | field.obis_required == "strongly recommended") validators.push("recommended");
+            if (field.obis_required == "required" || field.obis_required == "required (if exists)") validators.push("required");
+            if (field.obis_required == "recommended" || field.obis_required == "strongly recommended") validators.push("recommended");
             if (field.unique == "true") validators.push("uniqueIdentifier");
             if (field.type == "integer") validators.push("integer");
             if (field.type == "date") validators.push("iso8601Date");
