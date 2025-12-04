@@ -1,156 +1,145 @@
 # DarwinKit
 
-[![Test Suite](https://github.com/HakaiInstitute/DarwinKit/actions/workflows/test.yml/badge.svg)](https://github.com/HakaiInstitute/DarwinKit/actions/workflows/test.yml)
+[![Code Quality & Tests](https://github.com/HakaiInstitute/DarwinKit/actions/workflows/code-quality.yml/badge.svg)](https://github.com/HakaiInstitute/DarwinKit/actions/workflows/code-quality.yml)
 
-A modular biodiversity data processing toolkit for mapping tabular data to Darwin Core standards.
+A configuration-driven toolkit for validating and transforming biodiversity data to Darwin Core standards.
 
-## Architecture
+## What It Does
 
-DarwinKit is organized as a Deno workspace with separate packages:
+DarwinKit maps, transforms, and validates raw biodiversity data to the Darwin Core standard so you can share your research with the world more easily.
 
-- **@dwkt/shared** - Universal types, schemas, and constants (works in browser and Node.js)
-- **@dwkt/core** - Core business logic and Node.js-specific implementations 
-- **@dwkt/cli** - Command-line interface for data processing
-- **@dwkt/api** - HTTP API server
-- **@dwkt/gui** - Web-based user interface
+### The Problem
+
+Biodiversity data is often collected in a form that's convenient for research or field work rather than compliant with Darwin Core standards. However, the repositories to which we tend to submit our data (OBIS, GBIF, BOLD, etc.) tend to require it to comply with the standard. Worse yet, you can't be certain that the data is entirely valid until you've submitted it, and each repository has its own set of validation rules.
+
+We might correct this manually or write bespoke scripts to process and transform the data, perhaps even validate it, but this is a time-consuming and error-prone process with variable results. This has proven to be a bottleneck and time-sink at Hakai, requiring significant resources and effort.
+
+### The Solution
+
+DarwinKit validates CSV biodiversity data against Darwin Core specifications using a JSON configuration file. It checks field mappings, renames columns, can enforce referential integrity across related datasets, validate controlled vocabularies, and ensure other types of data quality before submission to biodiversity repositories. It takes the guess-work and wheel-reinvention out of biodiversity data preparation.
+
+If you know how your data should be mapped to Darwin Core, you can use DarwinKit to validate and transform your data with as little as a JSON configuration file.
 
 ## Quick Start
 
-### Prerequisites
+**Prerequisites**:
 
-- [Deno 2.0+](https://deno.land/) with workspace support
-- PostgreSQL database (optional, for user authentication)
+Install [Deno 2.0+](https://deno.land/)
 
-### Development
+Create a `darwinkit.json` configuration file:
+
+```json
+{
+  "name": "Marine Survey 2024",
+  "datasets": [
+    {
+      "name": "events",
+      "spec": "dwc-event",
+      "path": "./data/events.csv",
+      "fieldMappings": [
+        {"originName": "event_id", "targetName": "eventID", "isRequired": true},
+        {"originName": "sample_date", "targetName": "eventDate", "isRequired": true},
+        {"originName": "latitude", "targetName": "decimalLatitude", "isRequired": true},
+        {"originName": "longitude", "targetName": "decimalLongitude", "isRequired": true}
+      ]
+    },
+    {
+      "name": "occurrences",
+      "spec": "dwc-occurrence",
+      "path": "./data/occurrences.csv",
+      "fieldMappings": [
+        {"originName": "occurrence_id", "targetName": "occurrenceID", "isRequired": true},
+        {"originName": "event_id", "targetName": "eventID", "isRequired": true},
+        {"originName": "species_name", "targetName": "scientificName", "isRequired": true}
+      ]
+    }
+  ],
+  "crossDatasetRules": [
+    {
+      "ruleType": "foreignKey",
+      "sourceDataset": "occurrences",
+      "sourceField": "eventID",
+      "targetDataset": "events",
+      "targetField": "eventID"
+    }
+  ]
+}
+```
+
+Run validation:
 
 ```bash
-# Start both API server and GUI
+# If using the default config location in the root directory
+deno task dev:cli validate
+# target a specific configuration
+deno task dev:cli validate --config ./my-config.json
+
+# Or if using the compiled binary...
+dwc validate
+# or
+dwc validate --config ./my-config.json
+```
+
+This validates field mappings, checks data types (dates, coordinates), enforces controlled vocabularies, and verifies foreign key relationships between datasets.
+
+Transform data to Darwin Core format:
+
+```bash
+# Transform datasets according to field mappings
+deno task dev:cli transform --config ./my-config.json --output ./output
+
+# Or with the compiled binary
+dwc transform --config ./my-config.json --output ./output
+```
+
+This applies the field mappings from your config, renaming columns to Darwin Core standard names and writing the transformed CSV files to the output directory.
+
+## Architecture
+
+DarwinKit is a Deno workspace with five packages:
+
+- **@dwkt/domain**
+  - Domain-specific logic for Darwin Core data validation and transformation
+  - Darwin Core specifications, validation schemas, and type definitions
+  - Environment-agnostic
+- **@dwkt/core**
+  - Business logic using DuckDB for CSV parsing, validation, and transformation
+  - Exposes the functionality of the library to clients, such as web interfaces, CLIs, cross-runtime wrappers, and APIs.
+  - Language-neutral interface which allows DarwinKit to be used by any runtime which executes JavaScript (directly or via bridge libraries) or a local binary.
+- **@dwkt/cli**
+  - Command-line interface for running validation and transformation pipelines
+  - Serves as an example of how to use the core package
+- **@dwkt/api**
+  - HTTP API server (minimal implementation)
+  - TODO
+- **@dwkt/gui**
+  - React web interface (minimal implementation)
+  - TODO
+
+### DuckDB
+
+DuckDB is a core component in the transformation and validation pipelines. It provides:
+
+- **Schema inference** - Automatic detection of column types and structure
+- **Type validation** - SQL-based checking of dates, coordinates, and numeric ranges
+- **Cross-dataset queries** - Foreign key validation across multiple CSV files using JOIN operations
+- **Sample extraction** - Quick preview of field values for mapping configuration
+
+## Development
+
+```bash
+# Run validation from config
+deno task dev:cli validate
+
+# Start API and GUI servers
 deno task dev
 
-# This runs:
-# - API server on http://localhost:3001  
-# - GUI development server on http://localhost:3000
+# Run tests
+deno test
+
+# Format and lint
+deno fmt && deno lint
 ```
-
-### CLI Usage
-
-```bash
-# List workspaces
-deno task dev:cli workspace list
-
-# Create workspace from CSV
-deno task dev:cli workspace create "Marine Survey 2024" /path/to/survey-data.csv
-
-# Show workspace details and schema  
-deno task dev:cli workspace show <workspace-id>
-```
-
-### Individual Package Development
-
-```bash
-# Work on specific packages
-deno task dev:api      # API server only (port 3001)
-deno task dev:gui      # GUI dev server only (port 3000)
-deno task dev:cli      # Run CLI commands interactively
-
-# Testing and Quality
-deno test              # Run all tests
-deno test:e2e          # Run end-to-end tests
-deno fmt               # Format code
-deno lint              # Lint TypeScript files
-```
-
-## Package Structure
-
-```
-packages/
-├── shared/           # Universal code (browser + Node.js compatible)
-│   ├── types/        # TypeScript interfaces
-│   ├── schemas/      # Zod validation schemas  
-│   ├── errors/       # Error codes and types
-│   └── constants/    # Darwin Core vocabularies
-│
-├── core/            # Backend business logic (Node.js only)
-│   ├── workspace/   # Workspace management
-│   ├── parsing/     # CSV parsing with DuckDB
-│   └── database/    # PostgreSQL client
-│
-├── cli/             # Command-line interface
-│   ├── commands/    # CLI commands
-│   └── formatters/  # Terminal output formatting
-│
-├── api/             # HTTP API server
-│   └── routes/      # API routes (workspaces, auth)
-│
-└── gui/             # Web interface
-    ├── components/  # React components
-    ├── routes/      # Frontend routes  
-    └── api/         # API client
-```
-
-## Development Workflow
-
-The Deno workspace architecture provides:
-
-1. **Modular development** - Work on packages independently or together
-2. **Shared type safety** - Common schemas ensure consistency across all packages
-3. **Platform separation** - Universal code (shared) vs Node-specific (core) vs browser (GUI)
-4. **No installation friction** - Deno handles dependencies automatically
-5. **Independent deployment** - Each package can be built and deployed separately
-
-## Core Concepts
-
-### Workspaces
-Self-contained environments for processing CSV biodiversity data with automatic schema inference, sample extraction, and Darwin Core mapping tools. Each workspace stores parsed metadata as JSON files for portability and caching.
-
-### Schema Inference  
-Uses DuckDB to automatically detect column types, extract sample values, and analyze data structure without loading entire files into memory. Supports large datasets with configurable sampling strategies.
-
-### Darwin Core Mapping
-Interactive tools for mapping source columns to Darwin Core standard fields, with validation against controlled vocabularies and support for data transformation rules.
-
----
-
-## Why DarwinKit?
-
-### We work with DwC data
-
-Our team works with biodiversity and genomics data. When we collect our data, we're collecting data which typically adheres to DwC.
-
-### However, we don't record it as DwC data
-
-Unfortunately, we tend to collect this data using labels and formats which aren't quite compatible with DwC; at least, not directly. They need mild re-labelling and coercion to adhere to the standard.
-
-### DwC is a large, complex standard with hundreds of fields
-
-I believe part of why we don't work off of the standard is because it's a non-trivial task to learn it, retain what you've learned, and apply it. This tool aims to address that problem by using several strategies to reduce this innate friction.
-
-### Common problems we encounter
-
-Biodiversity and genomics teams face recurring data challenges:
-
-- **Coordinate inconsistencies**: GPS data recorded as "45.5231 N, 74.0060 W" instead of decimal degrees, breaking downstream GIS analysis
-- **Taxonomic ambiguity**: Species names like "Atlantic salmon" or local names that don't validate against authoritative registries like WoRMS
-- **Date format chaos**: Collection dates as "June 15th, 2023", "15/6/23", or "2023-165" (Julian) requiring manual parsing
-- **Measurement unit confusion**: Depths in meters vs fathoms, temperatures in Celsius vs Fahrenheit, without clear metadata
-- **Sample metadata gaps**: Missing or inconsistent specimen preparation methods, preservation protocols, or collection instruments
-
-### Adhering to standards lets us work cleaner, better, and faster
-
-At the moment, we write bespoke scripts which are tailored to specific datasets. We face issues such as:
-
-- These datasets come from study designs which are not based on DwC. Many of the outputs are not as clean as they could be, but improvements require extensive scripting
-- Modifying the script requires someone very technical with a programming environment configured
-- Scripts become unmaintainable as team members leave or priorities shift
-- Each new dataset requires starting from scratch, even when similar to previous work
-
-Ensuring we stay close to the DwC standard provides us with many advantages with little investment.
-
-1. **Clear communication**: When we all speak the same language, we communicate better and make fewer mistakes
-2. **Automatic compatibility**: Datasets become compatible with each other without manual intervention
-3. **Reusable analysis**: R scripts for biodiversity analysis work across projects when data follows the same structure  
-4. **Tool interoperability**: GBIF, iNaturalist, and other platforms can directly ingest standardized data
-5. **Quality assurance**: Validation catches errors before they propagate through analysis pipelines
 
 ## License
 
