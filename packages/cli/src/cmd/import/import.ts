@@ -1,12 +1,11 @@
 import { Command } from '@cliffy/command';
 import { import_schema } from '@dwkt/core';
 import { Output } from '../../utils/output.ts';
-import * as Effect from 'effect/Effect';
 
 async function importSchema() {
-    Output.section('🚀', 'Starting schema import from gbif...');
-    await import_schema();
-    Output.success('✅ Import complete.');
+  Output.section('🚀', 'Starting schema import from gbif...');
+  await import_schema();
+  Output.success('✅ Import complete.');
 }
 
 export const importCommand = new Command()
