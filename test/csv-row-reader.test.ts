@@ -2,7 +2,13 @@
  * Tests for CSV row reader
  */
 
-import { assertEquals } from "@std/assert";
+import {
+  assert,
+  assertArrayIncludes,
+  assertEquals,
+  assertExists,
+  assertStringIncludes,
+} from "@std/assert";
 import * as Effect from "effect/Effect";
 import {
   readCsvFieldValue,
@@ -164,7 +170,8 @@ Deno.test("CSV row reader - real data integration", async (t) => {
 
     // Should read the first eventID from FC2022 data
     assertEquals(typeof value, "string");
-    assertEquals(value !== null && value.length > 0, true);
+    assertExists(value);
+    assert(value.length > 0);
   });
 });
 
@@ -179,7 +186,7 @@ Deno.test("CSV row reader - error handling: invalid field names", async (t) => {
         (error) => {
           // error is automatically typed as CsvReadError!
           assertEquals(error.fieldName, "nonExistentField");
-          assertEquals(Array.isArray(error.availableFields), true);
+          assert(Array.isArray(error.availableFields));
         },
       );
     });
@@ -190,9 +197,9 @@ Deno.test("CSV row reader - error handling: invalid field names", async (t) => {
         "CsvReadError",
         (error) => {
           assertEquals(error.fieldName, "eventid");
-          assertEquals(Array.isArray(error.suggestions), true);
-          assertEquals(error.suggestions!.includes("eventID"), true);
-          assertEquals(error.message.includes("Did you mean"), true);
+          assert(Array.isArray(error.suggestions));
+          assertArrayIncludes(error.suggestions!, ["eventID"]);
+          assertStringIncludes(error.message, "Did you mean");
         },
       );
     });
@@ -202,7 +209,7 @@ Deno.test("CSV row reader - error handling: invalid field names", async (t) => {
         readCsvFieldValue(TEST_CSV_PATH, 1, "decimal_latitude"), // underscore instead of camelCase
         "CsvReadError",
         (error) => {
-          assertEquals(error.suggestions!.includes("decimalLatitude"), true);
+          assertArrayIncludes(error.suggestions!, ["decimalLatitude"]);
         },
       );
     });
@@ -237,8 +244,9 @@ Deno.test("CSV row reader - error handling: invalid file paths", async (t) => {
       readCsvFieldValue("./non-existent-file.csv", 1, "anyField"),
       "CsvReadError",
       (error) => {
-        assertEquals(error.message.includes("Failed to read CSV"), true);
         assertEquals(error.csvPath, "./non-existent-file.csv");
+        // Ensure the file path is included in the error message for better UX
+        assertStringIncludes(error.message, "./non-existent-file.csv");
       },
     );
   });
@@ -254,7 +262,8 @@ Deno.test("CSV row reader - error handling: row out of bounds", async (t) => {
         "CsvReadError",
         (error) => {
           assertEquals(error.rowNumber, 999);
-          assertEquals(error.message.includes("not found"), true);
+          // Ensure the row number is included in the error message for better UX
+          assertStringIncludes(error.message, "999");
         },
       );
     });
@@ -283,10 +292,10 @@ Deno.test("CSV row reader - error messages are helpful", async (t) => {
         "CsvReadError",
         (error) => {
           // Message should help user fix the problem
-          assertEquals(error.message.includes("eventid"), true);
-          assertEquals(error.message.includes("not found"), true);
-          assertEquals(error.message.includes("Did you mean"), true);
-          assertEquals(error.message.includes("eventID"), true);
+          assertStringIncludes(error.message, "eventid");
+          assertStringIncludes(error.message, "not found");
+          assertStringIncludes(error.message, "Did you mean");
+          assertStringIncludes(error.message, "eventID");
         },
       );
     });
@@ -296,10 +305,12 @@ Deno.test("CSV row reader - error messages are helpful", async (t) => {
         readCsvFieldValue(TEST_CSV_PATH, 1, "unknown"),
         "CsvReadError",
         (error) => {
-          assertEquals(error.availableFields!.includes("eventID"), true);
-          assertEquals(error.availableFields!.includes("decimalLatitude"), true);
-          assertEquals(error.availableFields!.includes("country"), true);
-          assertEquals(error.availableFields!.includes("notes"), true);
+          assertArrayIncludes(error.availableFields!, [
+            "eventID",
+            "decimalLatitude",
+            "country",
+            "notes",
+          ]);
         },
       );
     });

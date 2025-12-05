@@ -5,7 +5,7 @@
  * used with any error types, not just config errors.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Data from "effect/Data";
@@ -70,9 +70,9 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
     if (Exit.isFailure(result)) {
       const formatted = prettyPrintCause(result.cause, formatApiError);
 
-      assertEquals(formatted.includes("Network request failed"), true);
-      assertEquals(formatted.includes("/api/users"), true);
-      assertEquals(formatted.includes("504"), true);
+      assertStringIncludes(formatted, "Network request failed");
+      assertStringIncludes(formatted, "/api/users");
+      assertStringIncludes(formatted, "504");
     }
   });
 
@@ -100,8 +100,8 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
     if (Exit.isFailure(result)) {
       const formatted = prettyPrintCause(result.cause, formatApiError);
 
-      assertEquals(formatted.includes("email"), true);
-      assertEquals(formatted.includes("not-an-email"), true);
+      assertStringIncludes(formatted, "email");
+      assertStringIncludes(formatted, "not-an-email");
     }
   });
 
@@ -143,9 +143,9 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
       const formatted = prettyPrintCause(result.cause, formatApiError);
 
       // Should show both errors
-      assertEquals(formatted.includes("email"), true);
-      assertEquals(formatted.includes("password"), true);
-      assertEquals(formatted.includes("Multiple errors"), true);
+      assertStringIncludes(formatted, "email");
+      assertStringIncludes(formatted, "password");
+      assertStringIncludes(formatted, "Multiple errors");
     }
   });
 
@@ -170,7 +170,7 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
         return String(error);
       });
 
-      assertEquals(formatted.includes("API Error 500"), true);
+      assertStringIncludes(formatted, "API Error 500");
     }
   });
 });
@@ -210,7 +210,7 @@ Deno.test("Generic Cause Formatter - Reusability across domains", async (t) => {
     if (Exit.isFailure(result)) {
       const formatted = prettyPrintCause(result.cause, formatDbError);
 
-      assertEquals(formatted.includes("localhost:5432"), true);
+      assertStringIncludes(formatted, "localhost:5432");
     }
   });
 
@@ -250,8 +250,8 @@ Deno.test("Generic Cause Formatter - Reusability across domains", async (t) => {
     if (Exit.isFailure(result)) {
       const formatted = prettyPrintCause(result.cause, formatFsError);
 
-      assertEquals(formatted.includes("Permission denied"), true);
-      assertEquals(formatted.includes("/etc/secret.conf"), true);
+      assertStringIncludes(formatted, "Permission denied");
+      assertStringIncludes(formatted, "/etc/secret.conf");
     }
   });
 });
@@ -281,7 +281,7 @@ Deno.test("createMultiErrorFormatter - Fallback behavior", async (t) => {
 
     if (Exit.isFailure(knownResult)) {
       const formatted = prettyPrintCause(knownResult.cause, formatter);
-      assertEquals(formatted.includes("Known: test"), true);
+      assertStringIncludes(formatted, "Known: test");
     }
 
     // Test with unknown error
@@ -291,7 +291,7 @@ Deno.test("createMultiErrorFormatter - Fallback behavior", async (t) => {
 
     if (Exit.isFailure(unknownResult)) {
       const formatted = prettyPrintCause(unknownResult.cause, formatter);
-      assertEquals(formatted.includes("Unexpected error type"), true);
+      assertStringIncludes(formatted, "Unexpected error type");
     }
   });
 });

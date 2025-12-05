@@ -8,7 +8,7 @@
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import { createTableFromSchema, WorkspaceImportError } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { assert, assertEquals, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists, assertFalse, assertInstanceOf } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { expect, vi } from "vitest";
 
@@ -199,7 +199,7 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
       "VARCHAR",
       "eventID should be of type VARCHAR (equivalent to TEXT)",
     );
-    assertEquals(eventIdCol.pk, true, "eventID should be the primary key");
+    assert(eventIdCol.pk, "eventID should be the primary key");
 
     const yearCol = eventColumns.find((c) => c.name === "year");
     assertExists(yearCol, "year column should exist in event table");
@@ -218,7 +218,7 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
 
     const occurrenceIdCol = occurrenceColumns.find((c) => c.name === "occurrenceID");
     assertExists(occurrenceIdCol, "occurrenceID column should exist");
-    assertEquals(occurrenceIdCol.pk, true, "occurrenceID should be primary key");
+    assert(occurrenceIdCol.pk, "occurrenceID should be primary key");
 
     const basisOfRecordCol = occurrenceColumns.find((c) => c.name === "basisOfRecord");
     assertExists(basisOfRecordCol, "basisOfRecord column should exist");
@@ -335,7 +335,7 @@ Deno.test("createTableFromSchema - returns WorkspaceImportError on SQL failure",
     const result = await Effect.runPromise(Effect.flip(createTableFromSchema(connection, config)));
 
     // Assert that the effect failed with the correct error type
-    assert(result instanceof WorkspaceImportError, "Should fail with WorkspaceImportError");
+    assertInstanceOf(result, WorkspaceImportError, "Should fail with WorkspaceImportError");
     // The error will be about ENUM creation (happens before table creation)
     assertEquals(result.message, "Failed to create ENUM types for table 'occurrence'");
     assertEquals(result.cause, dbError);
@@ -497,7 +497,7 @@ Deno.test("createTableFromSchema - comprehensive FK verification", async () => {
       "event",
       "eventID",
     );
-    assertEquals(hasInvalidFK, false, "Should return false for non-existent FK");
+    assertFalse(hasInvalidFK, "Should return false for non-existent FK");
 
     // Test 3: Get all FKs for a table
     const occurrenceFKs = await getForeignKeys(connection, "occurrence");

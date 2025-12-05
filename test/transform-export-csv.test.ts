@@ -5,12 +5,11 @@
  * to CSV files according to the workspace configuration.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
-import { assert } from "@std/assert/assert";
-import * as Effect from "effect/Effect";
 import { DuckDBConnection } from "@duckdb/node-api";
 import { exportObisTablesToCSV } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
+import { assertEquals, assertExists, assertFalse, assertStringIncludes } from "@std/assert";
+import * as Effect from "effect/Effect";
 
 Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", async () => {
   // 1. Setup
@@ -120,10 +119,10 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 
     // The 'remarks' column should not be in the header
     // Note: json-2-csv default format is unquoted
-    assert(header.includes("eventID"), "Header should contain eventID");
-    assert(header.includes("year"), "Header should contain year");
-    assert(header.includes("month"), "Header should contain month");
-    assert(!header.includes("remarks"), "Header should NOT contain the null column 'remarks'");
+    assertStringIncludes(header, "eventID", "Header should contain eventID");
+    assertStringIncludes(header, "year", "Header should contain year");
+    assertStringIncludes(header, "month", "Header should contain month");
+    assertFalse(header.includes("remarks"), "Header should NOT contain the null column 'remarks'");
 
     assertEquals(rows.length, 2, "CSV should contain 2 data rows");
     assertEquals(rows[0], `evt1,2023,1`);
@@ -159,7 +158,7 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
   const effect = exportObisTablesToCSV(connection, config);
   const result = await Effect.runPromise(Effect.flip(effect));
 
-  assert(result._tag === "OutputError", "Should fail with OutputError");
+  assertEquals(result._tag, "OutputError", "Should fail with OutputError");
   assertEquals(result.outputPath, invalidOutputDir);
 
   connection.closeSync();

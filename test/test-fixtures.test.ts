@@ -6,7 +6,7 @@
  * validation scenarios.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assert, assertArrayIncludes, assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { WorkspaceConfigService } from "../packages/core/src/workspace/workspace-config-service.ts";
 
@@ -27,8 +27,8 @@ Deno.test("Test fixtures - fc2022-complete config loads successfully", async () 
   assertEquals(result.config.name, "FC2022 Marine Biodiversity Dataset");
 
   // Verify config has validation settings and datasets
-  assertEquals("validation" in result.config, true, "Config should have validation settings");
-  assertEquals("datasets" in result.config, true, "Config should have datasets");
+  assert("validation" in result.config, "Config should have validation settings");
+  assert("datasets" in result.config, "Config should have datasets");
 
   // Type assertion after runtime validation
   const config = result.config as typeof result.config & {
@@ -41,9 +41,7 @@ Deno.test("Test fixtures - fc2022-complete config loads successfully", async () 
 
   // Verify datasets are present
   const datasetNames = config.datasets.map((d: { name: string }) => d.name);
-  assertEquals(datasetNames.includes("event_data"), true);
-  assertEquals(datasetNames.includes("occurrence_data"), true);
-  assertEquals(datasetNames.includes("emof_data"), true);
+  assertArrayIncludes(datasetNames, ["event_data", "occurrence_data", "emof_data"]);
 
   // Verify specs are correct
   const eventDataset = config.datasets.find((d: { name: string }) => d.name === "event_data");
@@ -80,8 +78,8 @@ Deno.test("Test fixtures - mixed-validity config loads successfully", async () =
   assertEquals(result.config.name, "Mixed Valid/Invalid Dataset");
 
   // Verify config has validation settings and datasets
-  assertEquals("validation" in result.config, true, "Config should have validation settings");
-  assertEquals("datasets" in result.config, true, "Config should have datasets");
+  assert("validation" in result.config, "Config should have validation settings");
+  assert("datasets" in result.config, "Config should have datasets");
 
   // Type assertion after runtime validation
   const config = result.config as typeof result.config & {
@@ -115,8 +113,8 @@ Deno.test("Test fixtures - na-type-failures config loads successfully", async ()
   assertEquals(result.config.name, "Invalid Dataset - NA Type Failures");
 
   // Verify config has validation settings and datasets
-  assertEquals("validation" in result.config, true, "Config should have validation settings");
-  assertEquals("datasets" in result.config, true, "Config should have datasets");
+  assert("validation" in result.config, "Config should have validation settings");
+  assert("datasets" in result.config, "Config should have datasets");
 
   // Type assertion after runtime validation
   const config = result.config as typeof result.config & {
@@ -128,10 +126,9 @@ Deno.test("Test fixtures - na-type-failures config loads successfully", async ()
   assertEquals(config.datasets.length, 1);
 
   // Verify validation settings - NA should NOT be in nullValues
-  assertEquals(config.validation.nullValues.includes("NA"), false);
-  assertEquals(config.validation.nullValues.includes("N/A"), false);
-  assertEquals(config.validation.nullValues.includes(""), true);
-  assertEquals(config.validation.nullValues.includes("NULL"), true);
+  assertFalse(config.validation.nullValues.includes("NA"));
+  assertFalse(config.validation.nullValues.includes("N/A"));
+  assertArrayIncludes(config.validation.nullValues, ["", "NULL"]);
 });
 
 Deno.test("Test fixtures - all configs use datasets array format", async () => {
@@ -166,7 +163,7 @@ Deno.test("Test fixtures - all configs use datasets array format", async () => {
     };
 
     // Verify datasets is an array
-    assertEquals(Array.isArray(config.datasets), true);
+    assert(Array.isArray(config.datasets));
 
     // Verify each dataset has required fields
     for (const dataset of config.datasets) {
@@ -174,9 +171,8 @@ Deno.test("Test fixtures - all configs use datasets array format", async () => {
       assertExists(dataset?.spec, `Dataset should have spec in ${configPath}`);
       assertExists(dataset?.path, `Dataset should have path in ${configPath}`);
       assertExists(dataset?.fieldMappings, `Dataset should have fieldMappings in ${configPath}`);
-      assertEquals(
+      assert(
         Array.isArray(dataset?.fieldMappings),
-        true,
         `fieldMappings should be array in ${configPath}`,
       );
     }

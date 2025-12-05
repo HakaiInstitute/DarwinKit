@@ -4,12 +4,12 @@
  * Tests for the file-based workspace management functionality.
  */
 
-import { assertEquals, assertExists, assertRejects } from "@std/assert";
-import * as Effect from "effect/Effect";
+import { assert, assertEquals, assertExists, assertGreater, assertRejects } from "@std/assert";
 import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 
-import { CreateWorkspaceResult, WorkspaceService } from "../packages/core/src/workspace/service.ts";
 import type { CreateWorkspaceOptions } from "@dwkt/domain";
+import { CreateWorkspaceResult, WorkspaceService } from "../packages/core/src/workspace/service.ts";
 
 import {
   assertFileAccessError,
@@ -40,7 +40,7 @@ Deno.test("Workspace Service - Create workspace from CSV", async () => {
     // Verify workspace was created
     assertExists(result.workspace.id);
     assertExists(result.workspace.schema);
-    assertEquals(result.workspace.schema.fields.size > 0, true);
+    assertGreater(result.workspace.schema.fields.size, 0);
 
     // Verify files were persisted
     const workspaceDir = join(tempDir, `workspace-${result.workspace.id}`);
@@ -50,8 +50,8 @@ Deno.test("Workspace Service - Create workspace from CSV", async () => {
     const workspaceFileExists = await Deno.stat(workspaceFile).then(() => true).catch(() => false);
     const samplesFileExists = await Deno.stat(samplesFile).then(() => true).catch(() => false);
 
-    assertEquals(workspaceFileExists, true);
-    assertEquals(samplesFileExists, true);
+    assert(workspaceFileExists);
+    assert(samplesFileExists);
 
     // Verify workspace can be loaded back with data integrity
     const loaded = await Effect.runPromise(service.load(result.workspace.id));

@@ -7,7 +7,7 @@
  * This test serves as both documentation and a smoke test for the validation system.
  */
 
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertMatch } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
 
@@ -55,9 +55,5 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
   const firstViolation = taxonRankViolations[0];
   assertEquals(firstViolation.enforcement, "recommended", "Should have recommended enforcement");
   assertEquals(firstViolation.severity, "warning", "Should have warning severity");
-  assert(
-    firstViolation.errorMessage.includes("Species") ||
-      firstViolation.errorMessage.includes("Genus"),
-    "Should mention invalid value",
-  );
+  assertMatch(firstViolation.errorMessage, /Species|Genus/, "Should mention invalid value");
 });

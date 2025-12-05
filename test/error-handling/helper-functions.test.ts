@@ -5,7 +5,7 @@
  * instead of throwing errors that escape the Effect channel.
  */
 
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals, assertFalse, assertStringIncludes } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { WorkspaceService } from "@dwkt/core";
 
@@ -34,10 +34,10 @@ Deno.test("Helper functions - parseWorkspace defects", async (t) => {
       ),
     );
 
-    assertEquals(defectCaught, true, "Defect should be caught");
-    assertEquals(
-      defectMessage.includes("Invalid workspace data structure"),
-      true,
+    assert(defectCaught, "Defect should be caught");
+    assertStringIncludes(
+      defectMessage,
+      "Invalid workspace data structure",
       `Expected defect message about invalid data structure, got: ${defectMessage}`,
     );
 
@@ -64,7 +64,7 @@ Deno.test("Helper functions - parseWorkspace defects", async (t) => {
       ),
     );
 
-    assertEquals(defectCaught, true, "Defect should be caught for string value");
+    assert(defectCaught, "Defect should be caught for string value");
 
     // Cleanup
     await Deno.remove("./test/tmp/error-test", { recursive: true });
@@ -89,7 +89,7 @@ Deno.test("Helper functions - parseWorkspace defects", async (t) => {
       ),
     );
 
-    assertEquals(defectCaught, true, "JSON parse error should be a defect");
+    assert(defectCaught, "JSON parse error should be a defect");
 
     // Cleanup
     await Deno.remove("./test/tmp/error-test", { recursive: true });
@@ -126,10 +126,10 @@ Deno.test("Helper functions - parseWorkspace defects", async (t) => {
       ),
     );
 
-    assertEquals(defectCaught, true, "Invalid schema should be a defect");
-    assertEquals(
-      defectMessage.includes("Invalid schema data structure"),
-      true,
+    assert(defectCaught, "Invalid schema should be a defect");
+    assertStringIncludes(
+      defectMessage,
+      "Invalid schema data structure",
       `Expected defect message about invalid schema, got: ${defectMessage}`,
     );
 
@@ -155,7 +155,7 @@ Deno.test("Helper functions - expected errors remain catchable", async (t) => {
       ),
     );
 
-    assertEquals(errorCaught, true, "Expected error should be caught with catchAll");
+    assert(errorCaught, "Expected error should be caught with catchAll");
     assertEquals(errorCode, "WORKSPACE_NOT_FOUND");
   });
 
@@ -183,8 +183,8 @@ Deno.test("Helper functions - expected errors remain catchable", async (t) => {
       ),
     );
 
-    assertEquals(expectedErrorCaught, false, "Defects should NOT be caught by catchAll");
-    assertEquals(defectCaught, true, "Defects should only be caught by catchAllDefect");
+    assertFalse(expectedErrorCaught, "Defects should NOT be caught by catchAll");
+    assert(defectCaught, "Defects should only be caught by catchAllDefect");
 
     // Cleanup
     await Deno.remove("./test/tmp/error-test", { recursive: true });

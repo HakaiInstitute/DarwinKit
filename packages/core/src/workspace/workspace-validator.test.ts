@@ -3,7 +3,7 @@
  */
 
 import { ErrorCode, isRangeViolation } from "@dwkt/domain";
-import { assert, assertEquals, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 import { WorkspaceValidationError, WorkspaceValidator } from "./workspace-validator.ts";
@@ -259,12 +259,14 @@ E1,Canada`;
       "Expected WorkspaceValidationError",
     );
     assertEquals(error.code, ErrorCode.INVALID_CONFIG);
-    assert(
-      error.message.includes("does not contain the mapped fields"),
+    assertStringIncludes(
+      error.message,
+      "does not contain the mapped fields",
       `Expected missing field error, got: ${error.message}`,
     );
-    assert(
-      error.message.includes("countryCode"),
+    assertStringIncludes(
+      error.message,
+      "countryCode",
       `Expected error to mention missing field 'countryCode', got: ${error.message}`,
     );
   } finally {

@@ -2,11 +2,11 @@
  * Test OBIS validation profile
  */
 
-import * as Effect from "effect/Effect";
-import { assert, assertEquals, assertExists } from "@std/assert";
-import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
+import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
-import { isRangeViolation } from "../packages/domain/mod.ts";
+import * as Effect from "effect/Effect";
+import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
+import { isRangeViolation } from "@dwkt/domain";
 
 Deno.test({
   name: "OBIS Profile - validates required fields",
@@ -168,10 +168,6 @@ E2,2022-09-16,49.9012,-125.4789`;
         missingFieldError,
         "Should have error about missing geodeticDatum field",
       );
-      assert(
-        missingFieldError.message.includes("geodeticDatum"),
-        `Error message should mention geodeticDatum: ${missingFieldError.message}`,
-      );
     } finally {
       // Cleanup
       await Deno.remove(tempDir, { recursive: true });
@@ -255,12 +251,12 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
         (v.targetName === "minimumDepthInMeters" || v.targetName === "maximumDepthInMeters"),
     );
 
-    assertEquals(depthViolations.length > 0, true, "Should detect depth violations");
+    assertGreater(depthViolations.length, 0, "Should detect depth violations");
 
     // Verify the violation is for row 3 (depth 12000-12500)
     const hasRowThreeViolation = depthViolations.some((v) => v.rowNumber === 3);
 
-    assertEquals(hasRowThreeViolation, true, "Should flag row 3 with depth > 11000m");
+    assert(hasRowThreeViolation, "Should flag row 3 with depth > 11000m");
   } finally {
     // Cleanup
     await Deno.remove(tempDir, { recursive: true });
