@@ -1,10 +1,7 @@
 {
   "name": "@dwkt/core",
   "version": "0.1.0",
-  "exports": {
-    ".": "./mod.ts",
-    "./errors": "./src/errors/index.ts"
-  },
+  "exports": "./mod.ts",
   "imports": {
     "@dwkt/domain": "../domain/mod.ts",
     "effect": "npm:effect@^3.17.8",

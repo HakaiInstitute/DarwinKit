@@ -9,7 +9,6 @@
 import { assert, assertArrayIncludes, assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { WorkspaceConfigService } from "../packages/core/src/workspace/workspace-config-service.ts";
-import { assertObjectMatch } from "@std/assert/object-match";
 
 Deno.test("Test fixtures - fc2022-complete config loads successfully", async () => {
   const configPath = "./packages/cli/test-fixtures/valid-datasets/fc2022-complete";

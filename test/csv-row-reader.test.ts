@@ -6,8 +6,7 @@ import {
   assert,
   assertArrayIncludes,
   assertEquals,
-  assertGreater,
-  assertNotEquals,
+  assertExists,
   assertStringIncludes,
 } from "@std/assert";
 import * as Effect from "effect/Effect";
@@ -171,8 +170,8 @@ Deno.test("CSV row reader - real data integration", async (t) => {
 
     // Should read the first eventID from FC2022 data
     assertEquals(typeof value, "string");
-    assertNotEquals(value, null);
-    assertGreater(value.length > 0);
+    assertExists(value);
+    assert(value.length > 0);
   });
 });
 
