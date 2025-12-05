@@ -2,7 +2,16 @@
  * Tests for String Matching Utilities
  */
 
-import { assertEquals } from "@std/assert";
+import {
+  assert,
+  assertArrayIncludes,
+  assertEquals,
+  assertFalse,
+  assertGreater,
+  assertGreaterOrEqual,
+  assertLess,
+  assertLessOrEqual,
+} from "@std/assert";
 import {
   findClosestMatches,
   findSuggestions,
@@ -95,7 +104,7 @@ Deno.test("findClosestMatches - case mismatch variations", () => {
 
   for (const variation of variations) {
     const matches = findClosestMatches(variation, DARWIN_CORE_FIELDS);
-    assertEquals(matches.length >= 1, true, `Should find match for ${variation}`);
+    assertGreaterOrEqual(matches.length, 1, `Should find match for ${variation}`);
     assertEquals(matches[0].value, "eventID", `Should match eventID for ${variation}`);
     assertEquals(matches[0].distance, 0, `Should have distance 0 for ${variation}`);
   }
@@ -114,7 +123,7 @@ Deno.test("findClosestMatches - single character typo", () => {
   // User types "evntID" (missing 'e')
   const matches = findClosestMatches("evntID", DARWIN_CORE_FIELDS);
 
-  assertEquals(matches.length >= 1, true);
+  assertGreaterOrEqual(matches.length, 1);
   assertEquals(matches[0].value, "eventID");
   assertEquals(matches[0].distance, 1);
 });
@@ -127,13 +136,13 @@ Deno.test("findClosestMatches - multiple close matches", () => {
   });
 
   // Should find eventID first (distance 2), then others
-  assertEquals(matches.length >= 1, true);
+  assertGreaterOrEqual(matches.length, 1);
   assertEquals(matches[0].value, "eventID");
 
   // Additional event* fields should be in the results
   const values = matches.map((m) => m.value);
   const hasEventFields = values.some((v) => v.startsWith("event"));
-  assertEquals(hasEventFields, true);
+  assert(hasEventFields);
 });
 
 Deno.test("findClosestMatches - respects maxDistance", () => {
@@ -145,7 +154,7 @@ Deno.test("findClosestMatches - respects maxDistance", () => {
 
   // With default distance (2), might find some matches
   // With strict distance (1), should find fewer or none
-  assertEquals(matchesStrict.length <= matchesDefault.length, true);
+  assertLessOrEqual(matchesStrict.length, matchesDefault.length);
 });
 
 Deno.test("findClosestMatches - respects maxSuggestions", () => {
@@ -157,8 +166,8 @@ Deno.test("findClosestMatches - respects maxSuggestions", () => {
   });
 
   assertEquals(matches1.length, 1);
-  assertEquals(matches5.length <= 5, true);
-  assertEquals(matches5.length >= matches1.length, true);
+  assertLessOrEqual(matches5.length, 5);
+  assertGreaterOrEqual(matches5.length, matches1.length);
 });
 
 Deno.test("findClosestMatches - sorting by distance", () => {
@@ -166,9 +175,9 @@ Deno.test("findClosestMatches - sorting by distance", () => {
 
   // Should be sorted by distance (closest first)
   for (let i = 1; i < matches.length; i++) {
-    assertEquals(
-      matches[i - 1].distance <= matches[i].distance,
-      true,
+    assertLessOrEqual(
+      matches[i - 1].distance,
+      matches[i].distance,
       "Matches should be sorted by distance",
     );
   }
@@ -180,7 +189,7 @@ Deno.test("findClosestMatches - sorting by length for same distance", () => {
   const matches = findClosestMatches("a", testFields, { maxDistance: 2 });
 
   // For same distance, shorter strings should come first
-  assertEquals(matches.length >= 2, true);
+  assertGreaterOrEqual(matches.length, 2);
   assertEquals(matches[0].value, "ab"); // distance 1, shortest
   assertEquals(matches[1].value, "abc"); // distance 2, shorter
   // abcdef has distance 5, which is > maxDistance of 2, so it won't be included
@@ -224,7 +233,7 @@ Deno.test("findClosestMatches - case-sensitive mode", () => {
 
   // Case-sensitive should have distance based on case differences
   if (matchesCaseSensitive.length > 0) {
-    assertEquals(matchesCaseSensitive[0].distance > 0, true);
+    assertGreater(matchesCaseSensitive[0].distance, 0);
   }
 });
 
@@ -242,7 +251,7 @@ Deno.test("findClosestMatches - separator normalization disabled", () => {
 
   // Without normalization, distance should be higher
   if (matchesNotNormalized.length > 0) {
-    assertEquals(matchesNotNormalized[0].distance > 0, true);
+    assertGreater(matchesNotNormalized[0].distance, 0);
   }
 });
 
@@ -250,7 +259,7 @@ Deno.test("findSuggestions - returns just string values", () => {
   const suggestions = findSuggestions("eventid", DARWIN_CORE_FIELDS);
 
   // Should return array of strings
-  assertEquals(Array.isArray(suggestions), true);
+  assert(Array.isArray(suggestions));
   assertEquals(typeof suggestions[0], "string");
 
   // Should match eventID
@@ -269,29 +278,29 @@ Deno.test("findSuggestions - matches findClosestMatches values", () => {
 });
 
 Deno.test("hasCloseMatch - returns true for close matches", () => {
-  assertEquals(hasCloseMatch("eventID", DARWIN_CORE_FIELDS), true);
-  assertEquals(hasCloseMatch("eventid", DARWIN_CORE_FIELDS), true);
-  assertEquals(hasCloseMatch("evntID", DARWIN_CORE_FIELDS), true);
-  assertEquals(hasCloseMatch("event_id", DARWIN_CORE_FIELDS), true);
+  assert(hasCloseMatch("eventID", DARWIN_CORE_FIELDS));
+  assert(hasCloseMatch("eventid", DARWIN_CORE_FIELDS));
+  assert(hasCloseMatch("evntID", DARWIN_CORE_FIELDS));
+  assert(hasCloseMatch("event_id", DARWIN_CORE_FIELDS));
 });
 
 Deno.test("hasCloseMatch - returns false for no matches", () => {
-  assertEquals(hasCloseMatch("xyz", DARWIN_CORE_FIELDS), false);
-  assertEquals(hasCloseMatch("completely_different", DARWIN_CORE_FIELDS), false);
+  assertFalse(hasCloseMatch("xyz", DARWIN_CORE_FIELDS));
+  assertFalse(hasCloseMatch("completely_different", DARWIN_CORE_FIELDS));
 });
 
 Deno.test("hasCloseMatch - respects maxDistance", () => {
   // "evt" is 3 edits away from "eventID" (after normalization: "evt" -> "eventid")
   const hasMatchDefault = hasCloseMatch("evt", DARWIN_CORE_FIELDS);
 
-  assertEquals(hasMatchDefault, false);
+  assertFalse(hasMatchDefault);
 
   const hasMatchStrict = hasCloseMatch("evt", DARWIN_CORE_FIELDS, {
     maxDistance: 1,
   });
 
   // Default (maxDistance: 2) might not find it either, but strict definitely won't
-  assertEquals(hasMatchStrict, false);
+  assertFalse(hasMatchStrict);
 });
 
 Deno.test("Real-world scenario: common typos", () => {
@@ -311,9 +320,9 @@ Deno.test("Real-world scenario: common typos", () => {
       maxDistance,
     });
 
-    assertEquals(
-      suggestions.includes(expected),
-      true,
+    assertArrayIncludes(
+      suggestions,
+      [expected],
       `Expected '${expected}' in suggestions for '${input}', got: ${suggestions.join(", ")}`,
     );
 
@@ -342,9 +351,9 @@ Deno.test("Real-world scenario: prefix matching", () => {
     });
 
     for (const expected of expectedContains) {
-      assertEquals(
-        suggestions.includes(expected),
-        true,
+      assertArrayIncludes(
+        suggestions,
+        [expected],
         `Expected '${expected}' in suggestions for prefix '${input}', got: ${
           suggestions.join(", ")
         }`,
@@ -361,9 +370,9 @@ Deno.test("Real-world scenario: no false positives", () => {
     const suggestions = findSuggestions(input, DARWIN_CORE_FIELDS);
 
     // Should either find no matches, or only very weak matches
-    assertEquals(
-      suggestions.length <= 1,
-      true,
+    assertLessOrEqual(
+      suggestions.length,
+      1,
       `Should not find many matches for unrelated field '${input}'`,
     );
   }
@@ -376,7 +385,7 @@ Deno.test("Edge case: single character field names", () => {
   // With maxDistance=2, all three single chars are within range
   // 'a' matches 'a' exactly (distance 0)
   // 'a' matches 'b' and 'c' with distance 1
-  assertEquals(matches.length >= 1, true);
+  assertGreaterOrEqual(matches.length, 1);
   assertEquals(matches[0].value, "a");
   assertEquals(matches[0].distance, 0);
 });
@@ -385,7 +394,7 @@ Deno.test("Edge case: very long field names", () => {
   const fields = ["a".repeat(100), "b".repeat(100)];
   const matches = findClosestMatches("a".repeat(99), fields);
 
-  assertEquals(matches.length >= 1, true);
+  assertGreaterOrEqual(matches.length, 1);
   assertEquals(matches[0].value, "a".repeat(100));
   assertEquals(matches[0].distance, 1);
 });
@@ -395,14 +404,14 @@ Deno.test("Edge case: special characters in field names", () => {
   const matches = findClosestMatches("field-name", fields);
 
   // With normalization, all of these become "fieldname" so they all match
-  assertEquals(matches.length >= 1, true);
+  assertGreaterOrEqual(matches.length, 1);
   assertEquals(matches[0].distance, 0);
 
   // The first match should be "field-name" (exact match) or one of the normalized equivalents
   const firstMatch = matches[0].value;
-  assertEquals(
-    ["field-name", "field_name", "fieldName"].includes(firstMatch),
-    true,
+  assertArrayIncludes(
+    ["field-name", "field_name", "fieldName"],
+    [firstMatch],
   );
 });
 
@@ -411,7 +420,7 @@ Deno.test("Edge case: unicode characters", () => {
   const matches = findClosestMatches("evenement", fields);
 
   // Should match événement (with accent) reasonably well
-  assertEquals(matches.length >= 1, true);
+  assertGreaterOrEqual(matches.length, 1);
 });
 
 Deno.test("Performance: handles large field lists", () => {
@@ -423,7 +432,7 @@ Deno.test("Performance: handles large field lists", () => {
   const duration = Date.now() - start;
 
   // Should complete in reasonable time (< 100ms for 1000 fields)
-  assertEquals(duration < 100, true, `Took ${duration}ms for 1000 fields`);
+  assertLess(duration, 100, `Took ${duration}ms for 1000 fields`);
 
   // Should find the exact match
   assertEquals(matches[0].value, "field500");

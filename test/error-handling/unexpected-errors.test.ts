@@ -5,7 +5,7 @@
  * and represent programming errors or system failures.
  */
 
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
 
 Deno.test("Unexpected errors - require Effect.catchAllDefect", async (t) => {
@@ -29,8 +29,8 @@ Deno.test("Unexpected errors - require Effect.catchAllDefect", async (t) => {
       ),
     );
 
-    assertEquals(expectedErrorCaught, false, "Should NOT catch defect with catchAll");
-    assertEquals(defectCaught, true, "Should catch defect with catchAllDefect");
+    assertFalse(expectedErrorCaught, "Should NOT catch defect with catchAll");
+    assert(defectCaught, "Should catch defect with catchAllDefect");
   });
 
   await t.step("Effect.orDie converts to defect", async () => {
@@ -49,7 +49,7 @@ Deno.test("Unexpected errors - require Effect.catchAllDefect", async (t) => {
       ),
     );
 
-    assertEquals(defectCaught, true, "orDie should create defect");
+    assert(defectCaught, "orDie should create defect");
   });
 });
 
@@ -172,7 +172,7 @@ Deno.test("Unexpected errors - should not be retried", async (t) => {
       ),
     );
 
-    assertEquals(defectCaught, true);
+    assert(defectCaught);
     // Defects don't retry - it dies on first attempt
     assertEquals(attempts, 1);
   });

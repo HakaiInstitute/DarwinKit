@@ -71,3 +71,6 @@ export * from "./src/specs/field-definition.ts";
 export * from "./src/specs/profiles/obis-event.ts";
 export * from "./src/specs/profiles/obis.ts";
 export * from "./src/specs/profiles/registry.ts";
+
+// Error tag types (for test autocomplete)
+export type { ValidationViolationTag } from "./src/errors/index.ts";

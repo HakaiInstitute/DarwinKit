@@ -2,11 +2,11 @@
  * CSV parsing using DuckDB for schema inference
  */
 
-import * as Effect from "effect/Effect";
-import * as Data from "effect/Data";
 import { DuckDBConnection as DuckDB } from "@duckdb/node-api";
 import type { DatasetSchema, FieldSchema, PrimitiveType } from "@dwkt/domain";
 import { ErrorCode } from "@dwkt/domain";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
 import { match } from "ts-pattern";
 
 // Parse options for customizing CSV parsing behavior

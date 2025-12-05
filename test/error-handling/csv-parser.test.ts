@@ -5,7 +5,7 @@
  * (invalid user CSV data) and defects (system failures).
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { parseFileForWorkspace } from "@dwkt/core";
 import { join } from "@std/path";
@@ -44,7 +44,7 @@ Deno.test("CSV Parser - expected errors (user data issues)", async (t) => {
       ),
     );
 
-    assertEquals(errorCaught, true, "File not found should be catchable with catchAll");
+    assert(errorCaught, "File not found should be catchable with catchAll");
   });
 
   await t.step("Valid CSV file parses successfully", async () => {

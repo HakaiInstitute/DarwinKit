@@ -8,6 +8,21 @@
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import * as Either from "effect/Either";
+import type { CoreErrorTag } from "@dwkt/core/errors";
+import type { ValidationViolationTag } from "@dwkt/domain/errors";
+
+/**
+ * Union type of all known error tags for autocomplete support
+ *
+ * Import this type and use it with type annotations to get IDE autocomplete:
+ * ```typescript
+ * import type { KnownErrorTag } from "test/helpers/effect-test-utils.ts";
+ *
+ * const tag: KnownErrorTag = "CsvReadError";  // ← Autocomplete works!
+ * await expectError(effect, tag, (error) => { ... });
+ * ```
+ */
+export type KnownErrorTag = CoreErrorTag | ValidationViolationTag;
 
 /**
  * Assert that an Effect fails with a specific tagged error
@@ -19,17 +34,23 @@ import * as Either from "effect/Either";
  * @param tag - The error tag to check (e.g., "CsvReadError")
  * @param assertions - Callback with assertions on the error
  *
- * @example
+ * @example Basic usage (type inference from Effect):
  * ```typescript
  * await expectError(
  *   readCsvFieldValue(path, 1, "nonExistentField"),
- *   "CsvReadError",
+ *   "CsvReadError",  // ← TypeScript infers this is valid
  *   (error) => {
  *     // error is automatically typed as CsvReadError!
  *     assertEquals(error.fieldName, "nonExistentField");
  *     assertEquals(Array.isArray(error.availableFields), true);
  *   }
  * );
+ * ```
+ *
+ * @example With autocomplete (use type annotation):
+ * ```typescript
+ * const tag: KnownErrorTag = "CsvReadError";  // ← IDE autocomplete!
+ * await expectError(effect, tag, (error) => { ... });
  * ```
  */
 export async function expectError<E extends { _tag: string }, A>(

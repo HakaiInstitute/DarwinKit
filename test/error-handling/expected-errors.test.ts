@@ -5,12 +5,16 @@
  * and represent recoverable domain errors rather than programming defects.
  */
 
-import { assertEquals } from "@std/assert";
-import * as Effect from "effect/Effect";
-import { WorkspaceService } from "@dwkt/core";
-import { WorkspaceValidator } from "@dwkt/core";
-import { parseFileForWorkspace } from "@dwkt/core";
+import { parseFileForWorkspace, WorkspaceService, WorkspaceValidator } from "@dwkt/core";
+import {
+  assert,
+  assertArrayIncludes,
+  assertEquals,
+  assertMatch,
+  assertStringIncludes,
+} from "@std/assert";
 import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 
 Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "expected_errors_test_" });
@@ -31,7 +35,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
       ),
     );
 
-    assertEquals(errorCaught, true, "Should catch with Effect.catchAll");
+    assert(errorCaught, "Should catch with Effect.catchAll");
     assertEquals(errorCode, "WORKSPACE_NOT_FOUND");
   });
 
@@ -49,7 +53,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
       ),
     );
 
-    assertEquals(errorCaught, true, "Should catch with Effect.catchAll");
+    assert(errorCaught, "Should catch with Effect.catchAll");
   });
 
   await t.step("Invalid CSV data", async () => {
@@ -90,7 +94,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
       ),
     );
 
-    assertEquals(errorCaught, true, "Invalid config should be catchable");
+    assert(errorCaught, "Invalid config should be catchable");
   });
 
   await t.step("Config file not found", async () => {
@@ -109,7 +113,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
       ),
     );
 
-    assertEquals(errorCaught, true, "Config not found should be catchable");
+    assert(errorCaught, "Config not found should be catchable");
   });
 
   // Cleanup
@@ -141,7 +145,7 @@ Deno.test("Expected errors - have correct error codes", async (t) => {
     );
 
     // Could be either depending on how the error manifests
-    assertEquals(["PARSE_ERROR", "FILE_NOT_FOUND"].includes(result as string), true);
+    assertArrayIncludes(["PARSE_ERROR", "FILE_NOT_FOUND"], [result as string]);
   });
 
   // Cleanup
@@ -161,7 +165,7 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
     );
 
     // Message should include the workspace ID
-    assertEquals((result as string).includes("test-id"), true);
+    assertStringIncludes(result as string, "test-id");
   });
 
   await t.step("Error messages include file paths", async () => {
@@ -175,10 +179,7 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
 
     // Message should reference the file or parsing
     const msg = result as string;
-    assertEquals(
-      msg.includes("missing.csv") || msg.includes("parse") || msg.includes("CSV"),
-      true,
-    );
+    assertMatch(msg, /missing\.csv|parse|CSV/);
   });
 
   // Cleanup
