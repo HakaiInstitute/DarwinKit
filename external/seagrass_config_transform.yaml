@@ -1,0 +1,250 @@
+id: obis-marine-survey
+name: OBIS Marine Survey
+version: 1.0.0
+description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
+createdAt: '2024-10-06T00:00:00.000Z'
+updatedAt: '2024-10-06T00:00:00.000Z'
+transform:
+  nullValues:
+    - NA
+    - N/A
+    - ""
+    - "NULL"
+    - "null"
+  inputs:
+    density: ./seagrass-site-production/output/seagrass_density_survey.csv
+    habitat: ./seagrass-site-production/output/seagrass_habitat_survey.csv
+
+  postImportTransforms:
+    # - ALTER TABLE fish_inverts ADD COLUMN species_name_original TEXT
+    # - UPDATE fish_inverts SET species_name_original = species_name
+    # - UPDATE fish_inverts SET species_name = TRIM(REPLACE(species_name, '(Unknown spp)', ''))
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name,'_',' ')
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name,'Sebastes flavidus melanops', 'Sebastes')
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Sebastes caurinus maliger auriculatus', 'Sebastes')
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cottoidea', 'Cottidae')
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cadilna luteomarginata', 'Cadlina luteomarginata')
+  output:
+    outputDir: ./external/seagrass-site-production/obis
+    outputFilesWithTimestamp: false
+    exportDB: false
+    exportDBFileName: obis_marine_survey
+    dropNullColumns: true
+  datasets:
+    # - name: event_project
+    #   profile: Event
+    #   source:
+    #     project: SELECT MIN(date) as mindate, 
+    #                 MAX(date) as maxdate, 
+    #                 AVG(latitude) as latitude, 
+    #                 AVG(longitude) as longitude, 
+    #                 MIN(latitude) as min_lat, 
+    #                 MIN(longitude) as min_long, 
+    #                 MAX(latitude) as max_lat, 
+    #                 MAX(longitude) as max_long 
+    #               FROM fish_inverts 
+    #                 JOIN sites on fish_inverts.site = sites.site 
+    #               ORDER BY mindate DESC LIMIT 1
+    #   fields:
+    #     accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
+    #     bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community 
+    #                              Surveys from the Central Coast of BC (v1.3.0) [Data set]. Hakai Institute. https://doi.org/10.21966/jj9p-d309'"
+    #     country: "'Canada'"
+    #     countryCode: "'CA'"
+    #     datasetName: "'Rocky Subtidal Fish and Invertebrate Community Surveys'"
+    #     eventDate: project.mindate || '/' || project.maxdate
+    #     decimalLatitude: project.latitude
+    #     decimalLongitude: project.longitude
+    #     footprintWKT: "'POLYGON((' 
+    #                             || min_long || ' ' || min_lat || ', ' 
+    #                             || min_long || ' ' || max_lat || ', ' 
+    #                             || max_long || ' ' || max_lat || ', ' 
+    #                             || max_long || ' ' || min_lat || ', ' 
+    #                             || min_long || ' ' || min_lat || 
+    #                     '))'"
+    #     eventID: "'hakaiFI'"
+    #     eventType: "'project'"
+    #     geodeticDatum: "'WGS84'"
+    #     institutionCode: "'Hakai Institute'"
+    #     institutionID: "'https://edmo.seadatanet.org/report/5148'"
+    #     language: "'en'"
+    #     license: "'http://creativecommons.org/licenses/by/4.0/legalcode'"
+    #     modified: "today()"
+    #     parentEventID: null
+    #     rightsHolder: "'Hakai Institute'"
+    #     samplingProtocol: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/docs/Protocol.pdf'"
+
+    - name: event_density
+      profile: Event
+      source:
+        # survey: SELECT DISTINCT fish_inverts.site, date, longitude, latitude 
+        #         FROM fish_inverts 
+        #           JOIN sites on fish_inverts.site = sites.site
+      fields:
+        # accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
+        # bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community 
+        #                          Surveys from the Central Coast of BC (v1.3.0) [Data set]. Hakai Institute. https://doi.org/10.21966/jj9p-d309'"
+        coordinateUncertaintyInMeters: "'0'"
+        # country: "'Canada'"
+        # countryCode: "'CA'"
+        # datasetName: "'Rocky Subtidal Fish and Invertebrate Community Surveys'"
+        # day: strftime(survey.date, '%d')
+        decimalLatitude: density.decimal_lat
+        decimalLongitude: density.decimal_long
+        eventDate: density.date
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        # eventRemarks: "''"
+        # eventTime: "''"
+        # eventType: "'dive survey'"
+        geodeticDatum: "'WGS84'"
+        # institutionCode: "'Hakai Institute'"
+        # institutionID: "'https://edmo.seadatanet.org/report/5148'"
+        # language: "'en'"
+        # license: "'http://creativecommons.org/licenses/by/4.0/legalcode'"
+        # locality: "''"
+        maximumDepthInMeters: density.depth
+        # minimumDepthInMeters: "'0'"
+        # modified: today()
+        # month: strftime(survey.date, '%m')
+        # parentEventID: "'hakaiFI'"
+        # rightsHolder: "'Hakai Institute'"
+        # samplingProtocol: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/docs/Protocol.pdf'"
+        # verbatimLocality: survey.site
+        # year: strftime(survey.date, '%Y')
+
+    - name: event_habitat
+      profile: Event
+      source:
+        # transect: SELECT min(time_start) AS time_start, max(time_end) AS time_end, fish_inverts.site, date, transect, pass, swath_type, 
+        #               AVG(latitude) as latitude, AVG(longitude) as longitude, string_agg(comment) as comment 
+        #           FROM fish_inverts 
+        #               JOIN sites on fish_inverts.site = sites.site 
+        #           GROUP BY fish_inverts.site, date, transect, pass, swath_type
+      fields:
+        # accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
+        # bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community Surveys from the Central Coast of BC (v1.3.0) [Data set]. Hakai Institute. https://doi.org/10.21966/jj9p-d309'"
+        # coordinateUncertaintyInMeters: "'40'"
+        # country: "'Canada'"
+        # countryCode: "'CA'"
+        # datasetName: "'Rocky Subtidal Fish and Invertebrate Community Surveys'"
+        # day: strftime(transect.date, '%d')
+        # decimalLatitude: transect.latitude
+        # decimalLongitude: transect.longitude
+        # eventDate: transect.date
+        # eventID: concat_ws('-', 'hakaiFI', transect.site, transect.date, 'transect', transect.transect, transect.pass, transect.swath_type)
+        # eventRemarks: transect.comment
+        # eventTime: transect.time_start || '/' || transect.time_end
+        # eventType: "'dive transect'"
+        # geodeticDatum: "'WGS84'"
+        # institutionCode: "'Hakai Institute'"
+        # institutionID: "'https://edmo.seadatanet.org/report/5148'"
+        # language: "'en'"
+        # license: "'http://creativecommons.org/licenses/by/4.0/legalcode'"
+        # locality: "''"
+        # maximumDepthInMeters: "'15'"
+        # minimumDepthInMeters: "'0'"
+        # modified: today()
+        # month: strftime(transect.date, '%m')
+        # parentEventID: concat_ws('-', 'hakaiFI', transect.site, transect.date)
+        # rightsHolder: "'Hakai Institute'"
+        # samplingProtocol: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/docs/Protocol.pdf'"
+        # verbatimLocality: transect.site
+        # year: strftime(transect.date, '%Y')
+        coordinateUncertaintyInMeters: "'0'"
+        decimalLatitude: habitat.decimal_lat
+        decimalLongitude: habitat.decimal_long
+        eventDate: habitat.date
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        geodeticDatum: "'WGS84'"
+        maximumDepthInMeters: habitat.depth
+
+    # - name: occurrence
+    #   profile: Occurrence
+    #   source:
+    #     occ: SELECT row_number() OVER () as rn, date, site, size, swath_type, transect, species_name_original, scientificName, common_name, comment, 
+    #             fish_inverts.species_name, lsid, taxonomicStatus, authority, kingdom, phylum, class, "order", family, genus, pass, diver_name 
+    #          FROM fish_inverts 
+    #             LEFT JOIN taxa on fish_inverts.species_name = taxa.species_name 
+    #          WHERE fish_inverts.species_name != 'no organisms' 
+    #             AND fish_inverts.species_name != 'SHELL Haliotus kamtschatkana' 
+    #             AND fish_inverts.species_name IS NOT NULL
+    #   fields:
+    #     scientificName: concat_ws(' ', occ.scientificName, occ.authority)
+    #     vernacularName: occ.common_name
+    #     identificationRemarks: CASE WHEN occ.species_name_original like '%(Unknown spp)%' THEN 'Unable to ID to species' ELSE '' END
+    #     occurrenceRemarks: occ.comment
+    #     verbatimIdentification: occ.species_name
+    #     scientificNameID: occ.lsid
+    #     taxonomicStatus: occ.taxonomicStatus
+    #     scientificNameAuthorship: occ.authority
+    #     kingdom: occ.kingdom
+    #     phylum: occ.phylum
+    #     class: occ.class
+    #     order: occ.order
+    #     family: occ.family
+    #     genus: occ.genus
+    #     recordedBy: occ.diver_name
+    #     occurrenceStatus: "'present'"
+    #     individualCount: "'1'"
+    #     specificEpithet: occ.scientificName[0:2]
+    #     basisOfRecord: "'HumanObservation'"
+    #     eventID: concat_ws('-', 'hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type)
+    #     occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
+
+    # - name: eMOF_event_visibility
+    #   profile: ExtendedMeasurementOrFact
+    #   source:
+    #     transect: SELECT row_number() OVER() as rn, * from fish_inverts WHERE fish_inverts.visibility IS NOT NULL
+    #   fields:
+    #     eventID: concat_ws('-', 'hakaiFI', transect.site, transect.date, 'transect', transect.transect, transect.pass, transect.swath_type)
+    #     measurementValue: transect.visibility
+    #     measurementType: "'visibility'"
+    #     measurementValueID: null
+    #     measurementTypeID: null
+    #     measurementUnit: "'meters'"
+    #     measurementUnitID: "'https://vocab.nerc.ac.uk/collection/P06/current/ULAA/'"
+    #     measurementID: concat_ws('-', 'hakaiFI', transect.site, transect.date, 'transect', transect.transect, transect.pass, transect.swath_type, transect.rn)
+    #     occurrenceID: "NULL"
+    #     measurementMethod: "'visually'"
+
+    # - name: eMOF_occurrence_measurements
+    #   profile: ExtendedMeasurementOrFact
+    #   source:
+    #     occ: SELECT row_number() OVER () as rn, date, site, size, swath_type, transect, pass, fish_inverts.measure FROM fish_inverts LEFT JOIN taxa on fish_inverts.species_name = taxa.species_name LEFT JOIN accepted_taxa on fish_inverts.common_name = accepted_taxa.common_name WHERE fish_inverts.species_name != 'no organisms' AND fish_inverts.species_name != 'SHELL Haliotus kamtschatkana' AND fish_inverts.species_name IS NOT NULL
+    #   fields:
+    #     eventID: concat_ws('-', 'hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type)
+    #     measurementValue: occ.size
+    #     measurementType: occ.measure
+    #     measurementValueID: null
+    #     measurementTypeID: CASE
+    #                           WHEN measurementType = 'length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDLX/'
+    #                           WHEN measurementType = 'height' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDHT/'
+    #                           WHEN measurementType = 'shell_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/SHELLEN01/'
+    #                           WHEN measurementType = 'shell_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/SHEWID01/'
+    #                           WHEN measurementType = 'mantle_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/MANTLEN/'
+    #                           WHEN measurementType = 'disc_diameter' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSIDDDM/'
+    #                           WHEN measurementType = 'arm_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDAL/'
+    #                           WHEN measurementType = 'test_diameter' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDTD/'
+    #                           WHEN measurementType = 'oral_to_aboral_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINORALABORAL/'
+    #                           WHEN measurementType = 'body_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSIDBL/'
+    #                           WHEN measurementType = 'radius' THEN 'http://vocab.nerc.ac.uk/collection/P01/current/OBSINRAD/'
+    #                           WHEN measurementType = 'disc_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSIDWID/'
+    #                           WHEN measurementType = 'head_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDHL/'
+    #                           WHEN measurementType = 'head_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDHW/'
+    #                           WHEN measurementType = 'body_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSIDBW/'
+    #                           WHEN measurementType = 'carapace_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/CAPWID01/'
+    #                           WHEN measurementType = 'carapace_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/CAPLENG01/'
+    #                           WHEN measurementType = 'claw_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/CLAWID01/'
+    #                           WHEN measurementType = 'claw_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/CLALEN01/'
+    #                           WHEN measurementType = 'pedipalp_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/PEDILEN01/'
+    #                           WHEN measurementType = 'abdomen_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/ABDLEN01/'
+    #                           WHEN measurementType = 'total_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/TL01XX01/'
+    #                           WHEN measurementType = 'diameter' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDDM/'
+    #                           ELSE 'NULL'
+    #                         END
+    #     measurementUnit: "'centimeters'"
+    #     measurementUnitID: "'https://vocab.nerc.ac.uk/collection/P06/current/ULCM/'"
+    #     measurementID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn, occ.rn)
+    #     occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
+    #     measurementMethod: "'visually'"
+
