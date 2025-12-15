@@ -63,6 +63,7 @@ export const validationSettingsSchema = S.Struct({
   description: S.optional(S.String),
   maxViolationsPerField: S.optional(S.Number), // Limit violations per field (default: unlimited)
   enableSuggestions: S.optional(S.Boolean), // Enable fuzzy matching for vocabulary violations (default: true)
+  datasets: S.Array(datasetConfigSchema),
 });
 
 /**
@@ -71,7 +72,7 @@ export const validationSettingsSchema = S.Struct({
 export const transformSettingsSchema = S.Struct({
   nullValues: S.Array(S.String),
   inputs: S.Object,
-  postImportTransforms: S.Array(S.String),
+  postImportTransforms: S.optional(S.Array(S.String)),
   datasets: S.Array(transformDatasetConfigSchema),
   output: S.Struct({
     outputDir: S.String,
@@ -109,7 +110,7 @@ export const workspaceConfigSchema = S.Union(
   S.Struct({
     ...workspaceConfigBaseFields.fields,
     validation: validationSettingsSchema,
-    datasets: S.optional(S.Array(datasetConfigSchema)),
+    // datasets: S.optional(S.Array(datasetConfigSchema)),
   }),
   // Only transform
   S.Struct({
@@ -121,7 +122,7 @@ export const workspaceConfigSchema = S.Union(
     ...workspaceConfigBaseFields.fields,
     validation: validationSettingsSchema,
     transform: transformSettingsSchema,
-    datasets: S.optional(S.Array(datasetConfigSchema)),
+    // datasets: S.optional(S.Array(datasetConfigSchema)),
   }),
 );
 

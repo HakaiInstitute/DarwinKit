@@ -14,8 +14,7 @@ transform:
   inputs:
     density: ./seagrass-site-production/output/seagrass_density_survey.csv
     habitat: ./seagrass-site-production/output/seagrass_habitat_survey.csv
-
-  postImportTransforms:
+  # postImportTransforms:
     # - ALTER TABLE fish_inverts ADD COLUMN species_name_original TEXT
     # - UPDATE fish_inverts SET species_name_original = species_name
     # - UPDATE fish_inverts SET species_name = TRIM(REPLACE(species_name, '(Unknown spp)', ''))
@@ -77,9 +76,7 @@ transform:
     - name: event_density
       profile: Event
       source:
-        # survey: SELECT DISTINCT fish_inverts.site, date, longitude, latitude 
-        #         FROM fish_inverts 
-        #           JOIN sites on fish_inverts.site = sites.site
+        density: density
       fields:
         # accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
         # bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community 
@@ -115,11 +112,7 @@ transform:
     - name: event_habitat
       profile: Event
       source:
-        # transect: SELECT min(time_start) AS time_start, max(time_end) AS time_end, fish_inverts.site, date, transect, pass, swath_type, 
-        #               AVG(latitude) as latitude, AVG(longitude) as longitude, string_agg(comment) as comment 
-        #           FROM fish_inverts 
-        #               JOIN sites on fish_inverts.site = sites.site 
-        #           GROUP BY fish_inverts.site, date, transect, pass, swath_type
+        habitat: habitat
       fields:
         # accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
         # bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community Surveys from the Central Coast of BC (v1.3.0) [Data set]. Hakai Institute. https://doi.org/10.21966/jj9p-d309'"
