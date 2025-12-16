@@ -486,3 +486,223 @@ E1,Mexico`;
     await Deno.remove(tempDir, { recursive: true });
   }
 });
+
+Deno.test("WorkspaceValidator - reports correct row numbers for violations", async () => {
+  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
+
+  try {
+    // Create CSV with duplicates on specific rows (1 and 3)
+    const eventCsv = `eventID,country
+E1,Canada
+E2,USA
+E1,Mexico
+E3,France`;
+
+    await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
+
+    const config = {
+      id: "test-workspace",
+      name: "Test Workspace",
+      version: "1.0.0",
+      validation: {
+        nullValues: [""],
+        failFast: false,
+        outputDir: "./output",
+      },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          profile: "Event",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "country", targetName: "country" },
+          ],
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await Deno.writeTextFile(
+      join(tempDir, "darwinkit.json"),
+      JSON.stringify(config, null, 2),
+    );
+
+    const validator = new WorkspaceValidator();
+    const result = await Effect.runPromise(
+      validator.validateFromConfig(tempDir),
+    );
+
+    const datasetResult = result.datasetResults[0];
+    const pkViolations = datasetResult.violations.errors.filter((v) =>
+      v._tag === "PrimaryKeyViolation"
+    );
+
+    // Should have violations for rows 1 and 3 (where E1 appears)
+    assertEquals(pkViolations.length, 2);
+
+    // Extract row numbers and sort them
+    const rowNumbers = pkViolations.map((v) => v.rowNumber).sort((a, b) => a - b);
+
+    // Verify we have row 1 and row 3
+    assertEquals(rowNumbers[0], 1, "First duplicate should be on row 1");
+    assertEquals(rowNumbers[1], 3, "Second duplicate should be on row 3");
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("WorkspaceValidator - row numbers are in ascending order", async () => {
+  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
+
+  try {
+    // Create CSV with many duplicates to test ordering
+    const eventCsv = `eventID,country
+DUP,Country1
+E2,Country2
+DUP,Country3
+E4,Country4
+DUP,Country5
+E6,Country6
+DUP,Country7`;
+
+    await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
+
+    const config = {
+      id: "test-workspace",
+      name: "Test Workspace",
+      version: "1.0.0",
+      validation: {
+        nullValues: [""],
+        failFast: false,
+        outputDir: "./output",
+      },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          profile: "Event",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "country", targetName: "country" },
+          ],
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await Deno.writeTextFile(
+      join(tempDir, "darwinkit.json"),
+      JSON.stringify(config, null, 2),
+    );
+
+    const validator = new WorkspaceValidator();
+    const result = await Effect.runPromise(
+      validator.validateFromConfig(tempDir),
+    );
+
+    const datasetResult = result.datasetResults[0];
+    const pkViolations = datasetResult.violations.errors.filter((v) =>
+      v._tag === "PrimaryKeyViolation"
+    );
+
+    // Should have 4 violations (rows 1, 3, 5, 7)
+    assertEquals(pkViolations.length, 4);
+
+    // Extract row numbers - they should already be in order
+    const rowNumbers = pkViolations.map((v) => v.rowNumber);
+
+    // Verify they are in ascending order
+    const sortedRowNumbers = [...rowNumbers].sort((a, b) => a - b);
+    assertEquals(
+      rowNumbers,
+      sortedRowNumbers,
+      "Row numbers should be in ascending order",
+    );
+
+    // Verify the specific rows
+    assertEquals(rowNumbers, [1, 3, 5, 7], "Should have violations on rows 1, 3, 5, 7");
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("WorkspaceValidator - validation is deterministic", async () => {
+  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
+
+  try {
+    // Create CSV with duplicates
+    const eventCsv = `eventID,country
+E1,Canada
+E2,USA
+E1,Mexico
+E3,France
+E2,Germany`;
+
+    await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
+
+    const config = {
+      id: "test-workspace",
+      name: "Test Workspace",
+      version: "1.0.0",
+      validation: {
+        nullValues: [""],
+        failFast: false,
+        outputDir: "./output",
+      },
+      datasets: [
+        {
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          profile: "Event",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "country", targetName: "country" },
+          ],
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await Deno.writeTextFile(
+      join(tempDir, "darwinkit.json"),
+      JSON.stringify(config, null, 2),
+    );
+
+    const validator = new WorkspaceValidator();
+
+    // Run validation twice
+    const result1 = await Effect.runPromise(
+      validator.validateFromConfig(tempDir),
+    );
+    const result2 = await Effect.runPromise(
+      validator.validateFromConfig(tempDir),
+    );
+
+    // Extract violations from both runs
+    const getRowNumbers = (result: typeof result1) => {
+      const pkViolations = result.datasetResults[0].violations.errors.filter((v) =>
+        v._tag === "PrimaryKeyViolation"
+      );
+      return pkViolations.map((v) => v.rowNumber);
+    };
+
+    const rowNumbers1 = getRowNumbers(result1);
+    const rowNumbers2 = getRowNumbers(result2);
+
+    // Should get same row numbers in same order
+    assertEquals(
+      rowNumbers1,
+      rowNumbers2,
+      "Validation should produce identical results on repeated runs",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
