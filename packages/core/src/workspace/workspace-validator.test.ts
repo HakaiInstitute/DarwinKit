@@ -2,71 +2,153 @@
  * Tests for WorkspaceValidator
  */
 
-import { ErrorCode, isRangeViolation } from "@dwkt/domain";
+import { ErrorCode, isEnumViolation, isPrimaryKeyViolation, isRangeViolation } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
+import { Array as EffectArray } from "effect";
 import * as Effect from "effect/Effect";
+import type { WorkspaceValidationResult } from "../../../domain/src/types/workspace-validation.ts";
 import { WorkspaceValidationError, WorkspaceValidator } from "./workspace-validator.ts";
 
-async function createTestWorkspace(tempDir: string) {
-  // Create event CSV
-  const eventCsv = `eventID,country,countryCode,decimalLatitude,decimalLongitude
+// Helper types for workspace creation
+interface WorkspaceOptions {
+  eventCsv?: string;
+  occurrenceCsv?: string;
+  datasets?: Array<{
+    name: string;
+    spec: string;
+    path: string;
+    profile?: string;
+    fieldMappings: Array<{
+      originName: string;
+      targetName: string;
+      isRequired?: boolean;
+    }>;
+  }>;
+  crossDatasetRules?: Array<{
+    ruleType: string;
+    sourceDataset: string;
+    sourceField: string;
+    targetDataset: string;
+    targetField: string;
+    description?: string;
+  }>;
+  validation?: {
+    nullValues?: string[];
+    failFast?: boolean;
+    outputDir?: string;
+  };
+}
+
+async function createMultiDatasetWorkspace(
+  tempDir: string,
+  options?: WorkspaceOptions,
+) {
+  // Default event CSV
+  const eventCsv = options?.eventCsv ??
+    `eventID,country,countryCode,decimalLatitude,decimalLongitude
 E1,Canada,CA,49.5,-123.5
 E2,Canada,CA,50.0,-124.0`;
 
   await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
 
-  // Create occurrence CSV
-  const occurrenceCsv = `eventID,occurrenceID,basisOfRecord,scientificName
+  // Default occurrence CSV
+  const occurrenceCsv = options?.occurrenceCsv ?? `eventID,occurrenceID,basisOfRecord,scientificName
 E1,O1,HumanObservation,Ursus arctos
 E1,O2,HumanObservation,Canis lupus
 E2,O3,HumanObservation,Ursus arctos`;
 
   await Deno.writeTextFile(join(tempDir, "occurrences.csv"), occurrenceCsv);
 
+  // Default datasets
+  const datasets = options?.datasets ?? [
+    {
+      name: "events",
+      spec: "dwc-event",
+      path: "./events.csv",
+      fieldMappings: [
+        { originName: "eventID", targetName: "eventID", isRequired: true },
+        { originName: "country", targetName: "country", isRequired: true },
+        { originName: "countryCode", targetName: "countryCode", isRequired: true },
+        { originName: "decimalLatitude", targetName: "decimalLatitude" },
+        { originName: "decimalLongitude", targetName: "decimalLongitude" },
+      ],
+    },
+    {
+      name: "occurrences",
+      spec: "dwc-occurrence",
+      path: "./occurrences.csv",
+      fieldMappings: [
+        { originName: "eventID", targetName: "eventID", isRequired: true },
+        { originName: "occurrenceID", targetName: "occurrenceID", isRequired: true },
+        { originName: "basisOfRecord", targetName: "basisOfRecord", isRequired: true },
+        { originName: "scientificName", targetName: "scientificName", isRequired: true },
+      ],
+    },
+  ];
+
+  // Default cross-dataset rules
+  const crossDatasetRules = options?.crossDatasetRules ?? [
+    {
+      ruleType: "foreignKey",
+      sourceDataset: "occurrences",
+      sourceField: "eventID",
+      targetDataset: "events",
+      targetField: "eventID",
+      description: "Occurrences must reference existing events",
+    },
+  ];
+
+  // Default validation settings
+  const validation = options?.validation ?? {
+    nullValues: ["", "NA"],
+    failFast: false,
+    outputDir: "./output",
+  };
+
   // Create config
   const config = {
     id: "test-workspace",
     name: "Test Workspace",
     version: "1.0.0",
+    validation,
+    datasets,
+    crossDatasetRules,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await Deno.writeTextFile(
+    join(tempDir, "darwinkit.json"),
+    JSON.stringify(config, null, 2),
+  );
+}
+
+async function createSingleDatasetWorkspace(
+  tempDir: string,
+  datasetName: string,
+  csvContent: string,
+  fieldMappings: Array<{ originName: string; targetName: string }>,
+  options?: { profile?: string; spec?: string },
+): Promise<void> {
+  await Deno.writeTextFile(join(tempDir, `${datasetName}.csv`), csvContent);
+
+  const config = {
+    id: "test-workspace",
+    name: "Test Workspace",
+    version: "1.0.0",
     validation: {
-      nullValues: ["", "NA"],
+      nullValues: [""],
       failFast: false,
       outputDir: "./output",
     },
     datasets: [
       {
-        name: "events",
-        spec: "dwc-event",
-        path: "./events.csv",
-        fieldMappings: [
-          { originName: "eventID", targetName: "eventID", isRequired: true },
-          { originName: "country", targetName: "country", isRequired: true },
-          { originName: "countryCode", targetName: "countryCode", isRequired: true },
-          { originName: "decimalLatitude", targetName: "decimalLatitude" },
-          { originName: "decimalLongitude", targetName: "decimalLongitude" },
-        ],
-      },
-      {
-        name: "occurrences",
-        spec: "dwc-occurrence",
-        path: "./occurrences.csv",
-        fieldMappings: [
-          { originName: "eventID", targetName: "eventID", isRequired: true },
-          { originName: "occurrenceID", targetName: "occurrenceID", isRequired: true },
-          { originName: "basisOfRecord", targetName: "basisOfRecord", isRequired: true },
-          { originName: "scientificName", targetName: "scientificName", isRequired: true },
-        ],
-      },
-    ],
-    crossDatasetRules: [
-      {
-        ruleType: "foreignKey",
-        sourceDataset: "occurrences",
-        sourceField: "eventID",
-        targetDataset: "events",
-        targetField: "eventID",
-        description: "Occurrences must reference existing events",
+        name: datasetName,
+        spec: options?.spec ?? `dwc-${datasetName}`,
+        path: `./${datasetName}.csv`,
+        ...(options?.profile && { profile: options.profile }),
+        fieldMappings,
       },
     ],
     createdAt: new Date().toISOString(),
@@ -79,16 +161,98 @@ E2,O3,HumanObservation,Ursus arctos`;
   );
 }
 
-Deno.test("WorkspaceValidator - validates workspace from config", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
+async function validateWorkspace(
+  tempDir: string,
+): Promise<WorkspaceValidationResult> {
+  const validator = new WorkspaceValidator();
+  return await Effect.runPromise(
+    validator.validateFromConfig(tempDir),
+  );
+}
 
-  try {
-    await createTestWorkspace(tempDir);
+// Assertion helpers using Effect's Array.filter for type-safe narrowing
+function assertPrimaryKeyViolations(
+  result: WorkspaceValidationResult,
+  expectedCount: number,
+  expectedValue: string,
+  options?: { checkDuplicateCount?: number },
+): void {
+  const datasetResult = result.datasetResults[0];
+  const pkViolations = EffectArray.filter(
+    datasetResult.violations.errors,
+    isPrimaryKeyViolation,
+  );
 
-    const validator = new WorkspaceValidator();
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
+  assertEquals(pkViolations.length, expectedCount);
+  assertEquals(pkViolations[0].value, expectedValue);
+
+  if (options?.checkDuplicateCount) {
+    assertEquals(pkViolations[0].duplicateCount, options.checkDuplicateCount);
+  }
+}
+
+function assertRowNumbers(
+  result: WorkspaceValidationResult,
+  expectedRows: number[],
+  options?: { checkOrdering?: boolean },
+): void {
+  const pkViolations = EffectArray.filter(
+    result.datasetResults[0].violations.errors,
+    isPrimaryKeyViolation,
+  );
+  const rowNumbers = pkViolations.map(({ rowNumber }) => rowNumber);
+
+  if (options?.checkOrdering) {
+    const sorted = [...rowNumbers].sort((a, b) => a - b);
+    assertEquals(rowNumbers, sorted, "Row numbers should be in ascending order");
+  }
+
+  assertEquals([...rowNumbers].sort((a, b) => a - b), expectedRows);
+}
+
+function assertEnumViolations(
+  result: WorkspaceValidationResult,
+  fieldName: string,
+  expectedValue: string,
+  expectedRowNumber: number,
+): void {
+  const datasetResult = result.datasetResults[0];
+  const enumViolations = EffectArray.filter(
+    datasetResult.violations.errors,
+    isEnumViolation,
+  );
+
+  assertEquals(enumViolations.length, 1);
+  assertEquals(enumViolations[0].fieldName, fieldName);
+  assertEquals(enumViolations[0].value, expectedValue);
+  assertEquals(enumViolations[0].rowNumber, expectedRowNumber);
+}
+
+function assertRangeViolations(
+  result: WorkspaceValidationResult,
+  expectedCount: number,
+  fieldName: string,
+): void {
+  const rangeErrors = result.datasetResults[0].violations.errors.filter(isRangeViolation);
+  assertEquals(rangeErrors.length, expectedCount);
+  assertEquals(rangeErrors[0].fieldName, fieldName);
+}
+
+let tempDir: string;
+
+Deno.test.beforeEach(async () => {
+  tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
+});
+
+Deno.test.afterEach(async () => {
+  await Deno.remove(tempDir, { recursive: true });
+});
+
+Deno.test("WorkspaceValidator - Basic Validation Tests", async (t) => {
+  await t.step("validates workspace from config", async () => {
+    await createMultiDatasetWorkspace(tempDir);
+
+    const result = await validateWorkspace(tempDir);
 
     assertExists(result);
     assertEquals(result.datasetResults.length, 2);
@@ -98,21 +262,12 @@ Deno.test("WorkspaceValidator - validates workspace from config", async () => {
     assertEquals(result.datasetResults[1].rowsProcessed, 3);
     assertEquals(result.summary.totalDatasets, 2);
     assertEquals(result.summary.totalRowsProcessed, 5);
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
+  });
 
-Deno.test("WorkspaceValidator - validates cross-dataset rules", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
+  await t.step("validates cross-dataset rules", async () => {
+    await createMultiDatasetWorkspace(tempDir);
 
-  try {
-    await createTestWorkspace(tempDir);
-
-    const validator = new WorkspaceValidator();
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
+    const result = await validateWorkspace(tempDir);
 
     // Should have cross-dataset results
     assertExists(result.crossDatasetResults);
@@ -120,15 +275,11 @@ Deno.test("WorkspaceValidator - validates cross-dataset rules", async () => {
 
     // All eventIDs in occurrences exist in events, so no violations
     assertEquals(result.crossDatasetResults[0].violations.length, 0);
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
+  });
 });
 
-Deno.test("WorkspaceValidator - detects cross-dataset violations", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-
-  try {
+Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
+  await t.step("detects cross-dataset violations", async () => {
     // Create event CSV with only E1
     const eventCsv = `eventID,country,countryCode
 E1,Canada,CA`;
@@ -189,24 +340,15 @@ E2,O2,HumanObservation,Canis lupus`;
       JSON.stringify(config, null, 2),
     );
 
-    const validator = new WorkspaceValidator();
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
+    const result = await validateWorkspace(tempDir);
 
     // Should detect violation for E2
     assertEquals(result.crossDatasetResults.length, 1);
     assertEquals(result.crossDatasetResults[0].violations.length, 1);
     assertEquals(result.crossDatasetResults[0].violations[0].sourceValue, "E2");
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
+  });
 
-Deno.test("WorkspaceValidator - detects missing required fields", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-
-  try {
+  await t.step("detects missing required fields", async () => {
     // Create CSV missing required field
     const eventCsv = `eventID,country
 E1,Canada`;
@@ -269,426 +411,143 @@ E1,Canada`;
       "countryCode",
       `Expected error to mention missing field 'countryCode', got: ${error.message}`,
     );
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
+  });
 
-Deno.test("WorkspaceValidator - detects range violations (latitude)", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-
-  try {
-    // Create CSV with invalid latitude values
-    const eventCsv = `eventID,decimalLatitude,decimalLongitude
+  await t.step("detects range violations (latitude)", async () => {
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      `eventID,decimalLatitude,decimalLongitude
 E1,49.5,-123.5
 E2,95.0,-124.0
-E3,-95.0,-125.0`;
-
-    await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
-
-    const config = {
-      id: "test-workspace",
-      name: "Test Workspace",
-      version: "1.0.0",
-      validation: {
-        nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
-      },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          profile: "Event",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "decimalLatitude", targetName: "decimalLatitude" },
-            { originName: "decimalLongitude", targetName: "decimalLongitude" },
-          ],
-        },
+E3,-95.0,-125.0`,
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "decimalLatitude", targetName: "decimalLatitude" },
+        { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await Deno.writeTextFile(
-      join(tempDir, "darwinkit.json"),
-      JSON.stringify(config, null, 2),
+      { profile: "Event", spec: "dwc-event" },
     );
 
-    const validator = new WorkspaceValidator();
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
+    const result = await validateWorkspace(tempDir);
 
-    // Should detect latitude out of range
-    const rangeErrors = result.datasetResults[0].violations.errors
-      .filter(isRangeViolation);
-    assertEquals(rangeErrors.length, 2); // E2 and E3 have invalid latitude
-    assertEquals(rangeErrors[0].fieldName, "decimalLatitude");
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
+    assertRangeViolations(result, 2, "decimalLatitude");
+  });
 
-Deno.test("WorkspaceValidator - detects vocabulary violations", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-
-  try {
-    // Create CSV with invalid basisOfRecord values
-    const occurrenceCsv = `occurrenceID,basisOfRecord,scientificName
+  await t.step("detects vocabulary violations", async () => {
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "occurrences",
+      `occurrenceID,basisOfRecord,scientificName
 O1,HumanObservation,Ursus arctos
 O2,InvalidBasis,Canis lupus
-O3,PreservedSpecimen,Panthera tigris`;
-
-    await Deno.writeTextFile(join(tempDir, "occurrences.csv"), occurrenceCsv);
-
-    const config = {
-      id: "test-workspace",
-      name: "Test Workspace",
-      version: "1.0.0",
-      validation: {
-        nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
-      },
-      datasets: [
-        {
-          name: "occurrences",
-          spec: "dwc-occurrence",
-          path: "./occurrences.csv",
-          profile: "Occurrence",
-          fieldMappings: [
-            { originName: "occurrenceID", targetName: "occurrenceID" },
-            { originName: "basisOfRecord", targetName: "basisOfRecord" },
-            { originName: "scientificName", targetName: "scientificName" },
-          ],
-        },
+O3,PreservedSpecimen,Panthera tigris`,
+      [
+        { originName: "occurrenceID", targetName: "occurrenceID" },
+        { originName: "basisOfRecord", targetName: "basisOfRecord" },
+        { originName: "scientificName", targetName: "scientificName" },
       ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await Deno.writeTextFile(
-      join(tempDir, "darwinkit.json"),
-      JSON.stringify(config, null, 2),
+      { profile: "Occurrence", spec: "dwc-occurrence" },
     );
 
-    const validator = new WorkspaceValidator();
+    const result = await validateWorkspace(tempDir);
 
-    // NOTE: This test contains an invalid vocabulary value ('InvalidBasis' in basisOfRecord).
-    // With the new row-by-row validation, we detect ENUM violations before INSERT
-    // and return them as structured EnumViolation objects.
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
-
-    // Verify we get structured violations
     assertEquals(result.overallStatus, "fail");
-    assertEquals(result.datasetResults.length, 1);
+    assertEnumViolations(result, "basisOfRecord", "InvalidBasis", 2);
+  });
 
-    const datasetResult = result.datasetResults[0];
-    assertEquals(datasetResult.violations.errors.length, 1);
-
-    const enumViolations = datasetResult.violations.errors.filter((v) =>
-      v._tag === "EnumViolation"
-    );
-    assertEquals(enumViolations.length, 1);
-
-    const violation = enumViolations[0];
-    assertEquals(violation.fieldName, "basisOfRecord");
-    assertEquals(violation.value, "InvalidBasis");
-    assertEquals(violation.csvValue, "InvalidBasis");
-    assertEquals(violation.rowNumber, 2); // Second row (1-indexed, after header)
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
-
-Deno.test("WorkspaceValidator - detects duplicate identifiers", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-
-  try {
-    // Create CSV with duplicate eventIDs
-    const eventCsv = `eventID,country
+  await t.step("detects duplicate identifiers", async () => {
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      `eventID,country
 E1,Canada
 E2,USA
-E1,Mexico`;
-
-    await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
-
-    const config = {
-      id: "test-workspace",
-      name: "Test Workspace",
-      version: "1.0.0",
-      validation: {
-        nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
-      },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          profile: "Event",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "country", targetName: "country" },
-          ],
-        },
+E1,Mexico`,
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "country", targetName: "country" },
       ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await Deno.writeTextFile(
-      join(tempDir, "darwinkit.json"),
-      JSON.stringify(config, null, 2),
+      { profile: "Event", spec: "dwc-event" },
     );
 
-    const validator = new WorkspaceValidator();
+    const result = await validateWorkspace(tempDir);
 
-    // NOTE: This test contains duplicate eventIDs (E1 appears twice).
-    // With the new row-by-row validation, we detect PRIMARY KEY duplicates before INSERT
-    // and return them as structured PrimaryKeyViolation objects.
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
-
-    // Verify we get structured violations
     assertEquals(result.overallStatus, "fail");
-    assertEquals(result.datasetResults.length, 1);
-
-    const datasetResult = result.datasetResults[0];
-
-    // Should have 2 PrimaryKeyViolations (one for each duplicate row)
-    const pkViolations = datasetResult.violations.errors.filter((v) =>
-      v._tag === "PrimaryKeyViolation"
-    );
-    assertEquals(pkViolations.length, 2);
-
-    // Verify both violations reference the duplicate value "E1"
-    assertEquals(pkViolations[0].value, "E1");
-    assertEquals(pkViolations[1].value, "E1");
-    assertEquals(pkViolations[0].csvValue, "E1");
-    assertEquals(pkViolations[1].csvValue, "E1");
-
-    // Verify constraint type is "duplicate"
-    assertEquals(pkViolations[0].constraintType, "duplicate");
-    assertEquals(pkViolations[1].constraintType, "duplicate");
-
-    // Verify duplicate count
-    assertEquals(pkViolations[0].duplicateCount, 2);
-    assertEquals(pkViolations[1].duplicateCount, 2);
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
+    assertPrimaryKeyViolations(result, 2, "E1", { checkDuplicateCount: 2 });
+  });
 });
 
-Deno.test("WorkspaceValidator - reports correct row numbers for violations", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-
-  try {
-    // Create CSV with duplicates on specific rows (1 and 3)
-    const eventCsv = `eventID,country
+Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
+  await t.step("reports correct row numbers for violations", async () => {
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      `eventID,country
 E1,Canada
 E2,USA
 E1,Mexico
-E3,France`;
-
-    await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
-
-    const config = {
-      id: "test-workspace",
-      name: "Test Workspace",
-      version: "1.0.0",
-      validation: {
-        nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
-      },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          profile: "Event",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "country", targetName: "country" },
-          ],
-        },
+E3,France`,
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "country", targetName: "country" },
       ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await Deno.writeTextFile(
-      join(tempDir, "darwinkit.json"),
-      JSON.stringify(config, null, 2),
+      { profile: "Event", spec: "dwc-event" },
     );
 
-    const validator = new WorkspaceValidator();
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
+    const result = await validateWorkspace(tempDir);
 
-    const datasetResult = result.datasetResults[0];
-    const pkViolations = datasetResult.violations.errors.filter((v) =>
-      v._tag === "PrimaryKeyViolation"
-    );
+    assertRowNumbers(result, [1, 3]);
+  });
 
-    // Should have violations for rows 1 and 3 (where E1 appears)
-    assertEquals(pkViolations.length, 2);
-
-    // Extract row numbers and sort them
-    const rowNumbers = pkViolations.map((v) => v.rowNumber).sort((a, b) => a - b);
-
-    // Verify we have row 1 and row 3
-    assertEquals(rowNumbers[0], 1, "First duplicate should be on row 1");
-    assertEquals(rowNumbers[1], 3, "Second duplicate should be on row 3");
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
-
-Deno.test("WorkspaceValidator - row numbers are in ascending order", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-
-  try {
-    // Create CSV with many duplicates to test ordering
-    const eventCsv = `eventID,country
+  await t.step("row numbers are in ascending order", async () => {
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      `eventID,country
 DUP,Country1
 E2,Country2
 DUP,Country3
 E4,Country4
 DUP,Country5
 E6,Country6
-DUP,Country7`;
-
-    await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
-
-    const config = {
-      id: "test-workspace",
-      name: "Test Workspace",
-      version: "1.0.0",
-      validation: {
-        nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
-      },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          profile: "Event",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "country", targetName: "country" },
-          ],
-        },
+DUP,Country7`,
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "country", targetName: "country" },
       ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await Deno.writeTextFile(
-      join(tempDir, "darwinkit.json"),
-      JSON.stringify(config, null, 2),
+      { profile: "Event", spec: "dwc-event" },
     );
 
-    const validator = new WorkspaceValidator();
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
+    const result = await validateWorkspace(tempDir);
 
-    const datasetResult = result.datasetResults[0];
-    const pkViolations = datasetResult.violations.errors.filter((v) =>
-      v._tag === "PrimaryKeyViolation"
-    );
+    assertRowNumbers(result, [1, 3, 5, 7], { checkOrdering: true });
+  });
 
-    // Should have 4 violations (rows 1, 3, 5, 7)
-    assertEquals(pkViolations.length, 4);
-
-    // Extract row numbers - they should already be in order
-    const rowNumbers = pkViolations.map((v) => v.rowNumber);
-
-    // Verify they are in ascending order
-    const sortedRowNumbers = [...rowNumbers].sort((a, b) => a - b);
-    assertEquals(
-      rowNumbers,
-      sortedRowNumbers,
-      "Row numbers should be in ascending order",
-    );
-
-    // Verify the specific rows
-    assertEquals(rowNumbers, [1, 3, 5, 7], "Should have violations on rows 1, 3, 5, 7");
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
-
-Deno.test("WorkspaceValidator - validation is deterministic", async () => {
-  const tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-
-  try {
-    // Create CSV with duplicates
-    const eventCsv = `eventID,country
+  await t.step("validation is deterministic", async () => {
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      `eventID,country
 E1,Canada
 E2,USA
 E1,Mexico
 E3,France
-E2,Germany`;
-
-    await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
-
-    const config = {
-      id: "test-workspace",
-      name: "Test Workspace",
-      version: "1.0.0",
-      validation: {
-        nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
-      },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          profile: "Event",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "country", targetName: "country" },
-          ],
-        },
+E2,Germany`,
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "country", targetName: "country" },
       ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await Deno.writeTextFile(
-      join(tempDir, "darwinkit.json"),
-      JSON.stringify(config, null, 2),
+      { profile: "Event", spec: "dwc-event" },
     );
 
-    const validator = new WorkspaceValidator();
+    const result1 = await validateWorkspace(tempDir);
+    const result2 = await validateWorkspace(tempDir);
 
-    // Run validation twice
-    const result1 = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
-    const result2 = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
-
-    // Extract violations from both runs
-    const getRowNumbers = (result: typeof result1) => {
-      const pkViolations = result.datasetResults[0].violations.errors.filter((v) =>
-        v._tag === "PrimaryKeyViolation"
+    const getRowNumbers = (result: WorkspaceValidationResult) => {
+      const pkViolations = EffectArray.filter(
+        result.datasetResults[0].violations.errors,
+        isPrimaryKeyViolation,
       );
       return pkViolations.map((v) => v.rowNumber);
     };
@@ -696,13 +555,10 @@ E2,Germany`;
     const rowNumbers1 = getRowNumbers(result1);
     const rowNumbers2 = getRowNumbers(result2);
 
-    // Should get same row numbers in same order
     assertEquals(
       rowNumbers1,
       rowNumbers2,
       "Validation should produce identical results on repeated runs",
     );
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
+  });
 });

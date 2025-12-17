@@ -615,7 +615,8 @@ function validateDataset(
         },
       }),
     );
-    // Exclude _row_number
+
+    // Exclude _row_number; it's only used internally
     const originTableColumns = originTableColumnsResult.getRowObjects()
       .map((row) => String(row.column_name))
       .filter((col) => col !== "_row_number");
