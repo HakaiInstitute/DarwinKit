@@ -24,7 +24,7 @@ transform:
     # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cottoidea', 'Cottidae')
     # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cadilna luteomarginata', 'Cadlina luteomarginata')
   output:
-    outputDir: ./external/seagrass-site-production/obis
+    outputDir: ../../external/seagrass-site-production/obis
     outputFilesWithTimestamp: false
     exportDB: false
     exportDBFileName: obis_marine_survey
@@ -89,7 +89,7 @@ transform:
         decimalLatitude: density.decimal_lat
         decimalLongitude: density.decimal_long
         eventDate: density.date
-        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.hakai_id)
         # eventRemarks: "''"
         # eventTime: "''"
         # eventType: "'dive survey'"
@@ -147,7 +147,7 @@ transform:
         decimalLatitude: habitat.decimal_lat
         decimalLongitude: habitat.decimal_long
         eventDate: habitat.date
-        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.hakai_id)
         geodeticDatum: "'WGS84'"
         maximumDepthInMeters: habitat.depth
 
