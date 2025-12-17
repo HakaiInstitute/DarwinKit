@@ -357,7 +357,7 @@ export class WorkspaceValidator {
         );
       }
 
-      if (!("datasets" in loadedConfig)) {
+      if (!("datasets" in loadedConfig.validation)) {
         return yield* _(
           Effect.fail(
             new WorkspaceValidationError({
@@ -377,7 +377,7 @@ export class WorkspaceValidator {
         : config.validation;
 
       // Get datasets from root level
-      const datasets = "datasets" in config && config.datasets ? config.datasets : [];
+      const datasets = "datasets" in validationSettings && validationSettings.datasets ? validationSettings.datasets : [];
 
       // Create workspace and load all datasets
       const { workspaceId, connection, instance } = yield* _(
