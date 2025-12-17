@@ -89,7 +89,7 @@ transform:
         decimalLatitude: density.decimal_lat
         decimalLongitude: density.decimal_long
         eventDate: density.date
-        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.hakai_id)
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
         # eventRemarks: "''"
         # eventTime: "''"
         # eventType: "'dive survey'"
@@ -112,7 +112,7 @@ transform:
     - name: event_habitat
       profile: Event
       source:
-        habitat: habitat
+        habitat: SELECT * from habitat where sample_collected = TRUE
       fields:
         # accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
         # bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community Surveys from the Central Coast of BC (v1.3.0) [Data set]. Hakai Institute. https://doi.org/10.21966/jj9p-d309'"
@@ -136,7 +136,7 @@ transform:
         # locality: "''"
         # maximumDepthInMeters: "'15'"
         # minimumDepthInMeters: "'0'"
-        # modified: today()
+        modified: today()
         # month: strftime(transect.date, '%m')
         # parentEventID: concat_ws('-', 'hakaiFI', transect.site, transect.date)
         # rightsHolder: "'Hakai Institute'"
@@ -147,97 +147,221 @@ transform:
         decimalLatitude: habitat.decimal_lat
         decimalLongitude: habitat.decimal_long
         eventDate: habitat.date
-        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.hakai_id)
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
         geodeticDatum: "'WGS84'"
         maximumDepthInMeters: habitat.depth
 
-    # - name: occurrence
-    #   profile: Occurrence
-    #   source:
-    #     occ: SELECT row_number() OVER () as rn, date, site, size, swath_type, transect, species_name_original, scientificName, common_name, comment, 
-    #             fish_inverts.species_name, lsid, taxonomicStatus, authority, kingdom, phylum, class, "order", family, genus, pass, diver_name 
-    #          FROM fish_inverts 
-    #             LEFT JOIN taxa on fish_inverts.species_name = taxa.species_name 
-    #          WHERE fish_inverts.species_name != 'no organisms' 
-    #             AND fish_inverts.species_name != 'SHELL Haliotus kamtschatkana' 
-    #             AND fish_inverts.species_name IS NOT NULL
-    #   fields:
-    #     scientificName: concat_ws(' ', occ.scientificName, occ.authority)
-    #     vernacularName: occ.common_name
-    #     identificationRemarks: CASE WHEN occ.species_name_original like '%(Unknown spp)%' THEN 'Unable to ID to species' ELSE '' END
-    #     occurrenceRemarks: occ.comment
-    #     verbatimIdentification: occ.species_name
-    #     scientificNameID: occ.lsid
-    #     taxonomicStatus: occ.taxonomicStatus
-    #     scientificNameAuthorship: occ.authority
-    #     kingdom: occ.kingdom
-    #     phylum: occ.phylum
-    #     class: occ.class
-    #     order: occ.order
-    #     family: occ.family
-    #     genus: occ.genus
-    #     recordedBy: occ.diver_name
-    #     occurrenceStatus: "'present'"
-    #     individualCount: "'1'"
-    #     specificEpithet: occ.scientificName[0:2]
-    #     basisOfRecord: "'HumanObservation'"
-    #     eventID: concat_ws('-', 'hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type)
-    #     occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
 
-    # - name: eMOF_event_visibility
-    #   profile: ExtendedMeasurementOrFact
-    #   source:
-    #     transect: SELECT row_number() OVER() as rn, * from fish_inverts WHERE fish_inverts.visibility IS NOT NULL
-    #   fields:
-    #     eventID: concat_ws('-', 'hakaiFI', transect.site, transect.date, 'transect', transect.transect, transect.pass, transect.swath_type)
-    #     measurementValue: transect.visibility
-    #     measurementType: "'visibility'"
-    #     measurementValueID: null
-    #     measurementTypeID: null
-    #     measurementUnit: "'meters'"
-    #     measurementUnitID: "'https://vocab.nerc.ac.uk/collection/P06/current/ULAA/'"
-    #     measurementID: concat_ws('-', 'hakaiFI', transect.site, transect.date, 'transect', transect.transect, transect.pass, transect.swath_type, transect.rn)
-    #     occurrenceID: "NULL"
-    #     measurementMethod: "'visually'"
 
-    # - name: eMOF_occurrence_measurements
-    #   profile: ExtendedMeasurementOrFact
-    #   source:
-    #     occ: SELECT row_number() OVER () as rn, date, site, size, swath_type, transect, pass, fish_inverts.measure FROM fish_inverts LEFT JOIN taxa on fish_inverts.species_name = taxa.species_name LEFT JOIN accepted_taxa on fish_inverts.common_name = accepted_taxa.common_name WHERE fish_inverts.species_name != 'no organisms' AND fish_inverts.species_name != 'SHELL Haliotus kamtschatkana' AND fish_inverts.species_name IS NOT NULL
-    #   fields:
-    #     eventID: concat_ws('-', 'hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type)
-    #     measurementValue: occ.size
-    #     measurementType: occ.measure
-    #     measurementValueID: null
-    #     measurementTypeID: CASE
-    #                           WHEN measurementType = 'length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDLX/'
-    #                           WHEN measurementType = 'height' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDHT/'
-    #                           WHEN measurementType = 'shell_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/SHELLEN01/'
-    #                           WHEN measurementType = 'shell_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/SHEWID01/'
-    #                           WHEN measurementType = 'mantle_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/MANTLEN/'
-    #                           WHEN measurementType = 'disc_diameter' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSIDDDM/'
-    #                           WHEN measurementType = 'arm_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDAL/'
-    #                           WHEN measurementType = 'test_diameter' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDTD/'
-    #                           WHEN measurementType = 'oral_to_aboral_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINORALABORAL/'
-    #                           WHEN measurementType = 'body_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSIDBL/'
-    #                           WHEN measurementType = 'radius' THEN 'http://vocab.nerc.ac.uk/collection/P01/current/OBSINRAD/'
-    #                           WHEN measurementType = 'disc_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSIDWID/'
-    #                           WHEN measurementType = 'head_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDHL/'
-    #                           WHEN measurementType = 'head_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDHW/'
-    #                           WHEN measurementType = 'body_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSIDBW/'
-    #                           WHEN measurementType = 'carapace_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/CAPWID01/'
-    #                           WHEN measurementType = 'carapace_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/CAPLENG01/'
-    #                           WHEN measurementType = 'claw_width' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/CLAWID01/'
-    #                           WHEN measurementType = 'claw_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/CLALEN01/'
-    #                           WHEN measurementType = 'pedipalp_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/PEDILEN01/'
-    #                           WHEN measurementType = 'abdomen_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/ABDLEN01/'
-    #                           WHEN measurementType = 'total_length' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/TL01XX01/'
-    #                           WHEN measurementType = 'diameter' THEN 'https://vocab.nerc.ac.uk/collection/P01/current/OBSINDDM/'
-    #                           ELSE 'NULL'
-    #                         END
-    #     measurementUnit: "'centimeters'"
-    #     measurementUnitID: "'https://vocab.nerc.ac.uk/collection/P06/current/ULCM/'"
-    #     measurementID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn, occ.rn)
-    #     occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
-    #     measurementMethod: "'visually'"
 
+    - name: occurrence
+      profile: Occurrence
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE
+      fields:
+        modified: today()
+        basisOfRecord: "'HumanObservation'"
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        occurrenceStatus: "'present'"
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        parentNameUsageID: "'370435'"
+        scientificName: "'Zostera subg. Zostera marina'"
+        kingdom: "'Plantae'"
+        phylum: "'Tracheophyta'"
+        class: "'Magnoliopsida'"
+        order: "'Alismatales'"
+        family: "'Zosteraceae'"
+        genus: "'Zostera'"
+
+        # scientificName: concat_ws(' ', occ.scientificName, occ.authority)
+        # vernacularName: occ.common_name
+        # identificationRemarks: CASE WHEN occ.species_name_original like '%(Unknown spp)%' THEN 'Unable to ID to species' ELSE '' END
+        # occurrenceRemarks: occ.comment
+        # verbatimIdentification: occ.species_name
+        # scientificNameID: occ.lsid
+        # taxonomicStatus: occ.taxonomicStatus
+        # scientificNameAuthorship: occ.authority
+        # kingdom: occ.kingdom
+        # phylum: occ.phylum
+        # class: occ.class
+        # order: occ.order
+        # family: occ.family
+        # genus: occ.genus
+        # recordedBy: occ.diver_name
+        # occurrenceStatus: "'present'"
+        # individualCount: "'1'"
+        # specificEpithet: occ.scientificName[0:2]
+        # basisOfRecord: "'HumanObservation'"
+        # eventID: concat_ws('-', 'hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type)
+        # occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
+
+    - name: eMOF_SubstrateTypeA
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND split_part(habitat.substrate,',',1) is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'ssa')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'SubstrateTypeA'"
+        measurementTypeID: null
+        measurementValue: split_part(habitat.substrate,',',1)
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_SubstrateTypeB
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND split_part(habitat.substrate,',',2) is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'ssb')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'SubstrateTypeB'"
+        measurementTypeID: null
+        measurementValue: split_part(habitat.substrate,',',2)
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_BarePatchLengthWithinSeagrass
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.patchiness is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'bplws')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'BarePatchLengthWithinSeagrass'"
+        measurementTypeID: null
+        measurementValue: habitat.patchiness
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_PrimaryAdjacentHabitat
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.adj_habitat_1 is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'pah')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'PrimaryAdjacentHabitat'"
+        measurementTypeID: null
+        measurementValue: habitat.adj_habitat_1
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_SecondaryAdjacentHabitat
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.adj_habitat_2 is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'sah')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'SecondaryAdjacentHabitat'"
+        measurementTypeID: null
+        measurementValue: habitat.adj_habitat_2
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_PrimaryAlgaeSp
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.vegetation_1 is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'pas')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'PrimaryAlgaeSp'"
+        measurementTypeID: null
+        measurementValue: habitat.vegetation_1
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_SecondaryAlgaeSp
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.vegetation_2 is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'sas')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'SecondaryAlgaeSp'"
+        measurementTypeID: null
+        measurementValue: habitat.vegetation_2
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_BedAbund
+      profile: ExtendedMeasurementOrFact
+      source:
+        density: SELECT * from density where density.density__m2_ is not null
+      fields:
+        measurementID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m, density.hakai_id, 'ba')
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        measurementType: "'BedAbund'"
+        measurementTypeID: "'http://vocab.nerc.ac.uk/collection/P01/current/SDBIOL02/'"
+        measurementValue: density.density__m2_
+        measurementValueID: null
+        measurementUnit: "'Number per square metre'"
+        measurementUnitID: "'http://vocab.nerc.ac.uk/collection/P06/current/UPMS/'"
+        measurementDeterminedDate: density.date
+        occurrenceID: null
+        measurementMethod: "'25cmx25cm quadrat count'"
+
+    - name: eMOF_CanopyHeight
+      profile: ExtendedMeasurementOrFact
+      source:
+        density: SELECT * from density where density.canopy_height_cm is not null
+      fields:
+        measurementID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m, density.hakai_id, 'ch')
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        measurementType: "'CanopyHeight'"
+        measurementTypeID: "'http://vocab.nerc.ac.uk/collection/P01/current/OBSMAXLX/'"
+        measurementValue: density.canopy_height_cm
+        measurementValueID: null
+        measurementAccuracy: 5
+        measurementUnit: "'Centimetres'"
+        measurementUnitID: "'http://vocab.nerc.ac.uk/collection/P06/current/ULCM/'"
+        measurementDeterminedDate: density.date
+        occurrenceID: null
+        measurementMethod: "'in situ with ruler'"
+
+    - name: eMOF_FloweringBedAbund
+      profile: ExtendedMeasurementOrFact
+      source:
+        density: SELECT * from density where density.flowering_shoots is not null
+      fields:
+        measurementID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m, density.hakai_id, 'fba')
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        measurementType: "'FloweringBedAbund'"
+        measurementTypeID: "'http://vocab.nerc.ac.uk/collection/P01/current/SDBIOL02/'"
+        measurementValue: density.flowering_shoots
+        measurementValueID: null
+        measurementUnit: "'Number per square metre'"
+        measurementUnitID: "'http://vocab.nerc.ac.uk/collection/P06/current/UPMS/'"
+        measurementDeterminedDate: density.date
+        occurrenceID: null
+        measurementMethod: "'25cmx25cm quadrat count'"

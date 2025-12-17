@@ -84,75 +84,79 @@ validation:
           constraints:
             minValue: 0
             maxValue: 11000
-    # - name: occurrence
-    #   spec: dwc-occurrence
-    #   path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/occurrence.csv
-    #   description: Marine sampling occurrence for OBIS
-    #   profile: Occurrence
-    #   fieldMappings:
-    #     - originName: scientificName
-    #       targetName: scientificName
-    #     - originName: vernacularName
-    #       targetName: vernacularName
-    #     - originName: identificationRemarks
-    #       targetName: identificationRemarks
-    #     - originName: occurrenceRemarks
-    #       targetName: occurrenceRemarks
-    #     - originName: verbatimIdentification
-    #       targetName: verbatimIdentification
-    #     - originName: scientificNameID
-    #       targetName: scientificNameID
-    #     - originName: taxonomicStatus
-    #       targetName: taxonomicStatus
-    #     - originName: scientificNameAuthorship
-    #       targetName: scientificNameAuthorship
-    #     - originName: kingdom
-    #       targetName: kingdom
-    #     - originName: phylum
-    #       targetName: phylum
-    #     - originName: class
-    #       targetName: class
-    #     - originName: order
-    #       targetName: order
-    #     - originName: family
-    #       targetName: family
-    #     - originName: genus
-    #       targetName: genus
-    #     - originName: recordedBy
-    #       targetName: recordedBy
-    #     - originName: occurrenceStatus
-    #       targetName: occurrenceStatus
-    #     - originName: individualCount
-    #       targetName: individualCount
-    #     - originName: specificEpithet
-    #       targetName: specificEpithet
-    #     - originName: basisOfRecord
-    #       targetName: basisOfRecord
-    #     - originName: eventID
-    #       targetName: eventID
-    #     - originName: occurrenceID
-    #       targetName: occurrenceID
-    # - name: extendedMeasurementOrFact
-      # spec: dwc-eMOF
-      # path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/eMoF.csv
-      # description: Marine sampling Extended Measurement Or Fact for OBIS
-      # profile: ExtendedMeasurementOrFact
-      # fieldMappings:
-      #   - originName: eventID
-      #     targetName: eventID
-      #   - originName: measurementValue
-      #     targetName: measurementValue
-      #   - originName: measurementType
-      #     targetName: measurementType
-      #   - originName: measurementTypeID
-      #     targetName: measurementTypeID
-      #   - originName: measurementUnit
-      #     targetName: measurementUnit
-      #   - originName: measurementUnitID
-      #     targetName: measurementUnitID
-      #   - originName: measurementID
-      #     targetName: measurementID
-      #   - originName: occurrenceID
-      #     targetName: occurrenceID
-      #   - originName: measurementMethod
-      #     targetName: measurementMethod
+
+    - name: occurrence
+      spec: dwc-occurrence
+      path: ./seagrass-site-production/obis/occurrence.csv
+      description: Marine sampling occurrence for OBIS
+      profile: Occurrence
+      fieldMappings:
+        - originName: scientificName
+          targetName: scientificName
+        # - originName: vernacularName
+        #   targetName: vernacularName
+        # - originName: identificationRemarks
+        #   targetName: identificationRemarks
+        # - originName: occurrenceRemarks
+        #   targetName: occurrenceRemarks
+        # - originName: verbatimIdentification
+        #   targetName: verbatimIdentification
+        # - originName: scientificNameID
+        #   targetName: scientificNameID
+        # - originName: taxonomicStatus
+        #   targetName: taxonomicStatus
+        # - originName: scientificNameAuthorship
+        #   targetName: scientificNameAuthorship
+        - originName: kingdom
+          targetName: kingdom
+        - originName: phylum
+          targetName: phylum
+        - originName: class
+          targetName: class
+        - originName: order
+          targetName: order
+        - originName: family
+          targetName: family
+        - originName: genus
+          targetName: genus
+        # - originName: recordedBy
+        #   targetName: recordedBy
+        - originName: occurrenceStatus
+          targetName: occurrenceStatus
+        # - originName: individualCount
+        #   targetName: individualCount
+        # - originName: specificEpithet
+        #   targetName: specificEpithet
+        - originName: basisOfRecord
+          targetName: basisOfRecord
+        - originName: eventID
+          targetName: eventID
+        - originName: occurrenceID
+          targetName: occurrenceID
+
+    - name: extendedMeasurementOrFact
+      spec: dwc-eMOF
+      path: ./seagrass-site-production/obis/extendedmeasurementorfact.csv
+      description: Marine sampling Extended Measurement Or Fact for OBIS
+      profile: ExtendedMeasurementOrFact
+      fieldMappings:
+        - originName: eventID
+          targetName: eventID
+        - originName: measurementValue
+          targetName: measurementValue
+        - originName: measurementAccuracy
+          targetName: measurementAccuracy
+        - originName: measurementType
+          targetName: measurementType
+        - originName: measurementTypeID
+          targetName: measurementTypeID
+        - originName: measurementUnit
+          targetName: measurementUnit
+        - originName: measurementUnitID
+          targetName: measurementUnitID
+        - originName: measurementID
+          targetName: measurementID
+        - originName: occurrenceID
+          targetName: occurrenceID
+        - originName: measurementMethod
+          targetName: measurementMethod
