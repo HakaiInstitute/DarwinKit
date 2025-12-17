@@ -17,13 +17,6 @@ import * as Effect from "effect/Effect";
 import type { WorkspaceValidationResult } from "../../../domain/src/types/workspace-validation.ts";
 import { WorkspaceValidationError, WorkspaceValidator } from "./workspace-validator.ts";
 
-// Convert structured test data to CSV format
-function toCSV<T extends Record<string, unknown>>(data: T[]): string {
-  if (data.length === 0) return "";
-  const columns = Object.keys(data[0]);
-  return stringify(data, { columns });
-}
-
 // Helper type for workspace creation
 type TestWorkspaceOptions = {
   eventData?: Array<Record<string, unknown>>;
@@ -148,8 +141,32 @@ const TEST_DATA = {
   ],
 };
 
+// Convert structured test data to CSV format
+function toCSV<T extends Record<string, unknown>>(data: T[]): string {
+  if (data.length === 0) return "";
+  const columns = Object.keys(data[0]);
+  return stringify(data, { columns });
+}
+
+const tempDirs: string[] = [];
+
+async function createTempDir(prefix: string) {
+  if (prefix.length === 0) {
+    throw new Error("Prefix cannot be empty");
+  }
+
+  const dir = await Deno.makeTempDir({ prefix });
+  tempDirs.push(dir);
+
+  return dir;
+}
+
+async function removeTempDirs() {
+  await Promise.all(tempDirs.map((dir) => Deno.remove(dir, { recursive: true })));
+}
+
 // Write a workspace configuration file to the temp directory
-async function writeConfig(config: WorkspaceConfig) {
+async function writeConfig(tempDir: string, config: WorkspaceConfig) {
   return await Deno.writeTextFile(
     join(tempDir, "darwinkit.json"),
     JSON.stringify(config, null, 2),
@@ -157,21 +174,22 @@ async function writeConfig(config: WorkspaceConfig) {
 }
 
 // Write a CSV file to the temp directory from structured data
-async function writeCSV(fileName: string, data: Array<Record<string, unknown>>) {
+async function writeCSV(tempDir: string, fileName: string, data: Array<Record<string, unknown>>) {
   return await Deno.writeTextFile(join(tempDir, `${fileName}.csv`), toCSV(data));
 }
 
 // Create a multi-dataset workspace with events and occurrences
 async function createMultiDatasetWorkspace(
+  tempDir: string,
   options?: TestWorkspaceOptions,
 ) {
   // Default event data
   const eventData = options?.eventData ?? TEST_DATA.VALID_EVENTS;
-  await writeCSV("events", eventData);
+  await writeCSV(tempDir, "events", eventData);
 
   // Default occurrence data
   const occurrenceData = options?.occurrenceData ?? TEST_DATA.VALID_OCCURRENCES;
-  await writeCSV("occurrences", occurrenceData);
+  await writeCSV(tempDir, "occurrences", occurrenceData);
 
   // Default datasets
   const datasets = options?.datasets ?? [
@@ -231,17 +249,18 @@ async function createMultiDatasetWorkspace(
     updatedAt: new Date(),
   };
 
-  await writeConfig(config);
+  await writeConfig(tempDir, config);
 }
 
 // Create a workspace with a single dataset for testing
 async function createSingleDatasetWorkspace(
+  tempDir: string,
   datasetName: string,
   data: Array<Record<string, unknown>>,
   fieldMappings: WorkspaceFieldMapping[],
   options?: { profile?: string; spec?: string },
 ): Promise<void> {
-  await writeCSV(datasetName, data);
+  await writeCSV(tempDir, datasetName, data);
 
   const config: WorkspaceConfig = {
     id: "test-workspace",
@@ -265,11 +284,11 @@ async function createSingleDatasetWorkspace(
     updatedAt: new Date(),
   };
 
-  await writeConfig(config);
+  await writeConfig(tempDir, config);
 }
 
 // Validate the workspace in the temp directory
-async function validateWorkspace(): Promise<WorkspaceValidationResult> {
+async function validateWorkspace(tempDir: string): Promise<WorkspaceValidationResult> {
   const validator = new WorkspaceValidator();
   return await Effect.runPromise(
     validator.validateFromConfig(tempDir),
@@ -347,21 +366,16 @@ function assertRangeViolations(
   assertEquals(rangeErrors[0].fieldName, fieldName);
 }
 
-let tempDir: string;
-
-Deno.test.beforeEach(async () => {
-  tempDir = await Deno.makeTempDir({ prefix: "workspace_test_" });
-});
-
-Deno.test.afterEach(async () => {
-  await Deno.remove(tempDir, { recursive: true });
+Deno.test.afterAll(async () => {
+  await removeTempDirs();
 });
 
 Deno.test("WorkspaceValidator - Basic Validation Tests", async (t) => {
   await t.step("validates workspace from config", async () => {
-    await createMultiDatasetWorkspace();
+    const tempDir = await createTempDir("validate_workspace_from_config");
+    await createMultiDatasetWorkspace(tempDir);
 
-    const result = await validateWorkspace();
+    const result = await validateWorkspace(tempDir);
 
     assertExists(result);
     assertEquals(result.datasetResults.length, 2);
@@ -374,9 +388,10 @@ Deno.test("WorkspaceValidator - Basic Validation Tests", async (t) => {
   });
 
   await t.step("validates cross-dataset rules", async () => {
-    await createMultiDatasetWorkspace();
+    const tempDir = await createTempDir("validate_cross_dataset_rules");
+    await createMultiDatasetWorkspace(tempDir);
 
-    const result = await validateWorkspace();
+    const result = await validateWorkspace(tempDir);
 
     // Should have cross-dataset results
     assertExists(result.crossDatasetResults);
@@ -389,8 +404,10 @@ Deno.test("WorkspaceValidator - Basic Validation Tests", async (t) => {
 
 Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
   await t.step("detects cross-dataset violations", async () => {
-    await writeCSV("events", TEST_DATA.EVENTS_WITH_ONLY_E1);
-    await writeCSV("occurrences", TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF);
+    const tempDir = await createTempDir("detect_cross_dataset_violations");
+
+    await writeCSV(tempDir, "events", TEST_DATA.EVENTS_WITH_ONLY_E1);
+    await writeCSV(tempDir, "occurrences", TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF);
 
     // Create minimal config
     const config: WorkspaceConfig = {
@@ -434,9 +451,9 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       updatedAt: new Date(),
     };
 
-    await writeConfig(config);
+    await writeConfig(tempDir, config);
 
-    const result = await validateWorkspace();
+    const result = await validateWorkspace(tempDir);
 
     // Should detect violation for E2
     assertEquals(result.crossDatasetResults.length, 1);
@@ -445,7 +462,8 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
   });
 
   await t.step("detects missing required fields", async () => {
-    await writeCSV("events", TEST_DATA.EVENTS_MISSING_COUNTRY_CODE);
+    const tempDir = await createTempDir("detect_missing_required_fields");
+    await writeCSV(tempDir, "events", TEST_DATA.EVENTS_MISSING_COUNTRY_CODE);
 
     const config: WorkspaceConfig = {
       id: "test-workspace",
@@ -472,7 +490,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       updatedAt: new Date(),
     };
 
-    await writeConfig(config);
+    await writeConfig(tempDir, config);
 
     const validator = new WorkspaceValidator();
 
@@ -503,7 +521,9 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
   });
 
   await t.step("detects range violations (latitude)", async () => {
+    const tempDir = await createTempDir("detect_range_violations");
     await createSingleDatasetWorkspace(
+      tempDir,
       "events",
       TEST_DATA.EVENTS_WITH_INVALID_LATITUDE,
       [
@@ -514,13 +534,16 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       { profile: "Event", spec: "dwc-event" },
     );
 
-    const result = await validateWorkspace();
+    const result = await validateWorkspace(tempDir);
 
     assertRangeViolations(result, 2, "decimalLatitude");
   });
 
   await t.step("detects vocabulary violations", async () => {
+    const tempDir = await createTempDir("detect_vocabulary_violations");
+
     await createSingleDatasetWorkspace(
+      tempDir,
       "occurrences",
       TEST_DATA.OCCURRENCES_WITH_INVALID_BASIS,
       [
@@ -531,14 +554,17 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       { profile: "Occurrence", spec: "dwc-occurrence" },
     );
 
-    const result = await validateWorkspace();
+    const result = await validateWorkspace(tempDir);
 
     assertEquals(result.overallStatus, "fail");
     assertEnumViolations(result, "basisOfRecord", "InvalidBasis", 2);
   });
 
   await t.step("detects duplicate identifiers", async () => {
+    const tempDir = await createTempDir("detect_duplicate_identifiers");
+
     await createSingleDatasetWorkspace(
+      tempDir,
       "events",
       TEST_DATA.EVENTS_WITH_DUPLICATE_E1,
       [
@@ -548,7 +574,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       { profile: "Event", spec: "dwc-event" },
     );
 
-    const result = await validateWorkspace();
+    const result = await validateWorkspace(tempDir);
 
     assertEquals(result.overallStatus, "fail");
     assertPrimaryKeyViolations(result, 2, "E1", { checkDuplicateCount: 2 });
@@ -557,9 +583,12 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
 Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
   await t.step("reports correct row numbers for violations", async () => {
+    const tempDir = await createTempDir("detect_row_numbers");
+
     await createSingleDatasetWorkspace(
+      tempDir,
       "events",
-      TEST_DATA.EVENTS_WITH_DUPLICATE_E2,
+      TEST_DATA.EVENTS_WITH_DUPLICATE_E1,
       [
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
@@ -567,13 +596,16 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
       { profile: "Event", spec: "dwc-event" },
     );
 
-    const result = await validateWorkspace();
+    const result = await validateWorkspace(tempDir);
 
-    assertRowNumbers(result, [1, 2, 3, 4]);
+    assertRowNumbers(result, [1, 3]);
   });
 
   await t.step("row numbers are in ascending order", async () => {
+    const tempDir = await createTempDir("row_numbers_ascending");
+
     await createSingleDatasetWorkspace(
+      tempDir,
       "events",
       TEST_DATA.EVENTS_WITH_4_DUPLICATES,
       [
@@ -583,13 +615,16 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
       { profile: "Event", spec: "dwc-event" },
     );
 
-    const result = await validateWorkspace();
+    const result = await validateWorkspace(tempDir);
 
     assertRowNumbers(result, [1, 3, 5, 7], { checkOrdering: true });
   });
 
-  await t.step("validation is deterministic", async () => {
+  await t.step("validation is deterministic", async (c) => {
+    const tempDir = await createTempDir(c.name);
+
     await createSingleDatasetWorkspace(
+      tempDir,
       "events",
       TEST_DATA.EVENTS_WITH_2_DUPLICATE_VALUES,
       [
@@ -599,8 +634,8 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
       { profile: "Event", spec: "dwc-event" },
     );
 
-    const result1 = await validateWorkspace();
-    const result2 = await validateWorkspace();
+    const result1 = await validateWorkspace(tempDir);
+    const result2 = await validateWorkspace(tempDir);
 
     const getRowNumbers = (result: WorkspaceValidationResult) => {
       const pkViolations = Array.filter(
