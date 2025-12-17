@@ -62,7 +62,7 @@ export class WorkspaceImportError extends WorkspaceValidationErrorBase {}
 export class WorkspaceValidationError extends WorkspaceValidationErrorBase {}
 
 /**
- * Imports a CSV file into a DuckDB table.
+ * Imports a CSV file into a DuckDB table with a _row_number column.
  *
  * @param connection - The DuckDB connection to use for the import
  * @param tableName - The name of the table to create or import into
@@ -81,14 +81,21 @@ export function WorkspaceImportCSV(
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
     yield* _(Effect.tryPromise({
-      try: () => {
+      try: async () => {
+        const sequenceName = `${tableName}_seq`;
+
         if (dropTable) {
-          // Drop table if it exists, then create from CSV
           connection.run(`DROP TABLE IF EXISTS ${tableName}`);
+          connection.run(`DROP SEQUENCE IF EXISTS ${sequenceName}`);
         }
-        // Create a table from the CSV file, using the specified null values.
-        return connection.run(
-          `CREATE TABLE IF NOT EXISTS ${tableName} AS SELECT * FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`,
+
+        // Create sequence for deterministic row numbering
+        await connection.run(`CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1`);
+
+        await connection.run(
+          `CREATE TABLE IF NOT EXISTS ${tableName} AS
+           SELECT *, nextval('${sequenceName}') as _row_number
+           FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`,
         );
       },
       catch: (error) => {
@@ -262,6 +269,9 @@ export function WorkspaceImportSchema(
       }
       return fieldStr;
     });
+
+    // Add _row_number column to track original CSV row numbers
+    columns.push("_row_number INTEGER");
 
     // 3. Create ENUM Types
     const enumSql = enums.filter((e) => e !== null).join("\n");
@@ -605,9 +615,11 @@ function validateDataset(
         },
       }),
     );
-    const originTableColumns = originTableColumnsResult.getRowObjects().map((row) =>
-      String(row.column_name)
-    );
+
+    // Exclude _row_number; it's only used internally
+    const originTableColumns = originTableColumnsResult.getRowObjects()
+      .map((row) => String(row.column_name))
+      .filter((col) => col !== "_row_number");
 
     // Derive profile name - use profile.name if available (this is the actual table name),
     // otherwise use dataset.profile, or derive from spec
@@ -996,7 +1008,7 @@ function findCrossDatasetViolations(
     // Find values in source that don't exist in target
     const violationsQuery = `
       SELECT
-        row_number() OVER() as row_num,
+        s._row_number,
         s."${rule.sourceField}" as source_value
       FROM ${sourceTable} s
       LEFT JOIN ${targetTable} t ON s."${rule.sourceField}" = t."${rule.targetField}"
@@ -1019,7 +1031,7 @@ function findCrossDatasetViolations(
         severity: enforcementToSeverity(enforcement),
         fieldName: rule.sourceField,
         targetName: rule.targetField,
-        rowNumber: Number(row.row_num),
+        rowNumber: Number(row._row_number),
         value: String(row.source_value),
         errorMessage:
           `Value '${row.source_value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`,
@@ -1227,20 +1239,13 @@ function findRangeViolations(
 
     const rangeCondition = conditions.join(" OR ");
 
-    // Use CTE to assign row numbers before filtering (ensures row numbers match original table)
     const query = `
-      WITH numbered_rows AS (
-        SELECT
-          "${fieldName}",
-          row_number() OVER() as row_num
-        FROM ${tableName}
-        WHERE "${fieldName}" IS NOT NULL
-      )
       SELECT
-        row_num,
+        _row_number,
         "${fieldName}" as value
-      FROM numbered_rows
-      WHERE (${rangeCondition})
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NOT NULL
+        AND (${rangeCondition})
       LIMIT 100
     `;
 
@@ -1258,7 +1263,7 @@ function findRangeViolations(
         severity: enforcementToSeverity(validator.enforcement),
         fieldName,
         targetName: specField.name,
-        rowNumber: Number(row.row_num),
+        rowNumber: Number(row._row_number),
         value: String(row.value),
         errorMessage: validator.message || `Value out of range`,
         validatorType: validator.type,
@@ -1360,19 +1365,13 @@ function findVocabularyViolations(
   caseSensitive = false,
 ): Effect.Effect<VocabularyViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
-    // Get distinct values from the field with row numbers
+    // Get distinct values from the field with ordered row numbers
     const query = `
-      WITH numbered_rows AS (
-        SELECT
-          "${fieldName}",
-          row_number() OVER() as row_num
-        FROM ${tableName}
-        WHERE "${fieldName}" IS NOT NULL
-      )
       SELECT
         "${fieldName}" as value,
-        list(row_num) as row_numbers
-      FROM numbered_rows
+        list(_row_number ORDER BY _row_number) as row_numbers
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NOT NULL
       GROUP BY "${fieldName}"
     `;
 
@@ -1507,20 +1506,14 @@ function findUniquenessViolations(
   enforcement: EnforcementLevel,
 ): Effect.Effect<UniquenessViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
-    // Query to find duplicate values using a CTE to assign row numbers first
+    // Query to find duplicate values with ordered row numbers
     const query = `
-      WITH numbered_rows AS (
-        SELECT
-          "${fieldName}",
-          row_number() OVER() as row_num
-        FROM ${tableName}
-        WHERE "${fieldName}" IS NOT NULL
-      )
       SELECT
         "${fieldName}" as duplicate_value,
         COUNT(*) as occurrence_count,
-        array_agg(row_num) as affected_rows
-      FROM numbered_rows
+        list(_row_number ORDER BY _row_number) as affected_rows
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NOT NULL
       GROUP BY "${fieldName}"
       HAVING COUNT(*) > 1
       ORDER BY COUNT(*) DESC
@@ -1731,11 +1724,8 @@ function getOriginalCsvValue(
   return Effect.gen(function* (_) {
     const query = `
       SELECT "${fieldName}" as value
-      FROM (
-        SELECT "${fieldName}", row_number() OVER() as row_num
-        FROM ${rawTableName}
-      )
-      WHERE row_num = ${rowNumber}
+      FROM ${rawTableName}
+      WHERE _row_number = ${rowNumber}
     `;
 
     const result = yield* _(
@@ -1826,28 +1816,25 @@ function insertRowByRow(
     const enableSuggestions = validationSettings?.enableSuggestions ?? true;
     const processedDuplicates = new Set<string>(); // Track duplicate PKs we've already processed
 
-    // Get total row count
-    const countResult = yield* _(
+    // Get maximum _row_number to determine iteration range
+    const maxRowResult = yield* _(
       Effect.tryPromise(() =>
-        connection.runAndReadAll(`SELECT COUNT(*) as count FROM ${rawTableName}`)
+        connection.runAndReadAll(`SELECT MAX(_row_number) as max_row FROM ${rawTableName}`)
       ).pipe(Effect.orDie),
     );
-    const totalRows = Number(countResult.getRowObjects()[0]?.count ?? 0);
+    const maxRow = Number(maxRowResult.getRowObjects()[0]?.max_row ?? 0);
 
     // Build column lists for INSERT
     const targetColumns = columnMappings.map((m) => `"${m.target}"`).join(", ");
     const originColumns = columnMappings.map((m) => `"${m.origin}"`).join(", ");
 
-    // Insert each row individually
-    for (let rowNum = 1; rowNum <= totalRows; rowNum++) {
+    // Insert each row individually by _row_number
+    for (let rowNum = 1; rowNum <= maxRow; rowNum++) {
       const insertSQL = `
-        INSERT INTO ${schemaTableName} (${targetColumns})
-        SELECT ${originColumns}
-        FROM (
-          SELECT ${originColumns}, row_number() OVER() as row_num
-          FROM ${rawTableName}
-        )
-        WHERE row_num = ${rowNum}
+        INSERT INTO ${schemaTableName} (${targetColumns}, _row_number)
+        SELECT ${originColumns}, _row_number
+        FROM ${rawTableName}
+        WHERE _row_number = ${rowNum}
       `;
 
       const result = yield* _(
@@ -1884,12 +1871,8 @@ function insertRowByRow(
               // Query the raw table to find ALL rows with this duplicate value
               // This gives us complete information about all instances of the duplicate
               const duplicateQuery = `
-                WITH numbered_rows AS (
-                  SELECT "${pkMapping.origin}", row_number() OVER() as row_num
-                  FROM ${rawTableName}
-                )
-                SELECT row_num
-                FROM numbered_rows
+                SELECT _row_number
+                FROM ${rawTableName}
                 WHERE "${pkMapping.origin}" = '${parsed.value}'
               `;
 
@@ -1904,7 +1887,7 @@ function insertRowByRow(
 
               // Create a violation for each row that has the duplicate value
               for (const dupRow of duplicateRows) {
-                const dupRowNum = Number(dupRow.row_num);
+                const dupRowNum = Number(dupRow._row_number);
                 const csvValue = yield* _(
                   getOriginalCsvValue(
                     connection,
