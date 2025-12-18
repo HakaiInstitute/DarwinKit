@@ -1,9 +1,9 @@
 id: obis-marine-survey
 name: OBIS Marine Survey
 version: 1.0.0
-description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
-createdAt: '2024-10-06T00:00:00.000Z'
-updatedAt: '2024-10-06T00:00:00.000Z'
+description: Rocky Inter-tidal Motile invertebrate OBIS Event validation profile
+createdAt: '2025-12-15T00:00:00.000Z'
+updatedAt: '2025-12-15T00:00:00.000Z'
 validation:
   nullValues:
     - NA
@@ -16,7 +16,7 @@ validation:
   datasets:
     - name: events
       spec: dwc-event
-      path: ../packages/cli/transform_results/event.csv
+      path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/event.csv
       description: Marine sampling events for OBIS
       profile: Event
       fieldMappings:
@@ -40,16 +40,16 @@ validation:
           targetName: license
         - originName: bibliographicCitation
           targetName: bibliographicCitation
-        - originName: accessRights
-          targetName: accessRights
+        # - originName: accessRights
+        #   targetName: accessRights
         - originName: samplingProtocol
           targetName: samplingProtocol
         - originName: rightsHolder
           targetName: rightsHolder
         - originName: institutionCode
           targetName: institutionCode
-        - originName: institutionID
-          targetName: institutionID
+        # - originName: institutionID
+        #   targetName: institutionID
         - originName: modified
           targetName: modified
         - originName: parentEventID
@@ -64,29 +64,29 @@ validation:
           targetName: month
         - originName: year
           targetName: year
-        - originName: eventTime
-          targetName: eventTime
+        # - originName: eventTime
+        #   targetName: eventTime
         - originName: eventRemarks
           targetName: eventRemarks
         - originName: country
           targetName: country
         - originName: countryCode
           targetName: countryCode
-        - originName: locality
-          targetName: locality
-        - originName: minimumDepthInMeters
-          targetName: minimumDepthInMeters
-          constraints:
-            minValue: 0
-            maxValue: 11000
-        - originName: maximumDepthInMeters
-          targetName: maximumDepthInMeters
-          constraints:
-            minValue: 0
-            maxValue: 11000
+        # - originName: locality
+        #   targetName: locality
+        # - originName: minimumDepthInMeters
+        #   targetName: minimumDepthInMeters
+        #   constraints:
+        #     minValue: 0
+        #     maxValue: 11000
+        # - originName: maximumDepthInMeters
+        #   targetName: maximumDepthInMeters
+        #   constraints:
+        #     minValue: 0
+        #     maxValue: 11000
     - name: occurrence
       spec: dwc-occurrence
-      path: ../packages/cli/transform_results/occurrence.csv
+      path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/occurrence.csv
       description: Marine sampling occurrence for OBIS
       profile: Occurrence
       fieldMappings:
@@ -94,38 +94,38 @@ validation:
           targetName: scientificName
         - originName: vernacularName
           targetName: vernacularName
-        - originName: identificationRemarks
-          targetName: identificationRemarks
+        # - originName: identificationRemarks
+        #   targetName: identificationRemarks
         - originName: occurrenceRemarks
           targetName: occurrenceRemarks
-        - originName: verbatimIdentification
-          targetName: verbatimIdentification
+        # - originName: verbatimIdentification
+        #   targetName: verbatimIdentification
         - originName: scientificNameID
           targetName: scientificNameID
-        - originName: taxonomicStatus
-          targetName: taxonomicStatus
-        - originName: scientificNameAuthorship
-          targetName: scientificNameAuthorship
-        - originName: kingdom
-          targetName: kingdom
-        - originName: phylum
-          targetName: phylum
-        - originName: class
-          targetName: class
-        - originName: order
-          targetName: order
-        - originName: family
-          targetName: family
-        - originName: genus
-          targetName: genus
-        - originName: recordedBy
-          targetName: recordedBy
+        # - originName: taxonomicStatus
+        #   targetName: taxonomicStatus
+        # - originName: scientificNameAuthorship
+        #   targetName: scientificNameAuthorship
+        # - originName: kingdom
+        #   targetName: kingdom
+        # - originName: phylum
+        #   targetName: phylum
+        # - originName: class
+        #   targetName: class
+        # - originName: order
+        #   targetName: order
+        # - originName: family
+        #   targetName: family
+        # - originName: genus
+        #   targetName: genus
+        # - originName: recordedBy
+        #   targetName: recordedBy
         - originName: occurrenceStatus
           targetName: occurrenceStatus
         - originName: individualCount
           targetName: individualCount
-        - originName: specificEpithet
-          targetName: specificEpithet
+        # - originName: specificEpithet
+        #   targetName: specificEpithet
         - originName: basisOfRecord
           targetName: basisOfRecord
         - originName: eventID
@@ -134,7 +134,7 @@ validation:
           targetName: occurrenceID
     - name: extendedMeasurementOrFact
       spec: dwc-eMOF
-      path: ../packages/cli/transform_results/extendedmeasurementorfact.csv
+      path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/eMoF.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
       profile: ExtendedMeasurementOrFact
       fieldMappings:

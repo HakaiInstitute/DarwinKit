@@ -5,11 +5,11 @@
  * for year, month, and day fields.
  */
 
+import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals, assertExists } from "@std/assert";
-import * as Effect from "effect/Effect";
 import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
-import { isRangeViolation } from "../packages/domain/mod.ts";
 
 Deno.test({
   name: "WorkspaceValidator - validates date ranges",
@@ -26,7 +26,7 @@ E4,2022,6,32,2022-06-32`;
 
       await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
 
-      const config = {
+      const config: WorkspaceConfig = {
         id: "date-test-workspace",
         name: "Date Validation Test",
         version: "1.0.0",
@@ -34,24 +34,24 @@ E4,2022,6,32,2022-06-32`;
           nullValues: [""],
           failFast: false,
           outputDir: "./output",
+          datasets: [
+            {
+              name: "events",
+              spec: "dwc-event",
+              path: "./events.csv",
+              profile: "Event",
+              fieldMappings: [
+                { originName: "eventID", targetName: "eventID" },
+                { originName: "year", targetName: "year" },
+                { originName: "month", targetName: "month" },
+                { originName: "day", targetName: "day" },
+                { originName: "eventDate", targetName: "eventDate" },
+              ],
+            },
+          ],
         },
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            path: "./events.csv",
-            profile: "Event",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "year", targetName: "year" },
-              { originName: "month", targetName: "month" },
-              { originName: "day", targetName: "day" },
-              { originName: "eventDate", targetName: "eventDate" },
-            ],
-          },
-        ],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       await Deno.writeTextFile(

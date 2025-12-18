@@ -1,0 +1,367 @@
+id: obis-marine-survey
+name: OBIS Marine Survey
+version: 1.0.0
+description: Seagrass site production (density and habitat) OBIS Event validation profile
+createdAt: '2024-10-06T00:00:00.000Z'
+updatedAt: '2024-10-06T00:00:00.000Z'
+transform:
+  nullValues:
+    - NA
+    - N/A
+    - ""
+    - "NULL"
+    - "null"
+  inputs:
+    density: ./seagrass-site-production/output/seagrass_density_survey.csv
+    habitat: ./seagrass-site-production/output/seagrass_habitat_survey.csv
+  # postImportTransforms:
+    # - ALTER TABLE fish_inverts ADD COLUMN species_name_original TEXT
+    # - UPDATE fish_inverts SET species_name_original = species_name
+    # - UPDATE fish_inverts SET species_name = TRIM(REPLACE(species_name, '(Unknown spp)', ''))
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name,'_',' ')
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name,'Sebastes flavidus melanops', 'Sebastes')
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Sebastes caurinus maliger auriculatus', 'Sebastes')
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cottoidea', 'Cottidae')
+    # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cadilna luteomarginata', 'Cadlina luteomarginata')
+  output:
+    outputDir: ../../external/seagrass-site-production/obis
+    outputFilesWithTimestamp: false
+    exportDB: false
+    exportDBFileName: obis_marine_survey
+    dropNullColumns: true
+  datasets:
+    # - name: event_project
+    #   profile: Event
+    #   source:
+    #     project: SELECT MIN(date) as mindate, 
+    #                 MAX(date) as maxdate, 
+    #                 AVG(latitude) as latitude, 
+    #                 AVG(longitude) as longitude, 
+    #                 MIN(latitude) as min_lat, 
+    #                 MIN(longitude) as min_long, 
+    #                 MAX(latitude) as max_lat, 
+    #                 MAX(longitude) as max_long 
+    #               FROM fish_inverts 
+    #                 JOIN sites on fish_inverts.site = sites.site 
+    #               ORDER BY mindate DESC LIMIT 1
+    #   fields:
+    #     accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
+    #     bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community 
+    #                              Surveys from the Central Coast of BC (v1.3.0) [Data set]. Hakai Institute. https://doi.org/10.21966/jj9p-d309'"
+    #     country: "'Canada'"
+    #     countryCode: "'CA'"
+    #     datasetName: "'Rocky Subtidal Fish and Invertebrate Community Surveys'"
+    #     eventDate: project.mindate || '/' || project.maxdate
+    #     decimalLatitude: project.latitude
+    #     decimalLongitude: project.longitude
+    #     footprintWKT: "'POLYGON((' 
+    #                             || min_long || ' ' || min_lat || ', ' 
+    #                             || min_long || ' ' || max_lat || ', ' 
+    #                             || max_long || ' ' || max_lat || ', ' 
+    #                             || max_long || ' ' || min_lat || ', ' 
+    #                             || min_long || ' ' || min_lat || 
+    #                     '))'"
+    #     eventID: "'hakaiFI'"
+    #     eventType: "'project'"
+    #     geodeticDatum: "'WGS84'"
+    #     institutionCode: "'Hakai Institute'"
+    #     institutionID: "'https://edmo.seadatanet.org/report/5148'"
+    #     language: "'en'"
+    #     license: "'http://creativecommons.org/licenses/by/4.0/legalcode'"
+    #     modified: "today()"
+    #     parentEventID: null
+    #     rightsHolder: "'Hakai Institute'"
+    #     samplingProtocol: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/docs/Protocol.pdf'"
+
+    - name: event_density
+      profile: Event
+      source:
+        density: density
+      fields:
+        # accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
+        # bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community 
+        #                          Surveys from the Central Coast of BC (v1.3.0) [Data set]. Hakai Institute. https://doi.org/10.21966/jj9p-d309'"
+        coordinateUncertaintyInMeters: "'0'"
+        # country: "'Canada'"
+        # countryCode: "'CA'"
+        # datasetName: "'Rocky Subtidal Fish and Invertebrate Community Surveys'"
+        # day: strftime(survey.date, '%d')
+        decimalLatitude: density.decimal_lat
+        decimalLongitude: density.decimal_long
+        eventDate: density.date
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        # eventRemarks: "''"
+        # eventTime: "''"
+        # eventType: "'dive survey'"
+        geodeticDatum: "'WGS84'"
+        # institutionCode: "'Hakai Institute'"
+        # institutionID: "'https://edmo.seadatanet.org/report/5148'"
+        # language: "'en'"
+        # license: "'http://creativecommons.org/licenses/by/4.0/legalcode'"
+        # locality: "''"
+        maximumDepthInMeters: density.depth
+        # minimumDepthInMeters: "'0'"
+        # modified: today()
+        # month: strftime(survey.date, '%m')
+        # parentEventID: "'hakaiFI'"
+        # rightsHolder: "'Hakai Institute'"
+        # samplingProtocol: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/docs/Protocol.pdf'"
+        # verbatimLocality: survey.site
+        # year: strftime(survey.date, '%Y')
+
+    - name: event_habitat
+      profile: Event
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE
+      fields:
+        # accessRights: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/LICENSE'"
+        # bibliographicCitation: "'Pontier, O., Schmill, A. & Hessing-Lewis, M. (2024). Rocky Subtidal Fish and Invertebrate Community Surveys from the Central Coast of BC (v1.3.0) [Data set]. Hakai Institute. https://doi.org/10.21966/jj9p-d309'"
+        # coordinateUncertaintyInMeters: "'40'"
+        # country: "'Canada'"
+        # countryCode: "'CA'"
+        # datasetName: "'Rocky Subtidal Fish and Invertebrate Community Surveys'"
+        # day: strftime(transect.date, '%d')
+        # decimalLatitude: transect.latitude
+        # decimalLongitude: transect.longitude
+        # eventDate: transect.date
+        # eventID: concat_ws('-', 'hakaiFI', transect.site, transect.date, 'transect', transect.transect, transect.pass, transect.swath_type)
+        # eventRemarks: transect.comment
+        # eventTime: transect.time_start || '/' || transect.time_end
+        # eventType: "'dive transect'"
+        # geodeticDatum: "'WGS84'"
+        # institutionCode: "'Hakai Institute'"
+        # institutionID: "'https://edmo.seadatanet.org/report/5148'"
+        # language: "'en'"
+        # license: "'http://creativecommons.org/licenses/by/4.0/legalcode'"
+        # locality: "''"
+        # maximumDepthInMeters: "'15'"
+        # minimumDepthInMeters: "'0'"
+        modified: today()
+        # month: strftime(transect.date, '%m')
+        # parentEventID: concat_ws('-', 'hakaiFI', transect.site, transect.date)
+        # rightsHolder: "'Hakai Institute'"
+        # samplingProtocol: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/docs/Protocol.pdf'"
+        # verbatimLocality: transect.site
+        # year: strftime(transect.date, '%Y')
+        coordinateUncertaintyInMeters: "'0'"
+        decimalLatitude: habitat.decimal_lat
+        decimalLongitude: habitat.decimal_long
+        eventDate: habitat.date
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        geodeticDatum: "'WGS84'"
+        maximumDepthInMeters: habitat.depth
+
+
+
+
+    - name: occurrence
+      profile: Occurrence
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE
+      fields:
+        modified: today()
+        basisOfRecord: "'HumanObservation'"
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        occurrenceStatus: "'present'"
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        parentNameUsageID: "'370435'"
+        scientificName: "'Zostera subg. Zostera marina'"
+        kingdom: "'Plantae'"
+        phylum: "'Tracheophyta'"
+        class: "'Magnoliopsida'"
+        order: "'Alismatales'"
+        family: "'Zosteraceae'"
+        genus: "'Zostera'"
+
+        # scientificName: concat_ws(' ', occ.scientificName, occ.authority)
+        # vernacularName: occ.common_name
+        # identificationRemarks: CASE WHEN occ.species_name_original like '%(Unknown spp)%' THEN 'Unable to ID to species' ELSE '' END
+        # occurrenceRemarks: occ.comment
+        # verbatimIdentification: occ.species_name
+        # scientificNameID: occ.lsid
+        # taxonomicStatus: occ.taxonomicStatus
+        # scientificNameAuthorship: occ.authority
+        # kingdom: occ.kingdom
+        # phylum: occ.phylum
+        # class: occ.class
+        # order: occ.order
+        # family: occ.family
+        # genus: occ.genus
+        # recordedBy: occ.diver_name
+        # occurrenceStatus: "'present'"
+        # individualCount: "'1'"
+        # specificEpithet: occ.scientificName[0:2]
+        # basisOfRecord: "'HumanObservation'"
+        # eventID: concat_ws('-', 'hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type)
+        # occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
+
+    - name: eMOF_SubstrateTypeA
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND split_part(habitat.substrate,',',1) is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'ssa')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'SubstrateTypeA'"
+        measurementTypeID: null
+        measurementValue: split_part(habitat.substrate,',',1)
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_SubstrateTypeB
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND split_part(habitat.substrate,',',2) is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'ssb')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'SubstrateTypeB'"
+        measurementTypeID: null
+        measurementValue: split_part(habitat.substrate,',',2)
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_BarePatchLengthWithinSeagrass
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.patchiness is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'bplws')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'BarePatchLengthWithinSeagrass'"
+        measurementTypeID: null
+        measurementValue: habitat.patchiness
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_PrimaryAdjacentHabitat
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.adj_habitat_1 is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'pah')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'PrimaryAdjacentHabitat'"
+        measurementTypeID: null
+        measurementValue: habitat.adj_habitat_1
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_SecondaryAdjacentHabitat
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.adj_habitat_2 is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'sah')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'SecondaryAdjacentHabitat'"
+        measurementTypeID: null
+        measurementValue: habitat.adj_habitat_2
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_PrimaryAlgaeSp
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.vegetation_1 is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'pas')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'PrimaryAlgaeSp'"
+        measurementTypeID: null
+        measurementValue: habitat.vegetation_1
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_SecondaryAlgaeSp
+      profile: ExtendedMeasurementOrFact
+      source:
+        habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.vegetation_2 is not null
+      fields:
+        measurementID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id, 'sas')
+        eventID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m)
+        measurementType: "'SecondaryAlgaeSp'"
+        measurementTypeID: null
+        measurementValue: habitat.vegetation_2
+        measurementValueID: null
+        measurementUnit: "''"
+        measurementUnitID: "''"
+        measurementDeterminedDate: habitat.date
+        occurrenceID: concat_ws(':', habitat.date, habitat.organization, habitat.work_area, habitat.site_id, habitat.transect_dist_m, habitat.hakai_id)
+        measurementMethod: "''"
+
+    - name: eMOF_BedAbund
+      profile: ExtendedMeasurementOrFact
+      source:
+        density: SELECT * from density where density.density__m2_ is not null
+      fields:
+        measurementID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m, density.hakai_id, 'ba')
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        measurementType: "'BedAbund'"
+        measurementTypeID: "'http://vocab.nerc.ac.uk/collection/P01/current/SDBIOL02/'"
+        measurementValue: density.density__m2_
+        measurementValueID: null
+        measurementUnit: "'Number per square metre'"
+        measurementUnitID: "'http://vocab.nerc.ac.uk/collection/P06/current/UPMS/'"
+        measurementDeterminedDate: density.date
+        occurrenceID: null
+        measurementMethod: "'25cmx25cm quadrat count'"
+
+    - name: eMOF_CanopyHeight
+      profile: ExtendedMeasurementOrFact
+      source:
+        density: SELECT * from density where density.canopy_height_cm is not null
+      fields:
+        measurementID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m, density.hakai_id, 'ch')
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        measurementType: "'CanopyHeight'"
+        measurementTypeID: "'http://vocab.nerc.ac.uk/collection/P01/current/OBSMAXLX/'"
+        measurementValue: density.canopy_height_cm
+        measurementValueID: null
+        measurementAccuracy: 5
+        measurementUnit: "'Centimetres'"
+        measurementUnitID: "'http://vocab.nerc.ac.uk/collection/P06/current/ULCM/'"
+        measurementDeterminedDate: density.date
+        occurrenceID: null
+        measurementMethod: "'in situ with ruler'"
+
+    - name: eMOF_FloweringBedAbund
+      profile: ExtendedMeasurementOrFact
+      source:
+        density: SELECT * from density where density.flowering_shoots is not null
+      fields:
+        measurementID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m, density.hakai_id, 'fba')
+        eventID: concat_ws(':', density.date, density.organization, density.work_area, density.site_id, density.transect_dist_m)
+        measurementType: "'FloweringBedAbund'"
+        measurementTypeID: "'http://vocab.nerc.ac.uk/collection/P01/current/SDBIOL02/'"
+        measurementValue: density.flowering_shoots
+        measurementValueID: null
+        measurementUnit: "'Number per square metre'"
+        measurementUnitID: "'http://vocab.nerc.ac.uk/collection/P06/current/UPMS/'"
+        measurementDeterminedDate: density.date
+        occurrenceID: null
+        measurementMethod: "'25cmx25cm quadrat count'"

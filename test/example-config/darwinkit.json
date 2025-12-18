@@ -14,90 +14,289 @@
       "null"
     ],
     "failFast": false,
-    "outputDir": "./test-validation-results"
+    "outputDir": "./test-validation-results",
+    "datasets": [
+      {
+        "name": "events",
+        "spec": "dwc-event",
+        "path": "../data/FC2022_event.csv",
+        "description": "Sampling event data containing locations and metadata",
+        "fieldMappings": [
+          {
+            "originName": "eventID",
+            "targetName": "eventID",
+            "isRequired": true
+          },
+          {
+            "originName": "language",
+            "targetName": "language"
+          },
+          {
+            "originName": "license",
+            "targetName": "license"
+          },
+          {
+            "originName": "bibliographicCitation",
+            "targetName": "bibliographicCitation"
+          },
+          {
+            "originName": "rightsHolder",
+            "targetName": "rightsHolder"
+          },
+          {
+            "originName": "modified",
+            "targetName": "modified"
+          },
+          {
+            "originName": "country",
+            "targetName": "country",
+            "isRequired": true
+          },
+          {
+            "originName": "countryCode",
+            "targetName": "countryCode",
+            "isRequired": true
+          },
+          {
+            "originName": "geodeticDatum",
+            "targetName": "geodeticDatum"
+          },
+          {
+            "originName": "stateProvince",
+            "targetName": "stateProvince"
+          },
+          {
+            "originName": "county",
+            "targetName": "county"
+          },
+          {
+            "originName": "verbatimEventDate",
+            "targetName": "verbatimEventDate"
+          },
+          {
+            "originName": "decimalLatitude",
+            "targetName": "decimalLatitude"
+          },
+          {
+            "originName": "decimalLongitude",
+            "targetName": "decimalLongitude"
+          },
+          {
+            "originName": "verbatimLocality",
+            "targetName": "verbatimLocality"
+          },
+          {
+            "originName": "parentEventID",
+            "targetName": "parentEventID"
+          },
+          {
+            "originName": "eventType",
+            "targetName": "eventType"
+          },
+          {
+            "originName": "month",
+            "targetName": "month"
+          },
+          {
+            "originName": "day",
+            "targetName": "day"
+          },
+          {
+            "originName": "year",
+            "targetName": "year"
+          },
+          {
+            "originName": "eventDate",
+            "targetName": "eventDate"
+          },
+          {
+            "originName": "minimumDepthInMeters",
+            "targetName": "minimumDepthInMeters"
+          },
+          {
+            "originName": "maximumDepthInMeters",
+            "targetName": "maximumDepthInMeters"
+          },
+          {
+            "originName": "institutionCode",
+            "targetName": "institutionCode"
+          },
+          {
+            "originName": "institutionID",
+            "targetName": "institutionID"
+          },
+          {
+            "originName": "samplingProtocol",
+            "targetName": "samplingProtocol"
+          },
+          {
+            "originName": "habitat",
+            "targetName": "habitat"
+          },
+          {
+            "originName": "collectionCode",
+            "targetName": "collectionCode"
+          },
+          {
+            "originName": "municipality",
+            "targetName": "municipality"
+          },
+          {
+            "originName": "fieldNotes",
+            "targetName": "fieldNotes"
+          },
+          {
+            "originName": "eventRemarks",
+            "targetName": "eventRemarks"
+          }
+        ]
+      },
+      {
+        "name": "occurrences",
+        "spec": "dwc-occurrence",
+        "path": "../data/FC2022_occ.csv",
+        "description": "Species occurrence records from eDNA analysis",
+        "fieldMappings": [
+          {
+            "originName": "eventID",
+            "targetName": "eventID",
+            "isRequired": true
+          },
+          {
+            "originName": "occurrenceID",
+            "targetName": "occurrenceID",
+            "isRequired": true
+          },
+          {
+            "originName": "basisOfRecord",
+            "targetName": "basisOfRecord",
+            "isRequired": true
+          },
+          {
+            "originName": "scientificName",
+            "targetName": "scientificName",
+            "isRequired": true
+          },
+          {
+            "originName": "scientificNameID",
+            "targetName": "scientificNameID"
+          },
+          {
+            "originName": "taxonRank",
+            "targetName": "taxonRank"
+          },
+          {
+            "originName": "scientificNameAuthorship",
+            "targetName": "scientificNameAuthorship"
+          },
+          {
+            "originName": "kingdom",
+            "targetName": "kingdom"
+          },
+          {
+            "originName": "phylum",
+            "targetName": "phylum"
+          },
+          {
+            "originName": "class",
+            "targetName": "class"
+          },
+          {
+            "originName": "order",
+            "targetName": "order"
+          },
+          {
+            "originName": "family",
+            "targetName": "family"
+          },
+          {
+            "originName": "genus",
+            "targetName": "genus"
+          },
+          {
+            "originName": "organismQuantity",
+            "targetName": "organismQuantity"
+          },
+          {
+            "originName": "organismQuantityType",
+            "targetName": "organismQuantityType"
+          },
+          {
+            "originName": "sampleSizeValue",
+            "targetName": "sampleSizeValue"
+          },
+          {
+            "originName": "sampleSizeUnit",
+            "targetName": "sampleSizeUnit"
+          },
+          {
+            "originName": "verbatimIdentification",
+            "targetName": "verbatimIdentification"
+          },
+          {
+            "originName": "samplingProtocol",
+            "targetName": "samplingProtocol"
+          },
+          {
+            "originName": "associatedSequences",
+            "targetName": "associatedSequences"
+          },
+          {
+            "originName": "identificationRemarks",
+            "targetName": "identificationRemarks"
+          },
+          {
+            "originName": "materialSampleID",
+            "targetName": "materialSampleID"
+          },
+          {
+            "originName": "occurrenceStatus",
+            "targetName": "occurrenceStatus"
+          },
+          {
+            "originName": "identificationQualifier",
+            "targetName": "identificationQualifier"
+          },
+          {
+            "originName": "recordNumber",
+            "targetName": "recordNumber"
+          },
+          {
+            "originName": "catalogNumber",
+            "targetName": "catalogNumber"
+          },
+          {
+            "originName": "subfamily",
+            "targetName": "subfamily"
+          },
+          {
+            "originName": "tribe",
+            "targetName": "tribe"
+          },
+          {
+            "originName": "identifiedBy",
+            "targetName": "identifiedBy"
+          },
+          {
+            "originName": "lifeStage",
+            "targetName": "lifeStage"
+          },
+          {
+            "originName": "organismRemarks",
+            "targetName": "organismRemarks"
+          },
+          {
+            "originName": "typeStatus",
+            "targetName": "typeStatus"
+          },
+          {
+            "originName": "recordedBy",
+            "targetName": "recordedBy"
+          }
+        ]
+      }
+    ]
   },
-  "datasets": [
-    {
-      "name": "events",
-      "spec": "dwc-event",
-      "path": "../data/FC2022_event.csv",
-      "description": "Sampling event data containing locations and metadata",
-      "fieldMappings": [
-        { "originName": "eventID", "targetName": "eventID", "isRequired": true },
-        { "originName": "language", "targetName": "language" },
-        { "originName": "license", "targetName": "license" },
-        { "originName": "bibliographicCitation", "targetName": "bibliographicCitation" },
-        { "originName": "rightsHolder", "targetName": "rightsHolder" },
-        { "originName": "modified", "targetName": "modified" },
-        { "originName": "country", "targetName": "country", "isRequired": true },
-        { "originName": "countryCode", "targetName": "countryCode", "isRequired": true },
-        { "originName": "geodeticDatum", "targetName": "geodeticDatum" },
-        { "originName": "stateProvince", "targetName": "stateProvince" },
-        { "originName": "county", "targetName": "county" },
-        { "originName": "verbatimEventDate", "targetName": "verbatimEventDate" },
-        { "originName": "decimalLatitude", "targetName": "decimalLatitude" },
-        { "originName": "decimalLongitude", "targetName": "decimalLongitude" },
-        { "originName": "verbatimLocality", "targetName": "verbatimLocality" },
-        { "originName": "parentEventID", "targetName": "parentEventID" },
-        { "originName": "eventType", "targetName": "eventType" },
-        { "originName": "month", "targetName": "month" },
-        { "originName": "day", "targetName": "day" },
-        { "originName": "year", "targetName": "year" },
-        { "originName": "eventDate", "targetName": "eventDate" },
-        { "originName": "minimumDepthInMeters", "targetName": "minimumDepthInMeters" },
-        { "originName": "maximumDepthInMeters", "targetName": "maximumDepthInMeters" },
-        { "originName": "institutionCode", "targetName": "institutionCode" },
-        { "originName": "institutionID", "targetName": "institutionID" },
-        { "originName": "samplingProtocol", "targetName": "samplingProtocol" },
-        { "originName": "habitat", "targetName": "habitat" },
-        { "originName": "collectionCode", "targetName": "collectionCode" },
-        { "originName": "municipality", "targetName": "municipality" },
-        { "originName": "fieldNotes", "targetName": "fieldNotes" },
-        { "originName": "eventRemarks", "targetName": "eventRemarks" }
-      ]
-    },
-    {
-      "name": "occurrences",
-      "spec": "dwc-occurrence",
-      "path": "../data/FC2022_occ.csv",
-      "description": "Species occurrence records from eDNA analysis",
-      "fieldMappings": [
-        { "originName": "eventID", "targetName": "eventID", "isRequired": true },
-        { "originName": "occurrenceID", "targetName": "occurrenceID", "isRequired": true },
-        { "originName": "basisOfRecord", "targetName": "basisOfRecord", "isRequired": true },
-        { "originName": "scientificName", "targetName": "scientificName", "isRequired": true },
-        { "originName": "scientificNameID", "targetName": "scientificNameID" },
-        { "originName": "taxonRank", "targetName": "taxonRank" },
-        { "originName": "scientificNameAuthorship", "targetName": "scientificNameAuthorship" },
-        { "originName": "kingdom", "targetName": "kingdom" },
-        { "originName": "phylum", "targetName": "phylum" },
-        { "originName": "class", "targetName": "class" },
-        { "originName": "order", "targetName": "order" },
-        { "originName": "family", "targetName": "family" },
-        { "originName": "genus", "targetName": "genus" },
-        { "originName": "organismQuantity", "targetName": "organismQuantity" },
-        { "originName": "organismQuantityType", "targetName": "organismQuantityType" },
-        { "originName": "sampleSizeValue", "targetName": "sampleSizeValue" },
-        { "originName": "sampleSizeUnit", "targetName": "sampleSizeUnit" },
-        { "originName": "verbatimIdentification", "targetName": "verbatimIdentification" },
-        { "originName": "samplingProtocol", "targetName": "samplingProtocol" },
-        { "originName": "associatedSequences", "targetName": "associatedSequences" },
-        { "originName": "identificationRemarks", "targetName": "identificationRemarks" },
-        { "originName": "materialSampleID", "targetName": "materialSampleID" },
-        { "originName": "occurrenceStatus", "targetName": "occurrenceStatus" },
-        { "originName": "identificationQualifier", "targetName": "identificationQualifier" },
-        { "originName": "recordNumber", "targetName": "recordNumber" },
-        { "originName": "catalogNumber", "targetName": "catalogNumber" },
-        { "originName": "subfamily", "targetName": "subfamily" },
-        { "originName": "tribe", "targetName": "tribe" },
-        { "originName": "identifiedBy", "targetName": "identifiedBy" },
-        { "originName": "lifeStage", "targetName": "lifeStage" },
-        { "originName": "organismRemarks", "targetName": "organismRemarks" },
-        { "originName": "typeStatus", "targetName": "typeStatus" },
-        { "originName": "recordedBy", "targetName": "recordedBy" }
-      ]
-    }
-  ],
   "crossDatasetRules": [
     {
       "ruleType": "foreignKey",

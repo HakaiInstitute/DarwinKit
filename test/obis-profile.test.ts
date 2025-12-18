@@ -2,11 +2,11 @@
  * Test OBIS validation profile
  */
 
+import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
-import { isRangeViolation } from "@dwkt/domain";
 
 Deno.test({
   name: "OBIS Profile - validates required fields",
@@ -29,31 +29,31 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
         name: "OBIS Profile Test",
         version: "1.0.0",
         description: "Test OBIS validation profile",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
 
         validation: {
           nullValues: ["NA", "N/A", "", "NULL", "null"],
           failFast: false,
           outputDir: "./validation_results",
+          datasets: [
+            {
+              name: "events",
+              spec: "dwc-event",
+              path: "./events.csv",
+              profile: "obis-event",
+              description: "Marine sampling events",
+              fieldMappings: [
+                { originName: "eventID", targetName: "eventID" },
+                { originName: "eventDate", targetName: "eventDate" },
+                { originName: "decimalLatitude", targetName: "decimalLatitude" },
+                { originName: "decimalLongitude", targetName: "decimalLongitude" },
+                { originName: "geodeticDatum", targetName: "geodeticDatum" },
+                { originName: "locality", targetName: "locality" },
+              ],
+            },
+          ],
         },
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            path: "./events.csv",
-            profile: "obis-event",
-            description: "Marine sampling events",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "eventDate", targetName: "eventDate" },
-              { originName: "decimalLatitude", targetName: "decimalLatitude" },
-              { originName: "decimalLongitude", targetName: "decimalLongitude" },
-              { originName: "geodeticDatum", targetName: "geodeticDatum" },
-              { originName: "locality", targetName: "locality" },
-            ],
-          },
-        ],
       };
 
       Deno.writeTextFileSync(
@@ -112,30 +112,30 @@ E2,2022-09-16,49.9012,-125.4789`;
         name: "OBIS Missing Field Test",
         version: "1.0.0",
         description: "Test OBIS validation profile with missing required field",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
 
         validation: {
           nullValues: ["NA", "N/A", "", "NULL", "null"],
           failFast: false,
           outputDir: "./validation_results",
+          datasets: [
+            {
+              name: "events",
+              spec: "dwc-event",
+              path: "./events.csv",
+              profile: "obis-event",
+              description: "Marine sampling events",
+              fieldMappings: [
+                { originName: "eventID", targetName: "eventID" },
+                { originName: "eventDate", targetName: "eventDate" },
+                { originName: "decimalLatitude", targetName: "decimalLatitude" },
+                { originName: "decimalLongitude", targetName: "decimalLongitude" },
+                // Missing geodeticDatum mapping!
+              ],
+            },
+          ],
         },
-        datasets: [
-          {
-            name: "events",
-            spec: "dwc-event",
-            path: "./events.csv",
-            profile: "obis-event",
-            description: "Marine sampling events",
-            fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "eventDate", targetName: "eventDate" },
-              { originName: "decimalLatitude", targetName: "decimalLatitude" },
-              { originName: "decimalLongitude", targetName: "decimalLongitude" },
-              // Missing geodeticDatum mapping!
-            ],
-          },
-        ],
       };
 
       Deno.writeTextFileSync(
@@ -190,37 +190,37 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
 
     // Create config with OBIS profile
-    const config = {
+    const config: WorkspaceConfig = {
       id: "obis-depth-test",
       name: "OBIS Depth Validation Test",
       version: "1.0.0",
       description: "Test OBIS depth range constraints",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
 
       validation: {
         nullValues: ["NA", "N/A", "", "NULL", "null"],
         failFast: false,
         outputDir: "./validation_results",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "obis",
+            path: "./events.csv",
+            description: "Marine sampling events",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "eventDate", targetName: "eventDate" },
+              { originName: "decimalLatitude", targetName: "decimalLatitude" },
+              { originName: "decimalLongitude", targetName: "decimalLongitude" },
+              { originName: "geodeticDatum", targetName: "geodeticDatum" },
+              { originName: "minimumDepthInMeters", targetName: "minimumDepthInMeters" },
+              { originName: "maximumDepthInMeters", targetName: "maximumDepthInMeters" },
+            ],
+          },
+        ],
       },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          profile: "obis",
-          path: "./events.csv",
-          description: "Marine sampling events",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "eventDate", targetName: "eventDate" },
-            { originName: "decimalLatitude", targetName: "decimalLatitude" },
-            { originName: "decimalLongitude", targetName: "decimalLongitude" },
-            { originName: "geodeticDatum", targetName: "geodeticDatum" },
-            { originName: "minimumDepthInMeters", targetName: "minimumDepthInMeters" },
-            { originName: "maximumDepthInMeters", targetName: "maximumDepthInMeters" },
-          ],
-        },
-      ],
     };
 
     Deno.writeTextFileSync(

@@ -14,6 +14,7 @@ import { stringify } from "@std/csv";
 import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
+import type { ValidationOnlyConfig } from "../../../domain/src/types/workspace-config.ts";
 import type { WorkspaceValidationResult } from "../../../domain/src/types/workspace-validation.ts";
 import { WorkspaceValidationError, WorkspaceValidator } from "./workspace-validator.ts";
 
@@ -231,19 +232,19 @@ async function createMultiDatasetWorkspace(
   ];
 
   // Default validation settings
-  const validation = options?.validation ?? {
+  const validation: ValidationSettings = options?.validation ?? {
     nullValues: ["", "NA"],
     failFast: false,
     outputDir: "./output",
+    datasets,
   };
 
   // Create config
-  const config: WorkspaceConfig = {
+  const config: ValidationOnlyConfig = {
     id: "test-workspace",
     name: "Test Workspace",
     version: "1.0.0",
     validation,
-    datasets,
     crossDatasetRules,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -270,16 +271,16 @@ async function createSingleDatasetWorkspace(
       nullValues: [""],
       failFast: false,
       outputDir: "./output",
+      datasets: [
+        {
+          name: datasetName,
+          spec: options?.spec ?? `dwc-${datasetName}`,
+          path: `./${datasetName}.csv`,
+          ...(options?.profile && { profile: options.profile }),
+          fieldMappings,
+        },
+      ],
     },
-    datasets: [
-      {
-        name: datasetName,
-        spec: options?.spec ?? `dwc-${datasetName}`,
-        path: `./${datasetName}.csv`,
-        ...(options?.profile && { profile: options.profile }),
-        fieldMappings,
-      },
-    ],
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -418,26 +419,26 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            path: "./events.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+            ],
+          },
+          {
+            name: "occurrences",
+            spec: "dwc-occurrence",
+            path: "./occurrences.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "occurrenceID", targetName: "occurrenceID" },
+            ],
+          },
+        ],
       },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-          ],
-        },
-        {
-          name: "occurrences",
-          spec: "dwc-occurrence",
-          path: "./occurrences.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "occurrenceID", targetName: "occurrenceID" },
-          ],
-        },
-      ],
       crossDatasetRules: [
         {
           ruleType: "foreignKey",
@@ -473,19 +474,19 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         nullValues: [""],
         failFast: false,
         outputDir: "./output",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            path: "./events.csv",
+            profile: "Event",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID", isRequired: true },
+              { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
+            ],
+          },
+        ],
       },
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          profile: "Event",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID", isRequired: true },
-            { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
-          ],
-        },
-      ],
       createdAt: new Date(),
       updatedAt: new Date(),
     };

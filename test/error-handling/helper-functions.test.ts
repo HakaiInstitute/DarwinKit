@@ -5,9 +5,9 @@
  * instead of throwing errors that escape the Effect channel.
  */
 
+import { WorkspaceService } from "@dwkt/core";
 import { assert, assertEquals, assertFalse, assertStringIncludes } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { WorkspaceService } from "@dwkt/core";
 
 Deno.test("Helper functions - parseWorkspace defects", async (t) => {
   const service = new WorkspaceService({ workspacesDir: "./test/tmp/error-test" });
@@ -106,8 +106,8 @@ Deno.test("Helper functions - parseWorkspace defects", async (t) => {
         filePath: "/test.csv",
         format: "csv",
         schema: "not an object", // Invalid schema
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
         workspaceDir: "./test",
         dataTableName: "test_data",
       }),

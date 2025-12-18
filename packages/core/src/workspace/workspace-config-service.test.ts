@@ -1,17 +1,18 @@
-/**
- * Tests for WorkspaceConfigService
- */
-
-import { assertEquals, assertExists } from "@std/assert";
-import * as Effect from "effect/Effect";
+import { type ConfigWithValidation, workspaceConfigSchema } from "@dwkt/domain";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
+import { Schema } from "effect";
+import * as Effect from "effect/Effect";
 import { WorkspaceConfigService } from "./workspace-config-service.ts";
 
-async function createTestConfig(tempDir: string, config: Partial<Record<string, unknown>>) {
-  // Extract datasets from config if provided, place at root level
-  const { datasets = [], ...restConfig } = config;
+// Schema-aware equivalence checker for configs
+const configEquivalence = Schema.equivalence(workspaceConfigSchema);
 
-  const fullConfig = {
+async function createTestConfig(
+  tempDir: string,
+  config: Partial<ConfigWithValidation>,
+): Promise<ConfigWithValidation> {
+  const fullConfig: ConfigWithValidation = {
     id: "test-workspace",
     name: "Test Workspace",
     version: "1.0.0",
@@ -19,17 +20,19 @@ async function createTestConfig(tempDir: string, config: Partial<Record<string, 
       nullValues: ["", "NA"],
       failFast: false,
       outputDir: "./output",
+      datasets: config.validation?.datasets || [],
     },
-    datasets: datasets,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    ...restConfig,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...config,
   };
 
   await Deno.writeTextFile(
     join(tempDir, "darwinkit.json"),
     JSON.stringify(fullConfig, null, 2),
   );
+
+  return fullConfig;
 }
 
 Deno.test("WorkspaceConfigService - discovers config in current directory", async () => {
@@ -37,7 +40,17 @@ Deno.test("WorkspaceConfigService - discovers config in current directory", asyn
 
   try {
     await createTestConfig(tempDir, {
+      id: "test-config",
       name: "Test Config",
+      version: "0.0.0",
+      validation: {
+        nullValues: ["", "NA"],
+        failFast: false,
+        outputDir: "./output",
+        datasets: [],
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     const configPath = await Effect.runPromise(
@@ -91,40 +104,37 @@ Deno.test("WorkspaceConfigService - loads valid configuration", async () => {
   const tempDir = await Deno.makeTempDir({ prefix: "config_test_" });
 
   try {
-    await createTestConfig(tempDir, {
+    const expectedConfig = await createTestConfig(tempDir, {
       name: "Valid Config",
       version: "1.0.0",
-      datasets: [
-        {
-          name: "test_dataset",
-          spec: "dwc-event",
-          profile: "Event",
-          path: "./data.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID", isRequired: true },
-          ],
-        },
-      ],
+      validation: {
+        nullValues: ["", "NA"],
+        failFast: false,
+        outputDir: "./output",
+        datasets: [
+          {
+            name: "test_dataset",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./data.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID", isRequired: true },
+            ],
+          },
+        ],
+      },
     });
 
     const configPath = join(tempDir, "darwinkit.json");
-    const config = await Effect.runPromise(
+    const loadedConfig = await Effect.runPromise(
       WorkspaceConfigService.loadConfig(configPath),
     );
 
-    assertEquals(config.name, "Valid Config");
-
-    // Type guard - ensure config has validation settings and datasets
-    if (!("validation" in config)) {
-      throw new Error("Config does not have validation settings");
-    }
-    if (!("datasets" in config) || !config.datasets) {
-      throw new Error("Config does not have datasets");
-    }
-
-    assertEquals(config.datasets.length, 1);
-    assertEquals(config.datasets[0].name, "test_dataset");
-    assertEquals(config.datasets[0].spec, "dwc-event");
+    // Verify loaded config is equivalent to what we created
+    assert(
+      configEquivalence(loadedConfig, expectedConfig),
+      "Loaded config should be equivalent to created config",
+    );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -162,15 +172,20 @@ Deno.test("WorkspaceConfigService - validates dataset file paths", async () => {
     await Deno.writeTextFile(csvPath, "id,name\n1,test\n");
 
     await createTestConfig(tempDir, {
-      datasets: [
-        {
-          name: "test_dataset",
-          spec: "dwc-event",
-          profile: "Event",
-          path: "./data.csv",
-          fieldMappings: [],
-        },
-      ],
+      validation: {
+        nullValues: ["", "NA"],
+        failFast: false,
+        outputDir: "./output",
+        datasets: [
+          {
+            name: "test_dataset",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./data.csv",
+            fieldMappings: [],
+          },
+        ],
+      },
     });
 
     const configPath = join(tempDir, "darwinkit.json");
@@ -192,15 +207,20 @@ Deno.test("WorkspaceConfigService - fails when dataset file missing", async () =
 
   try {
     await createTestConfig(tempDir, {
-      datasets: [
-        {
-          name: "missing_dataset",
-          spec: "dwc-event",
-          profile: "Event",
-          path: "./missing.csv",
-          fieldMappings: [],
-        },
-      ],
+      validation: {
+        nullValues: ["", "NA"],
+        failFast: false,
+        outputDir: "./output",
+        datasets: [
+          {
+            name: "missing_dataset",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./missing.csv",
+            fieldMappings: [],
+          },
+        ],
+      },
     });
 
     const configPath = join(tempDir, "darwinkit.json");
@@ -231,39 +251,39 @@ Deno.test("WorkspaceConfigService - discoverAndLoad end-to-end", async () => {
     const csvPath = join(tempDir, "events.csv");
     await Deno.writeTextFile(csvPath, "eventID,country\nE1,Canada\n");
 
-    await createTestConfig(tempDir, {
+    const expectedConfig = await createTestConfig(tempDir, {
       name: "Complete Config",
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          profile: "Event",
-          path: "./events.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID" },
-            { originName: "country", targetName: "country" },
-          ],
-        },
-      ],
+      validation: {
+        nullValues: ["", "NA"],
+        failFast: false,
+        outputDir: "./output",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            profile: "Event",
+            path: "./events.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "country", targetName: "country" },
+            ],
+          },
+        ],
+      },
     });
 
-    const { config, configPath } = await Effect.runPromise(
+    const { config: loadedConfig, configPath } = await Effect.runPromise(
       WorkspaceConfigService.discoverAndLoad(tempDir),
     );
 
-    assertExists(config);
-    assertEquals(config.name, "Complete Config");
-
-    // Type guard - ensure config has validation settings and datasets
-    if (!("validation" in config)) {
-      throw new Error("Config does not have validation settings");
-    }
-    if (!("datasets" in config) || !config.datasets) {
-      throw new Error("Config does not have datasets");
-    }
-
-    assertEquals(config.datasets.length, 1);
+    assertExists(loadedConfig);
     assertEquals(configPath, join(tempDir, "darwinkit.json"));
+
+    // Verify loaded config is equivalent to what we created
+    assert(
+      configEquivalence(loadedConfig, expectedConfig),
+      "Loaded config should be equivalent to created config",
+    );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }

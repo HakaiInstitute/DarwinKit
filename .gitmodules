@@ -4,3 +4,9 @@
 [submodule "external/rocky-subtidal-fish-invertebrate"]
 	path = external/rocky-subtidal-fish-invertebrate
 	url = git@github.com:HakaiInstitute/rocky-subtidal-fish-invertebrate.git
+[submodule "external/nearshore-RI_motileInvertebrates"]
+	path = external/nearshore-RI_motileInvertebrates
+	url = https://github.com/HakaiInstitute/nearshore-RI_motileInvertebrates
+[submodule "external/seagrass-site-production"]
+	path = external/seagrass-site-production
+	url = https://github.com/HakaiInstitute/seagrass-site-production

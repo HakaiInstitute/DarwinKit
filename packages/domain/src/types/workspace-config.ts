@@ -6,9 +6,14 @@
  * specification (e.g., Darwin Core) with explicit field mappings.
  */
 
+import type { validationOnlyConfigSchema } from "@dwkt/domain";
 import type * as S from "effect/Schema";
 import type {
+  configWithTransformationSchema,
+  configWithValidationSchema,
   datasetConfigSchema,
+  transformAndValidationConfigSchema,
+  transformOnlyConfigSchema,
   validationSettingsSchema,
   workspaceConfigSchema,
   workspaceCrossDatasetRuleSchema,
@@ -21,17 +26,11 @@ export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSc
 export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
 export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
-
-/**
- * Default validation settings
- */
-export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
-  nullValues: ["", "NA", "N/A", "NULL", "null"],
-  failFast: false,
-  outputDir: "./validation_results",
-  // maxViolationsPerField: undefined, // Optional: defaults to unlimited
-  // enableSuggestions: true, // Optional: defaults to true
-};
+export type ValidationOnlyConfig = S.Schema.Type<typeof validationOnlyConfigSchema>;
+export type TransformOnlyConfig = S.Schema.Type<typeof transformOnlyConfigSchema>;
+export type TransformAndValidationConfig = S.Schema.Type<typeof transformAndValidationConfigSchema>;
+export type ConfigWithValidation = S.Schema.Type<typeof configWithValidationSchema>;
+export type ConfigWithTransformation = S.Schema.Type<typeof configWithTransformationSchema>;
 
 /**
  * Supported spec identifiers
@@ -39,12 +38,23 @@ export const DEFAULT_VALIDATION_SETTINGS: ValidationSettings = {
  * These correspond to specification registries in the shared/specs directory.
  * Each spec defines its own field definitions and validators.
  */
-export type SpecIdentifier =
-  | "Event"
-  | "Occurrence"
-  | "ExtendedMeasurementOrFact"
-  | "dwc-resourceRelationship"
-  | "metadata-v1";
+
+const validSpecs = [
+  "Event",
+  "Occurrence",
+  "ExtendedMeasurementOrFact",
+  "dwc-resourceRelationship",
+  "metadata-v1",
+] as const;
+
+type SpecIdentifier = typeof validSpecs[number];
+
+/**
+ * Validate that a spec identifier is supported
+ */
+export function isValidSpecIdentifier(specId: string): specId is SpecIdentifier {
+  return validSpecs.includes(specId as SpecIdentifier);
+}
 
 /**
  * Parse spec identifier into spec name and type
@@ -64,19 +74,4 @@ export function parseSpecIdentifier(
   const type = parts.slice(1).join("-");
 
   return { spec, type };
-}
-
-/**
- * Validate that a spec identifier is supported
- */
-export function isValidSpecIdentifier(specId: string): specId is SpecIdentifier {
-  const validSpecs: readonly string[] = [
-    "Event",
-    "Occurrence",
-    "ExtendedMeasurementOrFact",
-    "dwc-resourceRelationship",
-    "metadata-v1",
-  ];
-
-  return validSpecs.includes(specId);
 }
