@@ -148,16 +148,16 @@ export const hasValidationConfig = (
   return S.is(configWithValidationSchema)(config);
 };
 
-export const hasTransformationConfig = (
-  config: WorkspaceConfig,
-): config is TransformOnlyConfig | TransformAndValidationConfig => {
-  return S.is(configWithTransformationSchema)(config);
-};
-
 export const isTransformOnlyConfig = (
   config: WorkspaceConfig,
 ): config is TransformOnlyConfig => {
   return S.is(transformOnlyConfigSchema)(config);
+};
+
+export const hasTransformationConfig = (
+  config: WorkspaceConfig,
+): config is TransformOnlyConfig | TransformAndValidationConfig => {
+  return S.is(configWithTransformationSchema)(config);
 };
 
 export const isTransformAndValidationConfig = (
