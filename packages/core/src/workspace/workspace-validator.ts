@@ -377,7 +377,9 @@ export class WorkspaceValidator {
         : config.validation;
 
       // Get datasets from root level
-      const datasets = "datasets" in validationSettings && validationSettings.datasets ? validationSettings.datasets : [];
+      const datasets = "datasets" in validationSettings && validationSettings.datasets
+        ? validationSettings.datasets
+        : [];
 
       // Create workspace and load all datasets
       const { workspaceId, connection, instance } = yield* _(

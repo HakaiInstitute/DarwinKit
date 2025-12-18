@@ -1,10 +1,7 @@
-/**
- * Tests for WorkspaceConfigService
- */
-
+import { isValidationOnlyConfig } from "@dwkt/domain";
 import { assertEquals, assertExists } from "@std/assert";
-import * as Effect from "effect/Effect";
 import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 import { WorkspaceConfigService } from "./workspace-config-service.ts";
 
 async function createTestConfig(tempDir: string, config: Partial<Record<string, unknown>>) {
@@ -115,16 +112,16 @@ Deno.test("WorkspaceConfigService - loads valid configuration", async () => {
     assertEquals(config.name, "Valid Config");
 
     // Type guard - ensure config has validation settings and datasets
-    if (!("validation" in config)) {
+    if (!isValidationOnlyConfig(config)) {
       throw new Error("Config does not have validation settings");
     }
     if (!("datasets" in config) || !config.datasets) {
       throw new Error("Config does not have datasets");
     }
 
-    assertEquals(config.datasets.length, 1);
-    assertEquals(config.datasets[0].name, "test_dataset");
-    assertEquals(config.datasets[0].spec, "dwc-event");
+    assertEquals(config.validation.datasets.length, 1);
+    assertEquals(config.validation.datasets[0].name, "test_dataset");
+    assertEquals(config.validation.datasets[0].spec, "dwc-event");
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -255,14 +252,11 @@ Deno.test("WorkspaceConfigService - discoverAndLoad end-to-end", async () => {
     assertEquals(config.name, "Complete Config");
 
     // Type guard - ensure config has validation settings and datasets
-    if (!("validation" in config)) {
+    if (!isValidationOnlyConfig(config)) {
       throw new Error("Config does not have validation settings");
     }
-    if (!("datasets" in config) || !config.datasets) {
-      throw new Error("Config does not have datasets");
-    }
 
-    assertEquals(config.datasets.length, 1);
+    assertEquals(config.validation.datasets.length, 1);
     assertEquals(configPath, join(tempDir, "darwinkit.json"));
   } finally {
     await Deno.remove(tempDir, { recursive: true });

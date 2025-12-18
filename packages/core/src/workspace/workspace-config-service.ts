@@ -5,17 +5,21 @@
  * Validates configuration structure and file paths.
  */
 
+import { dirname, join, resolve } from "@std/path";
+import type * as Cause from "effect/Cause";
+import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import * as Data from "effect/Data";
-import type * as Cause from "effect/Cause";
-import { dirname, join, resolve } from "@std/path";
 
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { ErrorCode } from "@dwkt/domain";
-import { workspaceConfigSchema } from "@dwkt/domain";
-import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
+import {
+  createTaggedFormatter,
+  ErrorCode,
+  prettyPrintCause,
+  workspaceConfigSchema,
+} from "@dwkt/domain";
 import * as YAML from "js-yaml";
+import { isValidationOnlyConfig } from "../../../domain/src/schemas/workspace-config.ts";
 
 // Configuration file constants
 const DEFAULT_CONFIG_FILENAME = "darwinkit.json";
@@ -232,9 +236,9 @@ export class WorkspaceConfigService {
     const base = basePath || dirname(Deno.cwd());
 
     return Effect.gen(function* (_) {
-      // Check validation datasets if present (datasets are at root level)
-      if ("datasets" in config && config.datasets) {
-        for (const dataset of config.datasets) {
+      // Check validation datasets if present
+      if (isValidationOnlyConfig(config)) {
+        for (const dataset of config.validation.datasets) {
           const filePath = resolve(base, dataset.path);
 
           yield* _(

@@ -2,8 +2,14 @@
  * Effect Schema definitions for workspace configuration validation
  */
 
+import type { WorkspaceConfig } from "@dwkt/domain";
 import * as S from "effect/Schema";
 import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
+import type {
+  TransformAndValidationConfig,
+  TransformOnlyConfig,
+  ValidationOnlyConfig,
+} from "../types/workspace-config.ts";
 
 /**
  * Workspace field mapping schema
@@ -96,9 +102,73 @@ const workspaceConfigBaseFields = S.Struct({
   updatedAt: S.Date,
 });
 
+export const validationOnlyConfigSchema = S.Struct({
+  ...workspaceConfigBaseFields.fields,
+  validation: validationSettingsSchema,
+});
+
+export const transformOnlyConfigSchema = S.Struct({
+  ...workspaceConfigBaseFields.fields,
+  transform: transformSettingsSchema,
+});
+
+export const transformAndValidationConfigSchema = S.Struct({
+  ...workspaceConfigBaseFields.fields,
+  validation: validationSettingsSchema,
+  transform: transformSettingsSchema,
+});
+
+/**
+ * Schema for any config that has validation settings
+ * (may or may not have transformation settings)
+ */
+export const configWithValidationSchema = S.Union(
+  validationOnlyConfigSchema,
+  transformAndValidationConfigSchema,
+);
+
+/**
+ * Schema for any config that has transformation settings
+ * (may or may not have validation settings)
+ */
+export const configWithTransformationSchema = S.Union(
+  transformOnlyConfigSchema,
+  transformAndValidationConfigSchema,
+);
+
+export const isValidationOnlyConfig = (
+  config: WorkspaceConfig,
+): config is ValidationOnlyConfig => {
+  return S.is(validationOnlyConfigSchema)(config);
+};
+
+export const hasValidationConfig = (
+  config: WorkspaceConfig,
+): config is ValidationOnlyConfig | TransformAndValidationConfig => {
+  return S.is(configWithValidationSchema)(config);
+};
+
+export const hasTransformationConfig = (
+  config: WorkspaceConfig,
+): config is TransformOnlyConfig | TransformAndValidationConfig => {
+  return S.is(configWithTransformationSchema)(config);
+};
+
+export const isTransformOnlyConfig = (
+  config: WorkspaceConfig,
+): config is TransformOnlyConfig => {
+  return S.is(transformOnlyConfigSchema)(config);
+};
+
+export const isTransformAndValidationConfig = (
+  config: WorkspaceConfig,
+): config is TransformAndValidationConfig => {
+  return S.is(transformAndValidationConfigSchema)(config);
+};
+
 /**
  * Workspace configuration schema that requires at least one of validation or transform.
- * This creates a proper discriminated union with three variants:
+ * This creates a discriminated union with three variants:
  * 1. Only validation (no transform)
  * 2. Only transform (no validation)
  * 3. Both validation and transform
@@ -106,25 +176,7 @@ const workspaceConfigBaseFields = S.Struct({
  * Note: datasets is at root level for validation workflows
  */
 export const workspaceConfigSchema = S.Union(
-  // Only validation
-  S.Struct({
-    ...workspaceConfigBaseFields.fields,
-    validation: validationSettingsSchema,
-    // datasets: S.optional(S.Array(datasetConfigSchema)),
-  }),
-  // Only transform
-  S.Struct({
-    ...workspaceConfigBaseFields.fields,
-    transform: transformSettingsSchema,
-  }),
-  // Both validation and transform
-  S.Struct({
-    ...workspaceConfigBaseFields.fields,
-    validation: validationSettingsSchema,
-    transform: transformSettingsSchema,
-    // datasets: S.optional(S.Array(datasetConfigSchema)),
-  }),
+  validationOnlyConfigSchema,
+  transformOnlyConfigSchema,
+  transformAndValidationConfigSchema,
 );
-
-// Note: Type exports are defined in types/workspace-config.ts to avoid duplication
-// These schemas validate the types defined there
