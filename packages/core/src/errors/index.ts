@@ -23,7 +23,6 @@
 // Import error classes to extract their tags
 import type { ParseError } from "../parsing/csv-parser.ts";
 import type { CsvReadError } from "../validation/csv-row-reader.ts";
-import type { WorkspaceError, WorkspaceIOError } from "../workspace/service.ts";
 import type {
   ConfigNotFoundError,
   ConfigParseError,
@@ -44,9 +43,6 @@ export type CoreErrorTag =
   // CSV Parsing & Reading
   | InstanceType<typeof ParseError>["_tag"]
   | InstanceType<typeof CsvReadError>["_tag"]
-  // Workspace Operations
-  | InstanceType<typeof WorkspaceError>["_tag"]
-  | InstanceType<typeof WorkspaceIOError>["_tag"]
   // Configuration Management
   | InstanceType<typeof ConfigNotFoundError>["_tag"]
   | InstanceType<typeof ConfigParseError>["_tag"]

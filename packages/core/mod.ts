@@ -3,7 +3,6 @@
  */
 
 // Workspace management
-export * from "./src/workspace/service.ts";
 export * from "./src/workspace/workspace-config-service.ts";
 export * from "./src/workspace/workspace-validator.ts";
 

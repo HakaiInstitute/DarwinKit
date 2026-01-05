@@ -5,39 +5,13 @@
  * and represent recoverable domain errors rather than programming defects.
  */
 
-import { parseFileForWorkspace, WorkspaceService, WorkspaceValidator } from "@dwkt/core";
-import {
-  assert,
-  assertArrayIncludes,
-  assertEquals,
-  assertMatch,
-  assertStringIncludes,
-} from "@std/assert";
+import { parseFileForWorkspace, WorkspaceValidator } from "@dwkt/core";
+import { assert, assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 
 Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "expected_errors_test_" });
-
-  await t.step("Workspace not found", async () => {
-    const service = new WorkspaceService({ workspacesDir: tempDir });
-
-    let errorCaught = false;
-    let errorCode = "";
-
-    await Effect.runPromise(
-      service.load("nonexistent").pipe(
-        Effect.catchAll((error) => {
-          errorCaught = true;
-          errorCode = error.code;
-          return Effect.succeed<null>(null);
-        }),
-      ),
-    );
-
-    assert(errorCaught, "Should catch with Effect.catchAll");
-    assertEquals(errorCode, "WORKSPACE_NOT_FOUND");
-  });
 
   await t.step("File not found (user-provided path)", async () => {
     const nonExistentPath = join(tempDir, "does-not-exist.csv");
@@ -120,149 +94,25 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   await Deno.remove(tempDir, { recursive: true });
 });
 
-Deno.test("Expected errors - have correct error codes", async (t) => {
-  const tempDir = await Deno.makeTempDir({ prefix: "error_codes_test_" });
+Deno.test("Expected errors - have proper structure", async (t) => {
+  const tempDir = await Deno.makeTempDir({ prefix: "error_structure_test_" });
 
-  await t.step("WORKSPACE_NOT_FOUND code", async () => {
-    const service = new WorkspaceService({ workspacesDir: tempDir });
-
-    const result = await Effect.runPromise(
-      service.load("nonexistent").pipe(
-        Effect.catchAll((error) => Effect.succeed(error.code as string)),
-      ),
-    );
-
-    assertEquals(result, "WORKSPACE_NOT_FOUND");
-  });
-
-  await t.step("FILE_NOT_FOUND or PARSE_ERROR code", async () => {
+  await t.step("ParseError has correct structure", async () => {
     const nonExistentPath = join(tempDir, "missing.csv");
 
-    const result = await Effect.runPromise(
+    const error = await Effect.runPromise(
       parseFileForWorkspace(nonExistentPath).pipe(
-        Effect.catchAll((error) => Effect.succeed(error.code as string)),
+        Effect.flip, // Flip to get error as success
       ),
     );
 
-    // Could be either depending on how the error manifests
-    assertArrayIncludes(["PARSE_ERROR", "FILE_NOT_FOUND"], [result as string]);
+    // Verify error structure
+    assertEquals(error._tag, "ParseError");
+    assertEquals(error.code, "PARSE_ERROR");
+    assertEquals(error.filePath, nonExistentPath);
+    assert(error.message.length > 0, "Error should have a non-empty message");
   });
 
   // Cleanup
   await Deno.remove(tempDir, { recursive: true });
-});
-
-Deno.test("Expected errors - provide helpful error messages", async (t) => {
-  const tempDir = await Deno.makeTempDir({ prefix: "error_messages_test_" });
-
-  await t.step("Error messages include context", async () => {
-    const service = new WorkspaceService({ workspacesDir: tempDir });
-
-    const result = await Effect.runPromise(
-      service.load("test-id").pipe(
-        Effect.catchAll((error) => Effect.succeed(error.message as string)),
-      ),
-    );
-
-    // Message should include the workspace ID
-    assertStringIncludes(result as string, "test-id");
-  });
-
-  await t.step("Error messages include file paths", async () => {
-    const nonExistentPath = join(tempDir, "missing.csv");
-
-    const result = await Effect.runPromise(
-      parseFileForWorkspace(nonExistentPath).pipe(
-        Effect.catchAll((error) => Effect.succeed(error.message as string)),
-      ),
-    );
-
-    // Message should reference the file or parsing
-    const msg = result as string;
-    assertMatch(msg, /missing\.csv|parse|CSV/);
-  });
-
-  // Cleanup
-  await Deno.remove(tempDir, { recursive: true });
-});
-
-Deno.test("Expected errors - can be recovered from", async (t) => {
-  const tempDir = await Deno.makeTempDir({ prefix: "error_recovery_test_" });
-
-  await t.step("Fallback to default workspace", async () => {
-    const service = new WorkspaceService({ workspacesDir: tempDir });
-
-    const defaultWorkspace = {
-      id: "default",
-      name: "Default Workspace",
-      description: "Fallback workspace",
-      filePath: "",
-      format: "csv" as const,
-      schema: {
-        fields: new Map(),
-        rowCount: 0,
-        tableName: "default",
-        inferredAt: new Date(),
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      workspaceDir: "",
-      dataTableName: "",
-    };
-
-    const result = await Effect.runPromise(
-      service.load("nonexistent").pipe(
-        Effect.catchAll(() => Effect.succeed(defaultWorkspace)),
-      ),
-    );
-
-    assertEquals(result.id, "default");
-  });
-
-  await t.step("Retry on expected error", async () => {
-    // Simulate retrying a file operation
-    let attempts = 0;
-
-    const operation = Effect.gen(function* () {
-      attempts++;
-      if (attempts < 2) {
-        return yield* Effect.fail({ code: "TEMPORARY_ERROR", message: "Try again" });
-      }
-      return "success";
-    });
-
-    const result = await Effect.runPromise(
-      operation.pipe(Effect.retry({ times: 2 })),
-    );
-
-    assertEquals(result, "success");
-    assertEquals(attempts, 2);
-  });
-
-  // Cleanup
-  await Deno.remove(tempDir, { recursive: true });
-});
-
-Deno.test("Expected errors - summary", () => {
-  // Summary of all expected errors in DarwinKit:
-  //
-  // 1. Workspace operations:
-  //    - WORKSPACE_NOT_FOUND - User requested non-existent workspace
-  //
-  // 2. File operations:
-  //    - FILE_NOT_FOUND - User-provided path doesn't exist
-  //    - PARSE_ERROR - CSV file is invalid or malformed
-  //
-  // 3. Configuration:
-  //    - VALIDATION_FAILED - Invalid workspace configuration
-  //    - Config file not found or invalid JSON
-  //
-  // 4. Data validation:
-  //    - Type conversion failures during validation
-  //    - Field mapping errors
-  //    - Cross-dataset referential integrity violations
-  //
-  // All of these are recoverable and catchable with Effect.catchAll
-
-  assertEquals(true, true, "Expected errors documented");
 });

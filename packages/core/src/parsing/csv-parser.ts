@@ -30,15 +30,15 @@ export class ParsedFileResult extends Data.Class<{
 }> {}
 
 // Error class for parse operations
-// deno-lint-ignore no-slow-types
 const ParseErrorBase = Data.TaggedClass("ParseError")<{
   readonly message: string;
   readonly filePath: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }>;
 
-export class ParseError extends ParseErrorBase {}
+export class ParseError extends ParseErrorBase {
+  readonly code = ErrorCode.PARSE_ERROR;
+}
 
 // Default parse options
 const DEFAULT_PARSE_OPTIONS: ParseOptions = {
@@ -63,7 +63,7 @@ export function parseFileForWorkspace(
     (connection) =>
       Effect.gen(function* (_) {
         // Create table name from file path
-        const tableName = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const tableName = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
         // Build CSV read query
         let query = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${filePath}'`;
@@ -80,7 +80,6 @@ export function parseFileForWorkspace(
               new ParseError({
                 message: `Failed to parse CSV file: ${error}`,
                 filePath,
-                code: ErrorCode.PARSE_ERROR,
                 cause: error instanceof Error ? error : new Error(String(error)),
               }),
           }),

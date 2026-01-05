@@ -6,7 +6,6 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { workspaceRoutes } from "./src/routes/workspace.ts";
 import { authRoutes } from "./src/routes/auth.ts";
 
 const app: Hono = new Hono();
@@ -16,7 +15,6 @@ app.use("*", logger());
 app.use("*", cors());
 
 // Routes
-app.route("/api/workspaces", workspaceRoutes);
 app.route("/auth", authRoutes);
 
 // Health check
