@@ -10,7 +10,7 @@ import { type WorkspaceConfig, workspaceConfigSchema } from "@dwkt/domain";
 import { assert, assertExists } from "@std/assert";
 import { Schema } from "effect";
 import * as Effect from "effect/Effect";
-import { WorkspaceConfigService } from "../packages/core/src/workspace/workspace-config-service.ts";
+import { WorkspaceConfigService } from "../packages/core/src/workspace-config.ts";
 
 /**
  * Load and validate a workspace config from a JSON file

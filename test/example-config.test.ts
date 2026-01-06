@@ -9,7 +9,7 @@
 
 import { assert, assertEquals, assertMatch } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
+import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
 
 Deno.test("Example config - validates FC2022 dataset", async () => {
   const validator = new WorkspaceValidator();

@@ -1,21 +1,18 @@
-import {
-  type DatasetConfig,
-  ErrorCode,
-  isEnumViolation,
-  isPrimaryKeyViolation,
-  isRangeViolation,
-  type ValidationSettings,
-  type WorkspaceConfig,
-  type WorkspaceCrossDatasetRule,
-  type WorkspaceFieldMapping,
+import type {
+  DatasetConfig,
+  ValidationOnlyConfig,
+  ValidationSettings,
+  WorkspaceConfig,
+  WorkspaceCrossDatasetRule,
+  WorkspaceFieldMapping,
+  WorkspaceValidationResult,
 } from "@dwkt/domain";
+import { ErrorCode, isEnumViolation, isPrimaryKeyViolation, isRangeViolation } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { stringify } from "@std/csv";
 import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
-import type { ValidationOnlyConfig } from "../../../domain/src/types/workspace-config.ts";
-import type { WorkspaceValidationResult } from "../../../domain/src/types/workspace-validation.ts";
 import { WorkspaceValidationError, WorkspaceValidator } from "./workspace-validator.ts";
 
 // Helper type for workspace creation

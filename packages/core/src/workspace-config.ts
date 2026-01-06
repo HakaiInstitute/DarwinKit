@@ -19,7 +19,7 @@ import {
   workspaceConfigSchema,
 } from "@dwkt/domain";
 import * as YAML from "js-yaml";
-import { isValidationOnlyConfig } from "../../../domain/src/schemas/workspace-config.ts";
+import { isValidationOnlyConfig } from "../../domain/src/schemas/workspace-config.ts";
 
 // Configuration file constants
 const DEFAULT_CONFIG_FILENAME = "darwinkit.json";

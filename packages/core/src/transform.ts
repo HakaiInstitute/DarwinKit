@@ -1,13 +1,8 @@
 import * as duckdb from "@duckdb/node-api";
 import { dirname, join, resolve } from "@std/path";
-import * as Effect from "effect/Effect";
 import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
 
-import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
-import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
-import { ErrorCode, getValidationProfile } from "@dwkt/domain";
-import { json2csv } from "json-2-csv";
 import type {
   ConfigNotFoundError,
   ConfigParseError,
@@ -15,6 +10,11 @@ import type {
   DatasetFileNotFoundError,
   WorkspaceImportError,
 } from "@dwkt/core";
+import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
+import type { WorkspaceConfig } from "@dwkt/domain";
+import { ErrorCode, getValidationProfile } from "@dwkt/domain";
+import { json2csv } from "json-2-csv";
+import { WorkspaceConfigService } from "./workspace-config.ts";
 
 /**
  * Represents an error that occurs during the data transformation process.

@@ -3,7 +3,7 @@ import { assert, assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 import { Schema } from "effect";
 import * as Effect from "effect/Effect";
-import { WorkspaceConfigService } from "./workspace-config-service.ts";
+import { WorkspaceConfigService } from "./workspace-config.ts";
 
 // Schema-aware equivalence checker for configs
 const configEquivalence = Schema.equivalence(workspaceConfigSchema);
