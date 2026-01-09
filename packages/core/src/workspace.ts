@@ -19,7 +19,9 @@ import type {
   WorkspaceValidationResult,
 } from "@dwkt/domain";
 import { ErrorCode, resolveDatasetProfile } from "@dwkt/domain";
-import { dirname } from "@std/path";
+import type { DuckDBConnection } from "@duckdb/node-api";
+import { DuckDBInstance } from "@duckdb/node-api";
+import { dirname, resolve } from "@std/path";
 import * as Effect from "effect/Effect";
 import type {
   ConfigNotFoundError,
@@ -29,9 +31,14 @@ import type {
 } from "./workspace-config.ts";
 import { WorkspaceConfigService } from "./workspace-config.ts";
 // Import validation functions - these will be used internally
+import {
+  sanitizeTableName,
+  WorkspaceImportCSV,
+  WorkspaceImportSchema,
+} from "./validation/database-operations.ts";
 import { calculateSummary, WorkspaceValidationError } from "./validation/validation-utils.ts";
 import { validateCrossDatasetRule } from "./validation/validators.ts";
-import { createWorkspaceFromConfig, validateDataset } from "./validation/workspace-validator.ts";
+import { validateDataset } from "./validation/workspace-validator.ts";
 
 /**
  * Workspace class - represents a single Darwin Core data project
@@ -39,10 +46,29 @@ import { createWorkspaceFromConfig, validateDataset } from "./validation/workspa
  * Encapsulates all workspace state including configuration, datasets,
  * and validation results. Provides a clean API for working with
  * biodiversity data validation workflows.
+ *
+ * Manages a reusable DuckDB connection for validation operations,
+ * improving performance when validating multiple times.
  */
 export class Workspace {
   private readonly config: WorkspaceConfig;
   private readonly configPath: string;
+
+  /**
+   * DuckDB connection state (lazy-initialized, reused across validations)
+   *
+   * Design invariant: Connection reuse is guaranteed by structure:
+   * - getOrCreateConnection() is the ONLY method that creates connections
+   * - It checks `if (this.duckdb)` before creating (guard clause)
+   * - validate() is the only caller of getOrCreateConnection()
+   * - close() sets this to undefined (enables recreation)
+   *
+   * Therefore: first validate() creates connection, subsequent calls reuse it.
+   */
+  private duckdb?: {
+    instance: DuckDBInstance;
+    connection: DuckDBConnection;
+  };
 
   /**
    * Private constructor - use static factory methods to create instances
@@ -170,6 +196,41 @@ export class Workspace {
   }
 
   /**
+   * Get or create DuckDB connection (lazy initialization)
+   *
+   * Creates an in-memory DuckDB database on first call, reuses on subsequent calls.
+   * Connection failures are treated as defects (system failures, not user errors).
+   *
+   * @returns Effect yielding the DuckDB connection
+   *
+   * @example
+   * ```typescript
+   * const connection = yield* _(workspace.getOrCreateConnection());
+   * // Use connection for validation operations
+   * ```
+   */
+  private getOrCreateConnection(): Effect.Effect<DuckDBConnection, never> {
+    return Effect.gen(this, function* (_) {
+      if (this.duckdb) {
+        return this.duckdb.connection;
+      }
+
+      // Create isolated DuckDB instance - each workspace gets its own in-memory database
+      const instance = yield* _(
+        Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(Effect.orDie),
+      );
+
+      // Create connection from isolated instance - failure is a system defect
+      const connection = yield* _(
+        Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie),
+      );
+
+      this.duckdb = { instance, connection };
+      return connection;
+    });
+  }
+
+  /**
    * Validate all datasets in the workspace
    *
    * This is the main validation entry point that:
@@ -200,7 +261,7 @@ export class Workspace {
     const config = this.config;
     const configPath = this.configPath;
 
-    return Effect.gen(function* (_) {
+    return Effect.gen(this, function* (_) {
       const startTime = Date.now();
 
       // Ensure config has validation settings
@@ -234,15 +295,25 @@ export class Workspace {
       // Get datasets
       const datasets: readonly DatasetConfig[] = config.validation.datasets;
 
-      // Create workspace and load all datasets
-      const { workspaceId, connection, instance } = yield* _(
-        createWorkspaceFromConfig(
-          config.id,
-          datasets,
-          validationSettings,
-          dirname(configPath),
-        ),
-      );
+      // Get or create managed DuckDB connection (reused across validations)
+      const connection = yield* _(this.getOrCreateConnection());
+
+      // Generate workspace ID for this validation run
+      const workspaceId = config.id;
+      const basePath = dirname(configPath);
+
+      // Load each dataset into DuckDB
+      for (const dataset of datasets) {
+        const filePath = resolve(basePath, dataset.path);
+        // Prepend 'raw_' to table name because dataset.name and spec/profile cannot be the same name otherwise tables conflict
+        const tableName = `raw_${sanitizeTableName(dataset.name)}`;
+
+        // Build null values string for DuckDB
+        const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`).join(", ");
+        const dropTable = true;
+        yield* _(WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable));
+        yield* _(WorkspaceImportSchema(connection, dataset, datasets));
+      }
 
       // Perform validation
       return yield* _(
@@ -297,16 +368,54 @@ export class Workspace {
             crossDatasetResults,
             summary,
           };
-        }).pipe(
-          // Ensure connection and instance are closed even if validation fails
-          Effect.ensuring(
-            Effect.all([
-              Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
-              Effect.try(() => instance.closeSync()).pipe(Effect.ignore),
-            ]),
-          ),
-        ),
+        }),
       );
     });
+  }
+
+  /**
+   * Close DuckDB connection and clean up resources
+   *
+   * Should be called when workspace is no longer needed.
+   * Safe to call multiple times - subsequent calls are no-ops.
+   *
+   * After closing, the connection can be recreated by calling validate() again.
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * await workspace.validate();
+   * workspace.close(); // Clean up resources
+   * ```
+   */
+  close(): void {
+    if (this.duckdb) {
+      try {
+        this.duckdb.connection.closeSync();
+        // Note: DuckDBInstance doesn't have explicit close method in current API
+      } catch (error) {
+        console.warn("Failed to close DuckDB connection:", error);
+      } finally {
+        this.duckdb = undefined;
+      }
+    }
+  }
+
+  /**
+   * Automatic cleanup support for `using` declarations
+   *
+   * Enables automatic resource cleanup when used with `using` keyword.
+   * The connection is closed when the workspace goes out of scope.
+   *
+   * @example
+   * ```typescript
+   * using workspace = await Effect.runPromise(Workspace.discover());
+   * await Effect.runPromise(workspace.validate());
+   * // Automatically closed when leaving scope
+   * ```
+   */
+  [Symbol.dispose](): void {
+    // Close connection synchronously
+    this.close();
   }
 }

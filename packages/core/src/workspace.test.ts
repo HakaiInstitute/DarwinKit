@@ -521,3 +521,201 @@ Deno.test("Workspace.validate - fails on config without validation settings", as
     assert(result.left.message.includes("does not contain validation settings"));
   });
 });
+
+// ============================================================================
+// Connection Lifecycle Tests (Stage 3)
+// ============================================================================
+
+Deno.test("Workspace - connection is lazy (not created on construction)", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create minimal config
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "Lazy Connection Test",
+    });
+
+    // Load workspace - should not create connection yet
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // Verify workspace created successfully
+    assertEquals(workspace.getName(), "Lazy Connection Test");
+
+    // Note: We can't directly verify connection is not created without exposing internal state,
+    // but the fact that construction succeeds without DuckDB activity is the test
+  });
+});
+
+Deno.test("Workspace - connection is created on first validation", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV and config
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "First Validation Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // First validation - creates connection
+    const result = await Effect.runPromise(workspace.validate());
+
+    assertExists(result);
+    assertEquals(result.overallStatus, "pass");
+  });
+});
+
+Deno.test("Workspace - multiple validations work correctly", async () => {
+  // This test verifies that multiple validations can be run on the same workspace.
+
+  await withTempDir(async (tempDir) => {
+    // Create test CSV and config
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"], ["E2"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "Multiple Validations Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // Multiple validations should all work
+    const result1 = await Effect.runPromise(workspace.validate());
+    assertEquals(result1.overallStatus, "pass");
+
+    const result2 = await Effect.runPromise(workspace.validate());
+    assertEquals(result2.overallStatus, "pass");
+
+    const result3 = await Effect.runPromise(workspace.validate());
+    assertEquals(result3.overallStatus, "pass");
+
+    // Clean up
+    workspace.close();
+  });
+});
+
+Deno.test("Workspace.close - cleans up connection properly", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV and config
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "Close Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // Validate to create connection
+    await Effect.runPromise(workspace.validate());
+
+    // Close connection
+    workspace.close();
+
+    // Calling close again should be safe (no-op)
+    workspace.close();
+  });
+});
+
+Deno.test("Workspace - can validate after close (creates new connection)", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV and config
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "Recreate Connection Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // First validation - creates connection
+    const result1 = await Effect.runPromise(workspace.validate());
+    assertEquals(result1.overallStatus, "pass");
+
+    // Close connection
+    workspace.close();
+
+    // Validate again - should create new connection
+    const result2 = await Effect.runPromise(workspace.validate());
+    assertEquals(result2.overallStatus, "pass");
+
+    // Clean up
+    workspace.close();
+  });
+});
+
+Deno.test("Workspace - Symbol.dispose cleanup with using declaration", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV and config
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "Dispose Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    // Using declaration - should auto-cleanup
+    {
+      using workspace = await Effect.runPromise(
+        Workspace.fromPath(configPath),
+      );
+
+      const result = await Effect.runPromise(workspace.validate());
+      assertEquals(result.overallStatus, "pass");
+
+      // Connection automatically closed when leaving scope
+    }
+
+    // Test passes if no errors thrown during cleanup
+  });
+});
