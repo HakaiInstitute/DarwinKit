@@ -12,6 +12,7 @@ import type {
   ValidationProfile,
   ValidationProfileRegistry,
 } from "../../types/validation-profile.ts";
+import { parseSpecIdentifier } from "../../types/workspace-config.ts";
 import { type FieldDefinition, normalizeField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
@@ -169,4 +170,75 @@ export function listValidationProfiles(): string[] {
  */
 export function isValidProfileId(profileId: string): boolean {
   return profileId in VALIDATION_PROFILES;
+}
+
+/**
+ * Resolve validation profile from dataset configuration
+ *
+ * This function encapsulates the common pattern of deriving a validation profile
+ * from a dataset config, with fallback logic:
+ * 1. Try explicit dataset.profile first (direct lookup via getValidationProfile)
+ * 2. Fall back to deriving from dataset.spec (parses spec identifier, then derives profile name)
+ *
+ * Spec identifier parsing follows the format "namespace-type" (e.g., "dwc-event"):
+ * - Parses using parseSpecIdentifier() to extract the type
+ * - Capitalizes the type to match profile names (e.g., "event" → "Event")
+ * - Handles special aliases (e.g., "eMOF" → "ExtendedMeasurementOrFact")
+ *
+ * @param dataset - Dataset configuration (needs spec and/or profile fields)
+ * @returns Resolved validation profile, or undefined if no profile can be determined
+ *
+ * @example
+ * ```typescript
+ * // Using explicit profile (takes precedence)
+ * const dataset = { spec: "dwc-event", profile: "obis-event" };
+ * const profile = resolveDatasetProfile(dataset); // Returns OBIS Event profile
+ *
+ * // Deriving from spec identifier
+ * const dataset = { spec: "dwc-event" };
+ * const profile = resolveDatasetProfile(dataset); // Parses "dwc-event" → derives "Event" profile
+ *
+ * // Handling spec aliases
+ * const dataset = { spec: "dwc-eMOF" };
+ * const profile = resolveDatasetProfile(dataset); // Maps "eMOF" → "ExtendedMeasurementOrFact"
+ * ```
+ */
+/**
+ * Map of spec type aliases to their canonical profile names
+ *
+ * Used for:
+ * 1. Common abbreviations (eMOF → ExtendedMeasurementOrFact)
+ * 2. Non-standard capitalizations (dnaDerivedData starts with lowercase)
+ */
+const SPEC_TYPE_ALIASES: Record<string, string> = {
+  "eMOF": "ExtendedMeasurementOrFact",
+  "emof": "ExtendedMeasurementOrFact",
+  "dnaDerivedData": "dnaDerivedData", // Profile name doesn't follow standard capitalization
+};
+
+export function resolveDatasetProfile(
+  dataset: { profile?: string; spec?: string },
+): ValidationProfile | undefined {
+  // Try explicit profile first (highest priority)
+  if (dataset.profile) {
+    return getValidationProfile(dataset.profile);
+  }
+
+  // Fall back to deriving from spec identifier
+  if (dataset.spec) {
+    const parsed = parseSpecIdentifier(dataset.spec);
+    if (parsed) {
+      // Check for known aliases first
+      const aliasedProfileId = SPEC_TYPE_ALIASES[parsed.type];
+      if (aliasedProfileId) {
+        return getValidationProfile(aliasedProfileId);
+      }
+
+      // Capitalize the type to match profile names (e.g., "event" → "Event")
+      const derivedProfileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+      return getValidationProfile(derivedProfileId);
+    }
+  }
+
+  return undefined;
 }

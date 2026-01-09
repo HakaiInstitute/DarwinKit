@@ -231,7 +231,7 @@ Deno.test("Workspace.fromPath - validates dataset file paths exist", async () =>
       validation: {
         ...DEFAULT_VALIDATION_SETTINGS,
         datasets: [
-          createDatasetConfig("test_dataset", "Event", "./nonexistent.csv"),
+          createDatasetConfig("test_dataset", "dwc-event", "./nonexistent.csv"),
         ],
       },
     });
@@ -258,7 +258,7 @@ Deno.test("Workspace.fromPath - succeeds when dataset files exist", async () => 
       validation: {
         ...DEFAULT_VALIDATION_SETTINGS,
         datasets: [
-          createDatasetConfig("events", "Event", "./test.csv", [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
             {
               originName: "eventID",
               targetName: "eventID",
@@ -360,8 +360,8 @@ Deno.test("Workspace - multiple datasets validation", async () => {
       validation: {
         ...DEFAULT_VALIDATION_SETTINGS,
         datasets: [
-          createDatasetConfig("events", "Event", "./events.csv"),
-          createDatasetConfig("occurrences", "Occurrence", "./occurrences.csv"),
+          createDatasetConfig("events", "dwc-event", "./events.csv"),
+          createDatasetConfig("occurrences", "dwc-occurrence", "./occurrences.csv"),
         ],
       },
     });
@@ -376,5 +376,148 @@ Deno.test("Workspace - multiple datasets validation", async () => {
       workspaceConfig.validation.datasets.length,
       config.validation.datasets.length,
     );
+  });
+});
+
+// ============================================================================
+// Validation Tests
+// ============================================================================
+
+Deno.test("Workspace.validate - validates datasets successfully", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV file with valid data
+    await createTestCSV(
+      join(tempDir, "events.csv"),
+      ["eventID", "country"],
+      [
+        ["E1", "Canada"],
+        ["E2", "USA"],
+      ],
+    );
+
+    // Create config with validation settings
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "Validation Test Workspace",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./events.csv", [
+            {
+              originName: "eventID",
+              targetName: "eventID",
+              isRequired: true,
+            },
+            {
+              originName: "country",
+              targetName: "country",
+              isRequired: false,
+            },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    const result = await Effect.runPromise(
+      workspace.validate(),
+    );
+
+    assertExists(result);
+    assertEquals(result.overallStatus, "pass");
+    assertEquals(result.datasetResults.length, 1);
+    assertEquals(result.datasetResults[0].datasetName, "events");
+  });
+});
+
+Deno.test("Workspace.validate - validates multiple datasets", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create two valid CSV files
+    await createTestCSV(
+      join(tempDir, "events.csv"),
+      ["eventID", "country"],
+      [["E1", "Canada"]],
+    );
+
+    await createTestCSV(
+      join(tempDir, "occurrences.csv"),
+      ["occurrenceID", "eventID"],
+      [["O1", "E1"]],
+    );
+
+    const { configPath } = await createTestConfig(tempDir, {
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./events.csv", [
+            {
+              originName: "eventID",
+              targetName: "eventID",
+              isRequired: true,
+            },
+          ]),
+          createDatasetConfig("occurrences", "dwc-occurrence", "./occurrences.csv", [
+            {
+              originName: "occurrenceID",
+              targetName: "occurrenceID",
+              isRequired: true,
+            },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    const result = await Effect.runPromise(
+      workspace.validate(),
+    );
+
+    assertExists(result);
+    // Should validate both datasets
+    assertEquals(result.datasetResults.length, 2);
+    assertEquals(result.datasetResults[0].datasetName, "events");
+    assertEquals(result.datasetResults[1].datasetName, "occurrences");
+  });
+});
+
+Deno.test("Workspace.validate - fails on config without validation settings", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create a transform-only config (no validation section)
+    const configPath = join(tempDir, "darwinkit.json");
+    await Deno.writeTextFile(
+      configPath,
+      JSON.stringify({
+        id: "transform-workspace",
+        name: "Transform Only",
+        version: "1.0.0",
+        transform: {
+          nullValues: [""],
+          inputs: {},
+          datasets: [],
+          output: {
+            outputDir: "./output",
+            exportDB: false,
+          },
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    const result = await Effect.runPromise(
+      workspace.validate().pipe(Effect.either),
+    );
+
+    assert(result._tag === "Left");
+    assert(result.left.message.includes("does not contain validation settings"));
   });
 });

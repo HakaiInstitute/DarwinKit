@@ -18,8 +18,8 @@ import {
   enforcementToSeverity,
   getVocabularyValues,
   isValidVocabularyValue,
-  parseSpecIdentifier,
   RangeViolation,
+  resolveDatasetProfile,
   UniquenessViolation,
   VocabularyViolation,
 } from "@dwkt/domain";
@@ -46,14 +46,9 @@ export function resolveSchemaTableName(
     return sanitizeTableName(datasetName).toLowerCase();
   }
 
-  // Derive profile name - same logic as in validateDataset
-  let profileName = dataset.profile;
-  if (!profileName && dataset.spec) {
-    const parsed = parseSpecIdentifier(dataset.spec);
-    if (parsed) {
-      profileName = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-    }
-  }
+  // Resolve profile from dataset config
+  const profile = resolveDatasetProfile(dataset);
+  const profileName = profile?.name;
 
   return profileName
     ? sanitizeTableName(profileName).toLowerCase()

@@ -8,10 +8,9 @@ import {
   enforcementToSeverity,
   EnumViolation,
   ErrorCode,
-  getValidationProfile,
   NotNullViolation,
-  parseSpecIdentifier,
   PrimaryKeyViolation,
+  resolveDatasetProfile,
 } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
 import {
@@ -184,26 +183,11 @@ export function WorkspaceImportSchema(
   datasets: readonly DatasetWithProfile[],
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
-    // Load validation profile - use profile if specified, otherwise derive from spec
-    let profileId = dataset.profile;
-    if (!profileId && dataset.spec) {
-      const parsed = parseSpecIdentifier(dataset.spec);
-      if (parsed) {
-        profileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-      }
-    }
-
-    if (!profileId) {
-      console.warn(
-        `No profile or spec specified for dataset ${dataset.name}, skipping table creation.`,
-      );
-      return;
-    }
-
-    const spec = getValidationProfile(profileId);
+    // Resolve validation profile from dataset config
+    const spec = resolveDatasetProfile(dataset);
     if (!spec) {
       console.warn(
-        `No validation profile found for ${profileId}, skipping table creation.`,
+        `No profile or spec specified for dataset ${dataset.name}, skipping table creation.`,
       );
       return;
     }
@@ -254,13 +238,8 @@ export function WorkspaceImportSchema(
         // check if referenced table exists in config
         if (
           datasets.find((ds) => {
-            const profileName = ds.profile ||
-              (ds.spec
-                ? parseSpecIdentifier(ds.spec)?.type.charAt(0).toUpperCase() +
-                  ds.spec.slice(ds.spec.indexOf("-") + 1)
-                : undefined);
-            return profileName &&
-              getValidationProfile(profileName)?.name.toLowerCase() === referencedTable;
+            const profile = resolveDatasetProfile(ds);
+            return profile?.name.toLowerCase() === referencedTable;
           })
         ) {
           fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;

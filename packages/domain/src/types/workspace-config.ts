@@ -37,12 +37,18 @@ export type ConfigWithTransformation = S.Schema.Type<typeof configWithTransforma
  *
  * These correspond to specification registries in the shared/specs directory.
  * Each spec defines its own field definitions and validators.
+ *
+ * Format: "<namespace>-<type>" where namespace is typically "dwc" for Darwin Core.
+ * The type portion (after the hyphen) is used to derive the profile name.
  */
 
 const validSpecs = [
-  "Event",
-  "Occurrence",
-  "ExtendedMeasurementOrFact",
+  "dwc-event",
+  "dwc-occurrence",
+  "dwc-extendedMeasurementOrFact",
+  "dwc-eMOF", // Alias for ExtendedMeasurementOrFact
+  "dwc-taxon",
+  "dwc-dnaDerivedData",
   "dwc-resourceRelationship",
   "metadata-v1",
 ] as const;

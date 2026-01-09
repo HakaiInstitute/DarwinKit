@@ -7,11 +7,10 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import { dirname, resolve } from "@std/path";
+import { resolve } from "@std/path";
 import * as Effect from "effect/Effect";
 
 import type {
-  CrossDatasetValidationResult,
   DatasetConfig,
   DatasetValidationResult,
   FieldDefinition,
@@ -25,11 +24,11 @@ import type {
 import {
   ErrorCode,
   FieldRequirementLevel,
-  getValidationProfile,
   hasControlledVocabulary,
   parseSpecIdentifier,
+  resolveDatasetProfile,
 } from "@dwkt/domain";
-import { WorkspaceConfigService } from "../workspace-config.ts";
+import { Workspace } from "../workspace.ts";
 import {
   insertRowByRow,
   sanitizeTableName,
@@ -37,17 +36,11 @@ import {
   WorkspaceImportSchema,
 } from "./database-operations.ts";
 import {
-  calculateSummary,
   partitionViolations,
   WorkspaceImportError,
   WorkspaceValidationError,
 } from "./validation-utils.ts";
-import {
-  validateCrossDatasetRule,
-  validateRangeConstraints,
-  validateUniqueness,
-  validateVocabulary,
-} from "./validators.ts";
+import { validateRangeConstraints, validateUniqueness, validateVocabulary } from "./validators.ts";
 
 // Re-export for backward compatibility
 export { WorkspaceImportError, WorkspaceValidationError };
@@ -57,18 +50,17 @@ export { WorkspaceImportCSV, WorkspaceImportSchema } from "./database-operations
 
 /**
  * Workspace validator for config-based validation
+ *
+ * @deprecated Use Workspace class directly. This class delegates to Workspace for backward compatibility.
  */
 export class WorkspaceValidator {
-  // private readonly workspacesDir: string;
-
-  // constructor({ workspacesDir = "./workspaces" }: { workspacesDir?: string } = {}) {
-  //   this.workspacesDir = workspacesDir;
-  // }
-
   /**
    * Validate workspace from configuration file
    *
-   * This is the main entry point for config-based validation.
+   * @deprecated Use `Workspace.discover().pipe(Effect.flatMap(w => w.validate()))` instead
+   *
+   * This method now delegates to the Workspace class for backward compatibility.
+   * It will be removed in a future version.
    *
    * @param configPath - Optional path to configuration directory
    * @param options - Optional overrides for validation settings
@@ -80,11 +72,9 @@ export class WorkspaceValidator {
     },
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
     return Effect.gen(function* (_) {
-      const startTime = Date.now();
-
-      // Discover and load configuration (schema already validates structure)
-      const { config: loadedConfig, configPath: resolvedConfigPath } = yield* _(
-        WorkspaceConfigService.discoverAndLoad(configPath).pipe(
+      // Discover and load workspace
+      const workspace = yield* _(
+        (configPath ? Workspace.discover(configPath) : Workspace.discover()).pipe(
           Effect.mapError((error) => {
             return new WorkspaceValidationError({
               message: `Failed to load workspace config: ${error.message}`,
@@ -95,135 +85,18 @@ export class WorkspaceValidator {
         ),
       );
 
-      // Narrow the config type to ensure it has validation settings and datasets
-      if (!("validation" in loadedConfig)) {
-        return yield* _(
-          Effect.fail(
-            new WorkspaceValidationError({
-              message: `Configuration '${resolvedConfigPath}' does not contain validation settings`,
-              code: ErrorCode.INVALID_CONFIG,
-            }),
-          ),
-        );
-      }
-
-      if (!("datasets" in loadedConfig.validation)) {
-        return yield* _(
-          Effect.fail(
-            new WorkspaceValidationError({
-              message: `Configuration '${resolvedConfigPath}' does not contain datasets`,
-              code: ErrorCode.INVALID_CONFIG,
-            }),
-          ),
-        );
-      }
-
-      // At this point TypeScript knows config has validation property and datasets
-      const config = loadedConfig;
-
-      // Override validation settings with CLI options if provided
-      const validationSettings = options?.failFast !== undefined
-        ? { ...config.validation, failFast: options.failFast }
-        : config.validation;
-
-      // Get datasets from root level
-      const datasets = "datasets" in validationSettings && validationSettings.datasets
-        ? validationSettings.datasets
-        : [];
-
-      // Create workspace and load all datasets
-      const { workspaceId, connection, instance } = yield* _(
-        createWorkspaceFromConfig(
-          config.id,
-          datasets,
-          validationSettings,
-          dirname(resolvedConfigPath),
-        ),
-      );
-
-      // Perform validation with guaranteed connection cleanup
-      return yield* _(
-        Effect.gen(function* (_) {
-          // Validate each dataset
-          const datasetResults: DatasetValidationResult[] = [];
-
-          for (const dataset of datasets) {
-            // Use dataset-level profile if specified, otherwise derive from spec field
-            let datasetProfile = dataset.profile
-              ? getValidationProfile(dataset.profile)
-              : undefined;
-
-            // If still no profile, try to derive from spec field
-            if (!datasetProfile && dataset.spec) {
-              const parsed = parseSpecIdentifier(dataset.spec);
-              if (parsed) {
-                // Capitalize the type to match profile names (e.g., "event" -> "Event")
-                const derivedProfileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-                datasetProfile = getValidationProfile(derivedProfileId);
-              }
-            }
-
-            const result = yield* _(
-              validateDataset(connection, dataset, datasetProfile, validationSettings),
-            );
-
-            datasetResults.push(result);
-
-            // Fail-fast if enabled and we have critical errors
-            if (validationSettings.failFast && result.status === "fail") {
-              break;
-            }
-          }
-
-          // Validate cross-dataset rules if provided
-          const crossDatasetResults: CrossDatasetValidationResult[] = [];
-          if (config.crossDatasetRules && !validationSettings.failFast) {
-            for (const rule of config.crossDatasetRules) {
-              const result = yield* _(
-                validateCrossDatasetRule(connection, rule, datasets),
-              );
-              crossDatasetResults.push(result);
-            }
-          }
-
-          // Calculate summary
-          const summary = calculateSummary(datasetResults);
-          const totalProcessingTimeMs = Date.now() - startTime;
-
-          const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0
-            ? "fail"
-            : summary.datasetsWithWarningsCount > 0
-            ? "warn"
-            : "pass";
-
-          return {
-            workspaceId,
-            configPath: resolvedConfigPath,
-            validatedAt: new Date(),
-            totalProcessingTimeMs,
-            overallStatus,
-            datasetResults,
-            crossDatasetResults,
-            summary,
-          };
-        }).pipe(
-          // Ensure connection and instance are closed even if validation fails
-          Effect.ensuring(
-            Effect.all([
-              Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
-              Effect.try(() => instance.closeSync()).pipe(Effect.ignore),
-            ]),
-          ),
-        ),
-      );
+      // Delegate to Workspace.validate()
+      return yield* _(workspace.validate(options));
     });
   }
 }
 
 /**
  * Create workspace and load all datasets from config
+ *
+ * @internal Exported for use by Workspace class
  */
-function createWorkspaceFromConfig(
+export function createWorkspaceFromConfig(
   workspaceId: string,
   datasets: readonly DatasetConfig[],
   validationSettings: ValidationSettings,
@@ -310,8 +183,10 @@ function mergeFieldDefinition(
 
 /**
  * Validate a single dataset according to its spec
+ *
+ * @internal Exported for use by Workspace class
  */
-function validateDataset(
+export function validateDataset(
   connection: DuckDBConnection,
   dataset: DatasetConfig,
   profile?: ValidationProfile,
@@ -364,22 +239,9 @@ function validateDataset(
       .filter((col) => col !== "_row_number");
 
     // Derive profile name - use profile.name if available (this is the actual table name),
-    // otherwise use dataset.profile, or derive from spec
-    let profileName: string | undefined;
-    if (profile) {
-      // Use the profile's name property (e.g., "OBIS Event Core")
-      // This must match what WorkspaceImportSchema uses to create the table
-      profileName = profile.name;
-    } else if (dataset.profile) {
-      // Fallback to profile ID from config (may not match actual profile name)
-      profileName = dataset.profile;
-    } else if (dataset.spec) {
-      // Derive from spec if neither profile nor profile ID available
-      const parsed = parseSpecIdentifier(dataset.spec);
-      if (parsed) {
-        profileName = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-      }
-    }
+    // otherwise resolve profile from dataset config
+    const resolvedProfile = profile || resolveDatasetProfile(dataset);
+    const profileName = resolvedProfile?.name;
 
     const schemaTableName = profileName
       ? sanitizeTableName(profileName).toLowerCase()
