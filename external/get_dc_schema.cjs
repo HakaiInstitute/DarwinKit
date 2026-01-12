@@ -14,6 +14,7 @@ const eventXml = './external/rs_gbif/core/dwc_event_2025-07-10.xml';
 const occurrenceXml = './external/rs_gbif/core/dwc_occurrence_2025-07-10.xml';
 const taxonXml = './external/rs_gbif/core/dwc_taxon_2025-07-10.xml';
 const DNAXml = './external/rs_gbif/extension/gbif/1.0/dna_derived_data_2024-07-11.xml';
+const relatedXml = './external/rs_gbif/extension/dwc/resource_relationship_2025-07-10.xml';
 
 const obisChecklistUrl = 'https://raw.githubusercontent.com/iobis/manual/master/docs/OBIS-termchecklist.csv';
 
@@ -119,8 +120,10 @@ async function main() {
     occurrenceJson = xmlSchemaToJson(occurrenceXml, { idFieldName:"occurrenceID"});
     taxonJson = xmlSchemaToJson(taxonXml, { idFieldName:"taxonID"});
     DNAJson = xmlSchemaToJson(DNAXml, { group: 'dnaDerivedData', idFieldName:"samp_name"});
+    relatedJson = xmlSchemaToJson(relatedXml, { group: 'ResourceRelationship', idFieldName: "resourceRelationshipID" });
+    
 
-    const schemaJson = { ...exMoFjson, ...eventJson, ...occurrenceJson, ...taxonJson, ...DNAJson };
+    const schemaJson = { ...exMoFjson, ...eventJson, ...occurrenceJson, ...taxonJson, ...DNAJson, ...relatedJson };
 
     console.log('Fetching OBIS checklist...');
     const response = await fetch(obisChecklistUrl);

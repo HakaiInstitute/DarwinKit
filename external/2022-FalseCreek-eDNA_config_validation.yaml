@@ -1,0 +1,301 @@
+id: obis-marine-survey
+name: OBIS Marine Survey
+version: 1.0.0
+description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
+createdAt: '2024-10-06T00:00:00.000Z'
+updatedAt: '2024-10-06T00:00:00.000Z'
+validation:
+  nullValues:
+    - NA
+    - N/A
+    - ""
+    - "NULL"
+    - "null"
+  failFast: false
+  outputDir: ./validation_results
+  datasets:
+    - name: events
+      spec: dwc-event
+      path: ./2022-FalseCreek-eDNA/obis/FC2022_event.csv
+      description: Marine sampling events for OBIS
+      profile: Event
+      fieldMappings:
+        - originName: eventID
+          targetName: eventID
+        - originName: eventDate
+          targetName: eventDate
+        - originName: decimalLatitude
+          targetName: decimalLatitude
+        - originName: decimalLongitude
+          targetName: decimalLongitude
+        - originName: geodeticDatum
+          targetName: geodeticDatum
+        - originName: eventType
+          targetName: eventType
+        # - originName: datasetName
+        #   targetName: datasetName
+        - originName: language
+          targetName: language
+        - originName: license
+          targetName: license
+        # - originName: bibliographicCitation
+        #   targetName: bibliographicCitation
+        # - originName: accessRights
+        #   targetName: accessRights
+        - originName: samplingProtocol
+          targetName: samplingProtocol
+        - originName: rightsHolder
+          targetName: rightsHolder
+        - originName: institutionCode
+          targetName: institutionCode
+        - originName: institutionID
+          targetName: institutionID
+        - originName: modified
+          targetName: modified
+        - originName: parentEventID
+          targetName: parentEventID
+        - originName: verbatimLocality
+          targetName: verbatimLocality
+        # - originName: coordinateUncertaintyInMeters
+        #   targetName: coordinateUncertaintyInMeters
+        - originName: day
+          targetName: day
+        - originName: month
+          targetName: month
+        - originName: year
+          targetName: year
+        # - originName: eventTime
+        #   targetName: eventTime
+        - originName: eventRemarks
+          targetName: eventRemarks
+        - originName: country
+          targetName: country
+        - originName: countryCode
+          targetName: countryCode
+        # - originName: dataGeneralizations
+        #   targetName: dataGeneralizations
+        - originName: fieldNotes
+          targetName: fieldNotes
+        # - originName: locality
+        #   targetName: locality
+        - originName: minimumDepthInMeters
+          targetName: minimumDepthInMeters
+          constraints:
+            minValue: 0
+            maxValue: 11000
+        - originName: maximumDepthInMeters
+          targetName: maximumDepthInMeters
+          constraints:
+            minValue: 0
+            maxValue: 11000
+        - originName: stateProvince
+          targetName: stateProvince
+        - originName: county
+          targetName: county
+        - originName: municipality
+          targetName: municipality
+        # event dones not contain a materialSampleID attribute in the schema. should be in the occurance file?
+        # - originName: materialSampleID
+        #   targetName: materialSampleID
+        - originName: verbatimEventDate
+          targetName: verbatimEventDate
+        - originName: habitat
+          targetName: habitat
+        # event dones not contain a collectionCode attribute in the schema. should be int he occruance file?
+        # - originName: collectionCode
+        #   targetName: collectionCode
+        # event dones not contain a catalogNumber attribute in the schema. should be int he occruance file?
+        # - originName: catalogNumber
+        #   targetName: catalogNumber
+        - originName: fieldNumber
+          targetName: fieldNumber
+        # event dones not contain a recordNumber attribute in the schema. should be int he occruance file?
+        # - originName: recordNumber
+        #   targetName: recordNumber
+        - originName: verbatimDepth
+          targetName: verbatimDepth
+
+    - name: occurrence
+      spec: dwc-occurrence
+      path: ./2022-FalseCreek-eDNA/obis/FC2022_occ.csv
+      description: Marine sampling occurrence for OBIS
+      profile: Occurrence
+      fieldMappings:
+        - originName: scientificName
+          targetName: scientificName
+        # - originName: vernacularName
+        #   targetName: vernacularName
+        - originName: identificationRemarks
+          targetName: identificationRemarks
+        - originName: occurrenceRemarks
+          targetName: occurrenceRemarks
+        - originName: verbatimIdentification
+          targetName: verbatimIdentification
+        - originName: scientificNameID
+          targetName: scientificNameID
+        # - originName: taxonomicStatus
+        #   targetName: taxonomicStatus
+        - originName: scientificNameAuthorship
+          targetName: scientificNameAuthorship
+        - originName: kingdom
+          targetName: kingdom
+        - originName: phylum
+          targetName: phylum
+        - originName: class
+          targetName: class
+        - originName: order
+          targetName: order
+        - originName: family
+          targetName: family
+        - originName: genus
+          targetName: genus
+        - originName: recordedBy
+          targetName: recordedBy
+        - originName: occurrenceStatus
+          targetName: occurrenceStatus
+        # - originName: individualCount
+        #   targetName: individualCount
+        # - originName: specificEpithet
+        #   targetName: specificEpithet
+        - originName: basisOfRecord
+          targetName: basisOfRecord
+        - originName: eventID
+          targetName: eventID
+        - originName: occurrenceID
+          targetName: occurrenceID
+        # - originName: taxonRemarks
+        #   targetName: taxonRemarks
+        - originName: taxonRank
+          targetName: taxonRank
+        - originName: organismQuantity
+          targetName: organismQuantity
+        - originName: organismQuantityType
+          targetName: organismQuantityType
+        - originName: sampleSizeValue
+          targetName: sampleSizeValue
+        - originName: sampleSizeUnit
+          targetName: sampleSizeUnit
+        - originName: samplingProtocol
+          targetName: samplingProtocol
+        - originName: associatedSequences
+          targetName: associatedSequences
+        - originName: materialSampleID
+          targetName: materialSampleID
+        - originName: identificationQualifier
+          targetName: identificationQualifier
+        - originName: recordNumber
+          targetName: recordNumber
+        - originName: catalogNumber
+          targetName: catalogNumber
+        - originName: subfamily
+          targetName: subfamily
+        - originName: tribe
+          targetName: tribe
+        - originName: identifiedBy
+          targetName: identifiedBy
+        - originName: sex
+          targetName: sex
+        - originName: lifeStage
+          targetName: lifeStage
+        - originName: typeStatus
+          targetName: typeStatus
+        # - originName: materialSample
+        #   targetName: materialSample
+        - originName: organismRemarks
+          targetName: organismRemarks
+
+    - name: extendedMeasurementOrFact
+      spec: dwc-eMOF
+      path: ./2022-FalseCreek-eDNA/obis/FC2022_eMOF.csv
+      description: Marine sampling Extended Measurement Or Fact for OBIS
+      profile: ExtendedMeasurementOrFact
+      fieldMappings:
+        - originName: eventID
+          targetName: eventID
+        - originName: measurementValue
+          targetName: measurementValue
+        - originName: measurementType
+          targetName: measurementType
+        - originName: measurementValueID
+          targetName: measurementValueID
+        - originName: measurementTypeID
+          targetName: measurementTypeID
+        - originName: measurementUnit
+          targetName: measurementUnit
+        - originName: measurementUnitID
+          targetName: measurementUnitID
+        - originName: measurementID
+          targetName: measurementID
+        - originName: occurrenceID
+          targetName: occurrenceID
+        - originName: measurementMethod
+          targetName: measurementMethod
+
+    - name: dnaDerivedData
+      spec: dwc-dna
+      path: ./2022-FalseCreek-eDNA/obis/FC2022_dna_ext.csv
+      description: Dna dervied data for OBIS
+      profile: dnaDerivedData
+      fieldMappings:
+        - originName: eventID
+          targetName: eventID
+        - originName: occurrenceID
+          targetName: occurrenceID
+        - originName: DNA_sequence
+          targetName: DNA_sequence
+        - originName: sop
+          targetName: sop
+        # not in schema
+        # - originName: samp_collect_device
+        #   targetName: samp_collect_device
+        - originName: target_gene
+          targetName: target_gene
+        - originName: target_subfragment
+          targetName: target_subfragment
+        # not in schema
+        # - originName: sample_vol_we_dna_ext
+        #   targetName: sample_vol_we_dna_ext
+        - originName: pcr_primer_forward
+          targetName: pcr_primer_forward
+        - originName: pcr_primer_reverse
+          targetName: pcr_primer_reverse
+        - originName: pcr_primer_name_forward
+          targetName: pcr_primer_name_forward
+        - originName: pcr_primer_name_reverse
+          targetName: pcr_primer_name_reverse
+        - originName: env_broad_scale
+          targetName: env_broad_scale
+        - originName: env_local_scale
+          targetName: env_local_scale
+        - originName: env_medium
+          targetName: env_medium
+        - originName: lib_layout
+          targetName: lib_layout
+        - originName: seq_meth
+          targetName: seq_meth
+        - originName: otu_class_appr
+          targetName: otu_class_appr
+        - originName: otu_seq_comp_appr
+          targetName: otu_seq_comp_appr
+        - originName: otu_db
+          targetName: otu_db
+        # should be in occurrance table
+        # - originName: materialSample
+        #   targetName: materialSample
+        # - originName: materialSampleID
+        #   targetName: materialSampleID
+
+    - name: ResourceRelationship
+      spec: dwc-related
+      path: ./2022-FalseCreek-eDNA/obis/FC2022_rr_ext.csv
+      description: Dna dervied data for OBIS
+      profile: ResourceRelationship
+      fieldMappings:
+        - originName: resourceID
+          targetName: resourceID
+        - originName: relatedResourceID
+          targetName: relatedResourceID
+        - originName: relationshipOfResource
+          targetName: relationshipOfResource
+        - originName: resourceRElationshipID
+          targetName: resourceRelationshipID
