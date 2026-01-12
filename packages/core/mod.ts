@@ -5,7 +5,6 @@
 // Workspace management
 export * from "./src/workspace.ts";
 export * from "./src/validation/workspace-validator.ts";
-export * from "./src/workspace-config.ts";
 
 // CSV parsing
 export * from "./src/csv-parser.ts";

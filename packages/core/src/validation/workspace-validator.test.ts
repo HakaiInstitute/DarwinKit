@@ -7,7 +7,13 @@ import type {
   WorkspaceFieldMapping,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
-import { ErrorCode, isEnumViolation, isPrimaryKeyViolation, isRangeViolation } from "@dwkt/domain";
+import {
+  ErrorCode,
+  ForeignKeyViolation,
+  isEnumViolation,
+  isPrimaryKeyViolation,
+  isRangeViolation,
+} from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { stringify } from "@std/csv";
 import { join } from "@std/path";
@@ -462,13 +468,95 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     const occurrencesResult = result.datasetResults.find((r) => r.datasetName === "occurrences");
     assertExists(occurrencesResult);
 
-    // FK constraints prevent E2 from being inserted (no matching event),
-    // but E1 should be inserted successfully. The dataset may or may not show
-    // violations depending on whether FK failures are tracked.
-    // The important thing is that cross-dataset validation no longer finds violations
-    // because FK constraints already prevented bad data from being inserted.
+    // Should have FK violation errors for E2 (references non-existent event)
+    const fkViolations = occurrencesResult.violations.errors.filter(
+      (v): v is ForeignKeyViolation => v._tag === "ForeignKeyViolation",
+    );
+
+    assertEquals(fkViolations.length, 1, "Should detect 1 FK violation");
+    assertEquals(fkViolations[0].value, "E2", "Should be for eventID E2");
+    assertEquals(fkViolations[0].referencedTable, "event", "Should reference event table");
+
+    // Cross-dataset validation should find 0 violations (FK caught it earlier)
     assertEquals(result.crossDatasetResults.length, 1);
     assertEquals(result.crossDatasetResults[0].violations.length, 0);
+  });
+
+  await t.step("records foreign key violations as errors", async () => {
+    const tempDir = await createTempDir("fk_violations_recorded");
+
+    // Create events with E1 only
+    await writeCSV(tempDir, "events", [
+      { eventID: "E1", eventDate: "2024-01-01" },
+    ]);
+
+    // Create occurrences with E1 and E2 (E2 is invalid FK)
+    await writeCSV(tempDir, "occurrence", [
+      { occurrenceID: "O1", eventID: "E1" },
+      { occurrenceID: "O2", eventID: "E2" },
+    ]);
+
+    const config: WorkspaceConfig = {
+      id: "test-workspace",
+      name: "Test FK Recording",
+      version: "1.0.0",
+      validation: {
+        nullValues: [""],
+        failFast: false,
+        outputDir: "./output",
+        datasets: [
+          {
+            name: "events",
+            spec: "dwc-event",
+            path: "./events.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "eventDate", targetName: "eventDate" },
+            ],
+          },
+          {
+            name: "occurrence",
+            spec: "dwc-occurrence",
+            path: "./occurrence.csv",
+            fieldMappings: [
+              { originName: "occurrenceID", targetName: "occurrenceID" },
+              { originName: "eventID", targetName: "eventID" },
+            ],
+          },
+        ],
+      },
+      crossDatasetRules: [
+        {
+          ruleType: "foreignKey",
+          sourceDataset: "occurrence",
+          sourceField: "eventID",
+          targetDataset: "events",
+          targetField: "eventID",
+        },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await writeConfig(tempDir, config);
+    const result = await validateWorkspace(tempDir);
+
+    // Find occurrence dataset results
+    const occurrenceResult = result.datasetResults.find((r) => r.datasetName === "occurrence");
+    assertExists(occurrenceResult, "Should have occurrence results");
+
+    // Should have exactly 1 FK violation error
+    const fkViolations = occurrenceResult.violations.errors.filter(
+      (v): v is ForeignKeyViolation => v._tag === "ForeignKeyViolation",
+    );
+
+    assertEquals(fkViolations.length, 1, "Should record 1 FK violation");
+    assertEquals(fkViolations[0].value, "E2", "Violation should be for E2");
+    assertEquals(fkViolations[0].fieldName, "eventID", "Violation should be for eventID field");
+    assertEquals(fkViolations[0].referencedTable, "event", "Should reference event table");
+
+    // Overall status should be fail due to FK violation
+    assertEquals(result.overallStatus, "fail", "Validation should fail due to FK violation");
   });
 
   await t.step("detects missing required fields", async () => {

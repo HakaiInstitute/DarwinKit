@@ -13,8 +13,8 @@ import {
   ConfigNotFoundError,
   ConfigParseError,
   DatasetFileNotFoundError,
-} from "./workspace-config.ts";
-import { Workspace } from "./workspace.ts";
+  Workspace,
+} from "./workspace.ts";
 
 // ============================================================================
 // Test Constants & Fixtures

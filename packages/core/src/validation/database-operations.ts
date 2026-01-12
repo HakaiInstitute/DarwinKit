@@ -8,6 +8,7 @@ import {
   enforcementToSeverity,
   EnumViolation,
   ErrorCode,
+  ForeignKeyViolation,
   NotNullViolation,
   PrimaryKeyViolation,
   resolveDatasetProfile,
@@ -484,8 +485,64 @@ export function insertRowByRow(
           }
 
           case "foreign-key": {
-            // For FK violations, we need more context - log for now
-            console.warn(`Foreign key violation at row ${rowNum}: ${parsed.message}`);
+            // Find the FK field from mappings
+            // The fieldName from parsed error matches the target (schema) field name
+            const fkMapping = parsed.fieldName
+              ? columnMappings.find((m) => m.target === parsed.fieldName)
+              : columnMappings.find((m) => m.target.endsWith("ID") && parsed.value);
+
+            if (!fkMapping) {
+              console.warn(
+                `FK violation but couldn't find field mapping at row ${rowNum}: ${parsed.message}`,
+              );
+              break;
+            }
+
+            // Get the original CSV value for this row and field
+            const csvValue = yield* _(
+              getOriginalCsvValue(
+                connection,
+                rawTableName,
+                fkMapping.origin,
+                rowNum,
+              ),
+            );
+
+            // Determine referenced table and field
+            // Convention: fieldName ending in "ID" references table named field.slice(0, -2).toLowerCase()
+            const referencedField = fkMapping.target; // FK usually references the same field name
+            const referencedTable = parsed.referencedTable ||
+              (fkMapping.target.endsWith("ID")
+                ? fkMapping.target.slice(0, -2).toLowerCase()
+                : "unknown");
+
+            // Get enforcement level from spec
+            const specField = profile.normalizedFields?.[fkMapping.target];
+            const validators = specField?.validators?.filter(
+              (v: { type: string; enforcement?: string }) => v.type === "referential-integrity",
+            );
+            const enforcement = validators?.[0]?.enforcement ?? "required";
+
+            violations.push(
+              new ForeignKeyViolation({
+                enforcement,
+                severity: enforcementToSeverity(enforcement),
+                fieldName: fkMapping.origin,
+                targetName: fkMapping.target,
+                rowNumber: rowNum,
+                value: parsed.value || csvValue || "",
+                csvValue: csvValue,
+                referencedTable,
+                referencedField,
+                errorMessage:
+                  `Foreign key violation: "${csvValue}" references non-existent record in ${referencedTable}`,
+                validatorType: "foreign-key",
+                params: {
+                  targetDataset: referencedTable,
+                  targetField: referencedField,
+                },
+              }),
+            );
             break;
           }
 

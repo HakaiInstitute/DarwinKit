@@ -29,7 +29,7 @@ import type {
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
-} from "./workspace-config.ts";
+} from "./workspace.ts";
 
 /**
  * Union type of all core package error tags

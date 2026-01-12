@@ -14,7 +14,7 @@ import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { ErrorCode, getValidationProfile } from "@dwkt/domain";
 import { json2csv } from "json-2-csv";
-import { WorkspaceConfigService } from "./workspace-config.ts";
+import { Workspace } from "./workspace.ts";
 
 /**
  * Represents an error that occurs during the data transformation process.
@@ -473,9 +473,9 @@ export function transformFile(
     Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(Effect.orDie),
     (connection) =>
       Effect.gen(function* (_) {
-        const { config, configPath: resolvedConfigPath } = yield* _(
-          WorkspaceConfigService.discoverAndLoad(configPath),
-        );
+        const workspace = yield* _(Workspace.discover(configPath));
+        const config = workspace.getConfig();
+        const resolvedConfigPath = workspace.getConfigPath();
         const basePath = dirname(resolvedConfigPath);
 
         console.log("Creating tables from CSV files...");

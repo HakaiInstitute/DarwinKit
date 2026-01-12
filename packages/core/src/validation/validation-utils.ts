@@ -137,6 +137,8 @@ export interface ParsedErrorInfo {
   readonly type: "primary-key" | "not-null" | "enum" | "foreign-key" | "check" | "unknown";
   readonly fieldName?: string;
   readonly value?: string;
+  readonly referencedTable?: string;
+  readonly referencedField?: string;
   readonly message: string;
 }
 
@@ -191,8 +193,33 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
   }
 
   // FOREIGN KEY constraint violation
-  const fkMatch = message.match(/FOREIGN KEY constraint/i);
+  // Example: "Constraint Error: Violates foreign key constraint because key "eventID: NA_FB_2020-11-17_FQ1" does not exist in the referenced table"
+  const fkMatch = message.match(/FOREIGN KEY constraint/i) ||
+    message.match(/Violates foreign key constraint/i);
   if (fkMatch) {
+    // Try to extract field name and value from various formats
+    // Format 1: key "fieldName: value" does not exist
+    const detailMatch1 = message.match(/key "([^:]+):\s*([^"]+)" does not exist/);
+    if (detailMatch1) {
+      return {
+        type: "foreign-key",
+        fieldName: detailMatch1[1],
+        value: detailMatch1[2],
+        message,
+      };
+    }
+
+    // Format 2: Just the field name in the message
+    const detailMatch2 = message.match(/key "([^"]+)" does not exist/);
+    if (detailMatch2) {
+      return {
+        type: "foreign-key",
+        value: detailMatch2[1],
+        message,
+      };
+    }
+
+    // Fallback: FK violation detected but couldn't parse details
     return {
       type: "foreign-key",
       message,
