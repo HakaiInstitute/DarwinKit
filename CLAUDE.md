@@ -28,6 +28,7 @@ DarwinKit is a modular TypeScript application organized as a Deno workspace for 
 ### Tech Stack
 
 **Core Technologies (Implemented):**
+
 - **Runtime**: Deno 2.0+ with workspace support
 - **CLI**: Cliffy CLI with Effect for data, schema, and error handling
 - **Validation**: Effect Data and Schema with custom biodiversity validators
@@ -35,15 +36,18 @@ DarwinKit is a modular TypeScript application organized as a Deno workspace for 
 - **Testing**: Deno test runner
 
 **Backend (Partially Implemented):**
+
 - **API Server**: Hono web framework with basic routes at `/api/*`
 - **Error Handling**: Effect library for functional error handling
 
 **Frontend (Minimal Implementation):**
+
 - **Framework**: React with Vite build system
 - **API Client**: Basic HTTP client for backend communication
 - **Styling**: Tailwind CSS
 
 **Planned Enhancements:**
+
 - **Database**: PostgreSQL with Drizzle ORM for user authentication and workspace persistence
 - **Frontend**: TanStack Router and TanStack Query for routing and state management
 - **UI Components**: Headless UI component library
@@ -118,6 +122,7 @@ DarwinKit uses a hybrid specification system combining external JSON schemas wit
 **Base Schemas (external/dwcSchema.json):**
 
 The foundation of DarwinKit's validation system comes from official Darwin Core schemas:
+
 - Generated from Darwin Core XML schemas via `external/get_dc_schema.cjs`
 - Contains 5 standard profiles: `Event`, `Occurrence`, `Taxon`, `ExtendedMeasurementOrFact`, `dnaDerivedData`
 - Provides canonical field definitions with types, descriptions, and validation rules
@@ -126,6 +131,7 @@ The foundation of DarwinKit's validation system comes from official Darwin Core 
 **Custom Profiles (packages/domain/src/specs/profiles/):**
 
 TypeScript-defined profiles extend base Darwin Core with community-specific requirements:
+
 - **OBIS** (`obis.ts`) - Ocean Biodiversity Information System base profile
 - **OBIS-Event** (`obis-event.ts`) - OBIS sampling event profile extending Event + OBIS
 - Custom profiles can add fields, strengthen validation rules, or mark additional fields as required
@@ -144,6 +150,7 @@ The profile registry in `registry.ts` implements a sophisticated resolution syst
 **Field Normalization:**
 
 JSON schemas use different field formats than TypeScript profiles, requiring normalization:
+
 - `normalizeJsonProfile()` converts raw JSON profiles to `ValidationProfile` format
 - `normalizeField()` (in `field-definition.ts`) transforms JSON validators:
   - String validators: `"date"`, `"url"`, `"coordinate"` → `ValidatorConfig` objects
@@ -181,6 +188,7 @@ node get_dc_schema.cjs
 This fetches the latest Darwin Core XML schemas and generates `dwcSchema.json` with all standard profiles and field definitions.
 
 **Key Files:**
+
 - `external/dwcSchema.json` - Base Darwin Core specifications
 - `external/get_dc_schema.cjs` - Schema generation script
 - `packages/domain/src/specs/profiles/registry.ts` - Profile resolution and merging
@@ -246,8 +254,8 @@ DarwinKit supports configuration-driven validation for multi-dataset projects us
       "description": "Sampling events",
 
       "fieldMappings": [
-        {"originName": "eventID", "targetName": "eventID", "isRequired": true},
-        {"originName": "country", "targetName": "country", "isRequired": true}
+        { "originName": "eventID", "targetName": "eventID", "isRequired": true },
+        { "originName": "country", "targetName": "country", "isRequired": true }
       ]
     }
   ],
@@ -289,12 +297,14 @@ deno task dev:cli validate --format json
 ### Programmatic Validation
 
 ```typescript
-import { WorkspaceValidator } from "@dwkt/core";
+import { Workspace } from "@dwkt/core";
+import * as Effect from "effect/Effect";
 
-const validator = new WorkspaceValidator();
-const result = await Effect.runPromise(
-  validator.validateFromConfig("./path/to/darwinkit.json")
+const workspace = await Effect.runPromise(
+  Workspace.discover("./path/to/workspace"),
 );
+const result = await Effect.runPromise(workspace.validate());
+workspace.close();
 ```
 
 ### Example Configuration
@@ -310,11 +320,13 @@ A working example configuration is available at `test/example-config/darwinkit.j
 - Uniqueness constraint checking
 
 Run the example test to see validation output:
+
 ```bash
 deno test test/example-config.test.ts --allow-all
 ```
 
 For a focused example of date validation:
+
 ```bash
 deno test test/date-validation.test.ts --allow-all
 ```
@@ -330,18 +342,21 @@ The following features are on the roadmap but not yet fully implemented:
 **Planned Workspace Features:**
 
 **File Analysis:**
+
 - Schema inference from CSV files using DuckDB
 - Sample data extraction for each field
 - Metadata tracking (parsing time, format, row counts)
 - Interactive Darwin Core field mapping
 
 **Data Validation:**
+
 - Type validation for dates, coordinates, and other typed fields
 - Controlled vocabulary validation
 - Referential integrity checking
 - Custom biodiversity-specific rules
 
 **Workspace Storage:**
+
 - File-based workspace persistence as JSON
 - Portable workspaces that can be shared
 - Incremental caching for performance
@@ -372,19 +387,28 @@ const response = await fetch("http://localhost:3001/api/workspaces", {
 });
 ```
 
-**Planned Programmatic API:**
+**Programmatic Workspace API:**
 
 ```typescript
-// Workspace service API (PLANNED)
-import { WorkspaceService } from "@dwkt/core";
+// Workspace API
+import { Workspace } from "@dwkt/core";
+import * as Effect from "effect/Effect";
 
-const service = new WorkspaceService();
-const result = await Effect.runPromise(
-  service.createFromFile({
-    name: "Marine Survey 2024",
-    filePath: "./survey-data.csv",
-  }),
+// Discover workspace from config file
+const workspace = await Effect.runPromise(
+  Workspace.discover("./project-directory"),
 );
+
+// Run validation
+const result = await Effect.runPromise(workspace.validate());
+
+// Access workspace state
+console.log(workspace.getName());
+console.log(workspace.getDatasets());
+console.log(workspace.isValid());
+
+// Clean up when done
+workspace.close();
 ```
 
 ### Database Integration
@@ -411,6 +435,7 @@ const result = await Effect.runPromise(
 DarwinKit uses Effect's two-error-types model to distinguish between expected and unexpected errors:
 
 **Expected Errors (Effect.fail)** - Recoverable domain errors:
+
 - File not found (user-provided paths)
 - Invalid CSV data
 - Workspace not found
@@ -419,18 +444,20 @@ DarwinKit uses Effect's two-error-types model to distinguish between expected an
 
 ```typescript
 // Example: User-provided file not found
-yield* _(
+yield * _(
   Effect.tryPromise({
     try: () => fs.access(userFilePath),
-    catch: () => new ParseError({
-      message: `File not found: ${userFilePath}`,
-      code: ErrorCode.FILE_NOT_FOUND,
-    })
-  })
+    catch: () =>
+      new ParseError({
+        message: `File not found: ${userFilePath}`,
+        code: ErrorCode.FILE_NOT_FOUND,
+      }),
+  }),
 );
 ```
 
 **Unexpected Errors / Defects (Effect.die)** - System failures:
+
 - Database connection failures
 - Infrastructure queries (schema, row count)
 - File operations on our workspace directories
@@ -439,14 +466,15 @@ yield* _(
 
 ```typescript
 // Example: Infrastructure query should always work
-const schema = yield* _(
+const schema = yield * _(
   Effect.tryPromise(() => connection.runAndReadAll(schemaQuery)).pipe(
-    Effect.orDie  // Query failure is a defect, not a user error
-  )
+    Effect.orDie, // Query failure is a defect, not a user error
+  ),
 );
 ```
 
 **Decision Framework:**
+
 - Can the user fix this? → Expected error (Effect.fail)
 - Is this a system failure or bug? → Defect (Effect.die)
 - Is this normal program flow? → Expected error
