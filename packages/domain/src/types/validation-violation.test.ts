@@ -3,8 +3,8 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { enforcementToSeverity } from "./validation-violation.ts";
 import { ErrorSeverity } from "../errors/severity.ts";
+import { enforcementToSeverity } from "./validation-violation.ts";
 
 Deno.test("enforcementToSeverity - maps required to ERROR", () => {
   assertEquals(enforcementToSeverity("required"), ErrorSeverity.ERROR);

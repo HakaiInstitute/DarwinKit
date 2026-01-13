@@ -16,19 +16,19 @@ import {
   Workspace,
 } from "./workspace.ts";
 
+// Import shared test utilities
+import {
+  createTestConfig,
+  createTestCSV,
+  DEFAULT_VALIDATION_SETTINGS,
+} from "../../../test/helpers/config-utils.ts";
+
 // ============================================================================
 // Test Constants & Fixtures
 // ============================================================================
 
 const TEST_CONFIG_FILENAME = "darwinkit.json";
 const TEST_DIR_PREFIX = "workspace_test_";
-
-/** Default validation settings used across tests */
-const DEFAULT_VALIDATION_SETTINGS = {
-  nullValues: ["", "NA"],
-  failFast: false,
-  outputDir: "./output",
-} as const;
 
 /** Factory for creating dataset configurations */
 const createDatasetConfig = (
@@ -64,49 +64,6 @@ async function withTempDir(
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
-}
-
-/**
- * Create a test workspace configuration file
- */
-async function createTestConfig(
-  tempDir: string,
-  config?: Partial<ConfigWithValidation>,
-): Promise<{ config: ConfigWithValidation; configPath: string }> {
-  const fullConfig: ConfigWithValidation = {
-    id: config?.id ?? "test-workspace",
-    name: config?.name ?? "Test Workspace",
-    version: config?.version ?? "1.0.0",
-    description: config?.description,
-    validation: {
-      ...DEFAULT_VALIDATION_SETTINGS,
-      datasets: [],
-      ...config?.validation,
-    },
-    createdAt: config?.createdAt ?? new Date(),
-    updatedAt: config?.updatedAt ?? new Date(),
-  };
-
-  const configPath = join(tempDir, TEST_CONFIG_FILENAME);
-  await Deno.writeTextFile(configPath, JSON.stringify(fullConfig, null, 2));
-
-  return { config: fullConfig, configPath };
-}
-
-/**
- * Create a test CSV file
- */
-async function createTestCSV(
-  filePath: string,
-  headers: string[],
-  rows: string[][] = [],
-): Promise<void> {
-  const csvContent = [
-    headers.join(","),
-    ...rows.map((row) => row.join(",")),
-  ].join("\n");
-
-  await Deno.writeTextFile(filePath, csvContent);
 }
 
 /**
