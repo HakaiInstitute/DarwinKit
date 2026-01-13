@@ -6,7 +6,7 @@ import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
-import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
+import { Workspace } from "../packages/core/src/workspace.ts";
 
 Deno.test({
   name: "OBIS Profile - validates required fields",
@@ -62,10 +62,9 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
       );
 
       // Validate
-      const validator = new WorkspaceValidator();
-      const result = await Effect.runPromise(
-        validator.validateFromConfig(tempDir),
-      );
+      const workspace = await Effect.runPromise(Workspace.discover(tempDir));
+      const result = await Effect.runPromise(workspace.validate());
+      workspace.close();
 
       // Should pass validation (may have warnings for strongly-recommended fields)
       assertExists(result);
@@ -144,14 +143,13 @@ E2,2022-09-16,49.9012,-125.4789`;
       );
 
       // Validate
-      const validator = new WorkspaceValidator();
+      const workspace = await Effect.runPromise(Workspace.discover(tempDir));
 
       // NOTE: This test is missing the geodeticDatum field mapping, and geodeticDatum
       // is marked as NOT NULL in the OBIS Event Core profile schema.
       // The validation detects this as a required field error and marks the dataset as failed.
-      const result = await Effect.runPromise(
-        validator.validateFromConfig(tempDir),
-      );
+      const result = await Effect.runPromise(workspace.validate());
+      workspace.close();
 
       // Verify we get a failed validation result
       assertEquals(result.overallStatus, "fail", "Should fail when required fields are missing");
@@ -229,10 +227,9 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     );
 
     // Validate
-    const validator = new WorkspaceValidator();
-    const result = await Effect.runPromise(
-      validator.validateFromConfig(tempDir),
-    );
+    const workspace = await Effect.runPromise(Workspace.discover(tempDir));
+    const result = await Effect.runPromise(workspace.validate());
+    workspace.close();
 
     // Should detect depth constraint violations
     assertExists(result);

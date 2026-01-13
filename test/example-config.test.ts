@@ -9,10 +9,10 @@
 
 import { assert, assertEquals, assertMatch } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
+import { Workspace } from "../packages/core/src/workspace.ts";
 
 Deno.test("Example config - validates FC2022 dataset", async () => {
-  const validator = new WorkspaceValidator();
+  const workspace = await Effect.runPromise(Workspace.discover("./test/example-config"));
 
   // NOTE: This test uses real-world marine survey data (FC2022) which contains values
   // that aren't in Darwin Core controlled vocabularies (e.g., 'Species' in taxonRank).
@@ -24,9 +24,8 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
   //
   // taxonRank uses "recommended" enforcement in Darwin Core, so violations are
   // collected as warnings rather than errors.
-  const result = await Effect.runPromise(
-    validator.validateFromConfig("./test/example-config"),
-  );
+  const result = await Effect.runPromise(workspace.validate());
+  workspace.close();
 
   // Verify we get successful validation result
   assertEquals(result.overallStatus, "warn", "Should have warnings due to taxonRank violations");

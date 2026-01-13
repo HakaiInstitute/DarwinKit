@@ -5,7 +5,7 @@
  * and represent recoverable domain errors rather than programming defects.
  */
 
-import { parseFileForWorkspace, WorkspaceValidator } from "@dwkt/core";
+import { parseFileForWorkspace, Workspace } from "@dwkt/core";
 import { assert, assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
@@ -55,12 +55,15 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
       "{ invalid json }",
     );
 
-    const validator = new WorkspaceValidator();
-
     let errorCaught = false;
 
     await Effect.runPromise(
-      validator.validateFromConfig(configPath).pipe(
+      Workspace.discover(configPath).pipe(
+        Effect.flatMap((workspace) =>
+          workspace.validate().pipe(
+            Effect.ensuring(Effect.sync(() => workspace.close())),
+          )
+        ),
         Effect.catchAll((_error) => {
           errorCaught = true;
           return Effect.succeed(null);
@@ -74,12 +77,15 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   await t.step("Config file not found", async () => {
     const nonExistentConfig = join(tempDir, "no-config-here");
 
-    const validator = new WorkspaceValidator();
-
     let errorCaught = false;
 
     await Effect.runPromise(
-      validator.validateFromConfig(nonExistentConfig).pipe(
+      Workspace.discover(nonExistentConfig).pipe(
+        Effect.flatMap((workspace) =>
+          workspace.validate().pipe(
+            Effect.ensuring(Effect.sync(() => workspace.close())),
+          )
+        ),
         Effect.catchAll((_error) => {
           errorCaught = true;
           return Effect.succeed(null);

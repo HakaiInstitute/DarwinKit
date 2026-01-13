@@ -19,7 +19,6 @@ import type {
   ValidationViolation,
   ValidatorConfig,
   WorkspaceFieldMapping,
-  WorkspaceValidationResult,
 } from "@dwkt/domain";
 import {
   ErrorCode,
@@ -28,7 +27,6 @@ import {
   parseSpecIdentifier,
   resolveDatasetProfile,
 } from "@dwkt/domain";
-import { Workspace } from "../workspace.ts";
 import {
   insertRowByRow,
   sanitizeTableName,
@@ -47,49 +45,6 @@ export { WorkspaceImportError, WorkspaceValidationError };
 
 // Re-export database operations for package consumers
 export { WorkspaceImportCSV, WorkspaceImportSchema } from "./database-operations.ts";
-
-/**
- * Workspace validator for config-based validation
- *
- * @deprecated Use Workspace class directly. This class delegates to Workspace for backward compatibility.
- */
-export class WorkspaceValidator {
-  /**
-   * Validate workspace from configuration file
-   *
-   * @deprecated Use `Workspace.discover().pipe(Effect.flatMap(w => w.validate()))` instead
-   *
-   * This method now delegates to the Workspace class for backward compatibility.
-   * It will be removed in a future version.
-   *
-   * @param configPath - Optional path to configuration directory
-   * @param options - Optional overrides for validation settings
-   */
-  validateFromConfig(
-    configPath?: string,
-    options?: {
-      failFast?: boolean;
-    },
-  ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
-    return Effect.gen(function* (_) {
-      // Discover and load workspace
-      const workspace = yield* _(
-        (configPath ? Workspace.discover(configPath) : Workspace.discover()).pipe(
-          Effect.mapError((error) => {
-            return new WorkspaceValidationError({
-              message: `Failed to load workspace config: ${error.message}`,
-              code: ErrorCode.VALIDATION_FAILED,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            });
-          }),
-        ),
-      );
-
-      // Delegate to Workspace.validate()
-      return yield* _(workspace.validate(options));
-    });
-  }
-}
 
 /**
  * Create workspace and load all datasets from config

@@ -9,7 +9,7 @@ import type {
 } from "@dwkt/domain";
 import {
   ErrorCode,
-  ForeignKeyViolation,
+  type ForeignKeyViolation,
   isEnumViolation,
   isPrimaryKeyViolation,
   isRangeViolation,
@@ -19,7 +19,8 @@ import { stringify } from "@std/csv";
 import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
-import { WorkspaceValidationError, WorkspaceValidator } from "./workspace-validator.ts";
+import { Workspace } from "../workspace.ts";
+import { WorkspaceValidationError } from "./validation-utils.ts";
 
 // Helper type for workspace creation
 type TestWorkspaceOptions = {
@@ -293,10 +294,12 @@ async function createSingleDatasetWorkspace(
 
 // Validate the workspace in the temp directory
 async function validateWorkspace(tempDir: string): Promise<WorkspaceValidationResult> {
-  const validator = new WorkspaceValidator();
-  return await Effect.runPromise(
-    validator.validateFromConfig(tempDir),
-  );
+  const workspace = await Effect.runPromise(Workspace.discover(tempDir));
+  try {
+    return await Effect.runPromise(workspace.validate());
+  } finally {
+    workspace.close();
+  }
 }
 
 // Assertion helpers using Effect's Array.filter for type-safe narrowing
@@ -590,14 +593,15 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
     await writeConfig(tempDir, config);
 
-    const validator = new WorkspaceValidator();
-
     // NOTE: This test has a config that maps to a field ('countryCode') that doesn't
     // exist in the CSV. The validation currently fails early with an INVALID_CONFIG error
     // before validation can run. This is expected behavior.
-    // TODO: Consider making this a warning instead of an error (see line 641 in workspace-validator.ts)
+    // TODO: Consider making this a warning instead of an error
+    const workspace = await Effect.runPromise(Workspace.discover(tempDir));
     const error = await Effect.runPromise(
-      Effect.flip(validator.validateFromConfig(tempDir)),
+      Effect.flip(workspace.validate()).pipe(
+        Effect.ensuring(Effect.sync(() => workspace.close())),
+      ),
     );
 
     // Verify we get an invalid config error about missing field
