@@ -325,14 +325,12 @@ export class Workspace {
       const config = yield* _(
         Effect.try({
           try: () => Schema.decodeUnknownSync(workspaceConfigSchema)(configWithMeta),
-          catch: (error) => {
-            console.error(error);
-            return new ConfigValidationError({
+          catch: (error) =>
+            new ConfigValidationError({
               message: `Configuration validation failed`,
               configPath,
               validationErrors: [String(error)],
-            });
-          },
+            }),
         }),
       );
 

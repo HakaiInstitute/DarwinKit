@@ -377,7 +377,7 @@ Deno.test.afterAll(async () => {
   await removeTempDirs();
 });
 
-Deno.test("WorkspaceValidator - Basic Validation Tests", async (t) => {
+Deno.test("Workspace Validation - Basic Validation Tests", async (t) => {
   await t.step("validates workspace from config", async () => {
     const tempDir = await createTempDir("validate_workspace_from_config");
     await createMultiDatasetWorkspace(tempDir);
@@ -409,7 +409,7 @@ Deno.test("WorkspaceValidator - Basic Validation Tests", async (t) => {
   });
 });
 
-Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
+Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
   await t.step("detects cross-dataset violations", async () => {
     const tempDir = await createTempDir("detect_cross_dataset_violations");
 
@@ -683,7 +683,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
   });
 });
 
-Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
+Deno.test("Workspace Validation - Row Number Tests", async (t) => {
   await t.step("reports correct row numbers for violations", async () => {
     const tempDir = await createTempDir("detect_row_numbers");
 

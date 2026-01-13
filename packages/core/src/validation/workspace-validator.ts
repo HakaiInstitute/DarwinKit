@@ -6,8 +6,6 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
-import { DuckDBInstance } from "@duckdb/node-api";
-import { resolve } from "@std/path";
 import * as Effect from "effect/Effect";
 
 import type {
@@ -27,67 +25,9 @@ import {
   parseSpecIdentifier,
   resolveDatasetProfile,
 } from "@dwkt/domain";
-import {
-  insertRowByRow,
-  sanitizeTableName,
-  WorkspaceImportCSV,
-  WorkspaceImportSchema,
-} from "./database-operations.ts";
-import {
-  partitionViolations,
-  WorkspaceImportError,
-  WorkspaceValidationError,
-} from "./validation-utils.ts";
+import { insertRowByRow, sanitizeTableName } from "./database-operations.ts";
+import { partitionViolations, WorkspaceValidationError } from "./validation-utils.ts";
 import { validateRangeConstraints, validateUniqueness, validateVocabulary } from "./validators.ts";
-
-// Re-export for backward compatibility
-export { WorkspaceImportError, WorkspaceValidationError };
-
-// Re-export database operations for package consumers
-export { WorkspaceImportCSV, WorkspaceImportSchema } from "./database-operations.ts";
-
-/**
- * Create workspace and load all datasets from config
- *
- * @internal Exported for use by Workspace class
- */
-export function createWorkspaceFromConfig(
-  workspaceId: string,
-  datasets: readonly DatasetConfig[],
-  validationSettings: ValidationSettings,
-  basePath: string,
-): Effect.Effect<
-  { workspaceId: string; connection: DuckDBConnection; instance: DuckDBInstance },
-  WorkspaceValidationError
-> {
-  return Effect.gen(function* (_) {
-    // Create isolated DuckDB instance - each workspace gets its own in-memory database
-    // This prevents test contamination where tables from one test persist into another
-    const instance = yield* _(
-      Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(Effect.orDie),
-    );
-
-    // Create connection from isolated instance - failure is a system defect
-    const connection = yield* _(
-      Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie),
-    );
-
-    // Load each dataset into DuckDB
-    for (const dataset of datasets) {
-      const filePath = resolve(basePath, dataset.path);
-      // prepend'raw_' to table name becouse dataset.name and spec/profile can not be the same name otherwise the tables conflict
-      const tableName = `raw_${sanitizeTableName(dataset.name)}`;
-
-      // Build null values string for DuckDB
-      const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`).join(", ");
-      const dropTable = true;
-      yield* _(WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable));
-      yield* _(WorkspaceImportSchema(connection, dataset, datasets));
-    }
-
-    return { workspaceId, connection, instance };
-  });
-}
 
 /**
  * Merge field definition with profile and field-level overrides
@@ -177,14 +117,12 @@ export function validateDataset(
     const originTableColumnsResult = yield* _(
       Effect.tryPromise({
         try: () => connection.runAndReadAll(`SELECT column_name FROM (DESCRIBE '${tableName}')`),
-        catch: (error) => {
-          console.error(error);
-          return new WorkspaceValidationError({
+        catch: (error) =>
+          new WorkspaceValidationError({
             message: `Failed to Describe table: ${error}`,
             code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
-          });
-        },
+          }),
       }),
     );
 
@@ -492,7 +430,15 @@ export function validateDataset(
 
     const hasWarnings = warnings.length > 0 || partitioned.warnings.length > 0;
 
-    const status = hasErrors ? "fail" : hasWarnings ? "warn" : "pass";
+    // Determine status based on errors and warnings
+    let status: "fail" | "warn" | "pass";
+    if (hasErrors) {
+      status = "fail";
+    } else if (hasWarnings) {
+      status = "warn";
+    } else {
+      status = "pass";
+    }
 
     return {
       datasetName: dataset.name,

@@ -5,13 +5,10 @@
 // Workspace management
 export * from "./src/workspace.ts";
 
-// Re-export validation utilities (error types, database operations, validators)
+// Validation utilities
 // NOTE: WorkspaceValidator class has been removed - use Workspace class directly
-export {
-  validateDataset,
-  WorkspaceImportCSV,
-  WorkspaceImportSchema,
-} from "./src/validation/workspace-validator.ts";
+export { validateDataset } from "./src/validation/workspace-validator.ts";
+export { WorkspaceImportCSV, WorkspaceImportSchema } from "./src/validation/database-operations.ts";
 export {
   WorkspaceImportError,
   WorkspaceValidationError,

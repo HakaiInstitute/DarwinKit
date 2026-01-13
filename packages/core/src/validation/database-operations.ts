@@ -21,9 +21,6 @@ import {
   type WorkspaceValidationError,
 } from "./validation-utils.ts";
 
-// Re-export error classes from validation-utils
-export { WorkspaceImportError, WorkspaceValidationError } from "./validation-utils.ts";
-
 /**
  * Minimal dataset interface for schema import
  * Works with both validation and transform dataset configs
@@ -107,14 +104,12 @@ export function WorkspaceImportCSV(
            FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`,
         );
       },
-      catch: (error) => {
-        console.error(error);
-        return new WorkspaceImportError({
+      catch: (error) =>
+        new WorkspaceImportError({
           message: `Failed to create table '${tableName}' from CSV ${fullPath}`,
           code: ErrorCode.DATABASE_ERROR,
           cause: error instanceof Error ? error : new Error(String(error)),
-        });
-      },
+        }),
     }));
   });
 }
@@ -281,15 +276,12 @@ export function WorkspaceImportSchema(
     const tableSql = `CREATE TABLE ${tableName} (${columns.join(", ")})`;
     yield* _(Effect.tryPromise({
       try: () => connection.run(tableSql),
-      catch: (error) => {
-        console.error(error);
-        console.error(`Failing SQL: ${tableSql}`);
-        return new WorkspaceImportError({
-          message: `Failed to create table '${tableName}'`,
+      catch: (error) =>
+        new WorkspaceImportError({
+          message: `Failed to create table '${tableName}'. SQL: ${tableSql}`,
           code: ErrorCode.DATABASE_ERROR,
           cause: error instanceof Error ? error : new Error(String(error)),
-        });
-      },
+        }),
     }));
   });
 }

@@ -110,14 +110,12 @@ function runPostImportTransformations(
     for (const transformSQL of config.transform.postImportTransforms) {
       yield* _(Effect.tryPromise({
         try: () => connection.run(transformSQL),
-        catch: (error) => {
-          console.error(error);
-          return new TransformationError({
-            message: `Failed to execute post-import transform SQL`,
+        catch: (error) =>
+          new TransformationError({
+            message: `Failed to execute post-import transform SQL: ${transformSQL}`,
             code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
-          });
-        },
+          }),
       }));
     }
   });
@@ -164,13 +162,11 @@ export function populateSchemaFromDataTables( // Export for testing
 
     for (const dataset of config.transform.datasets) {
       if (!dataset.fields) {
-        console.error(`Error: No field definitions found in ${dataset?.name}`);
-        console.debug(`dataset:\n{JSON.stringify(dataset, null, 2)}`);
         return yield* _(Effect.fail(
           new TransformationError({
             message: `No field definitions found in '${dataset?.name}'`,
             code: ErrorCode.INVALID_CONFIG,
-            cause: new Error(String("field property missing from dataset definition")),
+            cause: new Error("field property missing from dataset definition"),
           }),
         ));
       }
@@ -181,14 +177,11 @@ export function populateSchemaFromDataTables( // Export for testing
 
       const transformProfile = getValidationProfile(dataset.profile);
       if (!transformProfile) {
-        console.warn(`No validation profile found for ${dataset.profile}`);
         return yield* _(Effect.fail(
           new TransformationError({
-            message: `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
+            message:
+              `Validation profile '${dataset.profile}' not found for dataset '${dataset.name}'`,
             code: ErrorCode.INVALID_CONFIG,
-            cause: new Error(
-              String(`Validation profile ${dataset.profile} not found for '${dataset?.name}'`),
-            ),
           }),
         ));
       }
@@ -210,15 +203,13 @@ export function populateSchemaFromDataTables( // Export for testing
 
       yield* _(Effect.tryPromise({
         try: () => connection.run(insertSQL),
-        catch: (error) => {
-          console.error(error);
-          console.log(insertSQL);
-          return new TransformationError({
-            message: `Failed to populate table '${tableName}' from dataset '${dataset.name}'`,
+        catch: (error) =>
+          new TransformationError({
+            message:
+              `Failed to populate table '${tableName}' from dataset '${dataset.name}'. SQL: ${insertSQL}`,
             code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
-          });
-        },
+          }),
       }));
     }
   });

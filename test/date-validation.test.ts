@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import { Workspace } from "../packages/core/src/workspace.ts";
 
 Deno.test({
-  name: "WorkspaceValidator - validates date ranges",
+  name: "Workspace Validation - validates date ranges",
   fn: async () => {
     const tempDir = await Deno.makeTempDir({ prefix: "date_validation_test_" });
 

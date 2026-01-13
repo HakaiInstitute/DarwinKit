@@ -27,9 +27,6 @@ import * as Effect from "effect/Effect";
 import { sanitizeTableName } from "./database-operations.ts";
 import type { WorkspaceValidationError } from "./validation-utils.ts";
 
-// Re-export error classes from validation-utils
-export { WorkspaceValidationError } from "./validation-utils.ts";
-
 /**
  * Resolve dataset name to its schema table name
  *
