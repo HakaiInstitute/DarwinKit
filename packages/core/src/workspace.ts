@@ -555,6 +555,46 @@ export class Workspace {
   }
 
   /**
+   * Get all datasets configured in the workspace
+   *
+   * Returns an empty array if the workspace doesn't have validation configured.
+   *
+   * @returns Array of dataset configurations
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * const datasets = workspace.getDatasets();
+   * console.log(`Found ${datasets.length} datasets`);
+   * ```
+   */
+  getDatasets(): readonly DatasetConfig[] {
+    if (!("validation" in this.config)) {
+      return [];
+    }
+    return this.config.validation.datasets || [];
+  }
+
+  /**
+   * Get a specific dataset by name
+   *
+   * @param name - Dataset name to find
+   * @returns Dataset configuration, or undefined if not found
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * const eventData = workspace.getDataset("event_data");
+   * if (eventData) {
+   *   console.log(`Found dataset with spec: ${eventData.spec}`);
+   * }
+   * ```
+   */
+  getDataset(name: string): DatasetConfig | undefined {
+    return this.getDatasets().find((d) => d.name === name);
+  }
+
+  /**
    * Get or create DuckDB connection (lazy initialization)
    *
    * Creates an in-memory DuckDB database on first call, reuses on subsequent calls.
@@ -711,11 +751,15 @@ export class Workspace {
           const summary = calculateSummary(datasetResults);
           const totalProcessingTimeMs = Date.now() - startTime;
 
-          const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0
-            ? "fail"
-            : summary.datasetsWithWarningsCount > 0
-            ? "warn"
-            : "pass";
+          // Determine overall status based on dataset results
+          let overallStatus: "fail" | "warn" | "pass";
+          if (summary.datasetsFailedCount > 0) {
+            overallStatus = "fail";
+          } else if (summary.datasetsWithWarningsCount > 0) {
+            overallStatus = "warn";
+          } else {
+            overallStatus = "pass";
+          }
 
           return {
             workspaceId,

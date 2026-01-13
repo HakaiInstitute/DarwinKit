@@ -309,11 +309,12 @@ export function validateDataset(
     if (bulkInsertResult._tag === "Left") {
       // Bulk INSERT failed - fall back to row-by-row insertion
       const error = bulkInsertResult.left;
-      console.log(
-        `Bulk INSERT failed for dataset '${dataset.name}' - falling back to row-by-row insertion to collect detailed violations`,
-      );
+      // console.log(
+      //   `Bulk INSERT failed for dataset '${dataset.name}' - falling back to row-by-row insertion to collect detailed violations`,
+      // );
+
       if (error instanceof Error) {
-        console.log(`Bulk INSERT error: ${error.message}`);
+        //console.log(`Bulk INSERT error: ${error.message}`);
       }
 
       // Insert rows one-by-one and collect violations
@@ -328,11 +329,12 @@ export function validateDataset(
             validationSettings,
           ),
         );
+
         allViolations.push(...constraintViolations);
       }
     } else {
       // Bulk INSERT succeeded - no constraint violations
-      console.log(`Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`);
+      // console.log(`Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`);
     }
 
     // Validate field mappings based on spec

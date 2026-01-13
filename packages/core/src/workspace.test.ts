@@ -366,8 +366,9 @@ Deno.test("Workspace - multiple datasets validation", async () => {
       },
     });
 
+    const configPath = join(tempDir, TEST_CONFIG_FILENAME);
     const workspace = await Effect.runPromise(
-      Workspace.fromPath(config.id ? join(tempDir, TEST_CONFIG_FILENAME) : ""),
+      Workspace.fromPath(configPath),
     );
 
     const workspaceConfig = workspace.getConfig();
@@ -812,7 +813,7 @@ Deno.test("Workspace.isValid - returns false before validation", async () => {
     );
 
     // Should return false before validation
-    assertFalse(workspace.isValid());
+    assertEquals(workspace.isValid(), false);
 
     workspace.close();
   });
@@ -878,10 +879,10 @@ Deno.test("Workspace.isValid - returns false for non-passing validation", async 
 
     // The key test is that isValid() matches the overall status
     if (result.overallStatus === "pass") {
-      assert(workspace.isValid(), true);
+      assertEquals(workspace.isValid(), true);
     } else {
       // For "warn" or "fail", isValid() should return false
-      assertFalse(workspace.isValid());
+      assertEquals(workspace.isValid(), false);
     }
 
     workspace.close();

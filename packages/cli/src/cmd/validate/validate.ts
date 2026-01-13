@@ -13,7 +13,7 @@ import {
   ConfigValidationError,
   DatasetFileNotFoundError,
   prettyPrintConfigError,
-  WorkspaceValidator,
+  Workspace,
 } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { ErrorCode } from '@dwkt/domain';
@@ -57,9 +57,7 @@ function outputJsonResultsEffect(
   outputDir?: string,
 ): Effect.Effect<void, OutputError> {
   return Effect.gen(function* (_) {
-    const outputPath = outputDir || results.summary.totalDatasets > 0
-      ? './validation_results'
-      : './validation_results';
+    const outputPath = outputDir ?? './validation_results';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `validation-results-${timestamp}.json`;
     const fullPath = join(outputPath, filename);
@@ -214,6 +212,27 @@ function handleCLIError(error: unknown): never {
   }
 }
 
+/**
+ * Display workspace information before validation
+ */
+function displayWorkspaceInfo(workspace: Workspace) {
+  Output.blank();
+  Output.section('📂', 'Workspace Information');
+  Output.line(`  Name: ${workspace.getName()}`);
+  Output.line(`  Version: ${workspace.getVersion()}`);
+  if (workspace.getDescription()) {
+    Output.line(`  Description: ${workspace.getDescription()}`);
+  }
+  Output.line(`  Config: ${workspace.getConfigPath()}`);
+
+  const datasets = workspace.getDatasets();
+  Output.line(`  Datasets: ${datasets.length}`);
+  for (const dataset of datasets) {
+    Output.muted(`    • ${dataset.name} (${dataset.spec})`);
+  }
+  Output.blank();
+}
+
 // Main validate function
 export async function validate(options: {
   config?: string;
@@ -232,17 +251,24 @@ export async function validate(options: {
 
   // Validation pipeline using Effect
   const runValidation = Effect.gen(function* (_) {
-    // Initialize validation service
-    const validator = new WorkspaceValidator();
+    // Discover and load workspace
+    const workspace = yield* _(Workspace.discover(options.config));
 
+    // Display workspace info before validation
+    spinner.stop();
+    displayWorkspaceInfo(workspace);
+    spinner.start();
     spinner.update('Validating datasets...');
 
-    // Run validation - this returns Effect<WorkspaceValidationResult, WorkspaceValidationError>
+    // Run validation
     const results = yield* _(
-      validator.validateFromConfig(options.config, {
+      workspace.validate({
         failFast: options.failFast,
       }),
     );
+
+    // Clean up workspace connection
+    workspace.close();
 
     // Stop spinner before output
     spinner.stop();
@@ -256,7 +282,6 @@ export async function validate(options: {
 
   // Run the Effect pipeline with Exit to preserve Cause information
   const result = await Effect.runPromiseExit(runValidation);
-  //const result = await Effect.runPromise(runValidation).catch(console.error);
 
   if (Exit.isFailure(result)) {
     // Stop spinner on error
@@ -319,7 +344,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
     .border(true);
 
   for (const dataset of results.datasetResults) {
-    const statusIcon = getStatusIcon(dataset.status);
+    const statusIcon = Output.statusIcon(dataset.status);
     const statusText = `${statusIcon} ${dataset.status.toUpperCase()}`;
 
     // NEW: Count violations from partitioned structure
@@ -540,19 +565,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
   Output.line(`  Total rows processed: ${results.summary.totalRowsProcessed}`);
   Output.line(`  Processing time: ${results.totalProcessingTimeMs}ms`);
   Output.blank();
-}
-
-function getStatusIcon(status: string): string {
-  switch (status) {
-    case 'pass':
-      return '✅';
-    case 'warn':
-      return '⚠️';
-    case 'fail':
-      return '❌';
-    default:
-      return '❓';
-  }
 }
 
 export const validateCommand = new Command()
