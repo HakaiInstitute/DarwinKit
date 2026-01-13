@@ -12,6 +12,8 @@
  * - Foundation for interactive workflows
  */
 
+import type { DuckDBConnection } from "@duckdb/node-api";
+import { DuckDBInstance } from "@duckdb/node-api";
 import type {
   DatasetConfig,
   ValidationSettings,
@@ -26,8 +28,6 @@ import {
   resolveDatasetProfile,
   workspaceConfigSchema,
 } from "@dwkt/domain";
-import type { DuckDBConnection } from "@duckdb/node-api";
-import { DuckDBInstance } from "@duckdb/node-api";
 import { dirname, join, resolve } from "@std/path";
 import type * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
@@ -164,6 +164,17 @@ export class Workspace {
     instance: DuckDBInstance;
     connection: DuckDBConnection;
   };
+
+  /**
+   * Cached validation result from the last validation run
+   *
+   * Updated each time validate() is called. Allows querying validation
+   * state without re-running validation.
+   *
+   * TODO: This will need to be cleared any time the configuration or a dataset
+   * is modified.
+   */
+  private validationResult?: WorkspaceValidationResult;
 
   /**
    * Private constructor - use static factory methods to create instances
@@ -501,6 +512,49 @@ export class Workspace {
   }
 
   /**
+   * Get the cached validation result from the last validation run
+   *
+   * Returns undefined if validate() has not been called yet.
+   *
+   * @returns Last validation result, or undefined if not yet validated
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * console.log(workspace.getValidationResult()); // undefined
+   *
+   * await Effect.runPromise(workspace.validate());
+   * const result = workspace.getValidationResult(); // WorkspaceValidationResult
+   * ```
+   */
+  getValidationResult(): WorkspaceValidationResult | undefined {
+    return this.validationResult;
+  }
+
+  /**
+   * Check if the workspace is currently valid
+   *
+   * Returns true if the last validation passed without errors.
+   * Returns false if validation failed, had warnings, or hasn't been run yet.
+   *
+   * @returns true if last validation passed, false otherwise
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * console.log(workspace.isValid()); // false (not validated yet)
+   *
+   * await Effect.runPromise(workspace.validate());
+   * if (workspace.isValid()) {
+   *   console.log("All datasets are valid!");
+   * }
+   * ```
+   */
+  isValid(): boolean {
+    return this.validationResult?.overallStatus === "pass";
+  }
+
+  /**
    * Get or create DuckDB connection (lazy initialization)
    *
    * Creates an in-memory DuckDB database on first call, reuses on subsequent calls.
@@ -621,7 +675,7 @@ export class Workspace {
       }
 
       // Perform validation
-      return yield* _(
+      const result = yield* _(
         Effect.gen(function* (_) {
           // Validate each dataset
           const datasetResults = [];
@@ -675,6 +729,11 @@ export class Workspace {
           };
         }),
       );
+
+      // Cache the result for state queries (after successful validation)
+      this.validationResult = result;
+
+      return result;
     });
   }
 

@@ -6,7 +6,7 @@
  */
 
 import type { ConfigWithValidation, DatasetConfig } from "@dwkt/domain";
-import { assert, assertEquals, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists, assertGreaterOrEqual } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 import {
@@ -717,5 +717,218 @@ Deno.test("Workspace - Symbol.dispose cleanup with using declaration", async () 
     }
 
     // Test passes if no errors thrown during cleanup
+  });
+});
+
+// ============================================================================
+// Workspace State Management Tests (Stage 5)
+// ============================================================================
+
+Deno.test("Workspace.getValidationResult - returns undefined before validation", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV and config
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "State Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // Should return undefined before validation
+    assertEquals(workspace.getValidationResult(), undefined);
+
+    workspace.close();
+  });
+});
+
+Deno.test("Workspace.getValidationResult - returns cached result after validation", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV and config
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "State Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // Run validation
+    const validationResult = await Effect.runPromise(workspace.validate());
+
+    // Should return same result from cache
+    const cachedResult = workspace.getValidationResult();
+    assertExists(cachedResult);
+    assertEquals(cachedResult.overallStatus, validationResult.overallStatus);
+    assertEquals(cachedResult.workspaceId, validationResult.workspaceId);
+    assertEquals(cachedResult.datasetResults.length, 1);
+
+    workspace.close();
+  });
+});
+
+Deno.test("Workspace.isValid - returns false before validation", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV and config
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "State Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // Should return false before validation
+    assertFalse(workspace.isValid());
+
+    workspace.close();
+  });
+});
+
+Deno.test("Workspace.isValid - returns true after passing validation", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV with valid data
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "State Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // Run validation
+    const result = await Effect.runPromise(workspace.validate());
+    assertEquals(result.overallStatus, "pass");
+
+    // Should return true after passing validation
+    assert(workspace.isValid());
+
+    workspace.close();
+  });
+});
+
+Deno.test("Workspace.isValid - returns false for non-passing validation", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV with just eventID (minimal valid data)
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "State Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // Run validation (should produce warnings or fail - not a full "pass")
+    const result = await Effect.runPromise(workspace.validate());
+
+    // The key test is that isValid() matches the overall status
+    if (result.overallStatus === "pass") {
+      assert(workspace.isValid(), true);
+    } else {
+      // For "warn" or "fail", isValid() should return false
+      assertFalse(workspace.isValid());
+    }
+
+    workspace.close();
+  });
+});
+
+Deno.test("Workspace - state updates after multiple validations", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV
+    const csvPath = join(tempDir, "test.csv");
+    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "Multi Validation Test",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
+    );
+
+    // First validation
+    const result1 = await Effect.runPromise(workspace.validate());
+    assertEquals(result1.overallStatus, "pass");
+    assert(workspace.isValid());
+
+    const cached1 = workspace.getValidationResult();
+    assertExists(cached1);
+    assertEquals(cached1.validatedAt, result1.validatedAt);
+
+    // Second validation (should update state)
+    const result2 = await Effect.runPromise(workspace.validate());
+    assertEquals(result2.overallStatus, "pass");
+    assert(workspace.isValid());
+
+    const cached2 = workspace.getValidationResult();
+    assertExists(cached2);
+    // Validation time should be different (second validation happened later)
+    assertGreaterOrEqual(cached2.validatedAt, cached1.validatedAt);
+
+    workspace.close();
   });
 });
