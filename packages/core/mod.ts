@@ -7,12 +7,9 @@ export * from "./src/workspace.ts";
 
 // Validation utilities
 // NOTE: WorkspaceValidator class has been removed - use Workspace class directly
-export { validateDataset } from "./src/validation/workspace-validator.ts";
 export { WorkspaceImportCSV, WorkspaceImportSchema } from "./src/validation/database-operations.ts";
-export {
-  WorkspaceImportError,
-  WorkspaceValidationError,
-} from "./src/validation/validation-utils.ts";
+export { WorkspaceImportError, WorkspaceValidationError } from "./src/validation/utils.ts";
+export { validateDataset } from "./src/validation/validate-dataset.ts";
 
 // CSV parsing
 export * from "./src/csv-parser.ts";

@@ -20,7 +20,7 @@ import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
 import { Workspace } from "../workspace.ts";
-import { WorkspaceValidationError } from "./validation-utils.ts";
+import { WorkspaceValidationError } from "./utils.ts";
 
 // Helper type for workspace creation
 type TestWorkspaceOptions = {

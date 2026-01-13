@@ -23,7 +23,7 @@
 // Import error classes to extract their tags
 import type { ParseError } from "./csv-parser.ts";
 import type { OutputError, TransformationError } from "./transform.ts";
-import type { WorkspaceImportError } from "./validation/validation-utils.ts";
+import type { WorkspaceImportError } from "./validation/utils.ts";
 import type {
   ConfigNotFoundError,
   ConfigParseError,

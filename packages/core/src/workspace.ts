@@ -40,9 +40,9 @@ import {
   WorkspaceImportCSV,
   WorkspaceImportSchema,
 } from "./validation/database-operations.ts";
-import { calculateSummary, WorkspaceValidationError } from "./validation/validation-utils.ts";
+import { calculateSummary, WorkspaceValidationError } from "./validation/utils.ts";
+import { validateDataset } from "./validation/validate-dataset.ts";
 import { validateCrossDatasetRule } from "./validation/validators.ts";
-import { validateDataset } from "./validation/workspace-validator.ts";
 
 /**
  * Error classes for workspace configuration operations

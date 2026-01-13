@@ -25,7 +25,7 @@ import {
 } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
 import { sanitizeTableName } from "./database-operations.ts";
-import type { WorkspaceValidationError } from "./validation-utils.ts";
+import type { WorkspaceValidationError } from "./utils.ts";
 
 /**
  * Resolve dataset name to its schema table name

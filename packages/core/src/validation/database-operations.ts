@@ -19,7 +19,7 @@ import {
   parseDuckDBError,
   WorkspaceImportError,
   type WorkspaceValidationError,
-} from "./validation-utils.ts";
+} from "./utils.ts";
 
 /**
  * Minimal dataset interface for schema import
