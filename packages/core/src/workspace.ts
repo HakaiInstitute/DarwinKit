@@ -39,10 +39,10 @@ import {
   sanitizeTableName,
   WorkspaceImportCSV,
   WorkspaceImportSchema,
-} from "./validation/database-operations.ts";
+} from "./validation/database/index.ts";
 import { calculateSummary, WorkspaceValidationError } from "./validation/utils.ts";
-import { validateDataset } from "./validation/validate-dataset.ts";
-import { validateCrossDatasetRule } from "./validation/validators.ts";
+import { validateDataset } from "./validation/dataset-validator.ts";
+import { validateCrossDatasetRule } from "./validation/field-validators.ts";
 
 /**
  * Error classes for workspace configuration operations

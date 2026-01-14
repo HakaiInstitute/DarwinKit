@@ -25,9 +25,13 @@ import {
   parseSpecIdentifier,
   resolveDatasetProfile,
 } from "@dwkt/domain";
-import { insertRowByRow, sanitizeTableName } from "./database-operations.ts";
+import { insertRowByRow, sanitizeTableName } from "./database/index.ts";
 import { partitionViolations, WorkspaceValidationError } from "./utils.ts";
-import { validateRangeConstraints, validateUniqueness, validateVocabulary } from "./validators.ts";
+import {
+  validateRangeConstraints,
+  validateUniqueness,
+  validateVocabulary,
+} from "./field-validators.ts";
 
 /**
  * Merge field definition with profile and field-level overrides

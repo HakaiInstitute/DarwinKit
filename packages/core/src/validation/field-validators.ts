@@ -24,7 +24,7 @@ import {
   VocabularyViolation,
 } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
-import { sanitizeTableName } from "./database-operations.ts";
+import { sanitizeTableName } from "./database/index.ts";
 import type { WorkspaceValidationError } from "./utils.ts";
 
 /**
