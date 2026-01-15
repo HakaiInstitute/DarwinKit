@@ -10,7 +10,7 @@ import type {
   DatasetFileNotFoundError,
   WorkspaceImportError,
 } from "@dwkt/core";
-import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
+import { importCsvToWorkspace, importSchemaToWorkspace } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { ErrorCode, getValidationProfile } from "@dwkt/domain";
 import { json2csv } from "json-2-csv";
@@ -73,7 +73,7 @@ export function createTablesFromCSV( // Export for testing
 
       const fullPath = resolve(basePath, csvPath);
 
-      yield* _(WorkspaceImportCSV(connection, tableName, fullPath, nullStr));
+      yield* _(importCsvToWorkspace(connection, tableName, fullPath, nullStr));
     }
   });
 }
@@ -139,7 +139,7 @@ export function createTableFromSchema(
     }
 
     for (const dataset of config.transform.datasets) {
-      yield* _(WorkspaceImportSchema(connection, dataset, config.transform.datasets));
+      yield* _(importSchemaToWorkspace(connection, dataset, config.transform.datasets));
     }
   });
 }

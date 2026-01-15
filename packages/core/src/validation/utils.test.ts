@@ -8,79 +8,93 @@
  * - Fuzzy value suggestion matching
  */
 
+import type { EnforcementLevel } from "@dwkt/domain";
 import { assert, assertEquals } from "@std/assert";
-import type { DatasetValidationResult } from "@dwkt/domain";
+import {
+  createMockDatasetValidationResult,
+  createMockSchemaViolation,
+  createMockViolation,
+} from "./test-utils.ts";
 import {
   calculateSummary,
   findSuggestedValue,
   parseDuckDBError,
-  partitionViolations,
+  partitionFieldViolations,
 } from "./utils.ts";
-import { createMockRangeViolation, createMockViolation } from "./test-utils.ts";
 
 // ============================================================================
 // Violation Partitioning Tests
 // ============================================================================
 
-Deno.test("partitionViolations - empty array", () => {
-  const result = partitionViolations([]);
+type PartitionTestCase = {
+  description: string;
+  violations: Array<{ enforcement: EnforcementLevel; rowNumber?: number }>;
+  expected: {
+    errors: number;
+    warnings: number;
+    info: number;
+  };
+  verifyOrder?: boolean;
+};
 
-  assertEquals(result.errors.length, 0);
-  assertEquals(result.warnings.length, 0);
-  assertEquals(result.info.length, 0);
-});
+const partitionFieldViolationsTestCases: PartitionTestCase[] = [
+  {
+    description: "empty array",
+    violations: [],
+    expected: { errors: 0, warnings: 0, info: 0 },
+  },
+  {
+    description: "single required violation",
+    violations: [{ enforcement: "required" }],
+    expected: { errors: 1, warnings: 0, info: 0 },
+  },
+  {
+    description: "single recommended violation",
+    violations: [{ enforcement: "recommended" }],
+    expected: { errors: 0, warnings: 1, info: 0 },
+  },
+  {
+    description: "single optional violation",
+    violations: [{ enforcement: "optional" }],
+    expected: { errors: 0, warnings: 0, info: 1 },
+  },
+  {
+    description: "mixed enforcement levels",
+    violations: [
+      { enforcement: "required", rowNumber: 1 },
+      { enforcement: "required", rowNumber: 2 },
+      { enforcement: "recommended", rowNumber: 3 },
+      { enforcement: "recommended", rowNumber: 4 },
+      { enforcement: "optional", rowNumber: 5 },
+    ],
+    expected: { errors: 2, warnings: 2, info: 1 },
+    verifyOrder: true,
+  },
+];
 
-Deno.test("partitionViolations - single required violation", () => {
-  const violations = [createMockViolation("required")];
+Deno.test("partitionFieldViolations", async (t) => {
+  for (const testCase of partitionFieldViolationsTestCases) {
+    await t.step(testCase.description, () => {
+      const violations = testCase.violations.map((v) =>
+        createMockViolation(v.enforcement, { rowNumber: v.rowNumber })
+      );
 
-  const result = partitionViolations(violations);
+      const result = partitionFieldViolations(violations);
 
-  assertEquals(result.errors.length, 1);
-  assertEquals(result.warnings.length, 0);
-  assertEquals(result.info.length, 0);
-});
+      assertEquals(result.errors.length, testCase.expected.errors);
+      assertEquals(result.warnings.length, testCase.expected.warnings);
+      assertEquals(result.info.length, testCase.expected.info);
 
-Deno.test("partitionViolations - single recommended violation", () => {
-  const violations = [createMockViolation("recommended")];
-
-  const result = partitionViolations(violations);
-
-  assertEquals(result.errors.length, 0);
-  assertEquals(result.warnings.length, 1);
-  assertEquals(result.info.length, 0);
-});
-
-Deno.test("partitionViolations - single optional violation", () => {
-  const violations = [createMockViolation("optional")];
-
-  const result = partitionViolations(violations);
-
-  assertEquals(result.errors.length, 0);
-  assertEquals(result.warnings.length, 0);
-  assertEquals(result.info.length, 1);
-});
-
-Deno.test("partitionViolations - mixed enforcement levels", () => {
-  const violations = [
-    createMockViolation("required", { rowNumber: 1 }),
-    createMockViolation("required", { rowNumber: 2 }),
-    createMockViolation("recommended", { rowNumber: 3 }),
-    createMockViolation("recommended", { rowNumber: 4 }),
-    createMockViolation("optional", { rowNumber: 5 }),
-  ];
-
-  const result = partitionViolations(violations);
-
-  assertEquals(result.errors.length, 2);
-  assertEquals(result.warnings.length, 2);
-  assertEquals(result.info.length, 1);
-
-  // Verify order is preserved
-  assertEquals(result.errors[0].rowNumber, 1);
-  assertEquals(result.errors[1].rowNumber, 2);
-  assertEquals(result.warnings[0].rowNumber, 3);
-  assertEquals(result.warnings[1].rowNumber, 4);
-  assertEquals(result.info[0].rowNumber, 5);
+      // Verify order is preserved for mixed enforcement test
+      if (testCase.verifyOrder && testCase.violations.length > 0) {
+        assertEquals(result.errors[0].rowNumber, 1);
+        assertEquals(result.errors[1].rowNumber, 2);
+        assertEquals(result.warnings[0].rowNumber, 3);
+        assertEquals(result.warnings[1].rowNumber, 4);
+        assertEquals(result.info[0].rowNumber, 5);
+      }
+    });
+  }
 });
 
 // ============================================================================
@@ -101,20 +115,12 @@ Deno.test("calculateSummary - empty results", () => {
 });
 
 Deno.test("calculateSummary - single passing dataset", () => {
-  const results: DatasetValidationResult[] = [
-    {
+  const results = [
+    createMockDatasetValidationResult({
       datasetName: "test",
       status: "pass",
       rowsProcessed: 100,
-      violations: {
-        errors: [],
-        warnings: [],
-        info: [],
-      },
-      typeErrors: [],
-      requiredFieldErrors: [],
-      warnings: [],
-    },
+    }),
   ];
 
   const summary = calculateSummary(results);
@@ -130,20 +136,17 @@ Deno.test("calculateSummary - single passing dataset", () => {
 });
 
 Deno.test("calculateSummary - single dataset with warnings", () => {
-  const results: DatasetValidationResult[] = [
-    {
+  const results = [
+    createMockDatasetValidationResult({
       datasetName: "test",
       status: "warn",
       rowsProcessed: 50,
-      violations: {
-        errors: [],
+      fieldViolations: {
         warnings: [createMockViolation("recommended")],
+        errors: [],
         info: [],
       },
-      typeErrors: [],
-      requiredFieldErrors: [],
-      warnings: [],
-    },
+    }),
   ];
 
   const summary = calculateSummary(results);
@@ -159,12 +162,12 @@ Deno.test("calculateSummary - single dataset with warnings", () => {
 });
 
 Deno.test("calculateSummary - single failing dataset", () => {
-  const results: DatasetValidationResult[] = [
-    {
+  const results = [
+    createMockDatasetValidationResult({
       datasetName: "test",
       status: "fail",
       rowsProcessed: 75,
-      violations: {
+      fieldViolations: {
         errors: [
           createMockViolation("required"),
           createMockViolation("required"),
@@ -172,10 +175,7 @@ Deno.test("calculateSummary - single failing dataset", () => {
         warnings: [],
         info: [],
       },
-      typeErrors: [],
-      requiredFieldErrors: [],
-      warnings: [],
-    },
+    }),
   ];
 
   const summary = calculateSummary(results);
@@ -191,42 +191,32 @@ Deno.test("calculateSummary - single failing dataset", () => {
 });
 
 Deno.test("calculateSummary - multiple datasets mixed statuses", () => {
-  const results: DatasetValidationResult[] = [
-    {
+  const results = [
+    createMockDatasetValidationResult({
       datasetName: "passed",
       status: "pass",
       rowsProcessed: 100,
-      violations: { errors: [], warnings: [], info: [] },
-      typeErrors: [],
-      requiredFieldErrors: [],
-      warnings: [],
-    },
-    {
+    }),
+    createMockDatasetValidationResult({
       datasetName: "warned",
       status: "warn",
       rowsProcessed: 50,
-      violations: {
-        errors: [],
+      fieldViolations: {
         warnings: [createMockViolation("recommended")],
         info: [createMockViolation("optional")],
+        errors: [],
       },
-      typeErrors: [],
-      requiredFieldErrors: [],
-      warnings: [],
-    },
-    {
+    }),
+    createMockDatasetValidationResult({
       datasetName: "failed",
       status: "fail",
       rowsProcessed: 75,
-      violations: {
+      fieldViolations: {
         errors: [createMockViolation("required"), createMockViolation("required")],
         warnings: [],
         info: [],
       },
-      typeErrors: [],
-      requiredFieldErrors: [],
-      warnings: [],
-    },
+    }),
   ];
 
   const summary = calculateSummary(results);
@@ -241,198 +231,263 @@ Deno.test("calculateSummary - multiple datasets mixed statuses", () => {
   assertEquals(summary.totalRowsProcessed, 225);
 });
 
-Deno.test("calculateSummary - backward compatibility with old error fields", () => {
-  const results: DatasetValidationResult[] = [
-    {
+Deno.test("calculateSummary - counts both schema and field violations", () => {
+  const results = [
+    createMockDatasetValidationResult({
       datasetName: "test",
       status: "fail",
       rowsProcessed: 100,
-      violations: {
-        errors: [createMockViolation("required")],
-        warnings: [],
+      schemaViolations: {
+        errors: [createMockSchemaViolation("required")],
+        warnings: [createMockSchemaViolation("recommended")],
         info: [],
       },
-      // Old-style error fields (backward compatibility)
-      typeErrors: [{} as any, {} as any], // 2 type errors
-      requiredFieldErrors: [{} as any], // 1 required field error
-      warnings: [{} as any, {} as any, {} as any], // 3 warnings
-    },
+      fieldViolations: {
+        errors: [createMockViolation("required"), createMockViolation("required")],
+        warnings: [createMockViolation("recommended")],
+        info: [createMockViolation("optional")],
+      },
+    }),
   ];
 
   const summary = calculateSummary(results);
 
-  // New violations: 1 error
-  // Old violations: 2 type errors + 1 required field error = 3 errors
-  // Total: 4 errors
-  assertEquals(summary.totalErrors, 4);
-
-  // New violations: 0 warnings
-  // Old violations: 3 warnings
-  // Total: 3 warnings
-  assertEquals(summary.totalWarnings, 3);
+  // Schema violations: 1 error + 1 warning
+  // Field violations: 2 errors + 1 warning + 1 info
+  // Total: 3 errors, 2 warnings, 1 info
+  assertEquals(summary.totalErrors, 3);
+  assertEquals(summary.totalWarnings, 2);
+  assertEquals(summary.totalInfo, 1);
 });
 
 // ============================================================================
 // DuckDB Error Parsing Tests
 // ============================================================================
 
+type ErrorParseTestCase = {
+  description: string;
+  errorMessage: string;
+  expected: {
+    type: "primary-key" | "not-null" | "enum" | "foreign-key" | "check" | "unknown";
+    fieldName?: string;
+    value?: string;
+    messageContains?: string;
+  };
+};
+
+const primaryKeyErrorTestCases: ErrorParseTestCase[] = [
+  {
+    description: "format 1: duplicate key",
+    errorMessage: 'PRIMARY KEY or UNIQUE constraint violation: duplicate key "E1"',
+    expected: {
+      type: "primary-key",
+      value: "E1",
+      messageContains: "PRIMARY KEY",
+    },
+  },
+  {
+    description: "format 2: violates primary key constraint",
+    errorMessage: 'Duplicate key "eventID: E1" violates primary key constraint.',
+    expected: {
+      type: "primary-key",
+      value: "E1",
+    },
+  },
+  {
+    description: "format 3: duplicate key without field prefix",
+    errorMessage: 'Duplicate key "ABC123" violates primary key constraint',
+    expected: {
+      type: "primary-key",
+      value: "ABC123",
+    },
+  },
+];
+
+const notNullErrorTestCases: ErrorParseTestCase[] = [
+  {
+    description: "with field name",
+    errorMessage: "NOT NULL constraint failed: decimalLatitude",
+    expected: {
+      type: "not-null",
+      fieldName: "decimalLatitude",
+    },
+  },
+  {
+    description: "with colon separator",
+    errorMessage: "NOT NULL constraint failed: country",
+    expected: {
+      type: "not-null",
+      fieldName: "country",
+    },
+  },
+  {
+    description: "case insensitive match",
+    errorMessage: "not null constraint failed: eventDate",
+    expected: {
+      type: "not-null",
+      fieldName: "eventDate",
+    },
+  },
+];
+
+const enumErrorTestCases: ErrorParseTestCase[] = [
+  {
+    description: "typical enum conversion error",
+    errorMessage:
+      "Conversion Error: Could not convert string 'InvalidBasis' to UINT8 when casting from source column basisOfRecord",
+    expected: {
+      type: "enum",
+      value: "InvalidBasis",
+      fieldName: "basisOfRecord",
+    },
+  },
+  {
+    description: "enum error with spaces",
+    errorMessage:
+      "Conversion Error: Could not convert string 'Not A Valid Value' to UINT8 when casting from source column status",
+    expected: {
+      type: "enum",
+      value: "Not A Valid Value",
+      fieldName: "status",
+    },
+  },
+];
+
+const foreignKeyErrorTestCases: ErrorParseTestCase[] = [
+  {
+    description: "format 1: with field name and value",
+    errorMessage:
+      'Violates foreign key constraint because key "eventID: NA_FB_2020-11-17_FQ1" does not exist in the referenced table',
+    expected: {
+      type: "foreign-key",
+      fieldName: "eventID",
+      value: "NA_FB_2020-11-17_FQ1",
+    },
+  },
+  {
+    description: "format 2: with just the key value",
+    errorMessage:
+      'Violates foreign key constraint because key "E123" does not exist in the referenced table',
+    expected: {
+      type: "foreign-key",
+      value: "E123",
+    },
+  },
+  {
+    description: "format 3: generic foreign key error",
+    errorMessage: "FOREIGN KEY constraint violated",
+    expected: {
+      type: "foreign-key",
+    },
+  },
+  {
+    description: "case insensitive match",
+    errorMessage: "foreign key constraint violated",
+    expected: {
+      type: "foreign-key",
+    },
+  },
+];
+
+const checkErrorTestCases: ErrorParseTestCase[] = [
+  {
+    description: "basic check constraint",
+    errorMessage: "CHECK constraint failed: latitude must be between -90 and 90",
+    expected: {
+      type: "check",
+      messageContains: "CHECK constraint",
+    },
+  },
+  {
+    description: "case insensitive match",
+    errorMessage: "check constraint violated",
+    expected: {
+      type: "check",
+    },
+  },
+];
+
 Deno.test("parseDuckDBError - primary key violations", async (t) => {
-  await t.step("format 1: duplicate key", () => {
-    const error = new Error(
-      'PRIMARY KEY or UNIQUE constraint violation: duplicate key "E1"',
-    );
-    const result = parseDuckDBError(error);
+  for (const testCase of primaryKeyErrorTestCases) {
+    await t.step(testCase.description, () => {
+      const error = new Error(testCase.errorMessage);
+      const result = parseDuckDBError(error);
 
-    assertEquals(result.type, "primary-key");
-    assertEquals(result.value, "E1");
-    assert(result.message.includes("PRIMARY KEY"));
-  });
-
-  await t.step("format 2: violates primary key constraint", () => {
-    const error = new Error(
-      'Duplicate key "eventID: E1" violates primary key constraint.',
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "primary-key");
-    assertEquals(result.value, "E1");
-  });
-
-  await t.step("format 3: duplicate key without field prefix", () => {
-    const error = new Error(
-      'Duplicate key "ABC123" violates primary key constraint',
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "primary-key");
-    assertEquals(result.value, "ABC123");
-  });
+      assertEquals(result.type, testCase.expected.type);
+      if (testCase.expected.value) {
+        assertEquals(result.value, testCase.expected.value);
+      }
+      if (testCase.expected.messageContains) {
+        assert(result.message.includes(testCase.expected.messageContains));
+      }
+    });
+  }
 });
 
 Deno.test("parseDuckDBError - not null constraint violations", async (t) => {
-  await t.step("with field name", () => {
-    const error = new Error(
-      "NOT NULL constraint failed: decimalLatitude",
-    );
-    const result = parseDuckDBError(error);
+  for (const testCase of notNullErrorTestCases) {
+    await t.step(testCase.description, () => {
+      const error = new Error(testCase.errorMessage);
+      const result = parseDuckDBError(error);
 
-    assertEquals(result.type, "not-null");
-    assertEquals(result.fieldName, "decimalLatitude");
-  });
-
-  await t.step("with colon separator", () => {
-    const error = new Error(
-      "NOT NULL constraint failed: country",
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "not-null");
-    assertEquals(result.fieldName, "country");
-  });
-
-  await t.step("case insensitive match", () => {
-    const error = new Error(
-      "not null constraint failed: eventDate",
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "not-null");
-    assertEquals(result.fieldName, "eventDate");
-  });
+      assertEquals(result.type, testCase.expected.type);
+      if (testCase.expected.fieldName) {
+        assertEquals(result.fieldName, testCase.expected.fieldName);
+      }
+    });
+  }
 });
 
 Deno.test("parseDuckDBError - enum constraint violations", async (t) => {
-  await t.step("typical enum conversion error", () => {
-    const error = new Error(
-      "Conversion Error: Could not convert string 'InvalidBasis' to UINT8 when casting from source column basisOfRecord",
-    );
-    const result = parseDuckDBError(error);
+  for (const testCase of enumErrorTestCases) {
+    await t.step(testCase.description, () => {
+      const error = new Error(testCase.errorMessage);
+      const result = parseDuckDBError(error);
 
-    assertEquals(result.type, "enum");
-    assertEquals(result.value, "InvalidBasis");
-    assertEquals(result.fieldName, "basisOfRecord");
-  });
-
-  await t.step("enum error with spaces", () => {
-    const error = new Error(
-      "Conversion Error: Could not convert string 'Not A Valid Value' to UINT8 when casting from source column status",
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "enum");
-    assertEquals(result.value, "Not A Valid Value");
-    assertEquals(result.fieldName, "status");
-  });
+      assertEquals(result.type, testCase.expected.type);
+      if (testCase.expected.value) {
+        assertEquals(result.value, testCase.expected.value);
+      }
+      if (testCase.expected.fieldName) {
+        assertEquals(result.fieldName, testCase.expected.fieldName);
+      }
+    });
+  }
 });
 
 Deno.test("parseDuckDBError - foreign key constraint violations", async (t) => {
-  await t.step("format 1: with field name and value", () => {
-    const error = new Error(
-      'Violates foreign key constraint because key "eventID: NA_FB_2020-11-17_FQ1" does not exist in the referenced table',
-    );
-    const result = parseDuckDBError(error);
+  for (const testCase of foreignKeyErrorTestCases) {
+    await t.step(testCase.description, () => {
+      const error = new Error(testCase.errorMessage);
+      const result = parseDuckDBError(error);
 
-    assertEquals(result.type, "foreign-key");
-    assertEquals(result.fieldName, "eventID");
-    assertEquals(result.value, "NA_FB_2020-11-17_FQ1");
-  });
-
-  await t.step("format 2: with just the key value", () => {
-    const error = new Error(
-      'Violates foreign key constraint because key "E123" does not exist in the referenced table',
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "foreign-key");
-    assertEquals(result.value, "E123");
-  });
-
-  await t.step("format 3: generic foreign key error", () => {
-    const error = new Error(
-      "FOREIGN KEY constraint violated",
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "foreign-key");
-    assertEquals(result.fieldName, undefined);
-    assertEquals(result.value, undefined);
-  });
-
-  await t.step("case insensitive match", () => {
-    const error = new Error(
-      "foreign key constraint violated",
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "foreign-key");
-  });
+      assertEquals(result.type, testCase.expected.type);
+      if (testCase.expected.fieldName !== undefined) {
+        assertEquals(result.fieldName, testCase.expected.fieldName);
+      }
+      if (testCase.expected.value !== undefined) {
+        assertEquals(result.value, testCase.expected.value);
+      }
+    });
+  }
 });
 
 Deno.test("parseDuckDBError - check constraint violations", async (t) => {
-  await t.step("basic check constraint", () => {
-    const error = new Error(
-      "CHECK constraint failed: latitude must be between -90 and 90",
-    );
-    const result = parseDuckDBError(error);
+  for (const testCase of checkErrorTestCases) {
+    await t.step(testCase.description, () => {
+      const error = new Error(testCase.errorMessage);
+      const result = parseDuckDBError(error);
 
-    assertEquals(result.type, "check");
-    assert(result.message.includes("CHECK constraint"));
-  });
-
-  await t.step("case insensitive match", () => {
-    const error = new Error(
-      "check constraint violated",
-    );
-    const result = parseDuckDBError(error);
-
-    assertEquals(result.type, "check");
-  });
+      assertEquals(result.type, testCase.expected.type);
+      if (testCase.expected.messageContains) {
+        assert(result.message.includes(testCase.expected.messageContains));
+      }
+    });
+  }
 });
 
 Deno.test("parseDuckDBError - unknown error types", () => {
-  const error = new Error(
-    "Some unexpected database error occurred",
-  );
+  const error = new Error("Some unexpected database error occurred");
   const result = parseDuckDBError(error);
 
   assertEquals(result.type, "unknown");
@@ -445,119 +500,140 @@ Deno.test("parseDuckDBError - unknown error types", () => {
 // Fuzzy Value Suggestion Tests
 // ============================================================================
 
-Deno.test("findSuggestedValue - exact match exists", () => {
-  const result = findSuggestedValue(
-    "Canada",
-    ["Canada", "USA", "Mexico"],
-  );
+type SuggestionTestCase = {
+  description: string;
+  input: string;
+  allowedValues: string[];
+  threshold?: number;
+  expected: string | undefined;
+};
 
-  assertEquals(result, "Canada");
-});
+const findSuggestedValueTestCases: SuggestionTestCase[] = [
+  // Exact and close matches
+  {
+    description: "exact match exists",
+    input: "Canada",
+    allowedValues: ["Canada", "USA", "Mexico"],
+    expected: "Canada",
+  },
+  {
+    description: "close match within threshold",
+    input: "Canad",
+    allowedValues: ["Canada", "USA", "Mexico"],
+    threshold: 3,
+    expected: "Canada",
+  },
+  {
+    description: "typo correction",
+    input: "Mexic",
+    allowedValues: ["Canada", "USA", "Mexico"],
+    threshold: 3,
+    expected: "Mexico",
+  },
+  {
+    description: "case difference",
+    input: "canada",
+    allowedValues: ["Canada", "USA", "Mexico"],
+    threshold: 3,
+    expected: "Canada",
+  },
 
-Deno.test("findSuggestedValue - close match within threshold", () => {
-  const result = findSuggestedValue(
-    "Canad",
-    ["Canada", "USA", "Mexico"],
-    3,
-  );
+  // No match cases
+  {
+    description: "no match within threshold",
+    input: "Japan",
+    allowedValues: ["Canada", "USA", "Mexico"],
+    threshold: 3,
+    expected: undefined,
+  },
+  {
+    description: "empty allowed values",
+    input: "Canada",
+    allowedValues: [],
+    threshold: 3,
+    expected: undefined,
+  },
 
-  assertEquals(result, "Canada");
-});
+  // Custom threshold tests
+  {
+    description: "custom threshold - strict (distance 1)",
+    input: "Canda",
+    allowedValues: ["Canada", "USA"],
+    threshold: 2,
+    expected: "Canada",
+  },
+  {
+    description: "custom threshold - loose (distance 2)",
+    input: "Cnda",
+    allowedValues: ["Canada", "USA"],
+    threshold: 3,
+    expected: "Canada",
+  },
+  {
+    description: "custom threshold - too far",
+    input: "Xyz",
+    allowedValues: ["Canada", "USA"],
+    threshold: 2,
+    expected: undefined,
+  },
 
-Deno.test("findSuggestedValue - typo correction", () => {
-  const result = findSuggestedValue(
-    "Mexic",
-    ["Canada", "USA", "Mexico"],
-    3,
-  );
+  // Picking closest match
+  {
+    description: "picks closest match",
+    input: "Canadaa",
+    allowedValues: ["Canada", "Canadas", "Canadian"],
+    threshold: 5,
+    expected: "Canada",
+  },
 
-  assertEquals(result, "Mexico");
-});
+  // Real-world vocabulary terms
+  {
+    description: "vocabulary: close match",
+    input: "HumanObservasion",
+    allowedValues: [
+      "HumanObservation",
+      "PreservedSpecimen",
+      "MachineObservation",
+      "LivingSpecimen",
+    ],
+    threshold: 3,
+    expected: "HumanObservation",
+  },
+  {
+    description: "vocabulary: exact match",
+    input: "PreservedSpecimen",
+    allowedValues: [
+      "HumanObservation",
+      "PreservedSpecimen",
+      "MachineObservation",
+      "LivingSpecimen",
+    ],
+    threshold: 3,
+    expected: "PreservedSpecimen",
+  },
+  {
+    description: "vocabulary: no match",
+    input: "FossilSpecimen",
+    allowedValues: [
+      "HumanObservation",
+      "PreservedSpecimen",
+      "MachineObservation",
+      "LivingSpecimen",
+    ],
+    threshold: 3,
+    expected: undefined,
+  },
+];
 
-Deno.test("findSuggestedValue - case difference", () => {
-  const result = findSuggestedValue(
-    "canada",
-    ["Canada", "USA", "Mexico"],
-    3,
-  );
-
-  assertEquals(result, "Canada");
-});
-
-Deno.test("findSuggestedValue - no match within threshold", () => {
-  const result = findSuggestedValue(
-    "Japan",
-    ["Canada", "USA", "Mexico"],
-    3,
-  );
-
-  assertEquals(result, undefined);
-});
-
-Deno.test("findSuggestedValue - empty allowed values", () => {
-  const result = findSuggestedValue(
-    "Canada",
-    [],
-    3,
-  );
-
-  assertEquals(result, undefined);
-});
-
-Deno.test("findSuggestedValue - custom threshold", () => {
-  // "Canda" is 1 edit away from "Canada" (missing 'a')
-  const resultStrict = findSuggestedValue(
-    "Canda",
-    ["Canada", "USA"],
-    1,
-  );
-  assertEquals(resultStrict, "Canada");
-
-  // "Cnda" is 2 edits away from "Canada"
-  const resultLoose = findSuggestedValue(
-    "Cnda",
-    ["Canada", "USA"],
-    3,
-  );
-  assertEquals(resultLoose, "Canada");
-
-  // Too far even with loose threshold
-  const resultTooFar = findSuggestedValue(
-    "Xyz",
-    ["Canada", "USA"],
-    2,
-  );
-  assertEquals(resultTooFar, undefined);
-});
-
-Deno.test("findSuggestedValue - picks closest match", () => {
-  const result = findSuggestedValue(
-    "Canadaa",
-    ["Canada", "Canadas", "Canadian"],
-    5,
-  );
-
-  // "Canadaa" is 1 edit from "Canada", 2 from "Canadas", 3 from "Canadian"
-  assertEquals(result, "Canada");
-});
-
-Deno.test("findSuggestedValue - vocabulary terms", () => {
-  const vocabularyTerms = [
-    "HumanObservation",
-    "PreservedSpecimen",
-    "MachineObservation",
-    "LivingSpecimen",
-  ];
-
-  // Close match
-  const result1 = findSuggestedValue("HumanObservasion", vocabularyTerms, 3);
-  assertEquals(result1, "HumanObservation");
-
-  // Another close match
-  const result2 = findSuggestedValue("PreservedSpecimen", vocabularyTerms, 3);
-  assertEquals(result2, "PreservedSpecimen");
-
-  // No match
-  const result3 = findSuggestedValue("FossilSpecimen", vocabularyTerms, 3);
-  assertEquals(result3, undefined);
+Deno.test("findSuggestedValue", async (t) => {
+  for (const testCase of findSuggestedValueTestCases) {
+    await t.step(testCase.description, () => {
+      const result = findSuggestedValue(
+        testCase.input,
+        testCase.allowedValues,
+        testCase.threshold,
+      );
+      assertEquals(result, testCase.expected);
+    });
+  }
 });

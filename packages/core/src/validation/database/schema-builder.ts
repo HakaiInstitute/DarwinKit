@@ -35,7 +35,7 @@ import { sanitizeTableName } from "./utils.ts";
  * @example
  * ```typescript
  * const result = yield* _(
- *   WorkspaceImportSchema(
+ *   importSchemaToWorkspace(
  *     connection,
  *     { name: "occurrences", profile: "obis" },
  *     allDatasets
@@ -43,7 +43,7 @@ import { sanitizeTableName } from "./utils.ts";
  * );
  * ```
  */
-export function WorkspaceImportSchema(
+export function importSchemaToWorkspace(
   connection: DuckDBConnection,
   dataset: DatasetWithProfile,
   datasets: readonly DatasetWithProfile[],

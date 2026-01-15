@@ -1,16 +1,19 @@
 /**
  * Validation Violation Types
  *
+ * TODO: Determine if this location in the code base makes sense, and if the file
+ * should keep the name 'validation-violation.ts'
+ *
  * Defines the minimal and enriched violation types for validation errors.
  * Validators return RawViolation (minimal data), infrastructure enriches
- * to ValidationViolation (full metadata for routing and reporting).
+ * to FieldViolation (full metadata for routing and reporting).
  *
- * DESIGN DECISION: ValidationViolation uses Effect's Data.TaggedClass for discriminated unions:
+ * DESIGN DECISION: FieldViolation uses Effect's Data.TaggedClass for discriminated unions:
  * 1. TYPE-SAFE pattern matching - Use switch on _tag for exhaustive case handling
  * 2. TYPE GUARDS - Use provided helper functions (isRangeViolation, etc.) for filtering violations by type
  * 3. Two-tier design pattern:
  *    - RawViolation: Minimal data returned by validators (lightweight, fast)
- *    - ValidationViolation: Enriched with metadata for routing/reporting (complete)
+ *    - FieldViolation: Enriched with metadata for routing/reporting (complete)
  * 4. Internal contracts - These define how validators communicate with the validation infrastructure
  * 5. No runtime validation needed - These types are constructed by trusted internal code
  *
@@ -18,16 +21,20 @@
  * infrastructure handles metadata enrichment (field names, enforcement mapping,
  * severity calculation, error messages, etc.).
  *
- * Validators return RawViolation; infrastructure enriches to ValidationViolation.
+ * Validators return RawViolation; infrastructure enriches to FieldViolation.
  */
 
 import { Data } from "effect";
+import { ErrorSeverity } from "../errors/severity.ts";
 import type { EnforcementLevel } from "../specs/validators.ts";
 import type { TransformationChain } from "./transformation.ts";
-import { ErrorSeverity } from "../errors/severity.ts";
 
 /**
- * Common fields shared by all validation violations
+ * Common fields shared by all field (row-level) validation violations
+ *
+ * This is the base interface for FieldViolation types that represent
+ * data validation failures at the row level. For schema-level violations
+ * (structural issues), see SchemaViolationBase in schema-violation.ts.
  *
  * DESIGN DECISION: Kept as plain TypeScript interface rather than Effect Schema because:
  * 1. Internal-only type - Used as base for Data.TaggedClass violations, not for parsing
@@ -35,7 +42,7 @@ import { ErrorSeverity } from "../errors/severity.ts";
  * 3. TransformationChain dependency - Would require creating schemas for complex nested types
  * 4. Performance - No runtime validation overhead for internally-constructed objects
  */
-interface ViolationBase {
+export interface FieldViolationBase {
   readonly enforcement: EnforcementLevel;
   readonly severity: ErrorSeverity;
   readonly fieldName: string;
@@ -53,7 +60,7 @@ interface ViolationBase {
  * Range validation violation (numeric/date range constraints)
  */
 export class RangeViolation extends Data.TaggedClass("RangeViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly params?: { min?: number; max?: number };
   }
 > {}
@@ -62,7 +69,7 @@ export class RangeViolation extends Data.TaggedClass("RangeViolation")<
  * Vocabulary validation violation (controlled vocabulary constraints)
  */
 export class VocabularyViolation extends Data.TaggedClass("VocabularyViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly suggestedValues?: ReadonlyArray<string>;
     readonly params?: Record<string, unknown>;
   }
@@ -72,7 +79,7 @@ export class VocabularyViolation extends Data.TaggedClass("VocabularyViolation")
  * Uniqueness validation violation (duplicate identifier constraints)
  */
 export class UniquenessViolation extends Data.TaggedClass("UniquenessViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly params?: Record<string, unknown>;
   }
 > {}
@@ -81,7 +88,7 @@ export class UniquenessViolation extends Data.TaggedClass("UniquenessViolation")
  * Temporal validation violation (date/time consistency constraints)
  */
 export class TemporalViolation extends Data.TaggedClass("TemporalViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly params?: Record<string, unknown>;
   }
 > {}
@@ -90,7 +97,7 @@ export class TemporalViolation extends Data.TaggedClass("TemporalViolation")<
  * Cross-dataset validation violation (foreign key/referential integrity)
  */
 export class CrossDatasetViolation extends Data.TaggedClass("CrossDatasetViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly params?: {
       sourceDataset?: string;
       targetDataset?: string;
@@ -103,7 +110,7 @@ export class CrossDatasetViolation extends Data.TaggedClass("CrossDatasetViolati
  * Primary key constraint violation (duplicate or null primary key)
  */
 export class PrimaryKeyViolation extends Data.TaggedClass("PrimaryKeyViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly constraintType: "duplicate" | "null";
     readonly duplicateCount?: number;
     readonly params?: Record<string, unknown>;
@@ -114,7 +121,7 @@ export class PrimaryKeyViolation extends Data.TaggedClass("PrimaryKeyViolation")
  * Not null constraint violation (required field is null)
  */
 export class NotNullViolation extends Data.TaggedClass("NotNullViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly params?: Record<string, unknown>;
   }
 > {}
@@ -123,7 +130,7 @@ export class NotNullViolation extends Data.TaggedClass("NotNullViolation")<
  * Enum constraint violation (value not in controlled vocabulary)
  */
 export class EnumViolation extends Data.TaggedClass("EnumViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly enumType: string;
     readonly allowedValues: ReadonlyArray<string>;
     readonly suggestedValue?: string;
@@ -135,7 +142,7 @@ export class EnumViolation extends Data.TaggedClass("EnumViolation")<
  * Foreign key constraint violation (referenced value doesn't exist)
  */
 export class ForeignKeyViolation extends Data.TaggedClass("ForeignKeyViolation")<
-  ViolationBase & {
+  FieldViolationBase & {
     readonly referencedTable: string;
     readonly referencedField: string;
     readonly params?: {
@@ -156,7 +163,7 @@ export class ForeignKeyViolation extends Data.TaggedClass("ForeignKeyViolation")
  * const vocabErrors = violations.filter(isVocabularyViolation);
  * ```
  */
-export type ValidationViolation =
+export type FieldViolation =
   | RangeViolation
   | VocabularyViolation
   | UniquenessViolation
@@ -176,7 +183,7 @@ export type ValidationViolation =
  * // TypeScript knows rangeErrors is RangeViolation[]
  * ```
  */
-export function isRangeViolation(v: ValidationViolation): v is RangeViolation {
+export function isRangeViolation(v: FieldViolation): v is RangeViolation {
   return v._tag === "RangeViolation";
 }
 
@@ -189,7 +196,7 @@ export function isRangeViolation(v: ValidationViolation): v is RangeViolation {
  * // TypeScript knows vocabErrors is VocabularyViolation[]
  * ```
  */
-export function isVocabularyViolation(v: ValidationViolation): v is VocabularyViolation {
+export function isVocabularyViolation(v: FieldViolation): v is VocabularyViolation {
   return v._tag === "VocabularyViolation";
 }
 
@@ -202,7 +209,7 @@ export function isVocabularyViolation(v: ValidationViolation): v is VocabularyVi
  * // TypeScript knows uniqueErrors is UniquenessViolation[]
  * ```
  */
-export function isUniquenessViolation(v: ValidationViolation): v is UniquenessViolation {
+export function isUniquenessViolation(v: FieldViolation): v is UniquenessViolation {
   return v._tag === "UniquenessViolation";
 }
 
@@ -215,7 +222,7 @@ export function isUniquenessViolation(v: ValidationViolation): v is UniquenessVi
  * // TypeScript knows temporalErrors is TemporalViolation[]
  * ```
  */
-export function isTemporalViolation(v: ValidationViolation): v is TemporalViolation {
+export function isTemporalViolation(v: FieldViolation): v is TemporalViolation {
   return v._tag === "TemporalViolation";
 }
 
@@ -228,7 +235,7 @@ export function isTemporalViolation(v: ValidationViolation): v is TemporalViolat
  * // TypeScript knows crossErrors is CrossDatasetViolation[]
  * ```
  */
-export function isCrossDatasetViolation(v: ValidationViolation): v is CrossDatasetViolation {
+export function isCrossDatasetViolation(v: FieldViolation): v is CrossDatasetViolation {
   return v._tag === "CrossDatasetViolation";
 }
 
@@ -241,7 +248,7 @@ export function isCrossDatasetViolation(v: ValidationViolation): v is CrossDatas
  * // TypeScript knows pkErrors is PrimaryKeyViolation[]
  * ```
  */
-export function isPrimaryKeyViolation(v: ValidationViolation): v is PrimaryKeyViolation {
+export function isPrimaryKeyViolation(v: FieldViolation): v is PrimaryKeyViolation {
   return v._tag === "PrimaryKeyViolation";
 }
 
@@ -254,7 +261,7 @@ export function isPrimaryKeyViolation(v: ValidationViolation): v is PrimaryKeyVi
  * // TypeScript knows notNullErrors is NotNullViolation[]
  * ```
  */
-export function isNotNullViolation(v: ValidationViolation): v is NotNullViolation {
+export function isNotNullViolation(v: FieldViolation): v is NotNullViolation {
   return v._tag === "NotNullViolation";
 }
 
@@ -267,7 +274,7 @@ export function isNotNullViolation(v: ValidationViolation): v is NotNullViolatio
  * // TypeScript knows enumErrors is EnumViolation[]
  * ```
  */
-export function isEnumViolation(v: ValidationViolation): v is EnumViolation {
+export function isEnumViolation(v: FieldViolation): v is EnumViolation {
   return v._tag === "EnumViolation";
 }
 
@@ -280,7 +287,7 @@ export function isEnumViolation(v: ValidationViolation): v is EnumViolation {
  * // TypeScript knows fkErrors is ForeignKeyViolation[]
  * ```
  */
-export function isForeignKeyViolation(v: ValidationViolation): v is ForeignKeyViolation {
+export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolation {
   return v._tag === "ForeignKeyViolation";
 }
 
@@ -352,3 +359,76 @@ export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSever
  * // }
  * ```
  */
+
+/**
+ * Generic partitioned violations structure
+ *
+ * Partitions violations into errors, warnings, and info based on enforcement level.
+ * Works with any violation type (FieldViolation, SchemaViolation, etc.)
+ *
+ * @template T - The violation type to partition
+ *
+ * @example
+ * ```typescript
+ * const fieldViolations: PartitionedViolations<FieldViolation> = {
+ *   errors: [...],
+ *   warnings: [...],
+ *   info: [...]
+ * };
+ *
+ * const schemaViolations: PartitionedViolations<SchemaViolation> = {
+ *   errors: [...],
+ *   warnings: [...],
+ *   info: [...]
+ * };
+ * ```
+ */
+export interface PartitionedViolations<T> {
+  readonly errors: ReadonlyArray<T>;
+  readonly warnings: ReadonlyArray<T>;
+  readonly info: ReadonlyArray<T>;
+}
+
+/**
+ * Partition field violations by enforcement level
+ *
+ * @param violations - Array of field violations to partition
+ * @returns Object with errors, warnings, and info arrays
+ *
+ * @example
+ * ```typescript
+ * const partitioned = partitionFieldViolations(allViolations);
+ * console.log(`${partitioned.errors.length} data errors`);
+ * console.log(`${partitioned.warnings.length} data warnings`);
+ * ```
+ */
+export function partitionFieldViolations(
+  violations: ReadonlyArray<FieldViolation>,
+): PartitionedViolations<FieldViolation> {
+  const errors: FieldViolation[] = [];
+  const warnings: FieldViolation[] = [];
+  const info: FieldViolation[] = [];
+
+  for (const v of violations) {
+    switch (v.enforcement) {
+      case "required":
+        errors.push(v);
+        break;
+      case "recommended":
+        warnings.push(v);
+        break;
+      case "optional":
+        info.push(v);
+        break;
+    }
+  }
+
+  return { errors, warnings, info };
+}
+
+/**
+ * Create an empty partitioned field violations object
+ */
+export function emptyPartitionedFieldViolations(): PartitionedViolations<FieldViolation> {
+  return { errors: [], warnings: [], info: [] };
+}

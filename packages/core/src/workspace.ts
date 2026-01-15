@@ -36,13 +36,13 @@ import * as Schema from "effect/Schema";
 import * as YAML from "js-yaml";
 // Import validation functions - these will be used internally
 import {
+  importCsvToWorkspace,
+  importSchemaToWorkspace,
   sanitizeTableName,
-  WorkspaceImportCSV,
-  WorkspaceImportSchema,
 } from "./validation/database/index.ts";
-import { calculateSummary, WorkspaceValidationError } from "./validation/utils.ts";
 import { validateDataset } from "./validation/dataset-validator.ts";
 import { validateCrossDatasetRule } from "./validation/field-validators.ts";
+import { calculateSummary, WorkspaceValidationError } from "./validation/utils.ts";
 
 /**
  * Error classes for workspace configuration operations
@@ -708,8 +708,8 @@ export class Workspace {
         // Build null values string for DuckDB
         const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`).join(", ");
         const dropTable = true;
-        yield* _(WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable));
-        yield* _(WorkspaceImportSchema(connection, dataset, datasets));
+        yield* _(importCsvToWorkspace(connection, tableName, filePath, nullStr, dropTable));
+        yield* _(importSchemaToWorkspace(connection, dataset, datasets));
       }
 
       // Perform validation

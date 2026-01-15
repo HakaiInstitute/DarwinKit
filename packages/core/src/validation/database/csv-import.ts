@@ -23,7 +23,7 @@ import { WorkspaceImportError } from "../utils.ts";
  * @example
  * ```typescript
  * const result = yield* _(
- *   WorkspaceImportCSV(
+ *   importCsvToWorkspace(
  *     connection,
  *     "raw_events",
  *     "/path/to/events.csv",
@@ -34,7 +34,8 @@ import { WorkspaceImportError } from "../utils.ts";
  * ```
  */
 
-export function WorkspaceImportCSV(
+// TODO: Add Workspace.import() and have it use this logic
+export function importCsvToWorkspace(
   connection: DuckDBConnection,
   tableName: string,
   fullPath: string,

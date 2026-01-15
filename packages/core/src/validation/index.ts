@@ -11,7 +11,7 @@ export {
   findSuggestedValue,
   type ParsedErrorInfo,
   parseDuckDBError,
-  partitionViolations,
+  partitionFieldViolations,
   WorkspaceImportError,
   WorkspaceValidationError,
 } from "./utils.ts";
@@ -37,8 +37,8 @@ export { validateDataset } from "./dataset-validator.ts";
 export {
   type DatasetWithProfile,
   getOriginalCsvValue,
+  importCsvToWorkspace,
+  importSchemaToWorkspace,
   insertRowByRow,
   sanitizeTableName,
-  WorkspaceImportCSV,
-  WorkspaceImportSchema,
 } from "./database/index.ts";

@@ -1,11 +1,11 @@
+import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { colors } from '@cliffy/ansi/colors';
-import * as Effect from 'effect/Effect';
-import * as Exit from 'effect/Exit';
+import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
 import * as Data from 'effect/Data';
-import { join } from '@std/path';
+import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
 
 import {
   ConfigNotFoundError,
@@ -15,7 +15,7 @@ import {
   prettyPrintConfigError,
   Workspace,
 } from '@dwkt/core';
-import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
+import type { FieldViolation, SchemaViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { ErrorCode } from '@dwkt/domain';
 import * as Match from 'effect/Match';
 import { Output } from '../../utils/output.ts';
@@ -251,10 +251,8 @@ export async function validate(options: {
 
   // Validation pipeline using Effect
   const runValidation = Effect.gen(function* (_) {
-    // Discover and load workspace
     const workspace = yield* _(Workspace.discover(options.config));
 
-    // Display workspace info before validation
     spinner.stop();
     displayWorkspaceInfo(workspace);
     spinner.start();
@@ -267,16 +265,11 @@ export async function validate(options: {
       }),
     );
 
-    // Clean up workspace connection
     workspace.close();
-
-    // Stop spinner before output
     spinner.stop();
 
-    // Output results with structured error handling
     yield* _(outputResults(results, validFormat, options.outputDir));
 
-    // Handle exit codes based on results
     yield* _(handleValidationResults(results));
   });
 
@@ -284,13 +277,9 @@ export async function validate(options: {
   const result = await Effect.runPromiseExit(runValidation);
 
   if (Exit.isFailure(result)) {
-    // Stop spinner on error
     spinner.stop();
-
-    // Error case - use Cause-aware error handling
     handleCLIErrorWithCause(result.cause);
   } else {
-    // Success case - validation passed without warnings
     Output.success('✅ Overall status: PASSED');
     Deno.exit(0);
   }
@@ -304,7 +293,6 @@ function handleCLIErrorWithCause(
 ): never {
   Output.blank();
 
-  // First, try using our custom pretty printer for config errors
   try {
     const prettyMessage = prettyPrintConfigError(
       cause as Cause.Cause<
@@ -347,16 +335,14 @@ function outputTableResults(results: WorkspaceValidationResult) {
     const statusIcon = Output.statusIcon(dataset.status);
     const statusText = `${statusIcon} ${dataset.status.toUpperCase()}`;
 
-    // NEW: Count violations from partitioned structure
-    const errorCount = dataset.typeErrors.length +
-      dataset.requiredFieldErrors.length +
-      dataset.violations.errors.length;
+    const errorCount = dataset.schemaViolations.errors.length +
+      dataset.fieldViolations.errors.length;
 
-    const warningCount = dataset.warnings.length +
-      dataset.violations.warnings.length;
+    const warningCount = dataset.schemaViolations.warnings.length +
+      dataset.fieldViolations.warnings.length;
 
-    const infoCount = dataset.recommendations.length +
-      dataset.violations.info.length;
+    const infoCount = dataset.schemaViolations.info.length +
+      dataset.fieldViolations.info.length;
 
     table.push([
       dataset.datasetName,
@@ -373,144 +359,134 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
   // Show detailed errors, warnings, and info by severity
   for (const dataset of results.datasetResults) {
-    const hasErrors = dataset.typeErrors.length > 0 ||
-      dataset.requiredFieldErrors.length > 0 ||
-      dataset.violations.errors.length > 0;
+    const hasSchemaErrors = dataset.schemaViolations.errors.length > 0;
+    const hasSchemaWarnings = dataset.schemaViolations.warnings.length > 0;
+    const hasSchemaInfo = dataset.schemaViolations.info.length > 0;
+    const hasSchema = hasSchemaErrors || hasSchemaWarnings || hasSchemaInfo;
 
-    const hasWarnings = dataset.warnings.length > 0 ||
-      dataset.violations.warnings.length > 0;
+    const hasFieldErrors = dataset.fieldViolations.errors.length > 0;
+    const hasFieldWarnings = dataset.fieldViolations.warnings.length > 0;
+    const hasFieldInfo = dataset.fieldViolations.info.length > 0;
+    const hasFields = hasFieldErrors || hasFieldWarnings || hasFieldInfo;
 
-    const hasInfo = dataset.recommendations.length > 0 ||
-      dataset.violations.info.length > 0;
-
-    if (hasErrors || hasWarnings || hasInfo) {
+    if (hasSchema || hasFields) {
       Output.blank();
       Output.bold(`📊 ${dataset.datasetName} (${dataset.spec})`);
-      Output.blank();
     }
 
-    // ❌ ERRORS (required violations)
-    if (hasErrors) {
-      Output.error(
-        `❌ ERRORS (${
-          dataset.violations.errors.length + dataset.typeErrors.length +
-          dataset.requiredFieldErrors.length
-        }):`,
-      );
+    // ============================================================================
+    // 📋 SCHEMA ISSUES (structural/mapping problems)
+    // ============================================================================
+    if (hasSchema) {
+      Output.blank();
+      Output.muted('  📋 Schema Issues:');
 
-      // Show type errors
-      for (const typeError of dataset.typeErrors) {
-        Output.error(
-          `  • ${typeError.fieldName} (${typeError.expectedType}): ${typeError.failureCount} conversion failures`,
-        );
+      // Schema Errors
+      if (hasSchemaErrors) {
+        Output.error(`    ❌ ERRORS (${dataset.schemaViolations.errors.length}):`);
+        for (const violation of dataset.schemaViolations.errors) {
+          Output.error(`      • ${violation.errorMessage}`);
+        }
+      }
 
-        const exampleFailures = typeError.sampleFailures.slice(0, 3);
-        for (const failure of exampleFailures) {
-          Output.muted(
-            `    - Row ${failure.rowNumber}: "${failure.originalValue}" → ${failure.errorMessage}`,
+      // Schema Warnings
+      if (hasSchemaWarnings) {
+        Output.warning(`    ⚠️  WARNINGS (${dataset.schemaViolations.warnings.length}):`);
+        for (const violation of dataset.schemaViolations.warnings) {
+          Output.warning(`      • ${violation.errorMessage}`);
+        }
+      }
+
+      // Schema Info
+      if (hasSchemaInfo) {
+        Output.info(`    ℹ️  INFO (${dataset.schemaViolations.info.length}):`);
+        for (const violation of dataset.schemaViolations.info) {
+          Output.info(`      • ${violation.errorMessage}`);
+        }
+      }
+    }
+
+    // ============================================================================
+    // 📊 DATA VALIDATION (row-level issues)
+    // ============================================================================
+    if (hasFields) {
+      Output.blank();
+      Output.muted('  📊 Data Validation:');
+
+      // Field Errors
+      if (hasFieldErrors) {
+        Output.error(`    ❌ ERRORS (${dataset.fieldViolations.errors.length}):`);
+        const errorsByField = groupViolationsByField(dataset.fieldViolations.errors);
+        for (const [fieldName, violations] of errorsByField) {
+          const firstViolation = violations[0];
+          Output.error(
+            `      • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
           );
-        }
 
-        if (typeError.failureCount > 3) {
-          Output.muted(`    ... and ${typeError.failureCount - 3} more failures`);
-        }
-      }
+          const examples = violations.slice(0, 3);
+          for (const violation of examples) {
+            Output.muted(`        - Row ${violation.rowNumber}: ${violation.errorMessage}`);
+          }
 
-      // Show required field errors
-      for (const fieldError of dataset.requiredFieldErrors) {
-        Output.error(`  • ${fieldError.message}`);
-      }
-
-      // NEW: Show partitioned error violations
-      const errorsByField = groupViolationsByField(dataset.violations.errors);
-      for (const [fieldName, violations] of errorsByField) {
-        const firstViolation = violations[0];
-        Output.error(
-          `  • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
-        );
-
-        // Show first few violations as examples
-        const examples = violations.slice(0, 3);
-        for (const violation of examples) {
-          Output.muted(`    - Row ${violation.rowNumber}: ${violation.errorMessage}`);
-        }
-
-        if (violations.length > 3) {
-          Output.muted(`    ... and ${violations.length - 3} more violations`);
+          if (violations.length > 3) {
+            Output.muted(`        ... and ${violations.length - 3} more violations`);
+          }
         }
       }
 
-      Output.blank();
+      // Field Warnings
+      if (hasFieldWarnings) {
+        Output.warning(`    ⚠️  WARNINGS (${dataset.fieldViolations.warnings.length}):`);
+        const warningsByField = groupViolationsByField(dataset.fieldViolations.warnings);
+        for (const [fieldName, violations] of warningsByField) {
+          const firstViolation = violations[0];
+          Output.warning(
+            `      • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
+          );
+
+          const examples = violations.slice(0, 3);
+          for (const violation of examples) {
+            Output.muted(`        - Row ${violation.rowNumber}: ${violation.errorMessage}`);
+          }
+
+          if (violations.length > 3) {
+            Output.muted(`        ... and ${violations.length - 3} more violations`);
+          }
+        }
+      }
+
+      // Field Info
+      if (hasFieldInfo) {
+        Output.info(`    ℹ️  INFO (${dataset.fieldViolations.info.length}):`);
+        const infoByField = groupViolationsByField(dataset.fieldViolations.info);
+        for (const [fieldName, violations] of infoByField) {
+          const firstViolation = violations[0];
+          Output.info(
+            `      • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
+          );
+
+          const examples = violations.slice(0, 3);
+          for (const violation of examples) {
+            Output.muted(`        - Row ${violation.rowNumber}: ${violation.errorMessage}`);
+          }
+
+          if (violations.length > 3) {
+            Output.muted(`        ... and ${violations.length - 3} more violations`);
+          }
+        }
+      }
     }
 
-    // ⚠️ WARNINGS (recommended violations)
-    if (hasWarnings) {
-      Output.warning(
-        `⚠️  WARNINGS (${dataset.violations.warnings.length + dataset.warnings.length}):`,
-      );
-
-      // Show field warnings (missing recommended fields)
-      for (const warning of dataset.warnings) {
-        Output.warning(`  • ${warning.message}`);
-      }
-
-      // NEW: Show partitioned warning violations
-      const warningsByField = groupViolationsByField(dataset.violations.warnings);
-      for (const [fieldName, violations] of warningsByField) {
-        const firstViolation = violations[0];
-        Output.warning(
-          `  • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
-        );
-
-        const examples = violations.slice(0, 3);
-        for (const violation of examples) {
-          Output.muted(`    - Row ${violation.rowNumber}: ${violation.errorMessage}`);
-        }
-
-        if (violations.length > 3) {
-          Output.muted(`    ... and ${violations.length - 3} more violations`);
-        }
-      }
-
-      Output.blank();
-    }
-
-    // ℹ️ INFO (optional violations)
-    if (hasInfo) {
-      Output.info(`ℹ️  INFO (${dataset.violations.info.length + dataset.recommendations.length}):`);
-
-      // Show recommendations (missing optional fields)
-      for (const recommendation of dataset.recommendations) {
-        Output.info(`  • ${recommendation.message}`);
-      }
-
-      // NEW: Show partitioned info violations
-      const infoByField = groupViolationsByField(dataset.violations.info);
-      for (const [fieldName, violations] of infoByField) {
-        const firstViolation = violations[0];
-        Output.info(
-          `  • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
-        );
-
-        const examples = violations.slice(0, 3);
-        for (const violation of examples) {
-          Output.muted(`    - Row ${violation.rowNumber}: ${violation.errorMessage}`);
-        }
-
-        if (violations.length > 3) {
-          Output.muted(`    ... and ${violations.length - 3} more violations`);
-        }
-      }
-
+    if (hasSchema || hasFields) {
       Output.blank();
     }
   }
 
-  // Helper function to group violations by field
+  // Helper function to group field violations by field name
   function groupViolationsByField(
-    violations: ReadonlyArray<ValidationViolation>,
-  ): Map<string, ValidationViolation[]> {
-    const grouped = new Map<string, ValidationViolation[]>();
+    violations: ReadonlyArray<FieldViolation>,
+  ): Map<string, FieldViolation[]> {
+    const grouped = new Map<string, FieldViolation[]>();
 
     for (const violation of violations) {
       if (!grouped.has(violation.fieldName)) {
@@ -551,7 +527,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
     Output.blank();
   }
 
-  // Overall summary
   Output.bold('📊 Summary:');
   Output.line(`  Datasets processed: ${results.summary.totalDatasets}`);
   Output.line(`  ${colors.green('Passed')}: ${results.summary.datasetsPassedCount}`);

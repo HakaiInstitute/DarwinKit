@@ -9,13 +9,13 @@
  */
 
 // Shared utilities and types
-export { type DatasetWithProfile, sanitizeTableName } from "./utils.ts";
+export { type DatasetWithProfile, extractRowNumbers, sanitizeTableName } from "./utils.ts";
 
 // CSV import
-export { WorkspaceImportCSV } from "./csv-import.ts";
+export { importCsvToWorkspace } from "./csv-import.ts";
 
 // Schema creation
-export { WorkspaceImportSchema } from "./schema-builder.ts";
+export { importSchemaToWorkspace } from "./schema-builder.ts";
 
 // Data loading with violation detection
 export { getOriginalCsvValue, insertRowByRow } from "./data-loader.ts";

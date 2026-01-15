@@ -8,7 +8,7 @@ import type {
   DatasetConfig,
   EnforcementLevel,
   FieldDefinition,
-  ValidationViolation,
+  FieldViolation,
   ValidatorConfig,
   VocabularyEnforcement,
   VocabularyKey,
@@ -24,7 +24,7 @@ import {
   VocabularyViolation,
 } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
-import { sanitizeTableName } from "./database/index.ts";
+import { extractRowNumbers, sanitizeTableName } from "./database/index.ts";
 import type { WorkspaceValidationError } from "./utils.ts";
 
 /**
@@ -118,7 +118,7 @@ export function findCrossDatasetViolations(
 /**
  * Validate cross-dataset rule
  *
- * Returns cross-dataset violations with enforcement level.
+ * Returns cross-dataset violations with enforcement-aware metadata.
  */
 export function validateCrossDatasetRule(
   connection: DuckDBConnection,
@@ -134,25 +134,17 @@ export function validateCrossDatasetRule(
   datasets: readonly DatasetConfig[],
 ): Effect.Effect<CrossDatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
-    // Map string enforcement to EnforcementLevel
-    const enforcement: EnforcementLevel = rule.enforcement === "recommended"
-      ? "recommended"
-      : rule.enforcement === "optional"
-      ? "optional"
-      : "required";
+    // Map string enforcement to EnforcementLevel with cleaner mapping
+    const enforcementMap: Record<string, EnforcementLevel> = {
+      recommended: "recommended",
+      optional: "optional",
+    };
+    const enforcement: EnforcementLevel = enforcementMap[rule.enforcement || ""] || "required";
 
     // Get fully-formed violations
-    const crossDatasetViolations = yield* _(
+    const violations = yield* _(
       findCrossDatasetViolations(connection, { ...rule, enforcement }, datasets),
     );
-
-    // Convert to old format for compatibility
-    // TODO: Update CrossDatasetValidationResult to use ValidationViolation[]
-    const violations = crossDatasetViolations.map((v) => ({
-      rowNumber: v.rowNumber,
-      sourceValue: v.value,
-      errorMessage: v.errorMessage,
-    }));
 
     return {
       ruleType: rule.ruleType as "foreignKey" | "referentialIntegrity",
@@ -163,6 +155,37 @@ export function validateCrossDatasetRule(
       violations,
     };
   });
+}
+
+/**
+ * Normalize range validator to ensure params are properly structured
+ *
+ * JSON schemas may have min/max at top level, but ValidatorConfig expects them under params.
+ * This function handles both formats gracefully.
+ */
+function normalizeRangeValidator(validator: ValidatorConfig): ValidatorConfig {
+  // If params already exist, return as-is
+  if (validator.params) {
+    return validator;
+  }
+
+  // Check for legacy top-level properties
+  const validatorAny = validator as unknown as Record<string, unknown>;
+  if (!("min" in validatorAny || "max" in validatorAny || "inclusive" in validatorAny)) {
+    return validator;
+  }
+
+  // Migrate legacy properties to params
+  return {
+    type: validator.type,
+    enforcement: validator.enforcement || "required",
+    message: validator.message,
+    params: {
+      min: typeof validatorAny.min === "number" ? validatorAny.min : undefined,
+      max: typeof validatorAny.max === "number" ? validatorAny.max : undefined,
+      inclusive: typeof validatorAny.inclusive === "boolean" ? validatorAny.inclusive : true,
+    },
+  };
 }
 
 /**
@@ -241,34 +264,20 @@ export function validateRangeConstraints(
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
-): Effect.Effect<ValidationViolation[], WorkspaceValidationError> {
+): Effect.Effect<FieldViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
-    const violations: ValidationViolation[] = [];
+    const violations: FieldViolation[] = [];
 
     if (!specField.validators || !Array.isArray(specField.validators)) {
       return violations;
     }
 
     // Get range validators (now always ValidatorConfig[] after normalization)
-    const rangeValidators = specField.validators.filter((v) => v.type === "range");
+    const rangeValidators = specField.validators.filter((v: ValidatorConfig) => v.type === "range");
 
     for (const validator of rangeValidators) {
-      // Normalize validator format: JSON schema may have min/max at top level,
-      // but ValidatorConfig expects them under params
-      // Treat validator as unknown to safely check for legacy top-level properties
-      const validatorUnknown = validator as unknown as Record<string, unknown>;
-      const normalizedValidator = {
-        type: validator.type,
-        enforcement: validator.enforcement || "required",
-        message: validator.message,
-        params: validator.params || {
-          min: typeof validatorUnknown.min === "number" ? validatorUnknown.min : undefined,
-          max: typeof validatorUnknown.max === "number" ? validatorUnknown.max : undefined,
-          inclusive: typeof validatorUnknown.inclusive === "boolean"
-            ? validatorUnknown.inclusive
-            : true,
-        },
-      };
+      // Ensure validator has proper params structure
+      const normalizedValidator = normalizeRangeValidator(validator);
 
       const rangeViolations = yield* _(
         findRangeViolations(connection, tableName, fieldName, normalizedValidator, specField),
@@ -287,22 +296,17 @@ export function validateRangeConstraints(
  * Converts vocabulary-specific enforcement to standard enforcement levels:
  * - strict → required (ERROR)
  * - recommended → recommended (WARNING)
- * - loose → (no violations generated - any value accepted)
- *
- * Note: This mapping is only used for strict/recommended enforcement.
- * Loose enforcement is handled separately by skipping validation entirely.
+ * - loose → optional (not used - loose enforcement skips validation)
  */
 export function vocabularyEnforcementToStandard(
   vocabEnforcement: VocabularyEnforcement,
 ): EnforcementLevel {
-  switch (vocabEnforcement) {
-    case "strict":
-      return "required";
-    case "recommended":
-      return "recommended";
-    case "loose":
-      return "optional"; // Not actually used - loose enforcement skips validation
-  }
+  const mapping: Record<VocabularyEnforcement, EnforcementLevel> = {
+    strict: "required",
+    recommended: "recommended",
+    loose: "optional", // Not actually used - loose enforcement skips validation
+  };
+  return mapping[vocabEnforcement];
 }
 
 /**
@@ -318,7 +322,7 @@ export function findVocabularyViolations(
   specField: FieldDefinition,
   enforcement: EnforcementLevel,
   caseSensitive = false,
-): Effect.Effect<VocabularyViolation[], WorkspaceValidationError> {
+): Effect.Effect<VocabularyViolation[], never> {
   return Effect.gen(function* (_) {
     // Get distinct values from the field with ordered row numbers
     const query = `
@@ -340,14 +344,7 @@ export function findVocabularyViolations(
 
     for (const row of rows) {
       const value = String(row.value);
-      const rawRowNumbers = row.row_numbers;
-
-      let rowNumbers: number[] = [];
-      if (Array.isArray(rawRowNumbers)) {
-        rowNumbers = rawRowNumbers.map((n) => Number(n));
-      } else if (rawRowNumbers && typeof rawRowNumbers === "object" && "items" in rawRowNumbers) {
-        rowNumbers = rawRowNumbers.items.map((n) => Number(n));
-      }
+      const rowNumbers = extractRowNumbers(row.row_numbers);
 
       // Check if value is valid in vocabulary
       let isValid = false;
@@ -360,7 +357,9 @@ export function findVocabularyViolations(
           ),
         );
         const lowerValue = value.toLowerCase();
-        isValid = (vocabValues as readonly string[]).some((v) => v.toLowerCase() === lowerValue);
+        isValid = (vocabValues as readonly string[]).some((v: string) =>
+          v.toLowerCase() === lowerValue
+        );
       }
 
       if (!isValid) {
@@ -390,39 +389,32 @@ export function findVocabularyViolations(
 /**
  * Validate controlled vocabulary for a field
  *
- * Returns ValidationViolation[] for new enforcement-aware infrastructure.
- * Also returns old format for backward compatibility.
+ * Returns FieldViolation[] with enforcement-aware metadata.
  */
 export function validateVocabulary(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
-): Effect.Effect<
-  {
-    enriched: ValidationViolation[];
-    legacy: Array<{ rowNumber: number; value: string; suggestedValues?: string[] }>;
-  },
-  WorkspaceValidationError
-> {
+): Effect.Effect<FieldViolation[], never> {
   return Effect.gen(function* (_) {
     // After normalization, vocabulary config is always present if field has controlled vocabulary
     if (!specField.vocabulary) {
-      return { enriched: [], legacy: [] };
+      return [];
     }
 
     const { vocabularyKey, caseSensitive = false, enforcement = "strict" } = specField.vocabulary;
 
     // Skip validation for loose enforcement - any value is accepted
     if (enforcement === "loose") {
-      return { enriched: [], legacy: [] };
+      return [];
     }
 
     // Map vocabulary enforcement to standard enforcement level
     const standardEnforcement = vocabularyEnforcementToStandard(enforcement);
 
     // Get fully-formed violations
-    const enriched = yield* _(
+    return yield* _(
       findVocabularyViolations(
         connection,
         tableName,
@@ -433,15 +425,6 @@ export function validateVocabulary(
         caseSensitive,
       ),
     );
-
-    // Also return legacy format for backward compatibility
-    const legacy = enriched.map((v) => ({
-      rowNumber: v.rowNumber,
-      value: v.value,
-      suggestedValues: v.suggestedValues ? [...v.suggestedValues] : undefined,
-    }));
-
-    return { enriched, legacy };
   });
 }
 
@@ -486,15 +469,7 @@ export function findUniquenessViolations(
     // Explode each duplicate value into individual violations (one per row)
     for (const row of rows) {
       const value = String(row.duplicate_value);
-
-      // Handle DuckDB LIST type for affected_rows
-      let affectedRows: number[] = [];
-      const raw = row.affected_rows;
-      if (Array.isArray(raw)) {
-        affectedRows = raw.map((n) => Number(n));
-      } else if (raw && typeof raw === "object" && "items" in raw) {
-        affectedRows = raw.items.map((n) => Number(n));
-      }
+      const affectedRows = extractRowNumbers(row.affected_rows);
 
       // Create one violation per affected row
       for (const rowNum of affectedRows) {
@@ -520,58 +495,22 @@ export function findUniquenessViolations(
 /**
  * Validate uniqueness for a field
  *
- * Returns ValidationViolation[] for new enforcement-aware infrastructure.
- * Also returns old format for backward compatibility.
+ * Returns FieldViolation[] with enforcement-aware metadata.
  */
 export function validateUniqueness(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
-): Effect.Effect<
-  {
-    enriched: ValidationViolation[];
-    legacy: Array<{
-      duplicateValue: string;
-      occurrenceCount: number;
-      affectedRows: number[];
-    }>;
-  },
-  WorkspaceValidationError
-> {
+): Effect.Effect<FieldViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     // Check if field has explicit uniqueness validator (already normalized)
-    const uniqueValidator = specField.validators?.find((v) => v.type === "unique");
+    const uniqueValidator = specField.validators?.find((v: ValidatorConfig) => v.type === "unique");
     const enforcement = uniqueValidator?.enforcement ?? "required";
 
     // Get fully-formed violations
-    const enriched = yield* _(
+    return yield* _(
       findUniquenessViolations(connection, tableName, fieldName, specField, enforcement),
     );
-
-    // Also return legacy format for backward compatibility
-    // Group violations by duplicate value for old structure
-    const duplicateGroups = new Map<
-      string,
-      { count: number; rows: number[] }
-    >();
-
-    for (const violation of enriched) {
-      const value = violation.value;
-      if (!duplicateGroups.has(value)) {
-        duplicateGroups.set(value, { count: 0, rows: [] });
-      }
-      const group = duplicateGroups.get(value)!;
-      group.count++;
-      group.rows.push(violation.rowNumber);
-    }
-
-    const legacy = Array.from(duplicateGroups.entries()).map(([value, group]) => ({
-      duplicateValue: value,
-      occurrenceCount: group.count,
-      affectedRows: group.rows.sort((a, b) => a - b),
-    }));
-
-    return { enriched, legacy };
   });
 }

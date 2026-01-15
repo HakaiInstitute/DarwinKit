@@ -3,7 +3,13 @@
  */
 
 import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
-import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertExists,
+  assertGreater,
+  assertGreaterOrEqual,
+} from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 import { Workspace } from "../packages/core/src/workspace.ts";
@@ -72,15 +78,16 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
 
       const eventsResult = result.datasetResults[0];
       assertEquals(
-        eventsResult.requiredFieldErrors.length,
+        eventsResult.schemaViolations.errors.length,
         0,
         "Should have no required field errors",
       );
 
       // With the new profile system, we expect warnings for missing strongly-recommended fields
       // (scientificName, scientificNameID, etc. from the base OBIS profile)
-      assert(
-        eventsResult.warnings.length > 0,
+      assertGreaterOrEqual(
+        eventsResult.schemaViolations.warnings.length,
+        1,
         "Should have warnings for strongly-recommended fields",
       );
       assertEquals(eventsResult.status, "warn", "Status should be warn when there are warnings");
@@ -159,7 +166,7 @@ E2,2022-09-16,49.9012,-125.4789`;
       assertEquals(eventsResult.status, "fail", "Events dataset should fail");
 
       // Verify that geodeticDatum is reported as a missing required field
-      const missingFieldError = eventsResult.requiredFieldErrors.find((e) =>
+      const missingFieldError = eventsResult.schemaViolations.errors.find((e) =>
         e.fieldName === "geodeticDatum" || e.targetName === "geodeticDatum"
       );
       assert(
@@ -240,8 +247,8 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     // Should have constraint violations for depths > 11000m
     // Depth constraints are "recommended" enforcement, so they appear in warnings
     const depthViolations = [
-      ...eventsResult.violations.errors,
-      ...eventsResult.violations.warnings,
+      ...eventsResult.fieldViolations.errors,
+      ...eventsResult.fieldViolations.warnings,
     ].filter(
       (v) =>
         isRangeViolation(v) &&

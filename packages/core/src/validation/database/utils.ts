@@ -21,3 +21,22 @@ export type DatasetWithProfile = {
 export function sanitizeTableName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, "_");
 }
+
+/**
+ * Extract row numbers from DuckDB LIST type result
+ *
+ * DuckDB returns LIST columns in different formats depending on the driver.
+ * This utility handles both array and object formats consistently.
+ */
+export function extractRowNumbers(listValue: unknown): number[] {
+  if (Array.isArray(listValue)) {
+    return listValue.map((n) => Number(n));
+  }
+
+  if (listValue && typeof listValue === "object" && "items" in listValue) {
+    const obj = listValue as { items: unknown[] };
+    return obj.items.map((n) => Number(n));
+  }
+
+  return [];
+}

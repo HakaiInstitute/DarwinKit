@@ -11,25 +11,28 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import { assert } from "@std/assert";
-import * as Effect from "effect/Effect";
 import type {
   DatasetConfig,
+  DatasetValidationResult,
   EnforcementLevel,
+  FieldViolation,
   ValidationProfile,
-  ValidationViolation,
 } from "@dwkt/domain";
 import {
   CrossDatasetViolation,
   EnumViolation,
   ErrorSeverity,
   ForeignKeyViolation,
+  MissingFieldViolation,
   NotNullViolation,
   PrimaryKeyViolation,
   RangeViolation,
+  type SchemaViolation,
   UniquenessViolation,
   VocabularyViolation,
 } from "@dwkt/domain";
+import { assert } from "@std/assert";
+import * as Effect from "effect/Effect";
 
 // ============================================================================
 // Test Constants
@@ -373,7 +376,7 @@ export function createMockCrossDatasetViolation(
  * Generic mock violation factory
  *
  * Creates violations of different types based on enforcement level.
- * Useful for testing functions that work with any ValidationViolation.
+ * Useful for testing functions that work with any FieldViolation.
  *
  * @param enforcement - Enforcement level for the violation
  * @param overrides - Optional property overrides
@@ -391,10 +394,47 @@ export function createMockCrossDatasetViolation(
 export function createMockViolation(
   enforcement: EnforcementLevel,
   overrides?: Partial<MockViolationBase>,
-): ValidationViolation {
+): FieldViolation {
   return createMockRangeViolation({
     enforcement,
     ...overrides,
+  });
+}
+
+/**
+ * Create a mock SchemaViolation for testing
+ *
+ * Creates a MissingFieldViolation by default. Use for testing schema-level
+ * issues like missing required fields, unmapped fields, etc.
+ *
+ * @param enforcement - The enforcement level ("required", "recommended", "optional")
+ * @param overrides - Optional property overrides
+ * @returns A mock schema violation
+ *
+ * @example
+ * ```typescript
+ * const schemaErrors = [
+ *   createMockSchemaViolation("required"),
+ *   createMockSchemaViolation("recommended"),
+ * ];
+ * ```
+ */
+export function createMockSchemaViolation(
+  enforcement: EnforcementLevel,
+  overrides?: Partial<MissingFieldViolation>,
+): SchemaViolation {
+  return new MissingFieldViolation({
+    enforcement,
+    severity: enforcement === "required"
+      ? ErrorSeverity.ERROR
+      : enforcement === "recommended"
+      ? ErrorSeverity.WARNING
+      : ErrorSeverity.INFO,
+    fieldName: overrides?.fieldName ?? "testField",
+    targetName: overrides?.targetName ?? "testField",
+    errorMessage: overrides?.errorMessage ?? "Test schema violation",
+    validatorType: "schema",
+    reason: overrides?.reason ?? "not_in_csv",
   });
 }
 
@@ -424,7 +464,9 @@ export function createMockProfile(
   return {
     id: overrides?.id ?? "test-profile",
     name: overrides?.name ?? "Test Profile",
-    ...(overrides?.description && { description: overrides.description }),
+    description: overrides?.description ?? "Test Description",
+    targetSchema: overrides?.targetSchema ?? "custom",
+    fieldOverrides: overrides?.fieldOverrides ?? {},
     ...(overrides?.extends && { extends: overrides.extends }),
     fields: overrides?.fields ?? {},
     normalizedFields: overrides?.normalizedFields ?? {},
@@ -474,24 +516,8 @@ export function createMockDatasetConfig(
  * ```
  */
 export function createMockDatasetValidationResult(
-  overrides?: {
-    datasetName?: string;
-    spec?: string;
-    filePath?: string;
-    rowsProcessed?: number;
-    processingTimeMs?: number;
-    status?: "pass" | "warn" | "fail";
-    violations?: {
-      errors?: ValidationViolation[];
-      warnings?: ValidationViolation[];
-      info?: ValidationViolation[];
-    };
-    typeErrors?: any[];
-    requiredFieldErrors?: any[];
-    warnings?: any[];
-    recommendations?: any[];
-  },
-) {
+  overrides?: Partial<DatasetValidationResult>,
+): DatasetValidationResult {
   return {
     datasetName: overrides?.datasetName ?? "test-dataset",
     spec: overrides?.spec ?? "test-spec",
@@ -499,15 +525,16 @@ export function createMockDatasetValidationResult(
     rowsProcessed: overrides?.rowsProcessed ?? 0,
     processingTimeMs: overrides?.processingTimeMs ?? 0,
     status: overrides?.status ?? "pass",
-    violations: {
-      errors: overrides?.violations?.errors ?? [],
-      warnings: overrides?.violations?.warnings ?? [],
-      info: overrides?.violations?.info ?? [],
+    schemaViolations: {
+      errors: overrides?.schemaViolations?.errors ?? [],
+      warnings: overrides?.schemaViolations?.warnings ?? [],
+      info: overrides?.schemaViolations?.info ?? [],
     },
-    typeErrors: overrides?.typeErrors ?? [],
-    requiredFieldErrors: overrides?.requiredFieldErrors ?? [],
-    warnings: overrides?.warnings ?? [],
-    recommendations: overrides?.recommendations ?? [],
+    fieldViolations: {
+      errors: overrides?.fieldViolations?.errors ?? [],
+      warnings: overrides?.fieldViolations?.warnings ?? [],
+      info: overrides?.fieldViolations?.info ?? [],
+    },
   };
 }
 
@@ -530,7 +557,7 @@ export function createMockDatasetValidationResult(
  * @example
  * ```typescript
  * await assertEffectFails(
- *   WorkspaceImportCSV(connection, "test", "/nonexistent.csv", "'NA'"),
+ *   importCsvToWorkspace(connection, "test", "/nonexistent.csv", "'NA'"),
  *   WorkspaceImportError
  * );
  * ```

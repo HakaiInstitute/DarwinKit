@@ -2,14 +2,14 @@
  * Validation utilities - Error classes, violation partitioning, summary calculation, fuzzy matching
  */
 
+import type { DatasetValidationResult, ErrorCode } from "@dwkt/domain";
 import * as Data from "effect/Data";
-import type { DatasetValidationResult, ErrorCode, ValidationViolation } from "@dwkt/domain";
 import { levenshteinDistance } from "../utils/string-utils.ts";
 
 /**
  * Error classes for workspace validation
  */
-const WorkspaceValidationErrorBase = Data.TaggedClass("WorkspaceValidationError")<{
+const WorkspaceValidationErrorBase = Data.TaggedError("WorkspaceValidationError")<{
   readonly message: string;
   readonly code: ErrorCode;
   readonly cause?: Error;
@@ -22,58 +22,17 @@ export class WorkspaceImportError extends WorkspaceValidationErrorBase {}
 
 export class WorkspaceValidationError extends WorkspaceValidationErrorBase {}
 
+// Re-export from domain for backward compatibility
+export { partitionFieldViolations } from "@dwkt/domain";
+
 /**
- * Partition violations by enforcement level
- *
- * Separates ValidationViolation[] into errors, warnings, and info
- * based on enforcement level. This is the core routing logic that
- * enables fail-fast and severity-aware output.
- *
- * @param violations - Array of enriched violations
- * @returns Partitioned violations by enforcement level
- *
- * @example
- * ```typescript
- * const allViolations: ValidationViolation[] = [
- *   { enforcement: "required", ... },
- *   { enforcement: "recommended", ... },
- *   { enforcement: "optional", ... },
- * ];
- *
- * const partitioned = partitionViolations(allViolations);
- * // => {
- * //   errors: [...],     // required violations
- * //   warnings: [...],   // recommended violations
- * //   info: [...],       // optional violations
- * // }
- * ```
+ * Count violations across schema and field violation structures
  */
-export function partitionViolations(
-  violations: ReadonlyArray<ValidationViolation>,
-): {
-  readonly errors: ValidationViolation[];
-  readonly warnings: ValidationViolation[];
-  readonly info: ValidationViolation[];
-} {
-  const errors: ValidationViolation[] = [];
-  const warnings: ValidationViolation[] = [];
-  const info: ValidationViolation[] = [];
-
-  for (const violation of violations) {
-    switch (violation.enforcement) {
-      case "required":
-        errors.push(violation);
-        break;
-      case "recommended":
-        warnings.push(violation);
-        break;
-      case "optional":
-        info.push(violation);
-        break;
-    }
-  }
-
-  return { errors, warnings, info };
+function countViolations(
+  result: DatasetValidationResult,
+  level: "errors" | "warnings" | "info",
+): number {
+  return result.schemaViolations[level].length + result.fieldViolations[level].length;
 }
 
 /**
@@ -99,16 +58,11 @@ export function calculateSummary(datasetResults: readonly DatasetValidationResul
 
   for (const result of datasetResults) {
     totalRowsProcessed += result.rowsProcessed;
+    totalErrors += countViolations(result, "errors");
+    totalWarnings += countViolations(result, "warnings");
+    totalInfo += countViolations(result, "info");
 
-    // NEW: Count violations by severity from partitioned structure
-    totalErrors += result.violations.errors.length;
-    totalWarnings += result.violations.warnings.length;
-    totalInfo += result.violations.info.length;
-
-    // Also count old-style errors for backward compatibility
-    totalErrors += result.typeErrors.length + result.requiredFieldErrors.length;
-    totalWarnings += result.warnings.length;
-
+    // Increment dataset status counter based on status
     if (result.status === "pass") {
       datasetsPassedCount++;
     } else if (result.status === "warn") {
@@ -130,11 +84,13 @@ export function calculateSummary(datasetResults: readonly DatasetValidationResul
   };
 }
 
+type ParsedErrorType = "primary-key" | "not-null" | "enum" | "foreign-key" | "check" | "unknown";
+
 /**
  * Parse DuckDB error into structured violation information
  */
 export interface ParsedErrorInfo {
-  readonly type: "primary-key" | "not-null" | "enum" | "foreign-key" | "check" | "unknown";
+  readonly type: ParsedErrorType;
   readonly fieldName?: string;
   readonly value?: string;
   readonly referencedTable?: string;
@@ -145,100 +101,61 @@ export interface ParsedErrorInfo {
 export function parseDuckDBError(error: Error): ParsedErrorInfo {
   const message = error.message;
 
-  // PRIMARY KEY or UNIQUE constraint violation
-  // Example 1: "Constraint Error: PRIMARY KEY or UNIQUE constraint violation: duplicate key "E1""
-  // Example 2: "Constraint Error: Duplicate key "eventID: E1" violates primary key constraint."
-  let pkMatch = message.match(
-    /PRIMARY KEY or UNIQUE constraint violation: duplicate key "([^"]+)"/,
+  // Primary key violations
+  const primaryKeyMatch = message.match(
+    /PRIMARY KEY or UNIQUE constraint violation: duplicate key "([^"]+)"|Duplicate key "(?:\w+:\s*)?([^"]+)" violates primary key constraint/,
   );
-  if (pkMatch) {
+  if (primaryKeyMatch) {
     return {
       type: "primary-key",
-      value: pkMatch[1],
       message,
+      value: primaryKeyMatch[1] || primaryKeyMatch[2],
     };
   }
 
-  // Alternative format for duplicate keys
-  pkMatch = message.match(/Duplicate key "(?:\w+:\s*)?([^"]+)" violates primary key constraint/);
-  if (pkMatch) {
-    return {
-      type: "primary-key",
-      value: pkMatch[1],
-      message,
-    };
-  }
-
-  // NOT NULL constraint violation
-  // Example: "Constraint Error: NOT NULL constraint failed: column_name"
+  // NOT NULL violations
   const notNullMatch = message.match(/NOT NULL constraint failed:?\s*(.+)?/i);
   if (notNullMatch) {
     return {
       type: "not-null",
-      fieldName: notNullMatch[1]?.trim(),
       message,
+      fieldName: notNullMatch[1]?.trim(),
     };
   }
 
-  // ENUM/Type conversion error
-  // Example: "Conversion Error: Could not convert string 'InvalidBasis' to UINT8 when casting from source column basisOfRecord"
+  // ENUM violations
   const enumMatch = message.match(/Could not convert string '([^']+)'.+from source column (\w+)/);
   if (enumMatch) {
     return {
       type: "enum",
+      message,
       value: enumMatch[1],
       fieldName: enumMatch[2],
-      message,
     };
   }
 
-  // FOREIGN KEY constraint violation
-  // Example: "Constraint Error: Violates foreign key constraint because key "eventID: NA_FB_2020-11-17_FQ1" does not exist in the referenced table"
-  const fkMatch = message.match(/FOREIGN KEY constraint/i) ||
-    message.match(/Violates foreign key constraint/i);
-  if (fkMatch) {
-    // Try to extract field name and value from various formats
-    // Format 1: key "fieldName: value" does not exist
-    const detailMatch1 = message.match(/key "([^:]+):\s*([^"]+)" does not exist/);
-    if (detailMatch1) {
-      return {
-        type: "foreign-key",
-        fieldName: detailMatch1[1],
-        value: detailMatch1[2],
-        message,
-      };
-    }
+  // Foreign key violations
+  if (/FOREIGN KEY constraint|Violates foreign key constraint/i.test(message)) {
+    const detailMatch = message.match(/key "([^:]+):\s*([^"]+)" does not exist/) ||
+      message.match(/key "([^"]+)" does not exist/);
 
-    // Format 2: Just the field name in the message
-    const detailMatch2 = message.match(/key "([^"]+)" does not exist/);
-    if (detailMatch2) {
-      return {
-        type: "foreign-key",
-        value: detailMatch2[1],
-        message,
-      };
-    }
-
-    // Fallback: FK violation detected but couldn't parse details
     return {
       type: "foreign-key",
       message,
+      ...(detailMatch?.[2]
+        ? { fieldName: detailMatch[1], value: detailMatch[2] }
+        : detailMatch?.[1]
+        ? { value: detailMatch[1] }
+        : {}),
     };
   }
 
-  // CHECK constraint violation
-  const checkMatch = message.match(/CHECK constraint/i);
-  if (checkMatch) {
-    return {
-      type: "check",
-      message,
-    };
+  // CHECK constraint violations
+  if (/CHECK constraint/i.test(message)) {
+    return { type: "check", message };
   }
 
-  return {
-    type: "unknown",
-    message,
-  };
+  return { type: "unknown", message };
 }
 
 /**

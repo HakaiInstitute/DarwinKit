@@ -5,6 +5,7 @@
 // Types
 export * from "./src/types/common.ts";
 export * from "./src/types/field-mapping.ts";
+export * from "./src/types/schema-violation.ts";
 export * from "./src/types/schema.ts";
 export * from "./src/types/transformation.ts";
 export * from "./src/types/validation-profile.ts";
@@ -73,4 +74,4 @@ export * from "./src/specs/profiles/obis.ts";
 export * from "./src/specs/profiles/registry.ts";
 
 // Error tag types (for test autocomplete)
-export type { ValidationViolationTag } from "./src/errors/index.ts";
+export type { FieldViolationTag } from "./src/errors/index.ts";

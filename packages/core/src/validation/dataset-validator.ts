@@ -12,26 +12,32 @@ import type {
   DatasetConfig,
   DatasetValidationResult,
   FieldDefinition,
+  FieldViolation,
+  SchemaViolation,
   ValidationProfile,
   ValidationSettings,
-  ValidationViolation,
   ValidatorConfig,
   WorkspaceFieldMapping,
 } from "@dwkt/domain";
 import {
   ErrorCode,
+  ErrorSeverity,
   FieldRequirementLevel,
   hasControlledVocabulary,
+  MissingFieldViolation,
   parseSpecIdentifier,
+  partitionSchemaViolations,
   resolveDatasetProfile,
+  UnknownFieldViolation,
+  UnknownProfileViolation,
 } from "@dwkt/domain";
 import { insertRowByRow, sanitizeTableName } from "./database/index.ts";
-import { partitionViolations, WorkspaceValidationError } from "./utils.ts";
 import {
   validateRangeConstraints,
   validateUniqueness,
   validateVocabulary,
 } from "./field-validators.ts";
+import { partitionFieldViolations, WorkspaceValidationError } from "./utils.ts";
 
 /**
  * Merge field definition with profile and field-level overrides
@@ -180,8 +186,8 @@ export function validateDataset(
       );
     }
 
-    // Collect all violations as ValidationViolation[] for partitioning
-    const allViolations: ValidationViolation[] = [];
+    // Collect all violations as FieldViolation[] for partitioning
+    const allViolations: FieldViolation[] = [];
 
     // Build column mappings for INSERT
     const columnMappings = dataset.fieldMappings.map((m) => ({
@@ -205,15 +211,6 @@ export function validateDataset(
 
     if (bulkInsertResult._tag === "Left") {
       // Bulk INSERT failed - fall back to row-by-row insertion
-      const error = bulkInsertResult.left;
-      // console.log(
-      //   `Bulk INSERT failed for dataset '${dataset.name}' - falling back to row-by-row insertion to collect detailed violations`,
-      // );
-
-      if (error instanceof Error) {
-        //console.log(`Bulk INSERT error: ${error.message}`);
-      }
-
       // Insert rows one-by-one and collect violations
       if (profile) {
         const constraintViolations = yield* _(
@@ -229,18 +226,12 @@ export function validateDataset(
 
         allViolations.push(...constraintViolations);
       }
-    } else {
-      // Bulk INSERT succeeded - no constraint violations
-      // console.log(`Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`);
     }
 
     // Validate field mappings based on spec
 
-    // OLD: Keep old structure for backward compatibility (will be deprecated)
-    const typeErrors: Array<DatasetValidationResult["typeErrors"][number]> = [];
-    const requiredFieldErrors: Array<DatasetValidationResult["requiredFieldErrors"][number]> = [];
-    const warnings: Array<DatasetValidationResult["warnings"][number]> = [];
-    const recommendations: Array<DatasetValidationResult["recommendations"][number]> = [];
+    // Collect schema violations
+    const schemaViolations: SchemaViolation[] = [];
 
     // Check profile field requirements based on requirement levels
     if (profile && profile.fieldOverrides && dataset.fieldMappings) {
@@ -254,30 +245,45 @@ export function validateDataset(
         if (!isMapped) {
           // Handle missing fields based on requirement level
           if (fieldOverride.requirement === FieldRequirementLevel.Required) {
-            requiredFieldErrors.push({
-              fieldName,
-              targetName: fieldName,
-              message:
-                `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
-            });
+            schemaViolations.push(
+              new MissingFieldViolation({
+                enforcement: "required",
+                severity: ErrorSeverity.ERROR,
+                fieldName,
+                targetName: fieldName,
+                errorMessage:
+                  `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
+                validatorType: "schema",
+                reason: "not_mapped",
+              }),
+            );
           } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
-            warnings.push({
-              fieldName,
-              targetName: fieldName,
-              requirementLevel: "strongly-recommended",
-              message:
-                `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
-            });
+            schemaViolations.push(
+              new MissingFieldViolation({
+                enforcement: "recommended",
+                severity: ErrorSeverity.WARNING,
+                fieldName,
+                targetName: fieldName,
+                errorMessage:
+                  `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
+                validatorType: "schema",
+                reason: "not_mapped",
+              }),
+            );
           } else if (fieldOverride.requirement === FieldRequirementLevel.Recommended) {
-            recommendations.push({
-              fieldName,
-              targetName: fieldName,
-              requirementLevel: "recommended",
-              message:
-                `Profile '${profile.name}' recommends field '${fieldName}' for better data quality`,
-            });
+            schemaViolations.push(
+              new MissingFieldViolation({
+                enforcement: "optional",
+                severity: ErrorSeverity.INFO,
+                fieldName,
+                targetName: fieldName,
+                errorMessage:
+                  `Profile '${profile.name}' recommends field '${fieldName}' for better data quality`,
+                validatorType: "schema",
+                reason: "not_mapped",
+              }),
+            );
           }
-          // RequiredIfExists and Optional don't generate messages when missing
         }
       }
     }
@@ -286,12 +292,19 @@ export function validateDataset(
     for (const mapping of dataset?.fieldMappings || []) {
       // Require profile for validation - normalized fields are the source of truth
       if (!profile?.normalizedFields) {
-        requiredFieldErrors.push({
-          fieldName: mapping.originName,
-          targetName: mapping.targetName,
-          message:
-            `No validation profile specified for dataset '${dataset.name}'. Please add a 'profile' property to the dataset configuration.`,
-        });
+        schemaViolations.push(
+          new UnknownProfileViolation({
+            enforcement: "required",
+            severity: ErrorSeverity.ERROR,
+            fieldName: mapping.originName,
+            targetName: mapping.targetName,
+            errorMessage:
+              `No validation profile specified for dataset '${dataset.name}'. Please add a 'profile' property to the dataset configuration.`,
+            validatorType: "schema",
+            profileId: dataset.spec ?? "unknown",
+            reason: "not_found",
+          }),
+        );
         continue;
       }
 
@@ -303,13 +316,18 @@ export function validateDataset(
 
       // Validate that mapped fields exist in profile
       if (!baseField) {
-        // Unknown field in profile
-        requiredFieldErrors.push({
-          fieldName: mapping.originName,
-          targetName: mapping.targetName,
-          message:
-            `Unknown field '${mapping.targetName}' in profile '${profile.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
-        });
+        schemaViolations.push(
+          new UnknownFieldViolation({
+            enforcement: "required",
+            severity: ErrorSeverity.ERROR,
+            fieldName: mapping.originName,
+            targetName: mapping.targetName,
+            errorMessage:
+              `Unknown field '${mapping.targetName}' in profile '${profile.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
+            validatorType: "schema",
+            profileId: profile.id,
+          }),
+        );
         continue;
       }
 
@@ -334,19 +352,32 @@ export function validateDataset(
 
       if (!fieldExists) {
         if (mapping.isRequired) {
-          requiredFieldErrors.push({
-            fieldName: mapping.originName,
-            targetName: mapping.targetName,
-            message: `Required field '${mapping.originName}' not found in CSV`,
-          });
+          const message = `Required field '${mapping.originName}' not found in CSV`;
+          schemaViolations.push(
+            new MissingFieldViolation({
+              enforcement: "required",
+              severity: ErrorSeverity.ERROR,
+              fieldName: mapping.originName,
+              targetName: mapping.targetName,
+              errorMessage: message,
+              validatorType: "schema",
+              reason: "not_in_csv",
+            }),
+          );
         } else {
-          warnings.push({
-            fieldName: mapping.originName,
-            targetName: mapping.targetName,
-            requirementLevel: "optional",
-            message:
-              `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
-          });
+          const message =
+            `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`;
+          schemaViolations.push(
+            new MissingFieldViolation({
+              enforcement: "recommended",
+              severity: ErrorSeverity.WARNING,
+              fieldName: mapping.originName,
+              targetName: mapping.targetName,
+              errorMessage: message,
+              validatorType: "schema",
+              reason: "not_in_csv",
+            }),
+          );
         }
         continue;
       }
@@ -364,7 +395,6 @@ export function validateDataset(
         );
 
         if (rangeViolations.length > 0) {
-          // NEW: Add to allViolations for partitioning
           allViolations.push(...rangeViolations);
         }
 
@@ -377,7 +407,7 @@ export function validateDataset(
           rawFieldForVocab?.values;
 
         if (hasVocab && !hasEnumConstraint) {
-          const vocabResult = yield* _(
+          const vocabViolations = yield* _(
             validateVocabulary(
               connection,
               tableName,
@@ -386,9 +416,9 @@ export function validateDataset(
             ),
           );
 
-          // NEW: Add enriched violations to allViolations for partitioning
-          if (vocabResult.enriched.length > 0) {
-            allViolations.push(...vocabResult.enriched);
+          // Add violations to allViolations for partitioning
+          if (vocabViolations.length > 0) {
+            allViolations.push(...vocabViolations);
           }
         }
 
@@ -405,7 +435,7 @@ export function validateDataset(
           : false;
 
         if (hasUniqueValidator && !isPrimaryKeyField) {
-          const uniqueResult = yield* _(
+          const uniqueViolations = yield* _(
             validateUniqueness(
               connection,
               tableName,
@@ -414,9 +444,9 @@ export function validateDataset(
             ),
           );
 
-          // NEW: Add enriched violations to allViolations for partitioning
-          if (uniqueResult.enriched.length > 0) {
-            allViolations.push(...uniqueResult.enriched);
+          // Add violations to allViolations for partitioning
+          if (uniqueViolations.length > 0) {
+            allViolations.push(...uniqueViolations);
           }
         }
       }
@@ -424,25 +454,17 @@ export function validateDataset(
 
     const processingTimeMs = Date.now() - startTime;
 
-    // NEW: Partition violations by enforcement level
-    const partitioned = partitionViolations(allViolations);
+    // Partition violations by enforcement level
+    const partitioned = partitionFieldViolations(allViolations);
 
-    // Determine status based on errors (required violations) only
-    const hasErrors = typeErrors.length > 0 ||
-      requiredFieldErrors.length > 0 ||
-      partitioned.errors.length > 0;
-
-    const hasWarnings = warnings.length > 0 || partitioned.warnings.length > 0;
+    // Partition schema violations by enforcement level
+    const partitionedSchema = partitionSchemaViolations(schemaViolations);
 
     // Determine status based on errors and warnings
-    let status: "fail" | "warn" | "pass";
-    if (hasErrors) {
-      status = "fail";
-    } else if (hasWarnings) {
-      status = "warn";
-    } else {
-      status = "pass";
-    }
+    const hasErrors = partitionedSchema.errors.length > 0 || partitioned.errors.length > 0;
+    const hasWarnings = partitionedSchema.warnings.length > 0 || partitioned.warnings.length > 0;
+
+    const status = hasErrors ? "fail" : hasWarnings ? "warn" : "pass";
 
     return {
       datasetName: dataset.name,
@@ -451,15 +473,8 @@ export function validateDataset(
       rowsProcessed,
       processingTimeMs,
       status,
-
-      // NEW: Partitioned violations by enforcement level
-      violations: partitioned,
-
-      // OLD: Deprecated fields for backward compatibility
-      typeErrors,
-      requiredFieldErrors,
-      warnings,
-      recommendations,
+      schemaViolations: partitionedSchema,
+      fieldViolations: partitioned,
     };
   });
 }

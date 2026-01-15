@@ -16,8 +16,8 @@
  * (errors, warnings, info).
  */
 
-import type { TransformationChain } from "./transformation.ts";
-import type { ValidationViolation } from "./validation-violation.ts";
+import type { FieldViolation, PartitionedViolations } from "./validation-violation.ts";
+import type { SchemaViolation } from "./schema-violation.ts";
 
 /**
  * Validation result for a single dataset within a workspace
@@ -30,50 +30,26 @@ export interface DatasetValidationResult {
   readonly processingTimeMs: number;
   readonly status: "pass" | "warn" | "fail";
 
-  // Enforcement-aware violations (NEW - partitioned by severity)
-  readonly violations: {
-    readonly errors: ReadonlyArray<ValidationViolation>; // enforcement: "required"
-    readonly warnings: ReadonlyArray<ValidationViolation>; // enforcement: "recommended"
-    readonly info: ReadonlyArray<ValidationViolation>; // enforcement: "optional"
-  };
+  /**
+   * Schema-level violations (structural/mapping issues)
+   *
+   * These are issues with the configuration/mapping that exist regardless of data:
+   * - Required fields not found in CSV
+   * - Fields not mapped to Darwin Core targets
+   * - Unknown profiles or field references
+   */
+  readonly schemaViolations: PartitionedViolations<SchemaViolation>;
 
-  // Type validation errors (from CSV parsing)
-  readonly typeErrors: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly expectedType: string;
-    readonly failureCount: number;
-    readonly sampleFailures: ReadonlyArray<{
-      readonly rowNumber: number;
-      readonly originalValue: string; // Deprecated: use csvValue
-      readonly csvValue?: string; // Original value in CSV file
-      readonly transformedValue?: unknown; // Value after transformations
-      readonly transformationChain?: TransformationChain; // Full transformation history
-      readonly errorMessage: string;
-    }>;
-  }>;
-
-  // Required field errors (from spec)
-  readonly requiredFieldErrors: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly message: string;
-  }>;
-
-  // Field warnings (strongly recommended fields that are missing)
-  readonly warnings: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly requirementLevel: string;
-    readonly message: string;
-  }>;
-
-  // Field recommendations (recommended fields that are missing)
-  readonly recommendations: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly requirementLevel: string;
-    readonly message: string;
-  }>;
+  /**
+   * Field-level violations (row data validation failures)
+   *
+   * These are issues with actual data values in specific rows:
+   * - Range violations (values outside valid bounds)
+   * - Vocabulary violations (values not in controlled vocabulary)
+   * - Uniqueness violations (duplicate identifiers)
+   * - Type violations (values that don't match expected types)
+   */
+  readonly fieldViolations: PartitionedViolations<FieldViolation>;
 }
 
 /**
@@ -85,14 +61,7 @@ export interface CrossDatasetValidationResult {
   readonly sourceField: string;
   readonly targetDataset: string;
   readonly targetField: string;
-  readonly violations: ReadonlyArray<{
-    readonly rowNumber: number;
-    readonly sourceValue: string; // Deprecated: use csvValue for source value
-    readonly csvValue?: string; // Original value in CSV file
-    readonly transformedValue?: unknown; // Value after transformations
-    readonly transformationChain?: TransformationChain; // Full transformation history
-    readonly errorMessage: string;
-  }>;
+  readonly violations: ReadonlyArray<FieldViolation>;
 }
 
 /**

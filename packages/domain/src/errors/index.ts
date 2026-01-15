@@ -3,18 +3,18 @@
  *
  * Type-only exports for validation violation tags to enable IDE autocomplete
  * and type safety when writing tests. These tags are derived directly from
- * the ValidationViolation classes using TypeScript's type system, ensuring
+ * the FieldViolation classes using TypeScript's type system, ensuring
  * they stay in sync automatically.
  *
  * Usage in tests:
  * ```typescript
- * import type { ValidationViolationTag } from "@dwkt/domain/errors";
+ * import type { FieldViolationTag } from "@dwkt/domain/errors";
  * import { isRangeViolation } from "@dwkt/domain";
  *
  * const rangeViolations = result.violations.filter(isRangeViolation);
  * // Or filter by tag directly:
  * const violations = result.violations.filter(
- *   v => v._tag === "RangeViolation" as ValidationViolationTag
+ *   v => v._tag === "RangeViolation" as FieldViolationTag
  * );
  * ```
  *
@@ -55,7 +55,7 @@ import type {
  * - EnumViolation: Value not in allowed enum
  * - ForeignKeyViolation: Referenced value doesn't exist
  */
-export type ValidationViolationTag =
+export type FieldViolationTag =
   | InstanceType<typeof RangeViolation>["_tag"]
   | InstanceType<typeof VocabularyViolation>["_tag"]
   | InstanceType<typeof UniquenessViolation>["_tag"]

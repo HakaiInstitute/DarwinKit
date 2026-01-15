@@ -3,7 +3,7 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
-import type { ValidationProfile, ValidationSettings, ValidationViolation } from "@dwkt/domain";
+import type { FieldViolation, ValidationProfile, ValidationSettings } from "@dwkt/domain";
 import {
   enforcementToSeverity,
   EnumViolation,
@@ -56,14 +56,15 @@ export function getOriginalCsvValue(
  * Insert rows one-by-one, collecting violations for any that fail
  *
  * This function implements the "correctness path" for data validation. When bulk
- * INSERT fails due to constraint violations, this function inserts rows individually
- * to identify exactly which rows violate which constraints.
+ * INSERT fails due to constraint violations, it inserts rows individually to
+ * identify exactly which rows violate which constraints.
  *
  * It detects and creates structured violations for:
  * - Primary key duplicates
  * - NOT NULL violations (required fields)
  * - ENUM violations (controlled vocabulary)
  * - Foreign key violations (referential integrity)
+ * - See ParsedErrorType in packages/core/src/validation/utils.ts
  *
  * @param connection - DuckDB connection
  * @param rawTableName - Raw CSV table name
@@ -93,11 +94,11 @@ export function insertRowByRow(
   columnMappings: { origin: string; target: string }[],
   profile: ValidationProfile,
   validationSettings?: ValidationSettings,
-): Effect.Effect<ValidationViolation[], WorkspaceValidationError> {
+): Effect.Effect<FieldViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
-    const violations: ValidationViolation[] = [];
+    const violations: FieldViolation[] = [];
     const enableSuggestions = validationSettings?.enableSuggestions ?? true;
-    const processedDuplicates = new Set<string>(); // Track duplicate PKs we've already processed
+    const processedDuplicates = new Set<string>();
 
     // Get maximum _row_number to determine iteration range
     const maxRowResult = yield* _(
@@ -148,7 +149,6 @@ export function insertRowByRow(
               const specField = profile.normalizedFields?.[pkMapping.target];
               if (!specField) break;
 
-              // Mark this duplicate value as processed
               processedDuplicates.add(parsed.value);
 
               // Query the raw table to find ALL rows with this duplicate value
