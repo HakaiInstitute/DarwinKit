@@ -27,6 +27,8 @@ DarwinKit is a modular TypeScript application organized as a Deno workspace for 
 
 ### Tech Stack
 
+A core library used in this project is Effect. Ensure you use the documentation found here: https://effect.website/llms-full.txt
+
 **Core Technologies (Implemented):**
 
 - **Runtime**: Deno 2.0+ with workspace support
@@ -46,13 +48,6 @@ DarwinKit is a modular TypeScript application organized as a Deno workspace for 
 - **API Client**: Basic HTTP client for backend communication
 - **Styling**: Tailwind CSS
 
-**Planned Enhancements:**
-
-- **Database**: PostgreSQL with Drizzle ORM for user authentication and workspace persistence
-- **Frontend**: TanStack Router and TanStack Query for routing and state management
-- **UI Components**: Headless UI component library
-- **Forms**: TanStack React Form with Effect Schema validation
-
 ### Project Structure
 
 ```
@@ -60,27 +55,36 @@ packages/
 ├── domain/          # Domain layer: types, schemas, and business rules
 │   ├── types/       # TypeScript interfaces and type definitions
 │   ├── schemas/     # Effect validation schemas
-│   ├── errors/      # Error codes and error type definitions
+│   ├── errors/      # Error codes, types, presenter, and severity definitions
 │   ├── specs/       # Darwin Core field definitions and validation profiles
 │   │   ├── profiles/      # TypeScript validation profiles (OBIS, etc.)
 │   │   ├── vocabularies/  # Controlled vocabulary definitions
-│   │   └── field-definition.ts  # JSON schema normalization
+│   │   └── dwc/           # Darwin Core specification index
 │   ├── constants/   # Darwin Core vocabularies and constants
-│   └── utils/       # Domain utility functions
+│   └── utils/       # Domain utility functions (cause-formatter, etc.)
 │
 ├── core/            # Core functionality: workspace operations, validation, transformation
-│   ├── workspace/   # Workspace management with file system operations
-│   ├── parsing/     # CSV parsing using DuckDB for schema inference
 │   ├── validation/  # DuckDB-powered validation operations
-│   ├── transform/   # Data transformation utilities
-│   └── utils/       # Core utility functions
+│   │   └── database/      # Database-specific validation (schema-builder, data-loader, csv-import)
+│   ├── import/      # Data import utilities
+│   ├── testing/     # Test fixtures and utilities for core tests
+│   ├── utils/       # Core utility functions (effect-utils, string-utils)
+│   ├── csv-parser.ts      # CSV parsing using DuckDB for schema inference
+│   ├── transform.ts       # Data transformation utilities
+│   ├── workspace.ts       # Workspace management with file system operations
+│   └── errors.ts          # Core error definitions
 │
 ├── cli/             # Command-line interface
-│   ├── cmd/         # CLI commands (validate, transform)
-│   └── utils/       # Terminal output utilities and helpers
+│   ├── cmd/         # CLI commands
+│   │   ├── validate/      # validate command
+│   │   ├── transform/     # transform command
+│   │   └── import/        # import command
+│   └── utils/       # Terminal output utilities (spinner, output formatting)
 │
 ├── api/             # HTTP API server (Hono-based)
-│   └── routes/      # API routes at /api/* (workspaces, etc.)
+│   ├── routes/      # API routes at /api/* (auth, workspaces, etc.)
+│   ├── middleware/  # HTTP middleware
+│   └── utils/       # API utilities (validation helpers)
 │
 └── gui/             # Web interface (React + Vite) - minimal implementation
     └── api/         # HTTP client for API communication

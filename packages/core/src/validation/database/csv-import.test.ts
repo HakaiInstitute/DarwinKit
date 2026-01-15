@@ -7,13 +7,13 @@
 
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { assertEffectFails, withTestConnection } from "../test-utils.ts";
 import {
   generateTestData,
   withTestDirectory,
   writeCsvFile,
   writeCsvFileWithHeaders,
 } from "../../testing/mod.ts";
+import { assertEffectFails, withTestConnection } from "../test-utils.ts";
 import { WorkspaceImportError } from "../utils.ts";
 import { importCsvToWorkspace } from "./csv-import.ts";
 
