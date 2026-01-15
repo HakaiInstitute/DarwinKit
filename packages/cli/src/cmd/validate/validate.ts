@@ -15,7 +15,7 @@ import {
   prettyPrintConfigError,
   Workspace,
 } from '@dwkt/core';
-import type { FieldViolation, SchemaViolation, WorkspaceValidationResult } from '@dwkt/domain';
+import type { FieldViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { ErrorCode } from '@dwkt/domain';
 import * as Match from 'effect/Match';
 import { Output } from '../../utils/output.ts';
