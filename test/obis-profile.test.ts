@@ -1,8 +1,11 @@
 /**
  * Test OBIS validation profile
+ *
+ * Tests validation of marine biodiversity data against OBIS profile requirements
+ * including required fields, depth constraints, and coordinate validation.
  */
 
-import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
+import { isRangeViolation, type WorkspaceConfig } from "@dwkt/domain";
 import {
   assert,
   assertEquals,
@@ -10,34 +13,113 @@ import {
   assertGreater,
   assertGreaterOrEqual,
 } from "@std/assert";
-import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 import { Workspace } from "../packages/core/src/workspace.ts";
+import { withTestDirectory, writeCsvFile, writeWorkspaceConfig } from "./helpers/config-utils.ts";
+
+// ============================================================================
+// Test Data
+// ============================================================================
+
+/**
+ * Test data for OBIS profile validation scenarios.
+ * Structured as objects for readability and maintainability.
+ */
+const TEST_DATA = {
+  /** Valid OBIS event data with all required fields */
+  VALID_OBIS_EVENTS: [
+    {
+      eventID: "E1",
+      eventDate: "2022-09-15",
+      decimalLatitude: "49.8954",
+      decimalLongitude: "-125.4567",
+      geodeticDatum: "WGS84",
+      locality: "Salish Sea",
+    },
+    {
+      eventID: "E2",
+      eventDate: "2022-09-16",
+      decimalLatitude: "49.9012",
+      decimalLongitude: "-125.4789",
+      geodeticDatum: "WGS84",
+      locality: "Strait of Georgia",
+    },
+    {
+      eventID: "E3",
+      eventDate: "2022-09-17",
+      decimalLatitude: "49.8765",
+      decimalLongitude: "-125.4321",
+      geodeticDatum: "WGS84",
+      locality: "Discovery Passage",
+    },
+  ],
+
+  /** Events missing geodeticDatum (required by OBIS) */
+  EVENTS_MISSING_GEODETIC_DATUM: [
+    {
+      eventID: "E1",
+      eventDate: "2022-09-15",
+      decimalLatitude: "49.8954",
+      decimalLongitude: "-125.4567",
+    },
+    {
+      eventID: "E2",
+      eventDate: "2022-09-16",
+      decimalLatitude: "49.9012",
+      decimalLongitude: "-125.4789",
+    },
+  ],
+
+  /** Events with depth values - including one exceeding max ocean depth */
+  EVENTS_WITH_DEPTHS: [
+    {
+      eventID: "E1",
+      eventDate: "2022-09-15",
+      decimalLatitude: "49.8954",
+      decimalLongitude: "-125.4567",
+      geodeticDatum: "WGS84",
+      minimumDepthInMeters: "10",
+      maximumDepthInMeters: "50",
+    },
+    {
+      eventID: "E2",
+      eventDate: "2022-09-16",
+      decimalLatitude: "49.9012",
+      decimalLongitude: "-125.4789",
+      geodeticDatum: "WGS84",
+      minimumDepthInMeters: "100",
+      maximumDepthInMeters: "200",
+    },
+    {
+      eventID: "E3",
+      eventDate: "2022-09-17",
+      decimalLatitude: "49.8765",
+      decimalLongitude: "-125.4321",
+      geodeticDatum: "WGS84",
+      minimumDepthInMeters: "12000", // Exceeds max ocean depth (~11000m)
+      maximumDepthInMeters: "12500",
+    },
+  ],
+};
+
+// ============================================================================
+// Tests
+// ============================================================================
 
 Deno.test({
   name: "OBIS Profile - validates required fields",
   fn: async () => {
-    // Create temp directory for test workspace
-    const tempDir = await Deno.makeTempDir({ prefix: "obis-test-" });
+    await withTestDirectory(async (tempDir) => {
+      // Write CSV with all OBIS-required fields
+      await writeCsvFile(tempDir, "events", TEST_DATA.VALID_OBIS_EVENTS);
 
-    try {
-      // Create test CSV with OBIS-required fields
-      const eventCsv = `eventID,eventDate,decimalLatitude,decimalLongitude,geodeticDatum,locality
-E1,2022-09-15,49.8954,-125.4567,WGS84,Salish Sea
-E2,2022-09-16,49.9012,-125.4789,WGS84,Strait of Georgia
-E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
-
-      Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
-
-      // Create config with OBIS profile
-      const config = {
+      const config: WorkspaceConfig = {
         id: "obis-profile-test",
         name: "OBIS Profile Test",
         version: "1.0.0",
         description: "Test OBIS validation profile",
         createdAt: new Date(),
         updatedAt: new Date(),
-
         validation: {
           nullValues: ["NA", "N/A", "", "NULL", "null"],
           failFast: false,
@@ -62,10 +144,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
         },
       };
 
-      Deno.writeTextFileSync(
-        join(tempDir, "darwinkit.json"),
-        JSON.stringify(config, null, 2),
-      );
+      await writeWorkspaceConfig(tempDir, config);
 
       // Validate
       const workspace = await Effect.runPromise(Workspace.discover(tempDir));
@@ -91,36 +170,24 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
         "Should have warnings for strongly-recommended fields",
       );
       assertEquals(eventsResult.status, "warn", "Status should be warn when there are warnings");
-    } finally {
-      // Cleanup
-      await Deno.remove(tempDir, { recursive: true });
-    }
+    });
   },
 });
 
 Deno.test({
   name: "OBIS Profile - detects missing required fields",
   fn: async () => {
-    // Create temp directory for test workspace
-    const tempDir = await Deno.makeTempDir({ prefix: "obis-test-" });
+    await withTestDirectory(async (tempDir) => {
+      // Write CSV WITHOUT geodeticDatum (required by OBIS)
+      await writeCsvFile(tempDir, "events", TEST_DATA.EVENTS_MISSING_GEODETIC_DATUM);
 
-    try {
-      // Create test CSV WITHOUT geodeticDatum (required by OBIS)
-      const eventCsv = `eventID,eventDate,decimalLatitude,decimalLongitude
-E1,2022-09-15,49.8954,-125.4567
-E2,2022-09-16,49.9012,-125.4789`;
-
-      Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
-
-      // Create config with OBIS profile
-      const config = {
+      const config: WorkspaceConfig = {
         id: "obis-missing-field-test",
         name: "OBIS Missing Field Test",
         version: "1.0.0",
         description: "Test OBIS validation profile with missing required field",
         createdAt: new Date(),
         updatedAt: new Date(),
-
         validation: {
           nullValues: ["NA", "N/A", "", "NULL", "null"],
           failFast: false,
@@ -144,10 +211,7 @@ E2,2022-09-16,49.9012,-125.4789`;
         },
       };
 
-      Deno.writeTextFileSync(
-        join(tempDir, "darwinkit.json"),
-        JSON.stringify(config, null, 2),
-      );
+      await writeWorkspaceConfig(tempDir, config);
 
       // Validate
       const workspace = await Effect.runPromise(Workspace.discover(tempDir));
@@ -166,35 +230,22 @@ E2,2022-09-16,49.9012,-125.4789`;
       assertEquals(eventsResult.status, "fail", "Events dataset should fail");
 
       // Verify that geodeticDatum is reported as a missing required field
-      const missingFieldError = eventsResult.schemaViolations.errors.find((e) =>
-        e.fieldName === "geodeticDatum" || e.targetName === "geodeticDatum"
+      const missingFieldError = eventsResult.schemaViolations.errors.find(
+        (e) => e.fieldName === "geodeticDatum" || e.targetName === "geodeticDatum",
       );
       assert(
         missingFieldError,
         "Should have error about missing geodeticDatum field",
       );
-    } finally {
-      // Cleanup
-      await Deno.remove(tempDir, { recursive: true });
-    }
+    });
   },
 });
 
 Deno.test("OBIS Profile - applies depth range constraints", async () => {
-  // Create temp directory for test workspace
-  const tempDir = await Deno.makeTempDir({ prefix: "obis-test-" });
+  await withTestDirectory(async (tempDir) => {
+    // Write CSV with depth values (one exceeds max ocean depth)
+    await writeCsvFile(tempDir, "events", TEST_DATA.EVENTS_WITH_DEPTHS);
 
-  try {
-    // Create test CSV with depth values (one invalid)
-    const eventCsv =
-      `eventID,eventDate,decimalLatitude,decimalLongitude,geodeticDatum,minimumDepthInMeters,maximumDepthInMeters
-E1,2022-09-15,49.8954,-125.4567,WGS84,10,50
-E2,2022-09-16,49.9012,-125.4789,WGS84,100,200
-E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
-
-    Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
-
-    // Create config with OBIS profile
     const config: WorkspaceConfig = {
       id: "obis-depth-test",
       name: "OBIS Depth Validation Test",
@@ -202,7 +253,6 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
       description: "Test OBIS depth range constraints",
       createdAt: new Date(),
       updatedAt: new Date(),
-
       validation: {
         nullValues: ["NA", "N/A", "", "NULL", "null"],
         failFast: false,
@@ -228,10 +278,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
       },
     };
 
-    Deno.writeTextFileSync(
-      join(tempDir, "darwinkit.json"),
-      JSON.stringify(config, null, 2),
-    );
+    await writeWorkspaceConfig(tempDir, config);
 
     // Validate
     const workspace = await Effect.runPromise(Workspace.discover(tempDir));
@@ -261,8 +308,5 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     const hasRowThreeViolation = depthViolations.some((v) => v.rowNumber === 3);
 
     assert(hasRowThreeViolation, "Should flag row 3 with depth > 11000m");
-  } finally {
-    // Cleanup
-    await Deno.remove(tempDir, { recursive: true });
-  }
+  });
 });

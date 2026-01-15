@@ -15,12 +15,12 @@ import {
   isRangeViolation,
 } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertStringIncludes } from "@std/assert";
-import { stringify } from "@std/csv";
 import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
 import { Workspace } from "./workspace.ts";
 import { WorkspaceValidationError } from "./validation/utils.ts";
+import { writeCsvFile } from "./testing/mod.ts";
 
 // Helper type for workspace creation
 type TestWorkspaceOptions = {
@@ -146,12 +146,9 @@ const TEST_DATA = {
   ],
 };
 
-// Convert structured test data to CSV format
-function toCSV<T extends Record<string, unknown>>(data: T[]): string {
-  if (data.length === 0) return "";
-  const columns = Object.keys(data[0]);
-  return stringify(data, { columns });
-}
+// ============================================================================
+// Temp Directory Management
+// ============================================================================
 
 const tempDirs: string[] = [];
 
@@ -170,17 +167,15 @@ async function removeTempDirs() {
   await Promise.all(tempDirs.map((dir) => Deno.remove(dir, { recursive: true })));
 }
 
-// Write a workspace configuration file to the temp directory
+// ============================================================================
+// Config Writing Helper
+// ============================================================================
+
 async function writeConfig(tempDir: string, config: WorkspaceConfig) {
   return await Deno.writeTextFile(
     join(tempDir, "darwinkit.json"),
     JSON.stringify(config, null, 2),
   );
-}
-
-// Write a CSV file to the temp directory from structured data
-async function writeCSV(tempDir: string, fileName: string, data: Array<Record<string, unknown>>) {
-  return await Deno.writeTextFile(join(tempDir, `${fileName}.csv`), toCSV(data));
 }
 
 // Create a multi-dataset workspace with events and occurrences
@@ -190,11 +185,11 @@ async function createMultiDatasetWorkspace(
 ) {
   // Default event data
   const eventData = options?.eventData ?? TEST_DATA.VALID_EVENTS;
-  await writeCSV(tempDir, "events", eventData);
+  await writeCsvFile(tempDir, "events", eventData);
 
   // Default occurrence data
   const occurrenceData = options?.occurrenceData ?? TEST_DATA.VALID_OCCURRENCES;
-  await writeCSV(tempDir, "occurrences", occurrenceData);
+  await writeCsvFile(tempDir, "occurrences", occurrenceData);
 
   // Default datasets
   const datasets = options?.datasets ?? [
@@ -265,7 +260,7 @@ async function createSingleDatasetWorkspace(
   fieldMappings: WorkspaceFieldMapping[],
   options?: { profile?: string; spec?: string },
 ): Promise<void> {
-  await writeCSV(tempDir, datasetName, data);
+  await writeCsvFile(tempDir, datasetName, data);
 
   const config: WorkspaceConfig = {
     id: "test-workspace",
@@ -413,8 +408,8 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
   await t.step("detects cross-dataset violations", async () => {
     const tempDir = await createTempDir("detect_cross_dataset_violations");
 
-    await writeCSV(tempDir, "events", TEST_DATA.EVENTS_WITH_ONLY_E1);
-    await writeCSV(tempDir, "occurrences", TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF);
+    await writeCsvFile(tempDir, "events", TEST_DATA.EVENTS_WITH_ONLY_E1);
+    await writeCsvFile(tempDir, "occurrences", TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF);
 
     // Create minimal config
     const config: WorkspaceConfig = {
@@ -489,12 +484,12 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
     const tempDir = await createTempDir("fk_violations_recorded");
 
     // Create events with E1 only
-    await writeCSV(tempDir, "events", [
+    await writeCsvFile(tempDir, "events", [
       { eventID: "E1", eventDate: "2024-01-01" },
     ]);
 
     // Create occurrences with E1 and E2 (E2 is invalid FK)
-    await writeCSV(tempDir, "occurrence", [
+    await writeCsvFile(tempDir, "occurrence", [
       { occurrenceID: "O1", eventID: "E1" },
       { occurrenceID: "O2", eventID: "E2" },
     ]);
@@ -564,7 +559,7 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
 
   await t.step("detects missing required fields", async () => {
     const tempDir = await createTempDir("detect_missing_required_fields");
-    await writeCSV(tempDir, "events", TEST_DATA.EVENTS_MISSING_COUNTRY_CODE);
+    await writeCsvFile(tempDir, "events", TEST_DATA.EVENTS_MISSING_COUNTRY_CODE);
 
     const config: WorkspaceConfig = {
       id: "test-workspace",

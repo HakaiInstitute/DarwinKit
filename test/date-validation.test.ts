@@ -5,26 +5,40 @@
  * for year, month, and day fields.
  */
 
-import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
+import { isRangeViolation, type WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals, assertExists } from "@std/assert";
-import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 import { Workspace } from "../packages/core/src/workspace.ts";
+import { withTestDirectory, writeCsvFile, writeWorkspaceConfig } from "./helpers/config-utils.ts";
+
+// ============================================================================
+// Test Data
+// ============================================================================
+
+/**
+ * Test data for date validation scenarios.
+ * Structured as objects for readability and type safety.
+ */
+const TEST_DATA = {
+  /** Events with various date values - some valid, some invalid */
+  DATE_VALIDATION_EVENTS: [
+    { eventID: "E1", year: "2022", month: "9", day: "15", eventDate: "2022-09-15" }, // Valid
+    { eventID: "E2", year: "1500", month: "1", day: "1", eventDate: "1500-01-01" }, // Valid (historical)
+    { eventID: "E3", year: "2022", month: "13", day: "1", eventDate: "2022-13-01" }, // Invalid: month > 12
+    { eventID: "E4", year: "2022", month: "6", day: "32", eventDate: "2022-06-32" }, // Invalid: day > 31
+  ],
+};
+
+// ============================================================================
+// Tests
+// ============================================================================
 
 Deno.test({
   name: "Workspace Validation - validates date ranges",
   fn: async () => {
-    const tempDir = await Deno.makeTempDir({ prefix: "date_validation_test_" });
-
-    try {
-      // Create CSV with invalid date values
-      const eventCsv = `eventID,year,month,day,eventDate
-E1,2022,9,15,2022-09-15
-E2,1500,1,1,1500-01-01
-E3,2022,13,1,2022-13-01
-E4,2022,6,32,2022-06-32`;
-
-      await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
+    await withTestDirectory(async (tempDir) => {
+      // Write CSV from structured data
+      await writeCsvFile(tempDir, "events", TEST_DATA.DATE_VALIDATION_EVENTS);
 
       const config: WorkspaceConfig = {
         id: "date-test-workspace",
@@ -54,10 +68,7 @@ E4,2022,6,32,2022-06-32`;
         updatedAt: new Date(),
       };
 
-      await Deno.writeTextFile(
-        join(tempDir, "darwinkit.json"),
-        JSON.stringify(config, null, 2),
-      );
+      await writeWorkspaceConfig(tempDir, config);
 
       const workspace = await Effect.runPromise(Workspace.discover(tempDir));
       const result = await Effect.runPromise(workspace.validate());
@@ -70,8 +81,7 @@ E4,2022,6,32,2022-06-32`;
       const datasetResult = result.datasetResults[0];
 
       // Check for specific date range violations
-      const rangeErrors = datasetResult.fieldViolations.errors
-        .filter(isRangeViolation);
+      const rangeErrors = datasetResult.fieldViolations.errors.filter(isRangeViolation);
 
       // Should have violations for:
       // - month 13 (> 12)
@@ -84,8 +94,6 @@ E4,2022,6,32,2022-06-32`;
 
       assertEquals(Number(monthViolation.value), 13); // Row E3
       assertEquals(Number(dayViolation.value), 32); // Row E4
-    } finally {
-      await Deno.remove(tempDir, { recursive: true });
-    }
+    });
   },
 });

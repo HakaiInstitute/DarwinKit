@@ -3,17 +3,43 @@
  */
 
 import { assertEquals } from "@std/assert";
+import type { EnforcementLevel } from "../specs/validators.ts";
 import { ErrorSeverity } from "../errors/severity.ts";
 import { enforcementToSeverity } from "./validation-violation.ts";
 
-Deno.test("enforcementToSeverity - maps required to ERROR", () => {
-  assertEquals(enforcementToSeverity("required"), ErrorSeverity.ERROR);
-});
+// ============================================================================
+// enforcementToSeverity Tests
+// ============================================================================
 
-Deno.test("enforcementToSeverity - maps recommended to WARNING", () => {
-  assertEquals(enforcementToSeverity("recommended"), ErrorSeverity.WARNING);
-});
+type EnforcementToSeverityTestCase = {
+  description: string;
+  input: EnforcementLevel;
+  expected: ErrorSeverity;
+};
 
-Deno.test("enforcementToSeverity - maps optional to INFO", () => {
-  assertEquals(enforcementToSeverity("optional"), ErrorSeverity.INFO);
+const enforcementToSeverityTestCases: EnforcementToSeverityTestCase[] = [
+  {
+    description: "maps required to ERROR",
+    input: "required",
+    expected: ErrorSeverity.ERROR,
+  },
+  {
+    description: "maps recommended to WARNING",
+    input: "recommended",
+    expected: ErrorSeverity.WARNING,
+  },
+  {
+    description: "maps optional to INFO",
+    input: "optional",
+    expected: ErrorSeverity.INFO,
+  },
+];
+
+Deno.test("enforcementToSeverity", async (t) => {
+  for (const testCase of enforcementToSeverityTestCases) {
+    await t.step(testCase.description, () => {
+      const result = enforcementToSeverity(testCase.input);
+      assertEquals(result, testCase.expected);
+    });
+  }
 });

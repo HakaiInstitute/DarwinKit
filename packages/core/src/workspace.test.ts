@@ -19,8 +19,9 @@ import {
 // Import shared test utilities
 import {
   createTestConfig,
-  createTestCSV,
   DEFAULT_VALIDATION_SETTINGS,
+  writeCsvFile,
+  writeJsonFile,
 } from "../../../test/helpers/config-utils.ts";
 
 // ============================================================================
@@ -172,8 +173,7 @@ Deno.test("Workspace.fromPath - loads config from specific path", async () => {
 
 Deno.test("Workspace.fromPath - fails on invalid JSON", async () => {
   await withTempDir(async (tempDir) => {
-    const configPath = join(tempDir, TEST_CONFIG_FILENAME);
-    await Deno.writeTextFile(configPath, "{ invalid json }");
+    const configPath = await writeJsonFile(tempDir, TEST_CONFIG_FILENAME, "{ invalid json }");
 
     await assertEffectFails(
       Workspace.fromPath(configPath),
@@ -203,10 +203,9 @@ Deno.test("Workspace.fromPath - validates dataset file paths exist", async () =>
 Deno.test("Workspace.fromPath - succeeds when dataset files exist", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV file
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID", "country"], [
-      ["E1", "Canada"],
-      ["E2", "USA"],
+    await writeCsvFile(tempDir, "test", [
+      { eventID: "E1", country: "Canada" },
+      { eventID: "E2", country: "USA" },
     ]);
 
     // Create config referencing the CSV
@@ -301,15 +300,9 @@ Deno.test("Workspace - handles missing optional fields", async () => {
 
 Deno.test("Workspace - multiple datasets validation", async () => {
   await withTempDir(async (tempDir) => {
-    // Create multiple CSV files
-    await createTestCSV(
-      join(tempDir, "events.csv"),
-      ["eventID", "country"],
-    );
-    await createTestCSV(
-      join(tempDir, "occurrences.csv"),
-      ["occurrenceID", "eventID"],
-    );
+    // Create multiple CSV files (headers only for this test)
+    await writeCsvFile(tempDir, "events", [{ eventID: "E1", country: "Canada" }]);
+    await writeCsvFile(tempDir, "occurrences", [{ occurrenceID: "O1", eventID: "E1" }]);
 
     // Create config with multiple datasets
     const { config } = await createTestConfig(tempDir, {
@@ -344,14 +337,10 @@ Deno.test("Workspace - multiple datasets validation", async () => {
 Deno.test("Workspace.validate - validates datasets successfully", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV file with valid data
-    await createTestCSV(
-      join(tempDir, "events.csv"),
-      ["eventID", "country"],
-      [
-        ["E1", "Canada"],
-        ["E2", "USA"],
-      ],
-    );
+    await writeCsvFile(tempDir, "events", [
+      { eventID: "E1", country: "Canada" },
+      { eventID: "E2", country: "USA" },
+    ]);
 
     // Create config with validation settings
     const { configPath } = await createTestConfig(tempDir, {
@@ -393,17 +382,13 @@ Deno.test("Workspace.validate - validates datasets successfully", async () => {
 Deno.test("Workspace.validate - validates multiple datasets", async () => {
   await withTempDir(async (tempDir) => {
     // Create two valid CSV files
-    await createTestCSV(
-      join(tempDir, "events.csv"),
-      ["eventID", "country"],
-      [["E1", "Canada"]],
-    );
+    await writeCsvFile(tempDir, "events", [
+      { eventID: "E1", country: "Canada" },
+    ]);
 
-    await createTestCSV(
-      join(tempDir, "occurrences.csv"),
-      ["occurrenceID", "eventID"],
-      [["O1", "E1"]],
-    );
+    await writeCsvFile(tempDir, "occurrences", [
+      { occurrenceID: "O1", eventID: "E1" },
+    ]);
 
     const { configPath } = await createTestConfig(tempDir, {
       validation: {
@@ -446,26 +431,22 @@ Deno.test("Workspace.validate - validates multiple datasets", async () => {
 Deno.test("Workspace.validate - fails on config without validation settings", async () => {
   await withTempDir(async (tempDir) => {
     // Create a transform-only config (no validation section)
-    const configPath = join(tempDir, "darwinkit.json");
-    await Deno.writeTextFile(
-      configPath,
-      JSON.stringify({
-        id: "transform-workspace",
-        name: "Transform Only",
-        version: "1.0.0",
-        transform: {
-          nullValues: [""],
-          inputs: {},
-          datasets: [],
-          output: {
-            outputDir: "./output",
-            exportDB: false,
-          },
+    const configPath = await writeJsonFile(tempDir, "darwinkit.json", {
+      id: "transform-workspace",
+      name: "Transform Only",
+      version: "1.0.0",
+      transform: {
+        nullValues: [""],
+        inputs: {},
+        datasets: [],
+        output: {
+          outputDir: "./output",
+          exportDB: false,
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }),
-    );
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
 
     const workspace = await Effect.runPromise(
       Workspace.fromPath(configPath),
@@ -507,8 +488,7 @@ Deno.test("Workspace - connection is lazy (not created on construction)", async 
 Deno.test("Workspace - connection is created on first validation", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV and config
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "First Validation Test",
@@ -539,8 +519,7 @@ Deno.test("Workspace - multiple validations work correctly", async () => {
 
   await withTempDir(async (tempDir) => {
     // Create test CSV and config
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"], ["E2"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }, { eventID: "E2" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "Multiple Validations Test",
@@ -576,8 +555,7 @@ Deno.test("Workspace - multiple validations work correctly", async () => {
 Deno.test("Workspace.close - cleans up connection properly", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV and config
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "Close Test",
@@ -609,8 +587,7 @@ Deno.test("Workspace.close - cleans up connection properly", async () => {
 Deno.test("Workspace - can validate after close (creates new connection)", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV and config
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "Recreate Connection Test",
@@ -647,8 +624,7 @@ Deno.test("Workspace - can validate after close (creates new connection)", async
 Deno.test("Workspace - Symbol.dispose cleanup with using declaration", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV and config
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "Dispose Test",
@@ -685,8 +661,7 @@ Deno.test("Workspace - Symbol.dispose cleanup with using declaration", async () 
 Deno.test("Workspace.getValidationResult - returns undefined before validation", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV and config
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
@@ -714,8 +689,7 @@ Deno.test("Workspace.getValidationResult - returns undefined before validation",
 Deno.test("Workspace.getValidationResult - returns cached result after validation", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV and config
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
@@ -750,8 +724,7 @@ Deno.test("Workspace.getValidationResult - returns cached result after validatio
 Deno.test("Workspace.isValid - returns false before validation", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV and config
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
@@ -779,8 +752,7 @@ Deno.test("Workspace.isValid - returns false before validation", async () => {
 Deno.test("Workspace.isValid - returns true after passing validation", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV with valid data
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
@@ -812,8 +784,7 @@ Deno.test("Workspace.isValid - returns true after passing validation", async () 
 Deno.test("Workspace.isValid - returns false for non-passing validation", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV with just eventID (minimal valid data)
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
@@ -849,8 +820,7 @@ Deno.test("Workspace.isValid - returns false for non-passing validation", async 
 Deno.test("Workspace - state updates after multiple validations", async () => {
   await withTempDir(async (tempDir) => {
     // Create test CSV
-    const csvPath = join(tempDir, "test.csv");
-    await createTestCSV(csvPath, ["eventID"], [["E1"]]);
+    await writeCsvFile(tempDir, "test", [{ eventID: "E1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
       name: "Multi Validation Test",

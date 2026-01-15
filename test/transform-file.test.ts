@@ -12,70 +12,67 @@ import { DuckDBConnection } from "@duckdb/node-api";
 import { transformFile } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { join } from "@std/path";
+import { withTestDirectory, writeCsvFile, writeJsonFile } from "./helpers/config-utils.ts";
 
 Deno.test("transformFile - runs the full end-to-end transformation process", async () => {
-  // 1. Setup: Create a temporary workspace with config and source data
-  const workspaceDir = await Deno.makeTempDir({ prefix: "dwkt-e2e-test-" });
-  const outputDir = join(workspaceDir, "output");
-  const configPath = join(workspaceDir, "workspace.dwc.json");
-  const sourceCsvPath = join(workspaceDir, "source_data.csv");
+  await withTestDirectory(async (workspaceDir) => {
+    const outputDir = join(workspaceDir, "output");
+    const configPath = join(workspaceDir, "workspace.dwc.json");
 
-  const config: WorkspaceConfig = {
-    version: "1",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    id: "test-workspace",
-    name: "Test Workspace",
-    description: "A workspace for testing",
-    transform: {
-      inputs: {
-        source_data: "source_data.csv",
-      },
-      nullValues: ["NA"],
-      postImportTransforms: [],
-      datasets: [
-        {
-          name: "Event",
-          profile: "Event",
-          source: { "source_data": "source_data" },
-          fields: {
-            "eventID": "source_data.event_id",
-            "year": "source_data.event_year",
-          },
+    const config: WorkspaceConfig = {
+      version: "1",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      id: "test-workspace",
+      name: "Test Workspace",
+      description: "A workspace for testing",
+      transform: {
+        inputs: {
+          source_data: "source_data.csv",
         },
-        {
-          name: "Occurrence",
-          profile: "Occurrence",
-          source: { "source_data": "source_data" },
-          fields: {
-            "occurrenceID": "source_data.occ_id",
-            "eventID": "source_data.event_id",
-            "basisOfRecord": "'HumanObservation'",
+        nullValues: ["NA"],
+        postImportTransforms: [],
+        datasets: [
+          {
+            name: "Event",
+            profile: "Event",
+            source: { "source_data": "source_data" },
+            fields: {
+              "eventID": "source_data.event_id",
+              "year": "source_data.event_year",
+            },
           },
+          {
+            name: "Occurrence",
+            profile: "Occurrence",
+            source: { "source_data": "source_data" },
+            fields: {
+              "occurrenceID": "source_data.occ_id",
+              "eventID": "source_data.event_id",
+              "basisOfRecord": "'HumanObservation'",
+            },
+          },
+        ],
+        output: {
+          outputDir: outputDir,
+          exportDB: true,
+          outputFilesWithTimestamp: false,
+          exportDBFileName: "final_db",
+          dropNullColumns: true,
         },
-      ],
-      output: {
-        outputDir: outputDir,
-        exportDB: true,
-        outputFilesWithTimestamp: false,
-        exportDBFileName: "final_db",
-        dropNullColumns: true,
       },
-    },
-  };
+    };
 
-  try {
-    // 2. Arrange: Write the config and source CSV file to the temp directory
-    await Deno.writeTextFile(configPath, JSON.stringify(config, null, 2));
-    await Deno.writeTextFile(
-      sourceCsvPath,
-      "event_id,event_year,occ_id\nevt01,2024,occ01",
-    );
+    // 1. Arrange: Write the config and source CSV file to the temp directory
+    await writeJsonFile(workspaceDir, "workspace.dwc.json", config);
+    await writeCsvFile(workspaceDir, "source_data", [
+      { event_id: "evt01", event_year: "2024", occ_id: "occ01" },
+    ]);
 
-    // 3. Act: Run the entire transformation process
+    // 2. Act: Run the entire transformation process
     await Effect.runPromise(transformFile(configPath));
 
-    // 4. Assert: Verify the output files
+    // 3. Assert: Verify the output files
     // Assert CSV output (json-2-csv default format is unquoted)
     const eventCsvContent = await Deno.readTextFile(join(outputDir, "event.csv"));
     assertEquals(eventCsvContent.trim(), `eventID,year\nevt01,2024`);
@@ -108,10 +105,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     assertEquals(occRows[0].basisOfRecord, "HumanObservation");
 
     dbConnection.closeSync();
-  } finally {
-    // 5. Teardown
-    await Deno.remove(workspaceDir, { recursive: true });
-  }
+  });
 });
 
 Deno.test("transformFile - returns ConfigError for non-existent config", async () => {

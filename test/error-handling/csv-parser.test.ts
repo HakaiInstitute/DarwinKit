@@ -9,62 +9,59 @@ import { assert, assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { parseFileForWorkspace } from "@dwkt/core";
 import { join } from "@std/path";
+import { withTestDirectory, writeCsvFile } from "../helpers/config-utils.ts";
 
 Deno.test("CSV Parser - expected errors (user data issues)", async (t) => {
-  const tempDir = await Deno.makeTempDir({ prefix: "csv_parser_test_" });
+  await withTestDirectory(async (tempDir) => {
+    await t.step("CSV parsing errors are catchable with Effect.catchAll", () => {
+      // DuckDB is quite permissive with CSV parsing, so it's hard to create
+      // a truly invalid CSV that will fail. However, we can verify that
+      // if parsing does fail, it's catchable with Effect.catchAll (expected error)
+      // rather than requiring Effect.catchAllDefect (defect)
 
-  await t.step("CSV parsing errors are catchable with Effect.catchAll", () => {
-    // DuckDB is quite permissive with CSV parsing, so it's hard to create
-    // a truly invalid CSV that will fail. However, we can verify that
-    // if parsing does fail, it's catchable with Effect.catchAll (expected error)
-    // rather than requiring Effect.catchAllDefect (defect)
+      // The key point is that CSV parsing uses:
+      // Effect.tryPromise({
+      //   try: () => connection.runAndReadAll(query),
+      //   catch: (error) => new ParseError({ code: PARSE_ERROR })
+      // })
+      //
+      // This means parsing failures are in the error channel, not defects
 
-    // The key point is that CSV parsing uses:
-    // Effect.tryPromise({
-    //   try: () => connection.runAndReadAll(query),
-    //   catch: (error) => new ParseError({ code: PARSE_ERROR })
-    // })
-    //
-    // This means parsing failures are in the error channel, not defects
+      assertEquals(true, true, "CSV parsing errors are in the error channel");
+    });
 
-    assertEquals(true, true, "CSV parsing errors are in the error channel");
+    await t.step("Non-existent file path is an expected error", async () => {
+      const nonExistentPath = join(tempDir, "does-not-exist.csv");
+
+      let errorCaught = false;
+
+      await Effect.runPromise(
+        parseFileForWorkspace(nonExistentPath).pipe(
+          Effect.catchAll((_error) => {
+            errorCaught = true;
+            return Effect.succeed(null);
+          }),
+        ),
+      );
+
+      assert(errorCaught, "File not found should be catchable with catchAll");
+    });
+
+    await t.step("Valid CSV file parses successfully", async () => {
+      // Create a valid CSV file using the shared utility
+      const validCsvPath = await writeCsvFile(tempDir, "valid", [
+        { name: "Alice", age: "30", city: "New York" },
+        { name: "Bob", age: "25", city: "London" },
+      ]);
+
+      const result = await Effect.runPromise(parseFileForWorkspace(validCsvPath));
+
+      assertExists(result);
+      assertExists(result.schema);
+      assertEquals(result.schema.rowCount, 2);
+      assertEquals(result.schema.fields.size, 3);
+    });
   });
-
-  await t.step("Non-existent file path is an expected error", async () => {
-    const nonExistentPath = join(tempDir, "does-not-exist.csv");
-
-    let errorCaught = false;
-
-    await Effect.runPromise(
-      parseFileForWorkspace(nonExistentPath).pipe(
-        Effect.catchAll((_error) => {
-          errorCaught = true;
-          return Effect.succeed(null);
-        }),
-      ),
-    );
-
-    assert(errorCaught, "File not found should be catchable with catchAll");
-  });
-
-  await t.step("Valid CSV file parses successfully", async () => {
-    // Create a valid CSV file
-    const validCsvPath = join(tempDir, "valid.csv");
-    await Deno.writeTextFile(
-      validCsvPath,
-      "name,age,city\nAlice,30,New York\nBob,25,London",
-    );
-
-    const result = await Effect.runPromise(parseFileForWorkspace(validCsvPath));
-
-    assertExists(result);
-    assertExists(result.schema);
-    assertEquals(result.schema.rowCount, 2);
-    assertEquals(result.schema.fields.size, 3);
-  });
-
-  // Cleanup
-  await Deno.remove(tempDir, { recursive: true });
 });
 
 Deno.test("CSV Parser - defects (system failures)", async (t) => {
@@ -169,22 +166,17 @@ Deno.test("CSV Parser - infrastructure operations are defects", async (t) => {
 });
 
 Deno.test("CSV Parser - integration with workspace service", async (t) => {
-  const tempDir = await Deno.makeTempDir({ prefix: "csv_integration_test_" });
+  await withTestDirectory(async (tempDir) => {
+    await t.step("Workspace service can catch CSV parsing errors", async () => {
+      // The workspace service calls parseFileForWorkspace and can catch expected errors
 
-  await t.step("Workspace service can catch CSV parsing errors", async () => {
-    // The workspace service calls parseFileForWorkspace and can catch expected errors
+      const validCsvPath = await writeCsvFile(tempDir, "integration", [
+        { id: "1", name: "Test" },
+      ]);
 
-    const validCsvPath = join(tempDir, "integration.csv");
-    await Deno.writeTextFile(
-      validCsvPath,
-      "id,name\n1,Test",
-    );
-
-    // This should work without errors
-    const result = await Effect.runPromise(parseFileForWorkspace(validCsvPath));
-    assertExists(result);
+      // This should work without errors
+      const result = await Effect.runPromise(parseFileForWorkspace(validCsvPath));
+      assertExists(result);
+    });
   });
-
-  // Cleanup
-  await Deno.remove(tempDir, { recursive: true });
 });

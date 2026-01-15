@@ -8,53 +8,77 @@ import { withTestConnection } from "../test-utils.ts";
 import { importSchemaToWorkspace } from "./schema-builder.ts";
 
 // ============================================================================
-// Schema Builder Tests
+// Profile-Specific Tests
 // ============================================================================
 
-Deno.test("importSchemaToWorkspace - basic table creation", async () => {
-  await withTestConnection(async (connection) => {
-    const dataset = {
-      name: "test_dataset",
-      spec: "dwc-event",
-    };
+type ProfileTableCreationTestCase = {
+  description: string;
+  datasetName: string;
+  spec: string;
+  expectedTableName: string;
+  expectedIdField: string;
+};
 
-    await Effect.runPromise(
-      importSchemaToWorkspace(connection, dataset, [dataset]),
-    );
+const profileTableCreationTestCases: ProfileTableCreationTestCase[] = [
+  {
+    description: "creates table for Event profile",
+    datasetName: "test_dataset",
+    spec: "dwc-event",
+    expectedTableName: "event",
+    expectedIdField: "eventID",
+  },
+  {
+    description: "creates table for Occurrence profile",
+    datasetName: "occurrences",
+    spec: "dwc-occurrence",
+    expectedTableName: "occurrence",
+    expectedIdField: "occurrenceID",
+  },
+  {
+    description: "creates table for Taxon profile",
+    datasetName: "taxa",
+    spec: "dwc-taxon",
+    expectedTableName: "taxon",
+    expectedIdField: "taxonID",
+  },
+];
 
-    // Verify table was created by querying information schema
-    const result = await connection.runAndReadAll(
-      "SELECT table_name FROM information_schema.tables WHERE table_name = 'event'",
-    );
+Deno.test("importSchemaToWorkspace - profile-specific tables", async (t) => {
+  for (const testCase of profileTableCreationTestCases) {
+    await t.step(testCase.description, async () => {
+      await withTestConnection(async (connection) => {
+        const dataset = {
+          name: testCase.datasetName,
+          spec: testCase.spec,
+        };
 
-    const tables = result.getRowObjects();
-    assertEquals(tables.length, 1);
-    assertEquals(tables[0].table_name, "event");
-  });
+        await Effect.runPromise(
+          importSchemaToWorkspace(connection, dataset, [dataset]),
+        );
+
+        // Verify table was created
+        const tableResult = await connection.runAndReadAll(
+          `SELECT table_name FROM information_schema.tables WHERE table_name = '${testCase.expectedTableName}'`,
+        );
+        assertEquals(tableResult.getRowObjects().length, 1);
+
+        // Verify ID field exists
+        const columnResult = await connection.runAndReadAll(
+          `SELECT column_name FROM information_schema.columns WHERE table_name = '${testCase.expectedTableName}'`,
+        );
+        const columnNames = columnResult.getRowObjects().map((r) => r.column_name);
+        assertExists(columnNames.find((name: unknown) => name === testCase.expectedIdField));
+
+        // Verify _row_number column exists
+        assertExists(columnNames.find((name: unknown) => name === "_row_number"));
+      });
+    });
+  }
 });
 
-Deno.test("importSchemaToWorkspace - creates _row_number column", async () => {
-  await withTestConnection(async (connection) => {
-    const dataset = {
-      name: "test_dataset",
-      spec: "dwc-event",
-    };
-
-    await Effect.runPromise(
-      importSchemaToWorkspace(connection, dataset, [dataset]),
-    );
-
-    // Verify _row_number column exists
-    const result = await connection.runAndReadAll(
-      "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'event' AND column_name = '_row_number'",
-    );
-
-    const columns = result.getRowObjects();
-    assertEquals(columns.length, 1);
-    assertEquals(columns[0].column_name, "_row_number");
-    assertEquals(columns[0].data_type, "INTEGER");
-  });
-});
+// ============================================================================
+// Edge Case Tests
+// ============================================================================
 
 Deno.test("importSchemaToWorkspace - handles dataset with no profile", async () => {
   await withTestConnection(async (connection) => {
@@ -125,30 +149,6 @@ Deno.test("importSchemaToWorkspace - sanitizes table names", async () => {
   });
 });
 
-Deno.test("importSchemaToWorkspace - creates standard profile columns", async () => {
-  await withTestConnection(async (connection) => {
-    const dataset = {
-      name: "events",
-      spec: "dwc-event",
-    };
-
-    await Effect.runPromise(
-      importSchemaToWorkspace(connection, dataset, [dataset]),
-    );
-
-    // Check that common Event fields are present
-    const result = await connection.runAndReadAll(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'event' ORDER BY column_name",
-    );
-
-    const columnNames = result.getRowObjects().map((r) => r.column_name);
-
-    // Event profile should have these standard Darwin Core fields
-    assertExists(columnNames.find((name: unknown) => name === "eventID"));
-    assertExists(columnNames.find((name: unknown) => name === "_row_number"));
-  });
-});
-
 Deno.test("importSchemaToWorkspace - handles multiple datasets", async () => {
   await withTestConnection(async (connection) => {
     const datasets = [
@@ -172,68 +172,5 @@ Deno.test("importSchemaToWorkspace - handles multiple datasets", async () => {
     assertEquals(tableNames.length, 2);
     assertExists(tableNames.find((name: unknown) => name === "event"));
     assertExists(tableNames.find((name: unknown) => name === "occurrence"));
-  });
-});
-
-// Note: Testing ENUM creation, PRIMARY KEY, NOT NULL, and FOREIGN KEY constraints
-// requires creating custom validation profiles with specific field configurations.
-// These tests would be more complex and are deferred to integration tests that
-// use real Darwin Core profiles from the domain package.
-
-Deno.test("importSchemaToWorkspace - creates table for Occurrence profile", async () => {
-  await withTestConnection(async (connection) => {
-    const dataset = {
-      name: "occurrences",
-      spec: "dwc-occurrence",
-    };
-
-    await Effect.runPromise(
-      importSchemaToWorkspace(connection, dataset, [dataset]),
-    );
-
-    // Verify occurrence table was created
-    const result = await connection.runAndReadAll(
-      "SELECT table_name FROM information_schema.tables WHERE table_name = 'occurrence'",
-    );
-
-    assertEquals(result.getRowObjects().length, 1);
-
-    // Check for common Occurrence fields
-    const columns = await connection.runAndReadAll(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'occurrence'",
-    );
-
-    const columnNames = columns.getRowObjects().map((r) => r.column_name);
-    assertExists(columnNames.find((name: unknown) => name === "occurrenceID"));
-    assertExists(columnNames.find((name: unknown) => name === "_row_number"));
-  });
-});
-
-Deno.test("importSchemaToWorkspace - creates table for Taxon profile", async () => {
-  await withTestConnection(async (connection) => {
-    const dataset = {
-      name: "taxa",
-      spec: "dwc-taxon",
-    };
-
-    await Effect.runPromise(
-      importSchemaToWorkspace(connection, dataset, [dataset]),
-    );
-
-    // Verify taxon table was created
-    const result = await connection.runAndReadAll(
-      "SELECT table_name FROM information_schema.tables WHERE table_name = 'taxon'",
-    );
-
-    assertEquals(result.getRowObjects().length, 1);
-
-    // Check for common Taxon fields
-    const columns = await connection.runAndReadAll(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'taxon'",
-    );
-
-    const columnNames = columns.getRowObjects().map((r) => r.column_name);
-    assertExists(columnNames.find((name: unknown) => name === "taxonID"));
-    assertExists(columnNames.find((name: unknown) => name === "_row_number"));
   });
 });

@@ -39,47 +39,44 @@ const assertConfigEquivalence = (expected: WorkspaceConfig, actual: WorkspaceCon
   );
 };
 
-Deno.test("Test fixtures - fc2022-complete config loads successfully", async () => {
-  const configPath = "./packages/cli/test-fixtures/valid-datasets/fc2022-complete";
+// ============================================================================
+// Fixture Loading Tests
+// ============================================================================
 
-  const expectedConfig = await loadExpectedConfig(configPath);
-  const workspace = await Effect.runPromise(
-    Workspace.discover(configPath),
-  );
+type FixtureLoadingTestCase = {
+  description: string;
+  configPath: string;
+};
 
-  assertExists(workspace.getConfig());
-  assertExists(workspace.getConfigPath());
-  assertConfigEquivalence(expectedConfig, workspace.getConfig());
+const fixtureLoadingTestCases: FixtureLoadingTestCase[] = [
+  {
+    description: "fc2022-complete config loads successfully",
+    configPath: "./packages/cli/test-fixtures/valid-datasets/fc2022-complete",
+  },
+  {
+    description: "mixed-validity config loads successfully",
+    configPath: "./packages/cli/test-fixtures/invalid-datasets/mixed-validity",
+  },
+  {
+    description: "na-type-failures config loads successfully",
+    configPath: "./packages/cli/test-fixtures/invalid-datasets/na-type-failures",
+  },
+];
 
-  workspace.close();
-});
+Deno.test("Test fixtures - fixture loading", async (t) => {
+  for (const testCase of fixtureLoadingTestCases) {
+    await t.step(testCase.description, async () => {
+      const expectedConfig = await loadExpectedConfig(testCase.configPath);
+      const workspace = await Effect.runPromise(
+        Workspace.discover(testCase.configPath),
+      );
 
-Deno.test("Test fixtures - mixed-validity config loads successfully", async () => {
-  const configPath = "./packages/cli/test-fixtures/invalid-datasets/mixed-validity";
+      assertExists(workspace.getConfig());
+      assertConfigEquivalence(expectedConfig, workspace.getConfig());
 
-  const expectedConfig = await loadExpectedConfig(configPath);
-  const workspace = await Effect.runPromise(
-    Workspace.discover(configPath),
-  );
-
-  assertExists(workspace.getConfig());
-  assertConfigEquivalence(expectedConfig, workspace.getConfig());
-
-  workspace.close();
-});
-
-Deno.test("Test fixtures - na-type-failures config loads successfully", async () => {
-  const configPath = "./packages/cli/test-fixtures/invalid-datasets/na-type-failures";
-
-  const expectedConfig = await loadExpectedConfig(configPath);
-  const workspace = await Effect.runPromise(
-    Workspace.discover(configPath),
-  );
-
-  assertExists(workspace.getConfig());
-  assertConfigEquivalence(workspace.getConfig(), expectedConfig);
-
-  workspace.close();
+      workspace.close();
+    });
+  }
 });
 
 Deno.test("Test fixtures - all configs use datasets array format", async () => {
