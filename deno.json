@@ -87,17 +87,13 @@
         "test:domain",
         "test:core",
         "test:integration",
-        "test:cli",
-        "test:api",
-        "test:gui"
+        "test:cli"
       ]
     },
     "test:domain": "deno test packages/domain/ --parallel",
     "test:core": "deno test packages/core/ --allow-read --allow-write --allow-ffi --parallel",
     "test:integration": "deno test test/ --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --parallel",
     "test:cli": "deno test packages/cli/ --allow-run --parallel",
-    "test:api": "deno test packages/api/ --parallel",
-    "test:gui": "deno test packages/gui/ --parallel"
   },
   "exclude": [
     "dist",
