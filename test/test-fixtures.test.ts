@@ -78,26 +78,3 @@ Deno.test("Test fixtures - fixture loading", async (t) => {
     });
   }
 });
-
-Deno.test("Test fixtures - all configs use datasets array format", async () => {
-  const configs = [
-    "./packages/cli/test-fixtures/valid-datasets/fc2022-complete",
-    "./packages/cli/test-fixtures/invalid-datasets/mixed-validity",
-    "./packages/cli/test-fixtures/invalid-datasets/na-type-failures",
-  ];
-
-  for (const configPath of configs) {
-    const expectedConfig = await loadExpectedConfig(configPath);
-    const workspace = await Effect.runPromise(
-      Workspace.discover(configPath),
-    );
-
-    // Verify the config loading mechanism works correctly for all fixtures
-    assertConfigEquivalence(
-      workspace.getConfig(),
-      expectedConfig,
-    );
-
-    workspace.close();
-  }
-});

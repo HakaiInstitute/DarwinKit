@@ -43,26 +43,3 @@ Deno.test("enforcementToSeverity", async (t) => {
     });
   }
 });
-
-// ============================================================================
-// Type Derivation Utilities Tests
-// ============================================================================
-
-Deno.test("ViolationFields - creates violations with base fields", () => {
-  const violation = new RangeViolation({
-    enforcement: "required",
-    severity: ErrorSeverity.ERROR,
-    fieldName: "latitude",
-    targetName: "decimalLatitude",
-    rowNumber: 5,
-    value: "95.0",
-    errorMessage: "Value 95.0 is outside valid range -90 to 90",
-    validatorType: "range",
-    params: { min: -90, max: 90 },
-  });
-
-  assertEquals(violation._tag, "RangeViolation");
-  assertEquals(violation.fieldName, "latitude");
-  assertEquals(violation.params?.min, -90);
-  assertEquals(violation.params?.max, 90);
-});

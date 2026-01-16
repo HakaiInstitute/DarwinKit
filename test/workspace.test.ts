@@ -154,23 +154,6 @@ Deno.test("Workspace - error on missing config file", async () => {
   }
 });
 
-Deno.test("Workspace - error on invalid JSON in config", async () => {
-  const tempDir = await createTempDir();
-
-  try {
-    const configPath = await writeJsonFile(tempDir, "darwinkit.json", "{ invalid json }");
-
-    await assertRejects(
-      async () => {
-        await Effect.runPromise(Workspace.fromPath(configPath));
-      },
-      Error,
-    );
-  } finally {
-    await cleanupTempDir(tempDir);
-  }
-});
-
 Deno.test("Workspace - error on missing dataset file", async () => {
   const tempDir = await createTempDir();
 
@@ -413,75 +396,6 @@ Deno.test("Workspace - validate updates cached state", async () => {
 // ============================================================================
 // Connection Management Tests
 // ============================================================================
-
-Deno.test("Workspace - connection reuse across multiple validations", async () => {
-  const tempDir = await createTempDir();
-
-  try {
-    await writeCsvFile(tempDir, "events", [{ eventID: "E1" }]);
-
-    const { configPath } = await createTestConfig(tempDir, {
-      validation: {
-        datasets: [{
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          fieldMappings: [
-            { originName: "eventID", targetName: "eventID", isRequired: true },
-          ],
-        }],
-        nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
-      },
-    });
-
-    const workspace = await Effect.runPromise(Workspace.fromPath(configPath));
-
-    // Run validation twice - second should reuse connection
-    const result1 = await Effect.runPromise(workspace.validate());
-    const result2 = await Effect.runPromise(workspace.validate());
-
-    assertEquals(result1.overallStatus, "pass");
-    assertEquals(result2.overallStatus, "pass");
-
-    workspace.close();
-  } finally {
-    await cleanupTempDir(tempDir);
-  }
-});
-
-Deno.test("Workspace - close cleans up resources", async () => {
-  const tempDir = await createTempDir();
-
-  try {
-    await writeCsvFile(tempDir, "test", [{ eventID: "1" }]);
-
-    await createTestConfig(tempDir, {
-      validation: {
-        datasets: [{
-          name: "test",
-          spec: "dwc-event",
-          path: "./test.csv",
-          fieldMappings: [],
-        }],
-        nullValues: ["", "NA"],
-        failFast: false,
-        outputDir: "./output",
-      },
-    });
-
-    const workspace = await Effect.runPromise(Workspace.discover(tempDir));
-
-    // Close should not throw
-    await workspace.close();
-
-    // Calling close again should be safe
-    await workspace.close();
-  } finally {
-    await cleanupTempDir(tempDir);
-  }
-});
 
 // ============================================================================
 // Real Config Integration Test

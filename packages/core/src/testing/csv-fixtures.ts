@@ -273,32 +273,3 @@ export async function createCsvFixture<T extends Record<string, unknown>>(
     rowCount: data.length,
   };
 }
-
-// ============================================================================
-// Data Generation Helpers
-// ============================================================================
-
-/**
- * Generate a large dataset for performance testing.
- *
- * Creates an array of objects with sequential IDs and computed values.
- *
- * @param count - Number of rows to generate
- * @param rowFactory - Factory function that receives the row index (1-based)
- * @returns Array of generated objects
- *
- * @example
- * ```typescript
- * const largeData = generateTestData(1000, (i) => ({
- *   id: i,
- *   value: i * 100,
- *   name: `Item ${i}`,
- * }));
- * ```
- */
-export function generateTestData<T extends Record<string, unknown>>(
-  count: number,
-  rowFactory: (index: number) => T,
-): T[] {
-  return Array.from({ length: count }, (_, i) => rowFactory(i + 1));
-}

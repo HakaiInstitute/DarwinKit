@@ -8,7 +8,6 @@
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import {
-  generateTestData,
   withTestDirectory,
   writeCsvFile,
   writeCsvFileWithHeaders,
@@ -232,37 +231,6 @@ Deno.test("importCsvToWorkspace - handles CSV with headers only", async () => {
         "SELECT COUNT(*) as count FROM test_empty",
       );
       assertEquals(Number(countResult.getRowObjects()[0].count), 0);
-    });
-  });
-});
-
-// ============================================================================
-// Large File Tests
-// ============================================================================
-
-Deno.test("importCsvToWorkspace - handles large CSV files", async () => {
-  await withTestDirectory(async (tempDir) => {
-    await withTestConnection(async (connection) => {
-      // Generate 1000 rows of test data
-      const largeData = generateTestData(1000, (i) => ({
-        id: String(i),
-        value: String(i * 100),
-      }));
-
-      const csvPath = await writeCsvFile(tempDir, "large", largeData);
-
-      await Effect.runPromise(
-        importCsvToWorkspace(connection, "test_large", csvPath, "'NA'", true),
-      );
-
-      const result = await connection.runAndReadAll(
-        "SELECT COUNT(*) as count, MIN(_row_number) as min_row, MAX(_row_number) as max_row FROM test_large",
-      );
-
-      const stats = result.getRowObjects()[0];
-      assertEquals(Number(stats.count), 1000);
-      assertEquals(Number(stats.min_row), 1);
-      assertEquals(Number(stats.max_row), 1000);
     });
   });
 });

@@ -15,7 +15,6 @@ import { join } from "@std/path";
 export {
   createCsvFixture,
   createTestDirectory,
-  generateTestData,
   parseCsvString,
   readCsvFile,
   toCsvString,
