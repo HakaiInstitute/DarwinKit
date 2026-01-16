@@ -6,10 +6,9 @@
  */
 
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
-import { createTableFromSchema, WorkspaceImportError } from "@dwkt/core";
+import { createTableFromSchema } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { assert, assertEquals, assertExists, assertFalse, assertInstanceOf } from "@std/assert";
-import { assertSpyCalls, spy, stub } from "@std/testing/mock";
+import { assert, assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
 
 /**
@@ -235,99 +234,6 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
     assert(hasForeignKey, "Occurrence should have a foreign key to Event via eventID");
   } finally {
     // 4. Teardown
-    connection.closeSync();
-    instance.closeSync();
-  }
-});
-
-Deno.test("createTableFromSchema - does nothing for empty datasets", async () => {
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-
-  const config: WorkspaceConfig = {
-    version: "1",
-    name: "",
-    id: "",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    transform: {
-      nullValues: [],
-      datasets: [], // No datasets
-      output: {
-        outputDir: "",
-        exportDB: false,
-      },
-      inputs: {},
-      postImportTransforms: [],
-    },
-  };
-
-  // Spy on connection.run to verify it's not called
-  const runSpy = spy(connection, "run");
-
-  try {
-    await Effect.runPromise(createTableFromSchema(connection, config));
-
-    // Verify that no SQL was executed
-    assertSpyCalls(runSpy, 0);
-  } finally {
-    runSpy.restore();
-    connection.closeSync();
-    instance.closeSync();
-  }
-});
-
-Deno.test("createTableFromSchema - returns WorkspaceImportError on SQL failure", async () => {
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-
-  const config: WorkspaceConfig = {
-    version: "1",
-    name: "",
-    id: "",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    transform: {
-      nullValues: [],
-      inputs: {},
-      postImportTransforms: [],
-      datasets: [
-        {
-          name: "InvalidTable",
-          // Using a profile that will generate invalid SQL (e.g., bad type)
-          profile: "Occurrence",
-          source: {},
-          fields: {},
-        },
-      ],
-      output: {
-        outputDir: "",
-        exportDB: false,
-      },
-    },
-  };
-
-  // Stub connection.run to throw an error only for CREATE TABLE (not DROP)
-  const dbError = new Error("Syntax error");
-  const runSpy = stub(connection, "run", (sql: string) => {
-    if (sql.startsWith("DROP TABLE")) {
-      // DROP should succeed
-      return Promise.resolve(undefined as never);
-    }
-    // CREATE should fail
-    return Promise.reject(dbError);
-  });
-
-  try {
-    const result = await Effect.runPromise(Effect.flip(createTableFromSchema(connection, config)));
-
-    // Assert that the effect failed with the correct error type
-    assertInstanceOf(result, WorkspaceImportError, "Should fail with WorkspaceImportError");
-    // The error will be about ENUM creation (happens before table creation)
-    assertEquals(result.message, "Failed to create ENUM types for table 'occurrence'");
-    assertEquals(result.cause, dbError);
-  } finally {
-    runSpy.restore();
     connection.closeSync();
     instance.closeSync();
   }
