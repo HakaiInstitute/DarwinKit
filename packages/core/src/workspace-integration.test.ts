@@ -1,3 +1,4 @@
+import { Workspace, WorkspaceValidationError } from "@dwkt/core";
 import type {
   DatasetConfig,
   ValidationOnlyConfig,
@@ -19,8 +20,6 @@ import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
 import { writeCsvFile } from "./testing/csv-fixtures.ts";
-import { WorkspaceValidationError } from "./validation/utils.ts";
-import { Workspace } from "./workspace.ts";
 
 // Helper type for workspace creation
 type TestWorkspaceOptions = {

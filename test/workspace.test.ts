@@ -248,8 +248,7 @@ Deno.test("Workspace - getDataset returns undefined for missing dataset", async 
 
     const workspace = await Effect.runPromise(Workspace.discover(tempDir));
 
-    const missing = workspace.getDataset("nonexistent");
-    assertEquals(missing, undefined);
+    assertEquals(workspace.getDataset("nonexistent"), undefined);
 
     workspace.close();
   } finally {

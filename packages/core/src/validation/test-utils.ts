@@ -310,7 +310,7 @@ export function createMockDatasetValidationResult(
  * @example
  * ```typescript
  * await assertEffectFails(
- *   importCsvToWorkspace(connection, "test", "/nonexistent.csv", "'NA'"),
+ *   Workspace.importCsv("/nonexistent.csv", "test_table", "'NA'"),
  *   WorkspaceImportError
  * );
  * ```

@@ -35,14 +35,15 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as YAML from "js-yaml";
 // Import validation functions - these will be used internally
+import { hasValidationConfig } from "@dwkt/domain";
+import { importSchemaToWorkspace, sanitizeTableName } from "../validation/database/index.ts";
+import { validateDataset } from "../validation/dataset-validator.ts";
+import { validateCrossDatasetRule } from "../validation/field-validators.ts";
 import {
-  importCsvToWorkspace,
-  importSchemaToWorkspace,
-  sanitizeTableName,
-} from "./validation/database/index.ts";
-import { validateDataset } from "./validation/dataset-validator.ts";
-import { validateCrossDatasetRule } from "./validation/field-validators.ts";
-import { calculateSummary, WorkspaceValidationError } from "./validation/utils.ts";
+  calculateSummary,
+  WorkspaceImportError,
+  WorkspaceValidationError,
+} from "../validation/utils.ts";
 
 /**
  * Error classes for workspace configuration operations
@@ -153,9 +154,9 @@ export class Workspace {
    * DuckDB connection state (lazy-initialized, reused across validations)
    *
    * Design invariant: Connection reuse is guaranteed by structure:
-   * - getOrCreateConnection() is the ONLY method that creates connections
+   * - getConnection() is the ONLY method that creates connections
    * - It checks `if (this.duckdb)` before creating (guard clause)
-   * - validate() is the only caller of getOrCreateConnection()
+   * - validate() is the only caller of getConnection()
    * - close() sets this to undefined (enables recreation)
    *
    * Therefore: first validate() creates connection, subsequent calls reuse it.
@@ -185,6 +186,39 @@ export class Workspace {
   private constructor(config: WorkspaceConfig, configPath: string) {
     this.config = config;
     this.configPath = configPath;
+  }
+
+  /**
+   * Create a minimal workspace without a configuration file
+   *
+   * Useful for programmatic use, testing, or ad-hoc data operations
+   * where you don't need a full darwinkit.json configuration.
+   *
+   * @param options - Optional workspace metadata
+   * @returns Workspace instance with minimal configuration
+   *
+   * @example
+   * ```typescript
+   * const workspace = Workspace.create({ name: "Test Workspace" });
+   *
+   * // Import and query data
+   * await Effect.runPromise(workspace.importCsv(
+   *   "./data.csv",
+   *   "test_data",
+   *   ["NA", ""]
+   * ));
+   *
+   * const rows = await Effect.runPromise(
+   *   workspace.query("SELECT * FROM test_data")
+   * );
+   *
+   * workspace.close();
+   * ```
+   */
+  static create(
+    config: WorkspaceConfig,
+  ): Workspace {
+    return new Workspace(config, ":memory:");
   }
 
   /**
@@ -598,15 +632,17 @@ export class Workspace {
    * Creates an in-memory DuckDB database on first call, reuses on subsequent calls.
    * Connection failures are treated as defects (system failures, not user errors).
    *
+   * Exposed publicly to allow transform operations to use the workspace's connection.
+   *
    * @returns Effect yielding the DuckDB connection
    *
    * @example
    * ```typescript
-   * const connection = yield* _(workspace.getOrCreateConnection());
-   * // Use connection for validation operations
+   * const connection = yield* _(workspace.getConnection());
+   * // Use connection for database operations
    * ```
    */
-  private getOrCreateConnection(): Effect.Effect<DuckDBConnection, never> {
+  getConnection(): Effect.Effect<DuckDBConnection, never> {
     return Effect.gen(this, function* (_) {
       if (this.duckdb) {
         return this.duckdb.connection;
@@ -624,6 +660,126 @@ export class Workspace {
 
       this.duckdb = { instance, connection };
       return connection;
+    });
+  }
+
+  /**
+   * Import a CSV file into the workspace
+   *
+   * Imports a CSV file into a DuckDB table with automatic row numbering
+   * for deterministic validation. This is a stateful operation that uses
+   * the workspace's managed database connection.
+   *
+   * @param options - Import configuration
+   * @param options.tableName - Name for the database table
+   * @param options.csvPath - Path to the CSV file
+   * @param options.nullValues - Values to treat as NULL (defaults to workspace config)
+   * @param options.dropTable - Whether to drop existing table first (defaults to false)
+   * @returns Effect that succeeds when import completes
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   *
+   * // Import with workspace defaults
+   * await Effect.runPromise(workspace.importCsv({
+   *   "./data/events.csv"
+   *   "events"
+   * }));
+   *
+   * // Import with custom null values
+   * await Effect.runPromise(workspace.importCsv({
+   *   "./data/occurrences.csv",
+   *   "occurrences",
+   *   ["NA", ""],
+   *   true
+   * }));
+   * ```
+   */
+  importCsv(
+    csvPath: string,
+    tableName: string,
+    dropTable = false,
+  ): Effect.Effect<void, WorkspaceImportError> {
+    return Effect.gen(this, function* (_) {
+      // Get or create connection
+      const connection = yield* _(this.getConnection());
+
+      // Get nullValues from either validation or transform config
+      let nullValues: readonly string[] = [];
+      if (hasValidationConfig(this.config) && this.config.validation?.nullValues) {
+        nullValues = this.config.validation.nullValues;
+      } else if ("transform" in this.config && this.config.transform?.nullValues) {
+        nullValues = this.config.transform.nullValues;
+      }
+
+      // Import CSV directly into workspace database
+      yield* _(
+        Effect.tryPromise({
+          try: async () => {
+            const sequenceName = `${tableName}_seq`;
+
+            if (dropTable) {
+              await connection.run(`DROP TABLE IF EXISTS ${tableName}`);
+              await connection.run(`DROP SEQUENCE IF EXISTS ${sequenceName}`);
+            }
+
+            // Create sequence for deterministic row numbering
+            await connection.run(`CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1`);
+
+            // Import CSV with row numbers
+            const quotedNullValues = nullValues.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ");
+            await connection.run(
+              `CREATE TABLE IF NOT EXISTS ${tableName} AS
+               SELECT *, nextval('${sequenceName}') as _row_number
+               FROM read_csv_auto('${csvPath}', nullstr=[${quotedNullValues}])`,
+            );
+          },
+          catch: (error) =>
+            new WorkspaceImportError({
+              message: `Failed to create table '${tableName}' from CSV ${csvPath}`,
+              code: ErrorCode.DATABASE_ERROR,
+              cause: error instanceof Error ? error : new Error(String(error)),
+            }),
+        }),
+      );
+    });
+  }
+
+  /**
+   * Execute a SQL query against the workspace database
+   *
+   * Allows querying imported data and tables within the workspace.
+   * Useful for inspecting imported data, running ad-hoc queries,
+   * or verifying data integrity.
+   *
+   * @param sql - SQL query to execute
+   * @returns Effect yielding query results as an array of row objects
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * await Effect.runPromise(workspace.importCsv(
+   *   "./data/events.csv"
+   *   "events"
+   * ));
+   *
+   * // Query the imported data
+   * const rows = await Effect.runPromise(
+   *   workspace.query("SELECT * FROM events LIMIT 10")
+   * );
+   * console.log(rows);
+   * ```
+   */
+  query(sql: string): Effect.Effect<Array<Record<string, unknown>>, never> {
+    return Effect.gen(this, function* (_) {
+      const connection = yield* _(this.getConnection());
+
+      const result = yield* _(
+        Effect.tryPromise(() => connection.runAndReadAll(sql)).pipe(Effect.orDie),
+      );
+
+      return result.getRowObjects();
     });
   }
 
@@ -693,7 +849,7 @@ export class Workspace {
       const datasets: readonly DatasetConfig[] = config.validation.datasets;
 
       // Get or create managed DuckDB connection (reused across validations)
-      const connection = yield* _(this.getOrCreateConnection());
+      const connection = yield* _(this.getConnection());
 
       // Generate workspace ID for this validation run
       const workspaceId = config.id;
@@ -705,10 +861,17 @@ export class Workspace {
         // Prepend 'raw_' to table name because dataset.name and spec/profile cannot be the same name otherwise tables conflict
         const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
-        // Build null values string for DuckDB
-        const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`).join(", ");
-        const dropTable = true;
-        yield* _(importCsvToWorkspace(connection, tableName, filePath, nullStr, dropTable));
+        // Import CSV using the instance method
+        yield* _(
+          this.importCsv(
+            filePath,
+            tableName,
+            true,
+          ),
+        );
+
+        // Import schema for validation
+        const connection = yield* _(this.getConnection());
         yield* _(importSchemaToWorkspace(connection, dataset, datasets));
       }
 

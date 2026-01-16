@@ -5,16 +5,16 @@
  * discovery, and basic workspace operations.
  */
 
-import type { ConfigWithValidation, DatasetConfig } from "@dwkt/domain";
-import { assert, assertEquals, assertExists, assertGreaterOrEqual } from "@std/assert";
-import { join } from "@std/path";
-import * as Effect from "effect/Effect";
 import {
   ConfigNotFoundError,
   ConfigParseError,
   DatasetFileNotFoundError,
   Workspace,
-} from "./workspace.ts";
+} from "@dwkt/core";
+import type { ConfigWithValidation, DatasetConfig } from "@dwkt/domain";
+import { assert, assertEquals, assertExists, assertGreaterOrEqual } from "@std/assert";
+import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 
 // Import shared test utilities
 import {

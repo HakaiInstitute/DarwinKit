@@ -22,6 +22,8 @@
  * @module
  */
 
+import { Workspace } from "@dwkt/core";
+import type { WorkspaceConfig } from "@dwkt/domain";
 import { parse, stringify } from "@std/csv";
 import { join } from "@std/path";
 
@@ -31,6 +33,21 @@ import { join } from "@std/path";
 
 /** Prefix for all test temp directories */
 export const TEST_DIR_PREFIX = "dwkt_test_";
+export const DEFAULT_TEST_CONFIG: WorkspaceConfig = {
+  id: `test-config`,
+  name: `test-config`,
+  description: `test config`,
+  version: "1.0.0",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  validation: {
+    description: "test validation",
+    nullValues: ["NA", "N/A", "NULL", ""],
+    failFast: false,
+    outputDir: "./output",
+    datasets: [],
+  },
+};
 
 // ============================================================================
 // CSV Writing - Objects → CSV
@@ -164,6 +181,39 @@ export async function withTestDirectory(
   try {
     await testFn(tempDir);
   } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+}
+
+/**
+ * Test utility that provides a temporary directory and workspace with automatic cleanup
+ *
+ * Combines temporary directory creation with workspace management, ensuring both
+ * are properly cleaned up after the test completes.
+ *
+ * @param testFn - Test function that receives temp directory path and workspace instance
+ *
+ * @example
+ * ```typescript
+ * await withTestWorkspace(async (tempDir, workspace) => {
+ *   const csvPath = await writeCsvFile(tempDir, "test", data);
+ *   await Effect.runPromise(workspace.importCsv(csvPath, "test_table"));
+ *   const rows = await Effect.runPromise(workspace.query("SELECT * FROM test"));
+ *   assertEquals(rows.length, 3);
+ * });
+ * ```
+ */
+export async function withTestWorkspace(
+  testFn: (tempDir: string, workspace: Workspace) => Promise<void>,
+  config: WorkspaceConfig = DEFAULT_TEST_CONFIG,
+): Promise<void> {
+  const tempDir = await createTestDirectory();
+  const workspace = Workspace.create(config);
+
+  try {
+    await testFn(tempDir, workspace);
+  } finally {
+    workspace.close();
     await Deno.remove(tempDir, { recursive: true });
   }
 }

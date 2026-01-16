@@ -6,12 +6,12 @@
  * CSVs and a persistent database file.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
-import * as Effect from "effect/Effect";
 import { DuckDBConnection } from "@duckdb/node-api";
-import { transformFile } from "@dwkt/core";
+import { ConfigNotFoundError, transformFile } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
+import { assertEquals, assertExists, assertInstanceOf } from "@std/assert";
 import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 import {
   readCsvFile,
   withTestDirectory,
@@ -123,9 +123,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 
 Deno.test("transformFile - returns ConfigError for non-existent config", async () => {
   const nonExistentConfigPath = "/path/to/nothing/workspace.dwc.json";
-
   const result = await Effect.runPromise(Effect.flip(transformFile(nonExistentConfigPath)));
 
-  assertExists(result, "Effect should fail");
-  // assertEquals(result._tag, "ConfigError", "Error should be a ConfigError");
+  assertInstanceOf(result, ConfigNotFoundError);
 });

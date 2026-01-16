@@ -5,10 +5,10 @@
  * for year, month, and day fields.
  */
 
+import { Workspace } from "@dwkt/core";
 import { isRangeViolation, type WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { Workspace } from "../packages/core/src/workspace.ts";
 import { withTestDirectory, writeCsvFile, writeWorkspaceConfig } from "./helpers/config-utils.ts";
 
 // ============================================================================

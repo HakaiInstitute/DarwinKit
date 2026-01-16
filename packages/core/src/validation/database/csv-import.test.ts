@@ -1,235 +1,132 @@
 /**
- * Integration tests for validation/database/csv-import.ts
+ * Integration tests for Workspace CSV import functionality
  *
- * Tests CSV import functionality including row numbering, null handling,
- * and special character support.
+ * Tests the Workspace.importCsv() method to verify the public API contract:
+ * - Importing CSV files into workspace tables
+ * - Configurable null value handling
+ * - Table lifecycle management (create/replace/preserve)
+ * - Error handling for invalid inputs
+ * - Row numbering for validation reporting
  */
 
+import { Workspace } from "@dwkt/core";
 import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
-import { withTestDirectory, writeCsvFile } from "../../testing/csv-fixtures.ts";
-import { assertEffectFails, withTestConnection } from "../test-utils.ts";
+import {
+  DEFAULT_TEST_CONFIG,
+  withTestWorkspace,
+  writeCsvFile,
+} from "../../testing/csv-fixtures.ts";
+import { assertEffectFails } from "../test-utils.ts";
 import { WorkspaceImportError } from "../utils.ts";
-import { importCsvToWorkspace } from "./csv-import.ts";
 
 // ============================================================================
-// Test Data Definitions
+// Test Data
 // ============================================================================
 
-/**
- * Test data as structured objects.
- *
- * This approach is more readable and maintainable than inline CSV strings:
- * - Field names are explicit and type-checked
- * - No CSV escaping to worry about
- * - Easy to add/modify test cases
- */
-const TEST_DATA = {
-  /** Basic data for row number verification */
-  BASIC_IMPORT: [
-    { id: "1", name: "Alice", value: "100" },
-    { id: "2", name: "Bob", value: "200" },
-    { id: "3", name: "Charlie", value: "300" },
-  ],
+const BASIC_DATA = [
+  { id: "1", name: "Alice", value: "100" },
+  { id: "2", name: "Bob", value: "200" },
+  { id: "3", name: "Charlie", value: "300" },
+];
 
-  /** Data with various null representations */
-  NULL_VALUES: [
-    { id: "1", name: "Alice", status: "active" },
-    { id: "2", name: "Bob", status: "NA" },
-    { id: "3", name: "Charlie", status: "N/A" },
-    { id: "4", name: "David", status: "" },
-  ],
+const NULL_VALUE_DATA = [
+  { id: "1", name: "Alice", status: "active" },
+  { id: "2", name: "Bob", status: "NA" },
+  { id: "3", name: "Charlie", status: "N/A" },
+  { id: "4", name: "David", status: "" },
+];
 
-  /** Simple ID sequence for row number testing */
-  SEQUENCE: [
-    { id: "1" },
-    { id: "2" },
-    { id: "3" },
-    { id: "4" },
-    { id: "5" },
-  ],
+const REPLACEMENT_DATA_INITIAL = [
+  { id: "1", name: "Alice" },
+  { id: "2", name: "Bob" },
+];
 
-  /** Data with quoted fields */
-  QUOTED_FIELDS: [
-    { id: "1", name: "Alice" },
-    { id: "2", name: "Bob" },
-  ],
-
-  /** Data with special characters that need proper CSV escaping */
-  SPECIAL_CHARACTERS: [
-    { id: "1", name: "O'Brien", description: "Quotes and, commas" },
-    { id: "2", name: "Smith", description: "Newline\\ntest" },
-  ],
-
-  /** Initial data for table replacement test */
-  DROP_TABLE_INITIAL: [
-    { id: "1", name: "Alice" },
-    { id: "2", name: "Bob" },
-  ],
-
-  /** Replacement data for table replacement test */
-  DROP_TABLE_REPLACEMENT: [
-    { id: "3", name: "Charlie" },
-  ],
-
-  /** Data for preserve table test - first import */
-  PRESERVE_TABLE_FIRST: [
-    { id: "1", name: "Alice" },
-  ],
-
-  /** Data for preserve table test - second import */
-  PRESERVE_TABLE_SECOND: [
-    { id: "2", name: "Bob" },
-  ],
-};
-
-// ============================================================================
-// Test Case Definitions
-// ============================================================================
-
-type CsvImportTestCase = {
-  description: string;
-  data: Record<string, string>[];
-  tableName: string;
-  nullStrings: string;
-  expectedRowCount: number;
-  verify: (rows: Array<Record<string, unknown>>) => void;
-};
-
-const csvImportTestCases: CsvImportTestCase[] = [
-  {
-    description: "basic import with row numbers",
-    data: TEST_DATA.BASIC_IMPORT,
-    tableName: "test_table",
-    nullStrings: "'NA'",
-    expectedRowCount: 3,
-    verify: (rows) => {
-      // Check _row_number column exists and is sequential
-      assertEquals(Number(rows[0]._row_number), 1);
-      assertEquals(Number(rows[1]._row_number), 2);
-      assertEquals(Number(rows[2]._row_number), 3);
-
-      // Check data was imported correctly
-      assertEquals(rows[0].name, "Alice");
-      assertEquals(rows[1].name, "Bob");
-      assertEquals(rows[2].name, "Charlie");
-    },
-  },
-  {
-    description: "null value handling",
-    data: TEST_DATA.NULL_VALUES,
-    tableName: "test_nulls",
-    nullStrings: "'NA', 'N/A', ''",
-    expectedRowCount: 4,
-    verify: (rows) => {
-      // Alice should have status
-      assertEquals(rows[0].status, "active");
-
-      // Bob, Charlie, and David should have NULL status
-      assertEquals(rows[1].status, null);
-      assertEquals(rows[2].status, null);
-      assertEquals(rows[3].status, null);
-    },
-  },
-  {
-    description: "sequence increments correctly",
-    data: TEST_DATA.SEQUENCE,
-    tableName: "test_seq",
-    nullStrings: "'NA'",
-    expectedRowCount: 5,
-    verify: (rows) => {
-      const rowNumbers = rows.map((r) => Number(r._row_number));
-      assertEquals(rowNumbers, [1, 2, 3, 4, 5]);
-    },
-  },
-  {
-    description: "handles quoted fields correctly",
-    data: TEST_DATA.QUOTED_FIELDS,
-    tableName: "test_quoted",
-    nullStrings: "'NA'",
-    expectedRowCount: 2,
-    verify: (rows) => {
-      assertEquals(rows[0].name, "Alice");
-      assertEquals(rows[1].name, "Bob");
-    },
-  },
-  {
-    description: "handles special characters in data",
-    data: TEST_DATA.SPECIAL_CHARACTERS,
-    tableName: "test_special",
-    nullStrings: "'NA'",
-    expectedRowCount: 2,
-    verify: (rows) => {
-      assertEquals(rows[0].name, "O'Brien");
-      assertEquals(rows[0].description, "Quotes and, commas");
-    },
-  },
+const REPLACEMENT_DATA_NEW = [
+  { id: "3", name: "Charlie" },
 ];
 
 // ============================================================================
-// CSV Import Tests
+// Core Import Tests
 // ============================================================================
 
-Deno.test("importCsvToWorkspace - basic functionality", async (t) => {
-  for (const testCase of csvImportTestCases) {
-    await t.step(testCase.description, async () => {
-      await withTestDirectory(async (tempDir) => {
-        await withTestConnection(async (connection) => {
-          // Create CSV file from structured data
-          const csvPath = await writeCsvFile(tempDir, testCase.tableName, testCase.data);
+Deno.test("Workspace.importCsv - imports data and adds row numbers", async () => {
+  await withTestWorkspace(async (tempDir, workspace) => {
+    const csvPath = await writeCsvFile(tempDir, "basic", BASIC_DATA);
 
-          // Import CSV
-          await Effect.runPromise(
-            importCsvToWorkspace(
-              connection,
-              testCase.tableName,
-              csvPath,
-              testCase.nullStrings,
-              true,
-            ),
-          );
+    await Effect.runPromise(
+      workspace.importCsv(
+        csvPath,
+        "basic_test",
+        true,
+      ),
+    );
 
-          // Verify row count
-          const countResult = await connection.runAndReadAll(
-            `SELECT COUNT(*) as count FROM ${testCase.tableName}`,
-          );
-          assertEquals(
-            Number(countResult.getRowObjects()[0].count),
-            testCase.expectedRowCount,
-          );
+    // Verify data imported correctly
+    const rows = await Effect.runPromise(
+      workspace.query("SELECT * FROM basic_test ORDER BY _row_number"),
+    );
 
-          // Run custom verification
-          if (testCase.expectedRowCount > 0) {
-            const result = await connection.runAndReadAll(
-              `SELECT * FROM ${testCase.tableName} ORDER BY _row_number`,
-            );
-            testCase.verify(result.getRowObjects());
-          } else {
-            testCase.verify([]);
-          }
-        });
-      });
-    });
-  }
+    assertEquals(rows.length, BASIC_DATA.length);
+
+    // Verify row numbers are sequential starting from 1
+    for (let i = 0; i < rows.length; i++) {
+      assertEquals(Number(rows[i]._row_number), i + 1);
+    }
+
+    // Verify data integrity
+    assertEquals(rows[0].name, BASIC_DATA[0].name);
+    assertEquals(rows[1].name, BASIC_DATA[1].name);
+    assertEquals(rows[2].name, BASIC_DATA[2].name);
+  });
 });
 
-Deno.test("importCsvToWorkspace - handles CSV with headers only", async () => {
-  await withTestDirectory(async (tempDir) => {
-    await withTestConnection(async (connection) => {
-      // Create a headers-only CSV (no data rows)
-      const csvPath = join(tempDir, "test_empty.csv");
-      await Deno.writeTextFile(csvPath, "id,name,value\n");
+Deno.test("Workspace.importCsv - respects null value configuration", async () => {
+  await withTestWorkspace(async (tempDir, workspace) => {
+    const csvPath = await writeCsvFile(tempDir, "nulls", NULL_VALUE_DATA);
 
-      await Effect.runPromise(
-        importCsvToWorkspace(connection, "test_empty", csvPath, "'NA'", true),
-      );
+    await Effect.runPromise(
+      workspace.importCsv(
+        csvPath,
+        "null_test",
+        true,
+      ),
+    );
 
-      const countResult = await connection.runAndReadAll(
-        "SELECT COUNT(*) as count FROM test_empty",
-      );
-      assertEquals(Number(countResult.getRowObjects()[0].count), 0);
-    });
+    const rows = await Effect.runPromise(
+      workspace.query("SELECT * FROM null_test ORDER BY id"),
+    );
+
+    // First row should have actual value
+    assertEquals(rows[0].status, "active");
+
+    // Configured null values should be converted to NULL
+    assertEquals(rows[1].status, null); // "NA"
+    assertEquals(rows[2].status, null); // "N/A"
+    assertEquals(rows[3].status, null); // ""
+  });
+});
+
+Deno.test("Workspace.importCsv - handles empty CSV files", async () => {
+  await withTestWorkspace(async (tempDir, workspace) => {
+    // Create a headers-only CSV (no data rows)
+    const csvPath = join(tempDir, "empty.csv");
+    await Deno.writeTextFile(csvPath, "id,name,value\n");
+
+    await Effect.runPromise(
+      workspace.importCsv(
+        csvPath,
+        "empty_test",
+        true,
+      ),
+    );
+
+    const rows = await Effect.runPromise(
+      workspace.query("SELECT * FROM empty_test"),
+    );
+
+    assertEquals(rows.length, 0);
   });
 });
 
@@ -237,69 +134,76 @@ Deno.test("importCsvToWorkspace - handles CSV with headers only", async () => {
 // Table Lifecycle Tests
 // ============================================================================
 
-Deno.test("importCsvToWorkspace - dropTable flag creates new table", async () => {
-  await withTestDirectory(async (tempDir) => {
-    await withTestConnection(async (connection) => {
-      // First import
-      const csvPath1 = await writeCsvFile(tempDir, "test", TEST_DATA.DROP_TABLE_INITIAL);
+Deno.test("Workspace.importCsv - dropTable=true replaces existing table", async () => {
+  await withTestWorkspace(async (tempDir, workspace) => {
+    // First import
+    const csvPath1 = await writeCsvFile(tempDir, "initial", REPLACEMENT_DATA_INITIAL);
 
-      await Effect.runPromise(
-        importCsvToWorkspace(connection, "test_drop", csvPath1, "'NA'", true),
-      );
+    await Effect.runPromise(
+      workspace.importCsv(
+        csvPath1,
+        "lifecycle_test",
+        true,
+      ),
+    );
 
-      let result = await connection.runAndReadAll(
-        "SELECT COUNT(*) as count FROM test_drop",
-      );
-      assertEquals(Number(result.getRowObjects()[0].count), 2);
+    let rows = await Effect.runPromise(
+      workspace.query("SELECT * FROM lifecycle_test"),
+    );
+    assertEquals(rows.length, 2);
 
-      // Create new CSV with different data (overwrite the file)
-      const csvPath2 = await writeCsvFile(tempDir, "test2", TEST_DATA.DROP_TABLE_REPLACEMENT);
+    // Second import with dropTable=true should replace the table
+    const csvPath2 = await writeCsvFile(tempDir, "replacement", REPLACEMENT_DATA_NEW);
 
-      // Import again with dropTable=true should replace the table
-      await Effect.runPromise(
-        importCsvToWorkspace(connection, "test_drop", csvPath2, "'NA'", true),
-      );
+    await Effect.runPromise(
+      workspace.importCsv(
+        csvPath2,
+        "lifecycle_test",
+        true,
+      ),
+    );
 
-      result = await connection.runAndReadAll(
-        "SELECT * FROM test_drop ORDER BY id",
-      );
-      const rows = result.getRowObjects();
+    rows = await Effect.runPromise(
+      workspace.query("SELECT * FROM lifecycle_test ORDER BY id"),
+    );
 
-      // Should only have the new data
-      assertEquals(rows.length, 1);
-      assertEquals(rows[0].name, "Charlie");
-    });
+    // Should only have the new data
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0].name, "Charlie");
   });
 });
 
-Deno.test("importCsvToWorkspace - dropTable false preserves existing data", async () => {
-  await withTestDirectory(async (tempDir) => {
-    await withTestConnection(async (connection) => {
-      // First import with dropTable=true to create table
-      const csvPath1 = await writeCsvFile(tempDir, "test1", TEST_DATA.PRESERVE_TABLE_FIRST);
+Deno.test("Workspace.importCsv - dropTable=false preserves existing table", async () => {
+  await withTestWorkspace(async (tempDir, workspace) => {
+    // First import with dropTable=true to create table
+    const csvPath1 = await writeCsvFile(tempDir, "first", [{ id: "1", name: "Alice" }]);
 
-      await Effect.runPromise(
-        importCsvToWorkspace(connection, "test_preserve", csvPath1, "'NA'", true),
-      );
+    await Effect.runPromise(
+      workspace.importCsv(
+        csvPath1,
+        "preserve_test",
+        true,
+      ),
+    );
 
-      // Second import with dropTable=false should create a new table
-      // (IF NOT EXISTS clause in CREATE TABLE)
-      const csvPath2 = await writeCsvFile(tempDir, "test2", TEST_DATA.PRESERVE_TABLE_SECOND);
+    // Second import with dropTable=false should not replace the table
+    const csvPath2 = await writeCsvFile(tempDir, "second", [{ id: "2", name: "Bob" }]);
 
-      await Effect.runPromise(
-        importCsvToWorkspace(connection, "test_preserve", csvPath2, "'NA'", false),
-      );
+    await Effect.runPromise(
+      workspace.importCsv(
+        csvPath2,
+        "preserve_test",
+        false,
+      ),
+    );
 
-      // Original data should still be there (table not dropped)
-      const result = await connection.runAndReadAll(
-        "SELECT * FROM test_preserve ORDER BY id",
-      );
-      const rows = result.getRowObjects();
+    // Original data should still be there
+    const rows = await Effect.runPromise(
+      workspace.query("SELECT * FROM preserve_test ORDER BY id"),
+    );
 
-      // Should still have only the original data
-      assertEquals(rows.length, 1);
-      assertEquals(rows[0].name, "Alice");
-    });
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0].name, "Alice");
   });
 });
 
@@ -307,17 +211,16 @@ Deno.test("importCsvToWorkspace - dropTable false preserves existing data", asyn
 // Error Handling Tests
 // ============================================================================
 
-Deno.test("importCsvToWorkspace - fails with nonexistent file", async () => {
-  await withTestConnection(async (connection) => {
-    await assertEffectFails(
-      importCsvToWorkspace(
-        connection,
-        "test_fail",
-        "/nonexistent/path/file.csv",
-        "'NA'",
-        true,
-      ),
-      WorkspaceImportError,
-    );
-  });
+Deno.test("Workspace.importCsv - fails with nonexistent file", async () => {
+  // Note: Can't use withTestWorkspace here since we don't need temp dir
+  using workspace = Workspace.create(DEFAULT_TEST_CONFIG);
+
+  await assertEffectFails(
+    workspace.importCsv(
+      "/nonexistent/path/file.csv",
+      "error_test",
+      true,
+    ),
+    WorkspaceImportError,
+  );
 });

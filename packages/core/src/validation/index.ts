@@ -37,7 +37,6 @@ export { validateDataset } from "./dataset-validator.ts";
 export {
   type DatasetWithProfile,
   getOriginalCsvValue,
-  importCsvToWorkspace,
   importSchemaToWorkspace,
   insertRowByRow,
   sanitizeTableName,

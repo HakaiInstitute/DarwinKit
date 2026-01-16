@@ -21,7 +21,6 @@
  */
 
 // Import error classes to extract their tags
-import type { ParseError } from "./csv-parser.ts";
 import type { OutputError, TransformationError } from "./transform.ts";
 import type { WorkspaceImportError } from "./validation/utils.ts";
 import type {
@@ -29,7 +28,7 @@ import type {
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
-} from "./workspace.ts";
+} from "./workspace/workspace.ts";
 
 /**
  * Union type of all core package error tags
@@ -39,8 +38,6 @@ import type {
  * in sync with the actual error definitions automatically.
  */
 export type CoreErrorTag =
-  // CSV Parsing & Reading
-  | InstanceType<typeof ParseError>["_tag"]
   // Configuration Management
   | InstanceType<typeof ConfigNotFoundError>["_tag"]
   | InstanceType<typeof ConfigParseError>["_tag"]

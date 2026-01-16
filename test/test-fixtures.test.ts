@@ -6,11 +6,11 @@
  * validation scenarios.
  */
 
+import { Workspace } from "@dwkt/core";
 import { type WorkspaceConfig, workspaceConfigSchema } from "@dwkt/domain";
 import { assert, assertExists } from "@std/assert";
 import { Schema } from "effect";
 import * as Effect from "effect/Effect";
-import { Workspace } from "../packages/core/src/workspace.ts";
 
 /**
  * Load and validate a workspace config from a JSON file

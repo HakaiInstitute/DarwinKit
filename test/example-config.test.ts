@@ -7,9 +7,9 @@
  * This test serves as both documentation and a smoke test for the validation system.
  */
 
+import { Workspace } from "@dwkt/core";
 import { assert, assertEquals, assertMatch } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { Workspace } from "../packages/core/src/workspace.ts";
 
 Deno.test("Example config - validates FC2022 dataset", async () => {
   const workspace = await Effect.runPromise(Workspace.discover("./test/example-config"));
