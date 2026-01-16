@@ -12,7 +12,12 @@ import { DuckDBConnection } from "@duckdb/node-api";
 import { transformFile } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { join } from "@std/path";
-import { withTestDirectory, writeCsvFile, writeJsonFile } from "./helpers/config-utils.ts";
+import {
+  readCsvFile,
+  withTestDirectory,
+  writeCsvFile,
+  writeJsonFile,
+} from "./helpers/config-utils.ts";
 
 Deno.test("transformFile - runs the full end-to-end transformation process", async () => {
   await withTestDirectory(async (workspaceDir) => {
@@ -73,15 +78,23 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     await Effect.runPromise(transformFile(configPath));
 
     // 3. Assert: Verify the output files
-    // Assert CSV output (json-2-csv default format is unquoted)
-    const eventCsvContent = await Deno.readTextFile(join(outputDir, "event.csv"));
-    assertEquals(eventCsvContent.trim(), `eventID,year\nevt01,2024`);
-
-    const occCsvContent = await Deno.readTextFile(join(outputDir, "occurrence.csv"));
-    assertEquals(
-      occCsvContent.trim(),
-      `basisOfRecord,occurrenceID,eventID\nHumanObservation,occ01,evt01`,
+    // Assert CSV output
+    const eventCsvRows = await readCsvFile<{ eventID: string; year: string }>(
+      join(outputDir, "event.csv"),
     );
+    assertEquals(eventCsvRows.length, 1);
+    assertEquals(eventCsvRows[0].eventID, "evt01");
+    assertEquals(eventCsvRows[0].year, "2024");
+
+    const occCsvRows = await readCsvFile<{
+      basisOfRecord: string;
+      occurrenceID: string;
+      eventID: string;
+    }>(join(outputDir, "occurrence.csv"));
+    assertEquals(occCsvRows.length, 1);
+    assertEquals(occCsvRows[0].basisOfRecord, "HumanObservation");
+    assertEquals(occCsvRows[0].occurrenceID, "occ01");
+    assertEquals(occCsvRows[0].eventID, "evt01");
 
     // Assert persistent DB output
     const dbPath = join(outputDir, "final_db.duckdb");

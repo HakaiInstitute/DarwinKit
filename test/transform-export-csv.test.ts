@@ -8,8 +8,9 @@
 import { DuckDBConnection } from "@duckdb/node-api";
 import { exportObisTablesToCSV } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { assertEquals, assertExists, assertFalse, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
+import { readCsvFile } from "./helpers/config-utils.ts";
 
 Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", async () => {
   // 1. Setup
@@ -53,16 +54,19 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
     // 4. Assert: Verify the CSV files and their contents
     // Check event.csv
     const eventCsvPath = `${outputDir}/event.csv`;
-    const eventCsvContent = await Deno.readTextFile(eventCsvPath);
-    assertExists(eventCsvContent, "event.csv should be created");
-    // json-2-csv default format (unquoted headers and text values)
-    assertEquals(eventCsvContent.trim(), `eventID,year\nevt1,2023`);
+    const eventRows = await readCsvFile<{ eventID: string; year: string }>(eventCsvPath);
+    assertEquals(eventRows.length, 1, "event.csv should contain 1 row");
+    assertEquals(eventRows[0].eventID, "evt1");
+    assertEquals(eventRows[0].year, "2023");
 
     // Check occurrence.csv
     const occurrenceCsvPath = `${outputDir}/occurrence.csv`;
-    const occurrenceCsvContent = await Deno.readTextFile(occurrenceCsvPath);
-    assertExists(occurrenceCsvContent, "occurrence.csv should be created");
-    assertEquals(occurrenceCsvContent.trim(), `occurrenceID,eventID\nocc1,evt1`);
+    const occurrenceRows = await readCsvFile<{ occurrenceID: string; eventID: string }>(
+      occurrenceCsvPath,
+    );
+    assertEquals(occurrenceRows.length, 1, "occurrence.csv should contain 1 row");
+    assertEquals(occurrenceRows[0].occurrenceID, "occ1");
+    assertEquals(occurrenceRows[0].eventID, "evt1");
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
@@ -112,21 +116,29 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 
     // 4. Assert
     const csvPath = `${outputDir}/event.csv`;
-    const csvContent = await Deno.readTextFile(csvPath);
-    assertExists(csvContent, "CSV file should be created");
-
-    const [header, ...rows] = csvContent.trim().split("\n");
-
-    // The 'remarks' column should not be in the header
-    // Note: json-2-csv default format is unquoted
-    assertStringIncludes(header, "eventID", "Header should contain eventID");
-    assertStringIncludes(header, "year", "Header should contain year");
-    assertStringIncludes(header, "month", "Header should contain month");
-    assertFalse(header.includes("remarks"), "Header should NOT contain the null column 'remarks'");
+    const rows = await readCsvFile<{
+      eventID: string;
+      year: string;
+      month: string;
+      remarks?: string;
+    }>(csvPath);
 
     assertEquals(rows.length, 2, "CSV should contain 2 data rows");
-    assertEquals(rows[0], `evt1,2023,1`);
-    assertEquals(rows[1], `evt2,2024,2`);
+
+    // Verify the null column 'remarks' was dropped
+    assertExists(rows[0].eventID, "Row should have eventID");
+    assertExists(rows[0].year, "Row should have year");
+    assertExists(rows[0].month, "Row should have month");
+    assertFalse("remarks" in rows[0], "Row should NOT have the null column 'remarks'");
+
+    // Verify the data values
+    assertEquals(rows[0].eventID, "evt1");
+    assertEquals(rows[0].year, "2023");
+    assertEquals(rows[0].month, "1");
+
+    assertEquals(rows[1].eventID, "evt2");
+    assertEquals(rows[1].year, "2024");
+    assertEquals(rows[1].month, "2");
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });

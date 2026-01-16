@@ -13,9 +13,7 @@ import { join } from "@std/path";
 
 // Re-export shared CSV utilities from the core testing module
 export {
-  createCsvFixture,
   createTestDirectory,
-  parseCsvString,
   readCsvFile,
   toCsvString,
   withTestDirectory,

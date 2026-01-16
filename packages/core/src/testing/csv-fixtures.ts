@@ -124,18 +124,6 @@ export async function readCsvFile<T extends Record<string, string>>(
   return parse(content, { skipFirstRow: true }) as T[];
 }
 
-/**
- * Parse a CSV string into an array of objects.
- *
- * @param csvContent - CSV string with headers in first row
- * @returns Array of objects with string values
- */
-export function parseCsvString<T extends Record<string, string>>(
-  csvContent: string,
-): T[] {
-  return parse(csvContent, { skipFirstRow: true }) as T[];
-}
-
 // ============================================================================
 // Temp Directory Management
 // ============================================================================
@@ -178,54 +166,4 @@ export async function withTestDirectory(
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
-}
-
-// ============================================================================
-// Test Fixture Helpers
-// ============================================================================
-
-/**
- * Result of creating a CSV fixture
- */
-export interface CsvFixture<T extends Record<string, unknown>> {
-  /** Path to the CSV file */
-  filePath: string;
-  /** Original data used to create the fixture */
-  data: T[];
-  /** Number of data rows (excluding header) */
-  rowCount: number;
-}
-
-/**
- * Create a CSV fixture and return metadata about it.
- *
- * Combines file creation with useful metadata for assertions.
- *
- * @param dir - Directory to create the file in
- * @param name - Name for the CSV file
- * @param data - Array of objects to write
- * @returns Fixture metadata including path and row count
- *
- * @example
- * ```typescript
- * const fixture = await createCsvFixture(tempDir, "events", [
- *   { eventID: "E1", country: "Canada" },
- *   { eventID: "E2", country: "USA" },
- * ]);
- *
- * assertEquals(fixture.rowCount, 2);
- * // Use fixture.filePath for import operations
- * ```
- */
-export async function createCsvFixture<T extends Record<string, unknown>>(
-  dir: string,
-  name: string,
-  data: T[],
-): Promise<CsvFixture<T>> {
-  const filePath = await writeCsvFile(dir, name, data);
-  return {
-    filePath,
-    data,
-    rowCount: data.length,
-  };
 }
