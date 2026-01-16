@@ -7,19 +7,15 @@
  * Note: Unit-level tests for Workspace are in packages/core/src/workspace.test.ts
  */
 
-import { assert, assertEquals, assertExists, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertExists, assertInstanceOf, assertRejects } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 
-import { Workspace } from "@dwkt/core";
+import { DatasetFileNotFoundError, Workspace } from "@dwkt/core";
 
-import {
-  assertFileAccessError,
-  cleanupTempDir,
-  createTempDir,
-} from "./helpers/workspace-test-utils.ts";
+import { cleanupTempDir, createTempDir } from "./helpers/workspace-test-utils.ts";
 
-import { createTestConfig, writeCsvFile, writeJsonFile } from "./helpers/config-utils.ts";
+import { createTestConfig, writeCsvFile } from "./helpers/config-utils.ts";
 
 // ============================================================================
 // Test Constants
@@ -173,13 +169,10 @@ Deno.test("Workspace - error on missing dataset file", async () => {
       },
     });
 
-    // Should fail during discovery (validates dataset paths)
-    try {
-      await Effect.runPromise(Workspace.discover(tempDir));
-      throw new Error("Expected error for missing dataset file");
-    } catch (error) {
-      assertFileAccessError(error, "Expected file access error for missing dataset");
-    }
+    // Should fail during discovery (validates dataset paths). Flip to intercept the failure
+    const result = await Effect.runPromise(Effect.flip(Workspace.discover(tempDir)));
+
+    assertInstanceOf(result, DatasetFileNotFoundError);
   } finally {
     await cleanupTempDir(tempDir);
   }

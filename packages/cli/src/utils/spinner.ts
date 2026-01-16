@@ -2,8 +2,8 @@
  * Spinner utility for long-running operations
  */
 
-import { Spinner } from '@std/cli/unstable-spinner';
 import { colors } from '@cliffy/ansi/colors';
+import { Spinner } from '@std/cli/unstable-spinner';
 
 export interface SpinnerOptions {
   message: string;
@@ -108,25 +108,5 @@ export class ProgressSpinner {
       this.spinner.stop();
       this.isRunning = false;
     }
-  }
-}
-
-/**
- * Helper to create and run a spinner during an async operation
- */
-export async function withSpinner<T>(
-  options: SpinnerOptions,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const spinner = new ProgressSpinner(options);
-  spinner.start();
-
-  try {
-    const result = await operation();
-    spinner.stop();
-    return result;
-  } catch (error) {
-    spinner.stop();
-    throw error;
   }
 }
