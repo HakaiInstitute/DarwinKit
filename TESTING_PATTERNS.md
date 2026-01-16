@@ -58,7 +58,7 @@ DarwinKit provides standardized utilities for common testing operations. **Alway
 
 | Module | Location | Purpose |
 |--------|----------|---------|
-| **Core Testing** | `packages/core/src/testing/mod.ts` | CSV fixtures, temp directories, data generation |
+| **Core Testing** | `packages/core/src/testing/` | CSV fixtures, temp directories, data generation |
 | **Config Utils** | `test/helpers/config-utils.ts` | Workspace configs, JSON files (re-exports core utilities) |
 
 ### Available Utilities

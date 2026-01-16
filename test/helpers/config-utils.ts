@@ -22,7 +22,7 @@ export {
   withTestDirectory,
   writeCsvFile,
   writeCsvFileWithHeaders,
-} from "../../packages/core/src/testing/mod.ts";
+} from "../../packages/core/src/testing/csv-fixtures.ts";
 
 // ============================================================================
 // Workspace Config Utilities

@@ -12,7 +12,7 @@ import {
   withTestDirectory,
   writeCsvFile,
   writeCsvFileWithHeaders,
-} from "../../testing/mod.ts";
+} from "../../testing/csv-fixtures.ts";
 import { assertEffectFails, withTestConnection } from "../test-utils.ts";
 import { WorkspaceImportError } from "../utils.ts";
 import { importCsvToWorkspace } from "./csv-import.ts";
