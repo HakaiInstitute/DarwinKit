@@ -6,12 +6,9 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { join } from "@std/path";
 import * as Effect from "effect/Effect";
-import {
-  withTestDirectory,
-  writeCsvFile,
-  writeCsvFileWithHeaders,
-} from "../../testing/csv-fixtures.ts";
+import { withTestDirectory, writeCsvFile } from "../../testing/csv-fixtures.ts";
 import { assertEffectFails, withTestConnection } from "../test-utils.ts";
 import { WorkspaceImportError } from "../utils.ts";
 import { importCsvToWorkspace } from "./csv-import.ts";
@@ -221,7 +218,8 @@ Deno.test("importCsvToWorkspace - handles CSV with headers only", async () => {
   await withTestDirectory(async (tempDir) => {
     await withTestConnection(async (connection) => {
       // Create a headers-only CSV (no data rows)
-      const csvPath = await writeCsvFileWithHeaders(tempDir, "test_empty", ["id", "name", "value"]);
+      const csvPath = join(tempDir, "test_empty.csv");
+      await Deno.writeTextFile(csvPath, "id,name,value\n");
 
       await Effect.runPromise(
         importCsvToWorkspace(connection, "test_empty", csvPath, "'NA'", true),

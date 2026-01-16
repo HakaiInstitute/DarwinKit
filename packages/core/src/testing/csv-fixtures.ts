@@ -98,50 +98,6 @@ export async function writeCsvFile<T extends Record<string, unknown>>(
   return filePath;
 }
 
-/**
- * Write a CSV file with explicit headers (for edge cases like headers-only files).
- *
- * Use this when you need:
- * - A CSV with headers but no data rows
- * - Headers that don't match object keys
- * - Explicit control over column order
- *
- * @param dir - Directory to write the file in
- * @param filename - Name for the CSV file
- * @param headers - Array of column header names
- * @param rows - Optional array of row data (as string arrays)
- * @returns Full path to the created CSV file
- *
- * @example
- * ```typescript
- * // Headers-only file
- * const csvPath = await writeCsvFileWithHeaders(tempDir, "empty", ["id", "name"]);
- *
- * // With explicit rows
- * const csvPath = await writeCsvFileWithHeaders(tempDir, "data", ["id", "name"], [
- *   ["1", "Alice"],
- *   ["2", "Bob"],
- * ]);
- * ```
- */
-export async function writeCsvFileWithHeaders(
-  dir: string,
-  filename: string,
-  headers: string[],
-  rows: string[][] = [],
-): Promise<string> {
-  const csvContent = [
-    headers.join(","),
-    ...rows.map((row) => row.join(",")),
-  ].join("\n");
-
-  const normalizedFilename = filename.endsWith(".csv") ? filename : `${filename}.csv`;
-  const filePath = join(dir, normalizedFilename);
-
-  await Deno.writeTextFile(filePath, csvContent);
-  return filePath;
-}
-
 // ============================================================================
 // CSV Reading - CSV → Objects
 // ============================================================================

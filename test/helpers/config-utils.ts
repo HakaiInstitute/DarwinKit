@@ -20,7 +20,6 @@ export {
   toCsvString,
   withTestDirectory,
   writeCsvFile,
-  writeCsvFileWithHeaders,
 } from "../../packages/core/src/testing/csv-fixtures.ts";
 
 // ============================================================================
