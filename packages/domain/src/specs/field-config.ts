@@ -5,7 +5,7 @@
  * location, taxonomy, etc.) and utility functions for working with field definitions.
  */
 
-import type { field } from "../types/validation-profile.ts";
+import type { Field } from "../types/validation-profile.ts";
 import type { FieldDefinition } from "./field-definition.ts";
 
 /**
@@ -85,7 +85,7 @@ export interface IdentifierConfig {
  * - Raw JSON schema: has 'values' object (used before normalization)
  */
 export function hasControlledVocabulary(
-  field: FieldDefinition | field,
+  field: FieldDefinition | Field,
 ): boolean {
   // NormalizedField format (has 'vocabulary' property)
   if ("vocabulary" in field && field.vocabulary) {

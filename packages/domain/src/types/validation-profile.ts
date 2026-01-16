@@ -65,7 +65,7 @@ export enum FieldRequirementLevel {
  * Validators can be either strings (legacy format) or ValidatorConfig objects.
  * The lowercase naming indicates this is a raw format from JSON schema.
  */
-export interface field {
+export interface Field {
   readonly group: string;
   readonly name: string;
   readonly label: string;

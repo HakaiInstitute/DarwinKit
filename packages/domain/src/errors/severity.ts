@@ -18,36 +18,6 @@ export enum ErrorSeverity {
 }
 
 /**
- * Simplified metadata for enriched errors
- *
- * Contains user-facing information for better error presentation
- */
-export interface SimpleErrorMetadata {
-  /** Error severity level */
-  readonly severity: ErrorSeverity;
-
-  /** User-facing message (less technical than error.message) */
-  readonly userMessage?: string;
-
-  /** Hint for resolving the error */
-  readonly hint?: string;
-
-  /** Suggested actions the user can take */
-  readonly suggestedActions?: readonly string[];
-}
-
-/**
- * Interface for errors with rich metadata
- *
- * Domain and core errors should implement this for consistent CLI presentation
- */
-export interface EnrichedError extends Error {
-  readonly _tag: string;
-  readonly code: string;
-  readonly metadata: SimpleErrorMetadata;
-}
-
-/**
  * Get severity label for display
  */
 export function getSeverityLabel(severity: ErrorSeverity): string {

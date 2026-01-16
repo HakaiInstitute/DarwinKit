@@ -201,8 +201,3 @@ export const DARWIN_CORE_VALIDATORS = {
     message: "Value must be whole numbers (integers)",
   }),
 } as const;
-
-/**
- * Type for pre-configured validator names
- */
-export type DarwinCoreValidatorName = keyof typeof DARWIN_CORE_VALIDATORS;

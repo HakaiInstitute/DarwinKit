@@ -8,14 +8,15 @@
  * Validators return RawViolation (minimal data), infrastructure enriches
  * to FieldViolation (full metadata for routing and reporting).
  *
- * DESIGN DECISION: FieldViolation uses Effect's Data.TaggedClass for discriminated unions:
- * 1. TYPE-SAFE pattern matching - Use switch on _tag for exhaustive case handling
- * 2. TYPE GUARDS - Use provided helper functions (isRangeViolation, etc.) for filtering violations by type
- * 3. Two-tier design pattern:
+ * DESIGN DECISION: Uses Effect's Schema.TaggedClass for true class inheritance:
+ * 1. TRUE INHERITANCE - Base class with common fields, extended for specific violation types
+ * 2. TYPE-SAFE pattern matching - Use switch on _tag for exhaustive case handling
+ * 3. TYPE GUARDS - Use provided helper functions (isRangeViolation, etc.) for filtering violations by type
+ * 4. Two-tier design pattern:
  *    - RawViolation: Minimal data returned by validators (lightweight, fast)
  *    - FieldViolation: Enriched with metadata for routing/reporting (complete)
- * 4. Internal contracts - These define how validators communicate with the validation infrastructure
- * 5. No runtime validation needed - These types are constructed by trusted internal code
+ * 5. Internal contracts - These define how validators communicate with the validation infrastructure
+ * 6. Schema validation - Provides runtime validation ensuring data integrity when violations are created
  *
  * This separation allows validators to return minimal data while the validation
  * infrastructure handles metadata enrichment (field names, enforcement mapping,
@@ -24,133 +25,169 @@
  * Validators return RawViolation; infrastructure enriches to FieldViolation.
  */
 
-import { Data } from "effect";
+import { Schema } from "effect";
 import { ErrorSeverity } from "../errors/severity.ts";
 import type { EnforcementLevel } from "../specs/validators.ts";
-import type { TransformationChain } from "./transformation.ts";
 
 /**
- * Common fields shared by all field (row-level) validation violations
+ * Base field schemas shared by all field (row-level) validation violations
  *
- * This is the base interface for FieldViolation types that represent
- * data validation failures at the row level. For schema-level violations
- * (structural issues), see SchemaViolationBase in schema-violation.ts.
+ * These are the common field schemas that all specific violation types include.
+ * For schema-level violations (structural issues), see SchemaViolationBase in schema-violation.ts.
  *
- * DESIGN DECISION: Kept as plain TypeScript interface rather than Effect Schema because:
- * 1. Internal-only type - Used as base for Data.TaggedClass violations, not for parsing
- * 2. OUTPUT-ONLY - These violations are constructed internally, never parsed from external input
- * 3. TransformationChain dependency - Would require creating schemas for complex nested types
- * 4. Performance - No runtime validation overhead for internally-constructed objects
+ * DESIGN DECISION: Uses Schema.TaggedClass with shared field schemas:
+ * 1. Each violation type has its own unique _tag for discriminated unions
+ * 2. Provides runtime schema validation ensuring data integrity
+ * 3. Shared field schemas eliminate repetition while preserving unique tags
+ * 4. Type-safe pattern matching via _tag property
+ * 5. Follows Effect's recommended patterns for tagged classes
+ *
+ * Note: This is a const object of schemas, not a class. Each violation type
+ * creates its own Schema.TaggedClass with these base fields plus its specific fields.
  */
-export interface FieldViolationBase {
-  readonly enforcement: EnforcementLevel;
-  readonly severity: ErrorSeverity;
-  readonly fieldName: string;
-  readonly targetName: string;
-  readonly rowNumber: number;
-  readonly value: string;
-  readonly csvValue?: string;
-  readonly transformedValue?: unknown;
-  readonly transformationChain?: TransformationChain;
-  readonly errorMessage: string;
-  readonly validatorType: string;
-}
+const baseViolationFields = {
+  enforcement: Schema.Union(
+    Schema.Literal("required"),
+    Schema.Literal("recommended"),
+    Schema.Literal("optional"),
+  ),
+  severity: Schema.Union(
+    Schema.Literal("error"),
+    Schema.Literal("warning"),
+    Schema.Literal("info"),
+  ),
+  fieldName: Schema.String,
+  targetName: Schema.String,
+  rowNumber: Schema.Number,
+  value: Schema.String,
+  csvValue: Schema.optional(Schema.String),
+  transformedValue: Schema.optional(Schema.Unknown),
+  errorMessage: Schema.String,
+  validatorType: Schema.String,
+};
 
 /**
  * Range validation violation (numeric/date range constraints)
  */
-export class RangeViolation extends Data.TaggedClass("RangeViolation")<
-  FieldViolationBase & {
-    readonly params?: { min?: number; max?: number };
-  }
-> {}
+export class RangeViolation extends Schema.TaggedClass<RangeViolation>()(
+  "RangeViolation",
+  {
+    ...baseViolationFields,
+    params: Schema.optional(
+      Schema.Struct({
+        min: Schema.optional(Schema.Number),
+        max: Schema.optional(Schema.Number),
+      }),
+    ),
+  },
+) {}
 
 /**
  * Vocabulary validation violation (controlled vocabulary constraints)
  */
-export class VocabularyViolation extends Data.TaggedClass("VocabularyViolation")<
-  FieldViolationBase & {
-    readonly suggestedValues?: ReadonlyArray<string>;
-    readonly params?: Record<string, unknown>;
-  }
-> {}
+export class VocabularyViolation extends Schema.TaggedClass<VocabularyViolation>()(
+  "VocabularyViolation",
+  {
+    ...baseViolationFields,
+    suggestedValues: Schema.optional(Schema.Array(Schema.String)),
+    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  },
+) {}
 
 /**
  * Uniqueness validation violation (duplicate identifier constraints)
  */
-export class UniquenessViolation extends Data.TaggedClass("UniquenessViolation")<
-  FieldViolationBase & {
-    readonly params?: Record<string, unknown>;
-  }
-> {}
+export class UniquenessViolation extends Schema.TaggedClass<UniquenessViolation>()(
+  "UniquenessViolation",
+  {
+    ...baseViolationFields,
+    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  },
+) {}
 
 /**
  * Temporal validation violation (date/time consistency constraints)
  */
-export class TemporalViolation extends Data.TaggedClass("TemporalViolation")<
-  FieldViolationBase & {
-    readonly params?: Record<string, unknown>;
-  }
-> {}
+export class TemporalViolation extends Schema.TaggedClass<TemporalViolation>()(
+  "TemporalViolation",
+  {
+    ...baseViolationFields,
+    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  },
+) {}
 
 /**
  * Cross-dataset validation violation (foreign key/referential integrity)
  */
-export class CrossDatasetViolation extends Data.TaggedClass("CrossDatasetViolation")<
-  FieldViolationBase & {
-    readonly params?: {
-      sourceDataset?: string;
-      targetDataset?: string;
-      targetField?: string;
-    };
-  }
-> {}
+export class CrossDatasetViolation extends Schema.TaggedClass<CrossDatasetViolation>()(
+  "CrossDatasetViolation",
+  {
+    ...baseViolationFields,
+    params: Schema.optional(
+      Schema.Struct({
+        sourceDataset: Schema.optional(Schema.String),
+        targetDataset: Schema.optional(Schema.String),
+        targetField: Schema.optional(Schema.String),
+      }),
+    ),
+  },
+) {}
 
 /**
  * Primary key constraint violation (duplicate or null primary key)
  */
-export class PrimaryKeyViolation extends Data.TaggedClass("PrimaryKeyViolation")<
-  FieldViolationBase & {
-    readonly constraintType: "duplicate" | "null";
-    readonly duplicateCount?: number;
-    readonly params?: Record<string, unknown>;
-  }
-> {}
+export class PrimaryKeyViolation extends Schema.TaggedClass<PrimaryKeyViolation>()(
+  "PrimaryKeyViolation",
+  {
+    ...baseViolationFields,
+    constraintType: Schema.Union(Schema.Literal("duplicate"), Schema.Literal("null")),
+    duplicateCount: Schema.optional(Schema.Number),
+    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  },
+) {}
 
 /**
  * Not null constraint violation (required field is null)
  */
-export class NotNullViolation extends Data.TaggedClass("NotNullViolation")<
-  FieldViolationBase & {
-    readonly params?: Record<string, unknown>;
-  }
-> {}
+export class NotNullViolation extends Schema.TaggedClass<NotNullViolation>()(
+  "NotNullViolation",
+  {
+    ...baseViolationFields,
+    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  },
+) {}
 
 /**
  * Enum constraint violation (value not in controlled vocabulary)
  */
-export class EnumViolation extends Data.TaggedClass("EnumViolation")<
-  FieldViolationBase & {
-    readonly enumType: string;
-    readonly allowedValues: ReadonlyArray<string>;
-    readonly suggestedValue?: string;
-    readonly params?: Record<string, unknown>;
-  }
-> {}
+export class EnumViolation extends Schema.TaggedClass<EnumViolation>()(
+  "EnumViolation",
+  {
+    ...baseViolationFields,
+    enumType: Schema.String,
+    allowedValues: Schema.Array(Schema.String),
+    suggestedValue: Schema.optional(Schema.String),
+    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  },
+) {}
 
 /**
  * Foreign key constraint violation (referenced value doesn't exist)
  */
-export class ForeignKeyViolation extends Data.TaggedClass("ForeignKeyViolation")<
-  FieldViolationBase & {
-    readonly referencedTable: string;
-    readonly referencedField: string;
-    readonly params?: {
-      targetDataset?: string;
-      targetField?: string;
-    };
-  }
-> {}
+export class ForeignKeyViolation extends Schema.TaggedClass<ForeignKeyViolation>()(
+  "ForeignKeyViolation",
+  {
+    ...baseViolationFields,
+    referencedTable: Schema.String,
+    referencedField: Schema.String,
+    params: Schema.optional(
+      Schema.Struct({
+        targetDataset: Schema.optional(Schema.String),
+        targetField: Schema.optional(Schema.String),
+      }),
+    ),
+  },
+) {}
 
 /**
  * Discriminated union of all validation violation types

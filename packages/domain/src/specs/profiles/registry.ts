@@ -7,7 +7,7 @@
 
 import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
 import type {
-  field,
+  Field,
   FieldOverride,
   ValidationProfile,
   ValidationProfileRegistry,
@@ -92,6 +92,8 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
   // Normalize fields if they exist
   const normalizedFields: Record<string, FieldDefinition> = {};
 
+  // TODO: Can we use schema parsing here?
+
   if (
     "fields" in profile &&
     typeof profile.fields === "object" &&
@@ -99,7 +101,7 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
   ) {
     for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
       try {
-        normalizedFields[fieldName] = normalizeField(fieldValue as field);
+        normalizedFields[fieldName] = normalizeField(fieldValue as Field);
       } catch (error) {
         console.warn(`Failed to normalize field '${fieldName}':`, error);
         // Skip invalid fields rather than failing the entire profile

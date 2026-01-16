@@ -9,21 +9,8 @@ import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import { createTableFromSchema, WorkspaceImportError } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertFalse, assertInstanceOf } from "@std/assert";
+import { assertSpyCalls, spy, stub } from "@std/testing/mock";
 import * as Effect from "effect/Effect";
-import { expect, vi } from "vitest";
-
-interface TableInfoRow {
-  name: string;
-  type: string;
-  notnull: boolean;
-  pk: boolean;
-}
-
-interface ForeignKeyInfoRow {
-  table: string;
-  from: string;
-  to: string;
-}
 
 /**
  * Helper function to verify foreign key constraints in DuckDB
@@ -275,16 +262,16 @@ Deno.test("createTableFromSchema - does nothing for empty datasets", async () =>
     },
   };
 
-  // Mock the connection.run to spy on it
-  const runSpy = vi.spyOn(connection, "run");
+  // Spy on connection.run to verify it's not called
+  const runSpy = spy(connection, "run");
 
   try {
     await Effect.runPromise(createTableFromSchema(connection, config));
 
     // Verify that no SQL was executed
-    expect(runSpy).not.toHaveBeenCalled();
+    assertSpyCalls(runSpy, 0);
   } finally {
-    runSpy.mockRestore();
+    runSpy.restore();
     connection.closeSync();
     instance.closeSync();
   }
@@ -320,9 +307,9 @@ Deno.test("createTableFromSchema - returns WorkspaceImportError on SQL failure",
     },
   };
 
-  // Mock connection.run to throw an error only for CREATE TABLE (not DROP)
+  // Stub connection.run to throw an error only for CREATE TABLE (not DROP)
   const dbError = new Error("Syntax error");
-  const runSpy = vi.spyOn(connection, "run").mockImplementation((sql: string) => {
+  const runSpy = stub(connection, "run", (sql: string) => {
     if (sql.startsWith("DROP TABLE")) {
       // DROP should succeed
       return Promise.resolve(undefined as never);
@@ -340,7 +327,7 @@ Deno.test("createTableFromSchema - returns WorkspaceImportError on SQL failure",
     assertEquals(result.message, "Failed to create ENUM types for table 'occurrence'");
     assertEquals(result.cause, dbError);
   } finally {
-    runSpy.mockRestore();
+    runSpy.restore();
     connection.closeSync();
     instance.closeSync();
   }

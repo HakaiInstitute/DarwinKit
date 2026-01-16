@@ -11,28 +11,15 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import type {
-  DatasetConfig,
-  DatasetValidationResult,
-  EnforcementLevel,
-  FieldViolation,
-  ValidationProfile,
-} from "@dwkt/domain";
+import type { DatasetValidationResult, EnforcementLevel, FieldViolation } from "@dwkt/domain";
 import {
-  CrossDatasetViolation,
-  EnumViolation,
   ErrorSeverity,
-  ForeignKeyViolation,
   MissingFieldViolation,
-  NotNullViolation,
-  PrimaryKeyViolation,
   RangeViolation,
   type SchemaViolation,
-  UniquenessViolation,
-  VocabularyViolation,
 } from "@dwkt/domain";
 import { assert } from "@std/assert";
-import * as Effect from "effect/Effect";
+import { Effect } from "effect";
 
 // ============================================================================
 // Test Constants
@@ -197,182 +184,6 @@ export function createMockRangeViolation(
 }
 
 /**
- * Create a mock VocabularyViolation for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock VocabularyViolation instance
- *
- * @example
- * ```typescript
- * const violation = createMockVocabularyViolation({
- *   value: "invalid",
- *   suggestedValues: ["valid1", "valid2"],
- * });
- * ```
- */
-export function createMockVocabularyViolation(
-  overrides?: MockViolationBase & { suggestedValues?: ReadonlyArray<string> },
-): VocabularyViolation {
-  return new VocabularyViolation({
-    enforcement: overrides?.enforcement ?? "required",
-    severity: ErrorSeverity.ERROR,
-    fieldName: overrides?.fieldName ?? "testField",
-    targetName: overrides?.targetName ?? "testField",
-    rowNumber: overrides?.rowNumber ?? 1,
-    value: overrides?.value ?? "invalid",
-    errorMessage: overrides?.errorMessage ?? "Vocabulary validation failed",
-    validatorType: "vocabulary",
-    suggestedValues: overrides?.suggestedValues,
-  });
-}
-
-/**
- * Create a mock UniquenessViolation for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock UniquenessViolation instance
- */
-export function createMockUniquenessViolation(
-  overrides?: MockViolationBase,
-): UniquenessViolation {
-  return new UniquenessViolation({
-    enforcement: overrides?.enforcement ?? "required",
-    severity: ErrorSeverity.ERROR,
-    fieldName: overrides?.fieldName ?? "testField",
-    targetName: overrides?.targetName ?? "testField",
-    rowNumber: overrides?.rowNumber ?? 1,
-    value: overrides?.value ?? "duplicate",
-    errorMessage: overrides?.errorMessage ?? "Uniqueness validation failed",
-    validatorType: "uniqueness",
-  });
-}
-
-/**
- * Create a mock PrimaryKeyViolation for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock PrimaryKeyViolation instance
- */
-export function createMockPrimaryKeyViolation(
-  overrides?: MockViolationBase & { constraintType?: "duplicate" | "null" },
-): PrimaryKeyViolation {
-  return new PrimaryKeyViolation({
-    enforcement: overrides?.enforcement ?? "required",
-    severity: ErrorSeverity.ERROR,
-    fieldName: overrides?.fieldName ?? "testField",
-    targetName: overrides?.targetName ?? "testField",
-    rowNumber: overrides?.rowNumber ?? 1,
-    value: overrides?.value ?? "duplicate",
-    errorMessage: overrides?.errorMessage ?? "Primary key constraint failed",
-    validatorType: "primary-key",
-    constraintType: overrides?.constraintType ?? "duplicate",
-  });
-}
-
-/**
- * Create a mock NotNullViolation for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock NotNullViolation instance
- */
-export function createMockNotNullViolation(
-  overrides?: MockViolationBase,
-): NotNullViolation {
-  return new NotNullViolation({
-    enforcement: overrides?.enforcement ?? "required",
-    severity: ErrorSeverity.ERROR,
-    fieldName: overrides?.fieldName ?? "testField",
-    targetName: overrides?.targetName ?? "testField",
-    rowNumber: overrides?.rowNumber ?? 1,
-    value: overrides?.value ?? "",
-    errorMessage: overrides?.errorMessage ?? "Field cannot be null",
-    validatorType: "not-null",
-  });
-}
-
-/**
- * Create a mock EnumViolation for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock EnumViolation instance
- */
-export function createMockEnumViolation(
-  overrides?: MockViolationBase & {
-    enumType?: string;
-    allowedValues?: ReadonlyArray<string>;
-    suggestedValue?: string;
-  },
-): EnumViolation {
-  return new EnumViolation({
-    enforcement: overrides?.enforcement ?? "required",
-    severity: ErrorSeverity.ERROR,
-    fieldName: overrides?.fieldName ?? "testField",
-    targetName: overrides?.targetName ?? "testField",
-    rowNumber: overrides?.rowNumber ?? 1,
-    value: overrides?.value ?? "invalid",
-    errorMessage: overrides?.errorMessage ?? "Invalid enum value",
-    validatorType: "enum",
-    enumType: overrides?.enumType ?? "test_enum",
-    allowedValues: overrides?.allowedValues ?? ["value1", "value2"],
-    suggestedValue: overrides?.suggestedValue,
-  });
-}
-
-/**
- * Create a mock ForeignKeyViolation for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock ForeignKeyViolation instance
- */
-export function createMockForeignKeyViolation(
-  overrides?: MockViolationBase & {
-    referencedTable?: string;
-    referencedField?: string;
-  },
-): ForeignKeyViolation {
-  return new ForeignKeyViolation({
-    enforcement: overrides?.enforcement ?? "required",
-    severity: ErrorSeverity.ERROR,
-    fieldName: overrides?.fieldName ?? "testField",
-    targetName: overrides?.targetName ?? "testField",
-    rowNumber: overrides?.rowNumber ?? 1,
-    value: overrides?.value ?? "missing",
-    errorMessage: overrides?.errorMessage ?? "Foreign key constraint failed",
-    validatorType: "foreign-key",
-    referencedTable: overrides?.referencedTable ?? "referenced_table",
-    referencedField: overrides?.referencedField ?? "referenced_field",
-  });
-}
-
-/**
- * Create a mock CrossDatasetViolation for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock CrossDatasetViolation instance
- */
-export function createMockCrossDatasetViolation(
-  overrides?: MockViolationBase & {
-    params?: {
-      sourceDataset?: string;
-      targetDataset?: string;
-      targetField?: string;
-    };
-  },
-): CrossDatasetViolation {
-  return new CrossDatasetViolation({
-    enforcement: overrides?.enforcement ?? "required",
-    severity: ErrorSeverity.ERROR,
-    fieldName: overrides?.fieldName ?? "testField",
-    targetName: overrides?.targetName ?? "testField",
-    rowNumber: overrides?.rowNumber ?? 1,
-    value: overrides?.value ?? "missing",
-    errorMessage: overrides?.errorMessage ?? "Cross-dataset validation failed",
-    validatorType: "cross-dataset",
-    params: overrides?.params,
-  });
-}
-
-/**
  * Generic mock violation factory
  *
  * Creates violations of different types based on enforcement level.
@@ -441,64 +252,6 @@ export function createMockSchemaViolation(
 // ============================================================================
 // Mock Configuration Factories
 // ============================================================================
-
-/**
- * Create a mock ValidationProfile for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock ValidationProfile
- *
- * @example
- * ```typescript
- * const profile = createMockProfile({
- *   id: "test-profile",
- *   fields: {
- *     eventID: { name: "eventID", type: "string", required: true },
- *   },
- * });
- * ```
- */
-export function createMockProfile(
-  overrides?: Partial<ValidationProfile>,
-): ValidationProfile {
-  return {
-    id: overrides?.id ?? "test-profile",
-    name: overrides?.name ?? "Test Profile",
-    description: overrides?.description ?? "Test Description",
-    targetSchema: overrides?.targetSchema ?? "custom",
-    fieldOverrides: overrides?.fieldOverrides ?? {},
-    ...(overrides?.extends && { extends: overrides.extends }),
-    fields: overrides?.fields ?? {},
-    normalizedFields: overrides?.normalizedFields ?? {},
-  };
-}
-
-/**
- * Create a mock DatasetConfig for testing
- *
- * @param overrides - Optional property overrides
- * @returns A mock DatasetConfig
- *
- * @example
- * ```typescript
- * const dataset = createMockDatasetConfig({
- *   name: "events",
- *   spec: "dwc-event",
- *   path: "./events.csv",
- * });
- * ```
- */
-export function createMockDatasetConfig(
-  overrides?: Partial<DatasetConfig>,
-): DatasetConfig {
-  return {
-    name: overrides?.name ?? "test-dataset",
-    spec: overrides?.spec ?? "test-spec",
-    path: overrides?.path ?? "./test.csv",
-    description: overrides?.description,
-    fieldMappings: overrides?.fieldMappings ?? [],
-  };
-}
 
 /**
  * Create a mock DatasetValidationResult for testing

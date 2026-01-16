@@ -43,7 +43,7 @@ export class OutputError extends Data.TaggedError("OutputError")<{
  * @param basePath - The base path for resolving relative CSV file paths.
  * @returns An Effect that completes when all tables are created, or fails with a TransformationError.
  */
-export function createTablesFromCSV( // Export for testing
+export function createTablesFromCSV(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
   basePath: string,

@@ -4,10 +4,8 @@
 
 // Types
 export * from "./src/types/common.ts";
-export * from "./src/types/field-mapping.ts";
 export * from "./src/types/schema-violation.ts";
 export * from "./src/types/schema.ts";
-export * from "./src/types/transformation.ts";
 export * from "./src/types/validation-profile.ts";
 export { FieldRequirementLevel } from "./src/types/validation-profile.ts";
 export * from "./src/types/validation-violation.ts";
@@ -51,16 +49,9 @@ export {
 } from "./src/schemas/validation.ts";
 
 // Error handling
+export * from "./src/errors/cause-formatter.ts";
 export * from "./src/errors/codes.ts";
-export * from "./src/errors/presenter.ts";
 export * from "./src/errors/severity.ts";
-export * from "./src/errors/types.ts";
-
-// Utilities
-export * from "./src/utils/cause-formatter.ts";
-
-// Constants
-export * from "./src/constants/darwin-core.ts";
 
 // Darwin Core Specifications
 export * from "./src/specs/dwc/index.ts";

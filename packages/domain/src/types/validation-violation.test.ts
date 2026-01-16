@@ -3,9 +3,9 @@
  */
 
 import { assertEquals } from "@std/assert";
-import type { EnforcementLevel } from "../specs/validators.ts";
 import { ErrorSeverity } from "../errors/severity.ts";
-import { enforcementToSeverity } from "./validation-violation.ts";
+import type { EnforcementLevel } from "../specs/validators.ts";
+import { enforcementToSeverity, RangeViolation } from "./validation-violation.ts";
 
 // ============================================================================
 // enforcementToSeverity Tests
@@ -42,4 +42,27 @@ Deno.test("enforcementToSeverity", async (t) => {
       assertEquals(result, testCase.expected);
     });
   }
+});
+
+// ============================================================================
+// Type Derivation Utilities Tests
+// ============================================================================
+
+Deno.test("ViolationFields - creates violations with base fields", () => {
+  const violation = new RangeViolation({
+    enforcement: "required",
+    severity: ErrorSeverity.ERROR,
+    fieldName: "latitude",
+    targetName: "decimalLatitude",
+    rowNumber: 5,
+    value: "95.0",
+    errorMessage: "Value 95.0 is outside valid range -90 to 90",
+    validatorType: "range",
+    params: { min: -90, max: 90 },
+  });
+
+  assertEquals(violation._tag, "RangeViolation");
+  assertEquals(violation.fieldName, "latitude");
+  assertEquals(violation.params?.min, -90);
+  assertEquals(violation.params?.max, 90);
 });

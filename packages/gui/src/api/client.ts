@@ -2,9 +2,9 @@
  * API client for communicating with DarwinKit API
  */
 
-import * as S from "effect/Schema";
-import type { CreateWorkspaceOptions, Workspace, WorkspaceInfo } from "@dwkt/domain";
+import type { Workspace, WorkspaceInfo } from "@dwkt/domain";
 import { workspaceInfoSchema, workspaceSchema } from "@dwkt/domain";
+import * as S from "effect/Schema";
 
 const API_BASE = "/api";
 
@@ -35,26 +35,4 @@ export async function getWorkspace(id: string): Promise<Workspace> {
   }
   const data = await response.json();
   return S.decodeUnknownSync(workspaceSchema)(data);
-}
-
-/**
- * Create a new workspace from a CSV file
- */
-export async function createWorkspace(
-  options: CreateWorkspaceOptions,
-): Promise<{ workspace: Workspace }> {
-  const response = await fetch(`${API_BASE}/workspaces`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(options),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `Failed to create workspace: ${response.statusText}`);
-  }
-
-  return await response.json();
 }

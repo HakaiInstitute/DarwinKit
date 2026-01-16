@@ -19,7 +19,7 @@ import * as Cause from "effect/Cause";
  *
  * Takes an error instance and returns a human-readable string.
  */
-export type ErrorFormatter<E> = (error: E) => string;
+type ErrorFormatter<E> = (error: E) => string;
 
 /**
  * Pretty print any Effect Cause with custom error formatting
@@ -112,49 +112,5 @@ export function createTaggedFormatter<
     const formatter = formatters[error._tag as keyof typeof formatters];
     // TypeScript can't narrow the type based on runtime _tag check, but we know it's safe
     return formatter(error as never);
-  };
-}
-
-/**
- * @deprecated Use createTaggedFormatter instead for Effect TaggedError types
- *
- * Create an error formatter that handles multiple error types
- *
- * This helper makes it easy to create formatters that handle different
- * error types with type-safe instanceof checks.
- *
- * Each formatter pair can handle a different error type - the array accepts
- * heterogeneous error types.
- *
- * @param formatters - Array of [constructor, formatter] pairs. Each pair consists of
- *                     an error constructor and a function that formats that error type.
- *                     The function will receive a correctly-typed instance when the
- *                     instanceof check passes at runtime.
- * @param defaultFormatter - Fallback formatter for unknown error types
- * @returns A formatter function that dispatches to the appropriate handler
- */
-export function createMultiErrorFormatter<E>(
-  formatters: ReadonlyArray<
-    readonly [
-      // Constructor - can construct a type that E might be
-      // deno-lint-ignore no-explicit-any
-      abstract new (...args: any[]) => any,
-      // Formatter - receives the specific error type from the constructor
-      // We use (error: never) => string as a catch-all signature that accepts
-      // any function taking a single parameter and returning string
-      (error: never) => string,
-    ]
-  >,
-  defaultFormatter: (error: E) => string = (e) => `Unknown error: ${e}`,
-): ErrorFormatter<E> {
-  return (error: E) => {
-    for (const [Constructor, format] of formatters) {
-      if (error instanceof Constructor) {
-        // The instanceof check ensures error is the correct type for format
-        // TypeScript can't verify this statically, but it's safe at runtime
-        return format(error as never);
-      }
-    }
-    return defaultFormatter(error);
   };
 }

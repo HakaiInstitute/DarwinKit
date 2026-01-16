@@ -42,26 +42,6 @@ export type ConfigWithTransformation = S.Schema.Type<typeof configWithTransforma
  * The type portion (after the hyphen) is used to derive the profile name.
  */
 
-const validSpecs = [
-  "dwc-event",
-  "dwc-occurrence",
-  "dwc-extendedMeasurementOrFact",
-  "dwc-eMOF", // Alias for ExtendedMeasurementOrFact
-  "dwc-taxon",
-  "dwc-dnaDerivedData",
-  "dwc-resourceRelationship",
-  "metadata-v1",
-] as const;
-
-type SpecIdentifier = typeof validSpecs[number];
-
-/**
- * Validate that a spec identifier is supported
- */
-export function isValidSpecIdentifier(specId: string): specId is SpecIdentifier {
-  return validSpecs.includes(specId as SpecIdentifier);
-}
-
 /**
  * Parse spec identifier into spec name and type
  */
