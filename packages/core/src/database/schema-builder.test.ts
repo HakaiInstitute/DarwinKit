@@ -4,7 +4,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { withTestConnection } from "../test-utils.ts";
+import { withTestConnection } from "../validation/test-utils.ts";
 import { importSchemaToWorkspace } from "./schema-builder.ts";
 
 // ============================================================================

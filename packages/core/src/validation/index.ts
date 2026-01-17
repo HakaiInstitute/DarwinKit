@@ -34,8 +34,9 @@ export { validateDataset } from "./dataset-validator.ts";
 // Database operations
 export {
   type DatasetWithProfile,
-  getOriginalCsvValue,
   importSchemaToWorkspace,
-  insertRowByRow,
   sanitizeTableName,
-} from "./database/index.ts";
+} from "../database/index.ts";
+
+// Data loading with constraint violation detection
+export { getOriginalCsvValue, insertRowByRow } from "./data-loader.ts";

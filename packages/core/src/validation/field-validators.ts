@@ -25,7 +25,7 @@ import {
   VocabularyViolation,
 } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
-import { extractRowNumbers, sanitizeTableName } from "./database/index.ts";
+import { extractRowNumbers, sanitizeTableName } from "../database/index.ts";
 
 /**
  * Resolve dataset name to its schema table name

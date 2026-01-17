@@ -13,12 +13,8 @@ import { Workspace, WorkspaceImportError } from "@dwkt/core";
 import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
-import {
-  DEFAULT_TEST_CONFIG,
-  withTestWorkspace,
-  writeCsvFile,
-} from "../../testing/csv-fixtures.ts";
-import { assertEffectFails } from "../test-utils.ts";
+import { DEFAULT_TEST_CONFIG, withTestWorkspace, writeCsvFile } from "../testing/csv-fixtures.ts";
+import { assertEffectFails } from "../validation/test-utils.ts";
 
 // ============================================================================
 // Test Data

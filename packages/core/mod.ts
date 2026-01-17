@@ -7,7 +7,7 @@ export * from "./src/workspace/workspace.ts";
 
 // Validation utilities
 // NOTE: WorkspaceValidator class has been removed - use Workspace class directly
-export { importSchemaToWorkspace } from "./src/validation/database/index.ts";
+export { importSchemaToWorkspace } from "./src/database/index.ts";
 export { validateDataset } from "./src/validation/dataset-validator.ts";
 
 // Transformation

@@ -32,7 +32,8 @@ import {
   UnknownFieldViolation,
   UnknownProfileViolation,
 } from "@dwkt/domain";
-import { insertRowByRow, sanitizeTableName } from "./database/index.ts";
+import { sanitizeTableName } from "../database/index.ts";
+import { insertRowByRow } from "./data-loader.ts";
 import {
   validateRangeConstraints,
   validateUniqueness,

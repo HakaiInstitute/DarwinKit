@@ -33,9 +33,9 @@ import type * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as YAML from "js-yaml";
-// Import validation functions - these will be used internally
+// Import validation functions and database utilities
 import { hasValidationConfig } from "@dwkt/domain";
-import { importSchemaToWorkspace, sanitizeTableName } from "../validation/database/index.ts";
+import { importCsv, importSchemaToWorkspace, sanitizeTableName } from "../database/index.ts";
 import { validateDataset } from "../validation/dataset-validator.ts";
 import { validateCrossDatasetRule } from "../validation/field-validators.ts";
 import { calculateSummary } from "../validation/utils.ts";
@@ -45,7 +45,7 @@ import {
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
-  WorkspaceImportError,
+  type WorkspaceImportError,
   WorkspaceValidationError,
 } from "./errors.ts";
 
@@ -627,11 +627,13 @@ export class Workspace {
    * for deterministic validation. This is a stateful operation that uses
    * the workspace's managed database connection.
    *
-   * @param options - Import configuration
-   * @param options.tableName - Name for the database table
-   * @param options.csvPath - Path to the CSV file
-   * @param options.nullValues - Values to treat as NULL (defaults to workspace config)
-   * @param options.dropTable - Whether to drop existing table first (defaults to false)
+   * This method is a convenience wrapper around the pure importCsv utility
+   * function, automatically providing the workspace's connection and null
+   * value configuration.
+   *
+   * @param csvPath - Path to the CSV file
+   * @param tableName - Name for the database table
+   * @param dropTable - Whether to drop existing table first (defaults to false)
    * @returns Effect that succeeds when import completes
    *
    * @example
@@ -639,18 +641,17 @@ export class Workspace {
    * const workspace = await Effect.runPromise(Workspace.discover());
    *
    * // Import with workspace defaults
-   * await Effect.runPromise(workspace.importCsv({
-   *   "./data/events.csv"
+   * await Effect.runPromise(workspace.importCsv(
+   *   "./data/events.csv",
    *   "events"
-   * }));
+   * ));
    *
-   * // Import with custom null values
-   * await Effect.runPromise(workspace.importCsv({
+   * // Import and replace existing table
+   * await Effect.runPromise(workspace.importCsv(
    *   "./data/occurrences.csv",
    *   "occurrences",
-   *   ["NA", ""],
    *   true
-   * }));
+   * ));
    * ```
    */
   importCsv(
@@ -670,34 +671,11 @@ export class Workspace {
         nullValues = this.config.transform.nullValues;
       }
 
-      // Import CSV directly into workspace database
+      // Delegate to pure importCsv function
       yield* _(
-        Effect.tryPromise({
-          try: async () => {
-            const sequenceName = `${tableName}_seq`;
-
-            if (dropTable) {
-              await connection.run(`DROP TABLE IF EXISTS ${tableName}`);
-              await connection.run(`DROP SEQUENCE IF EXISTS ${sequenceName}`);
-            }
-
-            // Create sequence for deterministic row numbering
-            await connection.run(`CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1`);
-
-            // Import CSV with row numbers
-            const quotedNullValues = nullValues.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ");
-            await connection.run(
-              `CREATE TABLE IF NOT EXISTS ${tableName} AS
-               SELECT *, nextval('${sequenceName}') as _row_number
-               FROM read_csv_auto('${csvPath}', nullstr=[${quotedNullValues}])`,
-            );
-          },
-          catch: (error) =>
-            new WorkspaceImportError({
-              message: `Failed to create table '${tableName}' from CSV ${csvPath}`,
-              code: ErrorCode.DATABASE_ERROR,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            }),
+        importCsv(connection, csvPath, tableName, {
+          nullValues,
+          dropTable,
         }),
       );
     });

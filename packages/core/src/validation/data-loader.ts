@@ -13,7 +13,7 @@ import {
   PrimaryKeyViolation,
 } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
-import { findSuggestedValue, parseDuckDBError } from "../utils.ts";
+import { findSuggestedValue, parseDuckDBError } from "./utils.ts";
 
 /**
  * Get original CSV value for a specific row and field
