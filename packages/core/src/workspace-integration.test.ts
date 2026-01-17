@@ -15,7 +15,7 @@ import {
   isPrimaryKeyViolation,
   isRangeViolation,
 } from "@dwkt/domain";
-import { assert, assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertExists, assertInstanceOf, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
@@ -599,10 +599,7 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
     );
 
     // Verify we get an invalid config error about missing field
-    assert(
-      error instanceof WorkspaceValidationError,
-      "Expected WorkspaceValidationError",
-    );
+    assertInstanceOf(error, WorkspaceValidationError);
     assertEquals(error.code, ErrorCode.INVALID_CONFIG);
     assertStringIncludes(
       error.message,

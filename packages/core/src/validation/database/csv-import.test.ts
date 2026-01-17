@@ -9,7 +9,7 @@
  * - Row numbering for validation reporting
  */
 
-import { Workspace } from "@dwkt/core";
+import { Workspace, WorkspaceImportError } from "@dwkt/core";
 import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
@@ -19,7 +19,6 @@ import {
   writeCsvFile,
 } from "../../testing/csv-fixtures.ts";
 import { assertEffectFails } from "../test-utils.ts";
-import { WorkspaceImportError } from "../utils.ts";
 
 // ============================================================================
 // Test Data

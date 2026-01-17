@@ -3,6 +3,7 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
+import type { WorkspaceValidationError } from "@dwkt/core";
 import type {
   CrossDatasetValidationResult,
   DatasetConfig,
@@ -25,7 +26,6 @@ import {
 } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
 import { extractRowNumbers, sanitizeTableName } from "./database/index.ts";
-import type { WorkspaceValidationError } from "./utils.ts";
 
 /**
  * Resolve dataset name to its schema table name

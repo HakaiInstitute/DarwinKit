@@ -2,25 +2,8 @@
  * Validation utilities - Error classes, violation partitioning, summary calculation, fuzzy matching
  */
 
-import type { DatasetValidationResult, ErrorCode } from "@dwkt/domain";
-import * as Data from "effect/Data";
+import type { DatasetValidationResult } from "@dwkt/domain";
 import { levenshteinDistance } from "../utils/string-utils.ts";
-
-/**
- * Error classes for workspace validation
- */
-const WorkspaceValidationErrorBase = Data.TaggedError("WorkspaceValidationError")<{
-  readonly message: string;
-  readonly code: ErrorCode;
-  readonly cause?: Error;
-}>;
-
-/**
- * Represents an error that occurs during the data importing process.
- */
-export class WorkspaceImportError extends WorkspaceValidationErrorBase {}
-
-export class WorkspaceValidationError extends WorkspaceValidationErrorBase {}
 
 // Re-export from domain for backward compatibility
 export { partitionFieldViolations } from "@dwkt/domain";

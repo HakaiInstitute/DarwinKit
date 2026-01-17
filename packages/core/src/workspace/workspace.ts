@@ -30,7 +30,6 @@ import {
 } from "@dwkt/domain";
 import { dirname, join, resolve } from "@std/path";
 import type * as Cause from "effect/Cause";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as YAML from "js-yaml";
@@ -39,58 +38,16 @@ import { hasValidationConfig } from "@dwkt/domain";
 import { importSchemaToWorkspace, sanitizeTableName } from "../validation/database/index.ts";
 import { validateDataset } from "../validation/dataset-validator.ts";
 import { validateCrossDatasetRule } from "../validation/field-validators.ts";
+import { calculateSummary } from "../validation/utils.ts";
 import {
-  calculateSummary,
+  type ConfigError,
+  ConfigNotFoundError,
+  ConfigParseError,
+  ConfigValidationError,
+  DatasetFileNotFoundError,
   WorkspaceImportError,
   WorkspaceValidationError,
-} from "../validation/utils.ts";
-
-/**
- * Error classes for workspace configuration operations
- *
- * Using Data.TaggedError for proper Effect integration and type-safe error handling.
- * Each error extends Data.TaggedError with a unique tag for pattern matching.
- */
-export class ConfigNotFoundError extends Data.TaggedError("ConfigNotFoundError")<{
-  readonly message: string;
-  readonly searchDir: string;
-  readonly searchedPaths: readonly string[];
-}> {
-  readonly code = ErrorCode.FILE_NOT_FOUND;
-}
-
-export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
-  readonly message: string;
-  readonly configPath: string;
-  readonly cause?: Error;
-}> {
-  readonly code = ErrorCode.PARSE_ERROR;
-}
-
-export class ConfigValidationError extends Data.TaggedError("ConfigValidationError")<{
-  readonly message: string;
-  readonly configPath: string;
-  readonly validationErrors: readonly string[];
-}> {
-  readonly code = ErrorCode.VALIDATION_FAILED;
-}
-
-export class DatasetFileNotFoundError extends Data.TaggedError("DatasetFileNotFoundError")<{
-  readonly message: string;
-  readonly datasetName: string;
-  readonly filePath: string;
-}> {
-  readonly code = ErrorCode.FILE_NOT_FOUND;
-}
-
-/**
- * Union type of all configuration errors
- */
-export type ConfigError =
-  | ConfigNotFoundError
-  | ConfigParseError
-  | ConfigValidationError
-  | DatasetFileNotFoundError;
+} from "./errors.ts";
 
 /**
  * Format configuration-specific errors using tagged error pattern matching

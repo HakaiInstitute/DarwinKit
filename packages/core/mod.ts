@@ -9,7 +9,6 @@ export * from "./src/workspace/workspace.ts";
 // NOTE: WorkspaceValidator class has been removed - use Workspace class directly
 export { importSchemaToWorkspace } from "./src/validation/database/index.ts";
 export { validateDataset } from "./src/validation/dataset-validator.ts";
-export { WorkspaceImportError, WorkspaceValidationError } from "./src/validation/utils.ts";
 
 // Transformation
 export * from "./src/transform.ts";
@@ -18,4 +17,13 @@ export * from "./src/transform.ts";
 export * from "./src/import/get_dwc_schema.ts";
 
 // Error tag types (for test autocomplete)
-export type { CoreErrorTag } from "./src/errors.ts";
+export {
+  ConfigNotFoundError,
+  ConfigParseError,
+  ConfigValidationError,
+  DatasetFileNotFoundError,
+  WorkspaceImportError,
+  WorkspaceValidationError,
+} from "./src/workspace/errors.ts";
+
+export type { ConfigError, CoreErrorTag } from "./src/workspace/errors.ts";

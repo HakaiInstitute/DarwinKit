@@ -5,7 +5,7 @@
 import { assertEquals } from "@std/assert";
 import { ErrorSeverity } from "../errors/severity.ts";
 import type { EnforcementLevel } from "../specs/validators.ts";
-import { enforcementToSeverity, RangeViolation } from "./validation-violation.ts";
+import { enforcementToSeverity } from "./validation-violation.ts";
 
 // ============================================================================
 // enforcementToSeverity Tests

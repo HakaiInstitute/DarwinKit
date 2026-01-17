@@ -3,9 +3,9 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
+import { WorkspaceImportError } from "@dwkt/core";
 import { ErrorCode, resolveDatasetProfile } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
-import { WorkspaceImportError } from "../utils.ts";
 import type { DatasetWithProfile } from "./utils.ts";
 import { sanitizeTableName } from "./utils.ts";
 

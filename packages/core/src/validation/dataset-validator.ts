@@ -8,6 +8,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
+import { WorkspaceValidationError } from "@dwkt/core";
 import type {
   DatasetConfig,
   DatasetValidationResult,
@@ -37,7 +38,7 @@ import {
   validateUniqueness,
   validateVocabulary,
 } from "./field-validators.ts";
-import { partitionFieldViolations, WorkspaceValidationError } from "./utils.ts";
+import { partitionFieldViolations } from "./utils.ts";
 
 /**
  * Merge field definition with profile and field-level overrides

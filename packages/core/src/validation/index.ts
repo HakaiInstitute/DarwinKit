@@ -12,8 +12,6 @@ export {
   type ParsedErrorInfo,
   parseDuckDBError,
   partitionFieldViolations,
-  WorkspaceImportError,
-  WorkspaceValidationError,
 } from "./utils.ts";
 
 // Field-level validators
