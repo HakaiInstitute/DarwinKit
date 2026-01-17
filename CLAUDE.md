@@ -64,15 +64,32 @@ packages/
 │   └── utils/       # Domain utility functions (cause-formatter, etc.)
 │
 ├── core/            # Core functionality: workspace operations, validation, transformation
+│   ├── workspace/   # Workspace management and orchestration
+│   │   ├── workspace.ts    # Main Workspace class
+│   │   ├── validator.ts    # Validator class for validation orchestration
+│   │   ├── transformer.ts  # Transformer class for transformation orchestration
+│   │   └── errors.ts       # Workspace-level errors
 │   ├── validation/  # DuckDB-powered validation operations
-│   │   └── database/      # Database-specific validation (schema-builder, data-loader, csv-import)
+│   │   ├── dataset-validator.ts  # Dataset validation logic
+│   │   ├── field-validators.ts   # Field-level validation
+│   │   └── utils.ts              # Validation utilities
+│   ├── transformation/  # Data transformation operations
+│   │   ├── operations/  # Split transformation operations
+│   │   │   ├── import.ts      # CSV import operations
+│   │   │   ├── schema.ts      # Schema creation operations
+│   │   │   ├── population.ts  # Data population operations
+│   │   │   └── export.ts      # Export operations (CSV, DB)
+│   │   └── errors.ts       # Transformation-specific errors
+│   ├── database/    # Shared database operations
+│   │   ├── connection-manager.ts  # DuckDB connection lifecycle (via Workspace)
+│   │   ├── schema-builder.ts     # Schema creation from profiles
+│   │   ├── csv-importer.ts       # CSV import utilities
+│   │   └── utils.ts              # Database utilities
 │   ├── import/      # Data import utilities
 │   ├── testing/     # Test fixtures and utilities for core tests
 │   ├── utils/       # Core utility functions (effect-utils, string-utils)
 │   ├── csv-parser.ts      # CSV parsing using DuckDB for schema inference
-│   ├── transform.ts       # Data transformation utilities
-│   ├── workspace.ts       # Workspace management with file system operations
-│   └── errors.ts          # Core error definitions
+│   └── transform.ts       # Backward-compatible transformation API
 │
 ├── cli/             # Command-line interface
 │   ├── cmd/         # CLI commands
@@ -224,13 +241,75 @@ Hono-based HTTP API with Effect Schema validation:
 
 ### Core Workflow
 
-DarwinKit's current workflow centers on config-based validation:
+DarwinKit's workflow centers on config-based operations:
 
 1. **Define datasets** in `darwinkit.json` configuration files
 2. **Map fields** from CSV columns to Darwin Core fields
 3. **Configure validation** with profile selection and custom rules
 4. **Run validation** via CLI to check data quality
 5. **Review results** showing validation errors and warnings
+6. **Transform data** to Darwin Core format with field mappings
+7. **Export results** to CSV files and persistent DuckDB
+
+### Workspace Architecture
+
+DarwinKit uses an object-oriented workspace architecture with clear separation of concerns:
+
+**Workspace Class** - Central orchestrator for configuration and lifecycle management:
+
+- Factory methods: `Workspace.discover()`, `Workspace.fromPath()`, `Workspace.create()`
+- Configuration access: `getConfig()`, `getName()`, `getDatasets()`
+- Lazy-initialized properties: `validator` and `transformer`
+- Resource management: `close()` for cleanup
+
+**Validator Class** - Orchestrates validation operations:
+
+- Accessed via `workspace.validator` property
+- Main method: `run(options)` - Executes multi-dataset validation
+- Result caching: `getResult()`, `isValid()` methods
+- Composes DatasetValidator and FieldValidator classes internally
+
+**Transformer Class** - Orchestrates transformation operations:
+
+- Accessed via `workspace.transformer` property
+- Main method: `run(options)` - Executes full transformation pipeline
+- Granular operations: `importData()`, `createSchemas()`, `populateData()`, `exportResults()`
+- Pipeline stages: CSV import → post-import transforms → schema creation → data population → export
+
+**Usage Pattern:**
+
+```typescript
+// Create workspace
+const workspace = await Effect.runPromise(Workspace.discover());
+
+// Validate data
+const validationResult = await Effect.runPromise(workspace.validator.run());
+
+// Transform data (if validation passes)
+if (workspace.validator.isValid()) {
+  await Effect.runPromise(workspace.transformer.run());
+}
+
+// Clean up resources
+workspace.close();
+```
+
+**Backward Compatibility:**
+
+The legacy functional API is still available for backward compatibility:
+
+```typescript
+// Legacy API (still works)
+import { transformFile } from "@dwkt/core";
+await Effect.runPromise(transformFile("./path/to/config"));
+```
+
+However, the new workspace-based API is recommended as it provides:
+
+- Better resource management with explicit `close()`
+- Access to both validation and transformation in one workspace
+- Granular control over transformation pipeline stages
+- Cached validation results
 
 ## Config-Based Validation
 
@@ -307,8 +386,39 @@ import * as Effect from "effect/Effect";
 const workspace = await Effect.runPromise(
   Workspace.discover("./path/to/workspace"),
 );
-const result = await Effect.runPromise(workspace.validate());
+const result = await Effect.runPromise(workspace.validator.run());
 workspace.close();
+```
+
+### Programmatic Transformation
+
+```typescript
+import { Workspace } from "@dwkt/core";
+import * as Effect from "effect/Effect";
+
+const workspace = await Effect.runPromise(
+  Workspace.discover("./path/to/workspace"),
+);
+await Effect.runPromise(workspace.transformer.run());
+workspace.close();
+```
+
+**Transformation with options:**
+
+```typescript
+// Skip import if data already loaded
+await Effect.runPromise(
+  workspace.transformer.run({
+    skipImport: true,
+    skipExport: false,
+  }),
+);
+
+// Run individual operations
+await Effect.runPromise(workspace.transformer.importData());
+await Effect.runPromise(workspace.transformer.createSchemas());
+await Effect.runPromise(workspace.transformer.populateData());
+await Effect.runPromise(workspace.transformer.exportResults());
 ```
 
 ### Example Configuration
@@ -404,12 +514,15 @@ const workspace = await Effect.runPromise(
 );
 
 // Run validation
-const result = await Effect.runPromise(workspace.validate());
+const result = await Effect.runPromise(workspace.validator.run());
+
+// Run transformation
+await Effect.runPromise(workspace.transformer.run());
 
 // Access workspace state
 console.log(workspace.getName());
 console.log(workspace.getDatasets());
-console.log(workspace.isValid());
+console.log(workspace.validator.isValid());
 
 // Clean up when done
 workspace.close();
@@ -433,6 +546,27 @@ workspace.close();
 - TanStack React Form for all form handling
 
 ## Development Guidelines
+
+### Workspace Development Patterns
+
+**When working with Workspace, Validator, and Transformer classes:**
+
+1. **Use workspace-managed connections**: Operations should receive `workspace` as a parameter and extract connections internally via `workspace.getConnection()`. Never create standalone DuckDB connections for operations.
+
+2. **Lazy initialization**: The `validator` and `transformer` properties are lazily initialized on first access. They share the same workspace instance and connection pool.
+
+3. **Resource cleanup**: Always call `workspace.close()` when done to clean up DuckDB connections and resources. Use `try/finally` blocks or Effect's cleanup mechanisms.
+
+4. **Consistent patterns**:
+   - Validation: `workspace.validator.run(options)` returns validation results
+   - Transformation: `workspace.transformer.run(options)` executes pipeline
+   - Both support granular operations for fine-grained control
+
+5. **Operation structure**: Transformation operations are split into focused modules:
+   - `import.ts` - CSV import and post-import transforms
+   - `schema.ts` - Schema table creation from profiles
+   - `population.ts` - Data population with field mappings
+   - `export.ts` - Export to CSV and DuckDB files
 
 ### Error Handling with Effect
 
