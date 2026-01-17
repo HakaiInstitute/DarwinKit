@@ -6,16 +6,13 @@
  * in the workspace configuration.
  */
 
+import { createTableFromSchema, populateSchemaFromDataTables, Workspace } from "@dwkt/core";
+import type { WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { DuckDBConnection } from "@duckdb/node-api";
-import { createTableFromSchema, populateSchemaFromDataTables } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
 
 Deno.test("populateSchemaFromDataTables - populates schema from source tables", async () => {
-  // 1. Setup: In-memory DuckDB and test configuration
-  const connection = await DuckDBConnection.create();
-
+  // 1. Setup: Test configuration
   const config: WorkspaceConfig = {
     version: "1",
     name: "Data Population Test Workspace",
@@ -60,7 +57,12 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
     },
   };
 
+  const workspace = Workspace.create(config);
+
   try {
+    // Get connection from workspace for setup
+    const connection = await Effect.runPromise(workspace.getConnection());
+
     // 2. Arrange: Create source tables, data, and target schema
     // Create source tables with mock data
     await connection.run(
@@ -77,10 +79,10 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
     );
 
     // Create the target schema tables (they will be empty)
-    await Effect.runPromise(createTableFromSchema(connection, config));
+    await Effect.runPromise(createTableFromSchema(workspace));
 
     // 3. Act: Execute the data population function
-    const effect = populateSchemaFromDataTables(connection, config);
+    const effect = populateSchemaFromDataTables(workspace);
     await Effect.runPromise(effect);
 
     // 4. Assert: Verify the data was populated and transformed correctly
@@ -112,6 +114,6 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
     );
   } finally {
     // 5. Teardown
-    connection.closeSync();
+    workspace.close();
   }
 });

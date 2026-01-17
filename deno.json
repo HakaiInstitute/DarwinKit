@@ -90,10 +90,10 @@
         "test:cli"
       ]
     },
-    "test:domain": "deno test packages/domain/ --parallel",
-    "test:core": "deno test packages/core/ --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --parallel",
-    "test:integration": "deno test test/ --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --parallel",
-    "test:cli": "deno test packages/cli/ --allow-run --parallel"
+    "test:domain": "deno test packages/domain/ --parallel --reporter=dot",
+    "test:core": "deno test packages/core/ --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --parallel --reporter=dot",
+    "test:integration": "deno test test/ --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --parallel --reporter=dot",
+    "test:cli": "deno test packages/cli/ --allow-run --parallel --reporter=dot"
   },
   "exclude": [
     "dist",

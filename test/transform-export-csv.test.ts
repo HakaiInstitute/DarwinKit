@@ -5,8 +5,7 @@
  * to CSV files according to the workspace configuration.
  */
 
-import { DuckDBConnection } from "@duckdb/node-api";
-import { exportObisTablesToCSV } from "@dwkt/core";
+import { exportObisTablesToCSV, Workspace } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
@@ -14,7 +13,6 @@ import { readCsvFile } from "./helpers/config-utils.ts";
 
 Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", async () => {
   // 1. Setup
-  const connection = await DuckDBConnection.create();
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-export-test-" });
 
   const config: WorkspaceConfig = {
@@ -40,7 +38,12 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
     },
   };
 
+  const workspace = Workspace.create(config);
+
   try {
+    // Get connection from workspace
+    const connection = await Effect.runPromise(workspace.getConnection());
+
     // 2. Arrange: Create and populate tables to be exported
     await connection.run("CREATE TABLE event (eventID TEXT, year INTEGER);");
     await connection.run("INSERT INTO event VALUES ('evt1', 2023);");
@@ -48,7 +51,7 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
     await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1');");
 
     // 3. Act: Execute the export function
-    const effect = exportObisTablesToCSV(connection, config);
+    const effect = exportObisTablesToCSV(workspace);
     await Effect.runPromise(effect);
 
     // 4. Assert: Verify the CSV files and their contents
@@ -70,13 +73,12 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
-    connection.closeSync();
+    workspace.close();
   }
 });
 
 Deno.test("exportObisTablesToCSV - drops null columns when configured", async () => {
   // 1. Setup
-  const connection = await DuckDBConnection.create();
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-export-null-test-" });
 
   const config: WorkspaceConfig = {
@@ -100,7 +102,12 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
     },
   };
 
+  const workspace = Workspace.create(config);
+
   try {
+    // Get connection from workspace
+    const connection = await Effect.runPromise(workspace.getConnection());
+
     // 2. Arrange: Create a table with a column that is entirely NULL
     await connection.run("DROP TABLE IF EXISTS event;");
     await connection.run(
@@ -111,7 +118,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
     );
 
     // 3. Act
-    const effect = exportObisTablesToCSV(connection, config);
+    const effect = exportObisTablesToCSV(workspace);
     await Effect.runPromise(effect);
 
     // 4. Assert
@@ -142,12 +149,11 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
-    connection.closeSync();
+    workspace.close();
   }
 });
 
 Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", async () => {
-  const connection = await DuckDBConnection.create();
   // Invalid path to trigger a file system error
   const invalidOutputDir = "/non_existent_dir/sub_dir";
 
@@ -167,11 +173,13 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
     },
   };
 
-  const effect = exportObisTablesToCSV(connection, config);
+  const workspace = Workspace.create(config);
+
+  const effect = exportObisTablesToCSV(workspace);
   const result = await Effect.runPromise(Effect.flip(effect));
 
   assertEquals(result._tag, "OutputError", "Should fail with OutputError");
   assertEquals(result.outputPath, invalidOutputDir);
 
-  connection.closeSync();
+  workspace.close();
 });

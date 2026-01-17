@@ -5,15 +5,14 @@
  * to a persistent DuckDB file.
  */
 
+import { DuckDBInstance } from "@duckdb/node-api";
+import { exportToPersistentDB, Workspace } from "@dwkt/core";
+import type { WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
-import { exportToPersistentDB } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
 
 Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
-  // 1. Setup: In-memory DB, temp output dir, and config
-  const connection = await DuckDBConnection.create();
+  // 1. Setup: temp output dir and config
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-db-export-test-" });
 
   const config: WorkspaceConfig = {
@@ -40,9 +39,13 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     },
   };
 
+  const workspace = Workspace.create(config);
   const dbPath = `${outputDir}/test-output.duckdb`;
 
   try {
+    // Get connection from workspace
+    const connection = await Effect.runPromise(workspace.getConnection());
+
     // 2. Arrange: Create and populate tables in the in-memory DB
     await connection.run("CREATE TABLE event (eventID TEXT, year INTEGER);");
     await connection.run("INSERT INTO event VALUES ('evt1', 2025);");
@@ -50,7 +53,7 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1');");
 
     // 3. Act: Execute the export function
-    await Effect.runPromise(exportToPersistentDB(connection, config));
+    await Effect.runPromise(exportToPersistentDB(workspace));
 
     // 4. Assert: Verify the contents of the created DB file
     // Connect to the newly created persistent DB file
@@ -73,12 +76,11 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
-    connection.closeSync();
+    workspace.close();
   }
 });
 
 Deno.test("exportToPersistentDB - does nothing if exportDB is false", async () => {
-  const connection = await DuckDBConnection.create();
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-db-no-export-" });
   const config: WorkspaceConfig = {
     version: "1",
@@ -99,12 +101,14 @@ Deno.test("exportToPersistentDB - does nothing if exportDB is false", async () =
     },
   };
 
-  await Effect.runPromise(exportToPersistentDB(connection, config));
+  const workspace = Workspace.create(config);
+
+  await Effect.runPromise(exportToPersistentDB(workspace));
 
   // Assert that no files were created in the output directory
   const files = Array.from(Deno.readDirSync(outputDir));
   assertEquals(files.length, 0, "No database file should be created when exportDB is false");
 
   await Deno.remove(outputDir, { recursive: true });
-  connection.closeSync();
+  workspace.close();
 });

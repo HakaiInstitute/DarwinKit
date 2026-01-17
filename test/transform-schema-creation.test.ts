@@ -5,8 +5,8 @@
  * ENUM types, and constraints from a workspace configuration.
  */
 
-import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
-import { createTableFromSchema } from "@dwkt/core";
+import { DuckDBConnection } from "@duckdb/node-api";
+import { createTableFromSchema, Workspace } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
@@ -104,10 +104,7 @@ async function getForeignKeys(
 }
 
 Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", async () => {
-  // 1. Setup: Isolated in-memory DuckDB instance and test configuration
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-
+  // 1. Setup: Test configuration
   const config: WorkspaceConfig = {
     version: "1",
     name: "",
@@ -139,10 +136,15 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
     },
   };
 
+  const workspace = Workspace.create(config);
+
   try {
     // 2. Execute the function
-    const effect = createTableFromSchema(connection, config);
+    const effect = createTableFromSchema(workspace);
     await Effect.runPromise(effect);
+
+    // Get connection for verification
+    const connection = await Effect.runPromise(workspace.getConnection());
 
     // 3. Verify the results
     // Verify that ENUMs are created for controlled vocabulary fields
@@ -234,15 +236,11 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
     assert(hasForeignKey, "Occurrence should have a foreign key to Event via eventID");
   } finally {
     // 4. Teardown
-    connection.closeSync();
-    instance.closeSync();
+    workspace.close();
   }
 });
 
 Deno.test("createTableFromSchema - handles complex schema with multiple tables and FKs", async () => {
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-
   const config: WorkspaceConfig = {
     version: "1",
     name: "",
@@ -270,8 +268,13 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
     },
   };
 
+  const workspace = Workspace.create(config);
+
   try {
-    await Effect.runPromise(createTableFromSchema(connection, config));
+    await Effect.runPromise(createTableFromSchema(workspace));
+
+    // Get connection for verification
+    const connection = await Effect.runPromise(workspace.getConnection());
 
     // Verify Event table
     const eventInfo = await connection.runAndReadAll("PRAGMA table_info(event);");
@@ -339,15 +342,11 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
       "ExtendedMeasurementOrFact should have a foreign key to Occurrence",
     );
   } finally {
-    connection.closeSync();
-    instance.closeSync();
+    workspace.close();
   }
 });
 
 Deno.test("createTableFromSchema - comprehensive FK verification", async () => {
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-
   const config: WorkspaceConfig = {
     version: "1",
     name: "",
@@ -369,8 +368,13 @@ Deno.test("createTableFromSchema - comprehensive FK verification", async () => {
     },
   };
 
+  const workspace = Workspace.create(config);
+
   try {
-    await Effect.runPromise(createTableFromSchema(connection, config));
+    await Effect.runPromise(createTableFromSchema(workspace));
+
+    // Get connection for verification
+    const connection = await Effect.runPromise(workspace.getConnection());
 
     // Test 1: Verify specific FK exists
     const hasFK = await verifyForeignKey(
@@ -414,7 +418,6 @@ Deno.test("createTableFromSchema - comprehensive FK verification", async () => {
       "FK constraint should follow naming convention",
     );
   } finally {
-    connection.closeSync();
-    instance.closeSync();
+    workspace.close();
   }
 });
