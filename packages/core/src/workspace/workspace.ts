@@ -36,8 +36,8 @@ import * as YAML from "js-yaml";
 // Import validation functions and database utilities
 import { hasValidationConfig } from "@dwkt/domain";
 import { importCsv, importSchemaToWorkspace, sanitizeTableName } from "../database/index.ts";
+import { ConstraintValidator } from "../validation/constraint-validator.ts";
 import { validateDataset } from "../validation/dataset-validator.ts";
-import { validateCrossDatasetRule } from "../validation/field-validators.ts";
 import { calculateSummary } from "../validation/utils.ts";
 import {
   type ConfigError,
@@ -835,9 +835,10 @@ export class Workspace {
           // Validate cross-dataset rules if provided
           const crossDatasetResults = [];
           if (config.crossDatasetRules && !validationSettings.failFast) {
+            const constraintValidator = new ConstraintValidator(connection, datasets);
             for (const rule of config.crossDatasetRules) {
               const result = yield* _(
-                validateCrossDatasetRule(connection, rule, datasets),
+                constraintValidator.validateRule(rule),
               );
               crossDatasetResults.push(result);
             }

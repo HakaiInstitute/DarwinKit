@@ -34,11 +34,7 @@ import {
 } from "@dwkt/domain";
 import { sanitizeTableName } from "../database/index.ts";
 import { insertRowByRow } from "./data-loader.ts";
-import {
-  validateRangeConstraints,
-  validateUniqueness,
-  validateVocabulary,
-} from "./field-validators.ts";
+import { FieldValidator } from "./field-validator.ts";
 import { partitionFieldViolations } from "./utils.ts";
 
 /**
@@ -290,6 +286,9 @@ export function validateDataset(
       }
     }
 
+    // Create field validator for this dataset
+    const fieldValidator = new FieldValidator(connection, tableName);
+
     // Validate each field mapping
     for (const mapping of dataset?.fieldMappings || []) {
       // Require profile for validation - normalized fields are the source of truth
@@ -388,12 +387,7 @@ export function validateDataset(
       if (specField) {
         // Range/constraint validation
         const rangeViolations = yield* _(
-          validateRangeConstraints(
-            connection,
-            tableName,
-            mapping.originName,
-            specField,
-          ),
+          fieldValidator.validateRange(mapping.originName, specField),
         );
 
         if (rangeViolations.length > 0) {
@@ -410,12 +404,7 @@ export function validateDataset(
 
         if (hasVocab && !hasEnumConstraint) {
           const vocabViolations = yield* _(
-            validateVocabulary(
-              connection,
-              tableName,
-              mapping.originName,
-              specField,
-            ),
+            fieldValidator.validateVocabulary(mapping.originName, specField),
           );
 
           // Add violations to allViolations for partitioning
@@ -438,12 +427,7 @@ export function validateDataset(
 
         if (hasUniqueValidator && !isPrimaryKeyField) {
           const uniqueViolations = yield* _(
-            validateUniqueness(
-              connection,
-              tableName,
-              mapping.originName,
-              specField,
-            ),
+            fieldValidator.validateUniqueness(mapping.originName, specField),
           );
 
           // Add violations to allViolations for partitioning

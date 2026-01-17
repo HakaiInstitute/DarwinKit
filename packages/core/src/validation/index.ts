@@ -1,9 +1,13 @@
 /**
  * Validation module - Exports for workspace validation functionality
  *
- * This module provides a single entry point for all validation-related functionality.
- * Organized by category for clarity.
+ * This module provides validation functionality using class-based validators
+ * and utility functions. Organized by category for clarity.
  */
+
+// Validation classes (NEW - preferred approach)
+export { ConstraintValidator } from "./constraint-validator.ts";
+export { FieldValidator } from "./field-validator.ts";
 
 // Error classes and utilities
 export {
@@ -14,7 +18,7 @@ export {
   partitionFieldViolations,
 } from "./utils.ts";
 
-// Field-level validators
+// Backward-compatible validation functions (kept for compatibility)
 export {
   findCrossDatasetViolations,
   findRangeViolations,
