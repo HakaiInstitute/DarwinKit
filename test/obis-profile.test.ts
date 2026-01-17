@@ -148,7 +148,7 @@ Deno.test({
 
       // Validate
       const workspace = await Effect.runPromise(Workspace.discover(tempDir));
-      const result = await Effect.runPromise(workspace.validate());
+      const result = await Effect.runPromise(workspace.validator.run());
       workspace.close();
 
       // Should pass validation (may have warnings for strongly-recommended fields)
@@ -219,7 +219,7 @@ Deno.test({
       // NOTE: This test is missing the geodeticDatum field mapping, and geodeticDatum
       // is marked as NOT NULL in the OBIS Event Core profile schema.
       // The validation detects this as a required field error and marks the dataset as failed.
-      const result = await Effect.runPromise(workspace.validate());
+      const result = await Effect.runPromise(workspace.validator.run());
       workspace.close();
 
       // Verify we get a failed validation result
@@ -282,7 +282,7 @@ Deno.test("OBIS Profile - applies depth range constraints", async () => {
 
     // Validate
     const workspace = await Effect.runPromise(Workspace.discover(tempDir));
-    const result = await Effect.runPromise(workspace.validate());
+    const result = await Effect.runPromise(workspace.validator.run());
     workspace.close();
 
     // Should detect depth constraint violations

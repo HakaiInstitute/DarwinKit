@@ -4,9 +4,9 @@
 
 // Workspace management
 export * from "./src/workspace/workspace.ts";
+export { Validator } from "./src/workspace/validator.ts";
 
 // Validation utilities
-// NOTE: WorkspaceValidator class has been removed - use Workspace class directly
 export { importSchemaToWorkspace } from "./src/database/index.ts";
 export { validateDataset } from "./src/validation/dataset-validator.ts";
 

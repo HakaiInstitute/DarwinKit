@@ -260,7 +260,7 @@ export async function validate(options: {
 
     // Run validation
     const results = yield* _(
-      workspace.validate({
+      workspace.validator.run({
         failFast: options.failFast,
       }),
     );

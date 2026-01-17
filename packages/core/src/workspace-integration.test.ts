@@ -290,7 +290,7 @@ async function createSingleDatasetWorkspace(
 async function validateWorkspace(tempDir: string): Promise<WorkspaceValidationResult> {
   const workspace = await Effect.runPromise(Workspace.discover(tempDir));
   try {
-    return await Effect.runPromise(workspace.validate());
+    return await Effect.runPromise(workspace.validator.run());
   } finally {
     workspace.close();
   }
@@ -593,7 +593,7 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
     // TODO: Consider making this a warning instead of an error
     const workspace = await Effect.runPromise(Workspace.discover(tempDir));
     const error = await Effect.runPromise(
-      Effect.flip(workspace.validate()).pipe(
+      Effect.flip(workspace.validator.run()).pipe(
         Effect.ensuring(Effect.sync(() => workspace.close())),
       ),
     );

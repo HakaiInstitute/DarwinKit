@@ -71,7 +71,7 @@ Deno.test({
       await writeWorkspaceConfig(tempDir, config);
 
       const workspace = await Effect.runPromise(Workspace.discover(tempDir));
-      const result = await Effect.runPromise(workspace.validate());
+      const result = await Effect.runPromise(workspace.validator.run());
       workspace.close();
 
       // Should detect constraint violations

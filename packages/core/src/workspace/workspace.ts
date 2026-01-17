@@ -14,18 +14,12 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import type {
-  DatasetConfig,
-  ValidationSettings,
-  WorkspaceConfig,
-  WorkspaceValidationResult,
-} from "@dwkt/domain";
+import type { DatasetConfig, WorkspaceConfig, WorkspaceValidationResult } from "@dwkt/domain";
 import {
   createTaggedFormatter,
-  ErrorCode,
+  hasValidationConfig,
   isValidationOnlyConfig,
   prettyPrintCause,
-  resolveDatasetProfile,
   workspaceConfigSchema,
 } from "@dwkt/domain";
 import { dirname, join, resolve } from "@std/path";
@@ -33,12 +27,8 @@ import type * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as YAML from "js-yaml";
-// Import validation functions and database utilities
-import { hasValidationConfig } from "@dwkt/domain";
-import { importCsv, importSchemaToWorkspace, sanitizeTableName } from "../database/index.ts";
-import { ConstraintValidator } from "../validation/constraint-validator.ts";
-import { validateDataset } from "../validation/dataset-validator.ts";
-import { calculateSummary } from "../validation/utils.ts";
+// Import database utilities
+import { importCsv } from "../database/index.ts";
 import {
   type ConfigError,
   ConfigNotFoundError,
@@ -46,8 +36,8 @@ import {
   ConfigValidationError,
   DatasetFileNotFoundError,
   type WorkspaceImportError,
-  WorkspaceValidationError,
 } from "./errors.ts";
+import { Validator } from "./validator.ts";
 
 /**
  * Format configuration-specific errors using tagged error pattern matching
@@ -124,15 +114,12 @@ export class Workspace {
   };
 
   /**
-   * Cached validation result from the last validation run
+   * Lazy-initialized validator instance
    *
-   * Updated each time validate() is called. Allows querying validation
-   * state without re-running validation.
-   *
-   * TODO: This will need to be cleared any time the configuration or a dataset
-   * is modified.
+   * Created on first access to workspace.validator property.
+   * Handles all validation orchestration and result caching.
    */
-  private validationResult?: WorkspaceValidationResult;
+  private _validator?: Validator;
 
   /**
    * Private constructor - use static factory methods to create instances
@@ -483,6 +470,31 @@ export class Workspace {
   }
 
   /**
+   * Get the validator for this workspace
+   *
+   * Lazy-initializes the validator on first access. The validator handles
+   * all validation orchestration and result caching.
+   *
+   * @returns Validator instance for this workspace
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * const result = await Effect.runPromise(workspace.validator.validate());
+   *
+   * if (workspace.validator.isValid()) {
+   *   console.log("All datasets valid!");
+   * }
+   * ```
+   */
+  get validator(): Validator {
+    if (!this._validator) {
+      this._validator = new Validator(this);
+    }
+    return this._validator;
+  }
+
+  /**
    * Get the workspace version
    *
    * @returns Workspace version from configuration
@@ -503,7 +515,7 @@ export class Workspace {
   /**
    * Get the cached validation result from the last validation run
    *
-   * Returns undefined if validate() has not been called yet.
+   * Returns undefined if validator.validate() has not been called yet.
    *
    * @returns Last validation result, or undefined if not yet validated
    *
@@ -512,12 +524,12 @@ export class Workspace {
    * const workspace = await Effect.runPromise(Workspace.discover());
    * console.log(workspace.getValidationResult()); // undefined
    *
-   * await Effect.runPromise(workspace.validate());
+   * await Effect.runPromise(workspace.validator.validate());
    * const result = workspace.getValidationResult(); // WorkspaceValidationResult
    * ```
    */
   getValidationResult(): WorkspaceValidationResult | undefined {
-    return this.validationResult;
+    return this.validator.getResult();
   }
 
   /**
@@ -533,14 +545,14 @@ export class Workspace {
    * const workspace = await Effect.runPromise(Workspace.discover());
    * console.log(workspace.isValid()); // false (not validated yet)
    *
-   * await Effect.runPromise(workspace.validate());
+   * await Effect.runPromise(workspace.validator.validate());
    * if (workspace.isValid()) {
    *   console.log("All datasets are valid!");
    * }
    * ```
    */
   isValid(): boolean {
-    return this.validationResult?.overallStatus === "pass";
+    return this.validator.isValid();
   }
 
   /**
@@ -715,166 +727,6 @@ export class Workspace {
       );
 
       return result.getRowObjects();
-    });
-  }
-
-  /**
-   * Validate all datasets in the workspace
-   *
-   * This is the main validation entry point that:
-   * - Creates a DuckDB workspace
-   * - Validates each dataset according to its profile
-   * - Validates cross-dataset rules
-   * - Returns comprehensive validation results
-   *
-   * @param options - Optional validation settings
-   * @param options.failFast - Stop validation on first critical error
-   * @returns Effect containing validation results
-   *
-   * @example
-   * ```typescript
-   * const workspace = await Effect.runPromise(Workspace.discover());
-   * const result = await Effect.runPromise(workspace.validate());
-   *
-   * if (result.overallStatus === "pass") {
-   *   console.log("All datasets valid!");
-   * }
-   * ```
-   */
-  validate(
-    options?: {
-      failFast?: boolean;
-    },
-  ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
-    const config = this.config;
-    const configPath = this.configPath;
-
-    return Effect.gen(this, function* (_) {
-      const startTime = Date.now();
-
-      // Ensure config has validation settings
-      if (!("validation" in config)) {
-        return yield* _(
-          Effect.fail(
-            new WorkspaceValidationError({
-              message: `Configuration '${configPath}' does not contain validation settings`,
-              code: ErrorCode.INVALID_CONFIG,
-            }),
-          ),
-        );
-      }
-
-      if (!("datasets" in config.validation)) {
-        return yield* _(
-          Effect.fail(
-            new WorkspaceValidationError({
-              message: `Configuration '${configPath}' does not contain datasets`,
-              code: ErrorCode.INVALID_CONFIG,
-            }),
-          ),
-        );
-      }
-
-      // Override validation settings with options if provided
-      const validationSettings: ValidationSettings = options?.failFast !== undefined
-        ? { ...config.validation, failFast: options.failFast }
-        : config.validation;
-
-      // Get datasets
-      const datasets: readonly DatasetConfig[] = config.validation.datasets;
-
-      // Get or create managed DuckDB connection (reused across validations)
-      const connection = yield* _(this.getConnection());
-
-      // Generate workspace ID for this validation run
-      const workspaceId = config.id;
-      const basePath = dirname(configPath);
-
-      // Load each dataset into DuckDB
-      for (const dataset of datasets) {
-        const filePath = resolve(basePath, dataset.path);
-        // Prepend 'raw_' to table name because dataset.name and spec/profile cannot be the same name otherwise tables conflict
-        const tableName = `raw_${sanitizeTableName(dataset.name)}`;
-
-        // Import CSV using the instance method
-        yield* _(
-          this.importCsv(
-            filePath,
-            tableName,
-            true,
-          ),
-        );
-
-        // Import schema for validation
-        const connection = yield* _(this.getConnection());
-        yield* _(importSchemaToWorkspace(connection, dataset, datasets));
-      }
-
-      // Perform validation
-      const result = yield* _(
-        Effect.gen(function* (_) {
-          // Validate each dataset
-          const datasetResults = [];
-
-          for (const dataset of datasets) {
-            // Resolve validation profile (explicit profile or derived from spec)
-            const datasetProfile = resolveDatasetProfile(dataset);
-
-            const result = yield* _(
-              validateDataset(connection, dataset, datasetProfile, validationSettings),
-            );
-
-            datasetResults.push(result);
-
-            // Fail-fast if enabled and we have critical errors
-            if (validationSettings.failFast && result.status === "fail") {
-              break;
-            }
-          }
-
-          // Validate cross-dataset rules if provided
-          const crossDatasetResults = [];
-          if (config.crossDatasetRules && !validationSettings.failFast) {
-            const constraintValidator = new ConstraintValidator(connection, datasets);
-            for (const rule of config.crossDatasetRules) {
-              const result = yield* _(
-                constraintValidator.validateRule(rule),
-              );
-              crossDatasetResults.push(result);
-            }
-          }
-
-          // Calculate summary
-          const summary = calculateSummary(datasetResults);
-          const totalProcessingTimeMs = Date.now() - startTime;
-
-          // Determine overall status based on dataset results
-          let overallStatus: "fail" | "warn" | "pass";
-          if (summary.datasetsFailedCount > 0) {
-            overallStatus = "fail";
-          } else if (summary.datasetsWithWarningsCount > 0) {
-            overallStatus = "warn";
-          } else {
-            overallStatus = "pass";
-          }
-
-          return {
-            workspaceId,
-            configPath,
-            validatedAt: new Date(),
-            totalProcessingTimeMs,
-            overallStatus,
-            datasetResults,
-            crossDatasetResults,
-            summary,
-          };
-        }),
-      );
-
-      // Cache the result for state queries (after successful validation)
-      this.validationResult = result;
-
-      return result;
     });
   }
 

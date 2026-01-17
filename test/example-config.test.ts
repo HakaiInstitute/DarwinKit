@@ -24,7 +24,7 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
   //
   // taxonRank uses "recommended" enforcement in Darwin Core, so violations are
   // collected as warnings rather than errors.
-  const result = await Effect.runPromise(workspace.validate());
+  const result = await Effect.runPromise(workspace.validator.run());
   workspace.close();
 
   // Verify we get successful validation result

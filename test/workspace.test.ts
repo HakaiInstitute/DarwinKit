@@ -292,7 +292,7 @@ Deno.test("Workspace - validate with passing dataset", async () => {
     const workspace = await Effect.runPromise(Workspace.fromPath(configPath));
 
     // Run validation
-    const result = await Effect.runPromise(workspace.validate());
+    const result = await Effect.runPromise(workspace.validator.run());
 
     assertEquals(result.overallStatus, "pass");
     assertEquals(result.datasetResults.length, 1);
@@ -371,7 +371,7 @@ Deno.test("Workspace - validate updates cached state", async () => {
     assertEquals(workspace.getValidationResult(), undefined);
 
     // Run validation
-    await Effect.runPromise(workspace.validate());
+    await Effect.runPromise(workspace.validator.run());
 
     // State after validation
     const cached = workspace.getValidationResult();
@@ -407,7 +407,7 @@ Deno.test("Workspace - validate with real example-config", async () => {
     assertEquals(datasets.length, 2);
 
     // Validate
-    const result = await Effect.runPromise(workspace.validate());
+    const result = await Effect.runPromise(workspace.validator.run());
 
     // Should have results for both datasets
     assertEquals(result.datasetResults.length, 2);

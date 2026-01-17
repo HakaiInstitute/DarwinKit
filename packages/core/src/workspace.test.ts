@@ -369,7 +369,7 @@ Deno.test("Workspace.validate - validates datasets successfully", async () => {
     );
 
     const result = await Effect.runPromise(
-      workspace.validate(),
+      workspace.validator.run(),
     );
 
     assertExists(result);
@@ -417,7 +417,7 @@ Deno.test("Workspace.validate - validates multiple datasets", async () => {
     );
 
     const result = await Effect.runPromise(
-      workspace.validate(),
+      workspace.validator.run(),
     );
 
     assertExists(result);
@@ -453,7 +453,7 @@ Deno.test("Workspace.validate - fails on config without validation settings", as
     );
 
     const result = await Effect.runPromise(
-      workspace.validate().pipe(Effect.either),
+      workspace.validator.run().pipe(Effect.either),
     );
 
     assert(result._tag === "Left");
@@ -487,7 +487,7 @@ Deno.test("Workspace - connection is created on first validation", async () => {
     );
 
     // First validation - creates connection
-    const result = await Effect.runPromise(workspace.validate());
+    const result = await Effect.runPromise(workspace.validator.run());
 
     assertExists(result);
     assertEquals(result.overallStatus, "pass");
@@ -518,13 +518,13 @@ Deno.test("Workspace - multiple validations work correctly", async () => {
     );
 
     // Multiple validations should all work
-    const result1 = await Effect.runPromise(workspace.validate());
+    const result1 = await Effect.runPromise(workspace.validator.run());
     assertEquals(result1.overallStatus, "pass");
 
-    const result2 = await Effect.runPromise(workspace.validate());
+    const result2 = await Effect.runPromise(workspace.validator.run());
     assertEquals(result2.overallStatus, "pass");
 
-    const result3 = await Effect.runPromise(workspace.validate());
+    const result3 = await Effect.runPromise(workspace.validator.run());
     assertEquals(result3.overallStatus, "pass");
 
     // Clean up
@@ -586,7 +586,7 @@ Deno.test("Workspace.getValidationResult - returns cached result after validatio
     );
 
     // Run validation
-    const validationResult = await Effect.runPromise(workspace.validate());
+    const validationResult = await Effect.runPromise(workspace.validator.run());
 
     // Should return same result from cache
     const cachedResult = workspace.getValidationResult();
@@ -649,7 +649,7 @@ Deno.test("Workspace.isValid - returns true after passing validation", async () 
     );
 
     // Run validation
-    const result = await Effect.runPromise(workspace.validate());
+    const result = await Effect.runPromise(workspace.validator.run());
     assertEquals(result.overallStatus, "pass");
 
     // Should return true after passing validation
@@ -681,7 +681,7 @@ Deno.test("Workspace.isValid - returns false for non-passing validation", async 
     );
 
     // Run validation (should produce warnings or fail - not a full "pass")
-    const result = await Effect.runPromise(workspace.validate());
+    const result = await Effect.runPromise(workspace.validator.run());
 
     // The key test is that isValid() matches the overall status
     if (result.overallStatus === "pass") {
@@ -717,7 +717,7 @@ Deno.test("Workspace - state updates after multiple validations", async () => {
     );
 
     // First validation
-    const result1 = await Effect.runPromise(workspace.validate());
+    const result1 = await Effect.runPromise(workspace.validator.run());
     assertEquals(result1.overallStatus, "pass");
     assert(workspace.isValid());
 
@@ -726,7 +726,7 @@ Deno.test("Workspace - state updates after multiple validations", async () => {
     assertEquals(cached1.validatedAt, result1.validatedAt);
 
     // Second validation (should update state)
-    const result2 = await Effect.runPromise(workspace.validate());
+    const result2 = await Effect.runPromise(workspace.validator.run());
     assertEquals(result2.overallStatus, "pass");
     assert(workspace.isValid());
 
