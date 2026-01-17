@@ -37,6 +37,7 @@ import {
   DatasetFileNotFoundError,
   type WorkspaceImportError,
 } from "./errors.ts";
+import { Transformer } from "./transformer.ts";
 import { Validator } from "./validator.ts";
 
 /**
@@ -120,6 +121,14 @@ export class Workspace {
    * Handles all validation orchestration and result caching.
    */
   private _validator?: Validator;
+
+  /**
+   * Lazy-initialized transformer instance
+   *
+   * Created on first access to workspace.transformer property.
+   * Handles all transformation orchestration and pipeline execution.
+   */
+  private _transformer?: Transformer;
 
   /**
    * Private constructor - use static factory methods to create instances
@@ -492,6 +501,28 @@ export class Workspace {
       this._validator = new Validator(this);
     }
     return this._validator;
+  }
+
+  /**
+   * Get the workspace transformer
+   *
+   * Provides access to transformation operations for this workspace.
+   * The transformer is lazily initialized on first access.
+   *
+   * @returns Transformer instance for this workspace
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * const result = await Effect.runPromise(workspace.transformer.transform());
+   * workspace.close();
+   * ```
+   */
+  get transformer(): Transformer {
+    if (!this._transformer) {
+      this._transformer = new Transformer(this);
+    }
+    return this._transformer;
   }
 
   /**

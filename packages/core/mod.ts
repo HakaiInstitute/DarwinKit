@@ -4,6 +4,7 @@
 
 // Workspace management
 export * from "./src/workspace/workspace.ts";
+export { Transformer } from "./src/workspace/transformer.ts";
 export { Validator } from "./src/workspace/validator.ts";
 
 // Validation utilities
