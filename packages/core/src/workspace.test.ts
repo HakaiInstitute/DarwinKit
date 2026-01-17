@@ -23,6 +23,7 @@ import {
   writeCsvFile,
   writeJsonFile,
 } from "../../../test/helpers/config-utils.ts";
+import { ConfigMissingSettingsError } from "./workspace/errors.ts";
 
 // ============================================================================
 // Test Constants & Fixtures
@@ -452,12 +453,43 @@ Deno.test("Workspace.validate - fails on config without validation settings", as
       Workspace.fromPath(configPath),
     );
 
-    const result = await Effect.runPromise(
-      workspace.validator.run().pipe(Effect.either),
+    // Calling validator.run() should fail with ConfigMissingSettingsError
+    await assertEffectFails(
+      workspace.validator.run(),
+      ConfigMissingSettingsError,
+    );
+  });
+});
+
+Deno.test("Workspace.transform - fails on config without transformation settings", async () => {
+  await withTempDir(async (tempDir) => {
+    // Create test CSV file for a validation-only config
+    await writeCsvFile(tempDir, "test", [
+      { eventID: "E1", country: "Canada" },
+    ]);
+
+    // Create a validation-only config (no transform section)
+    const { configPath } = await createTestConfig(tempDir, {
+      name: "Validation Only",
+      validation: {
+        ...DEFAULT_VALIDATION_SETTINGS,
+        datasets: [
+          createDatasetConfig("events", "dwc-event", "./test.csv", [
+            { originName: "eventID", targetName: "eventID", isRequired: true },
+          ]),
+        ],
+      },
+    });
+
+    const workspace = await Effect.runPromise(
+      Workspace.fromPath(configPath),
     );
 
-    assert(result._tag === "Left");
-    assert(result.left.message.includes("does not contain validation settings"));
+    // Calling transformer.run() should fail with ConfigMissingSettingsError
+    await assertEffectFails(
+      workspace.transformer.run(),
+      ConfigMissingSettingsError,
+    );
   });
 });
 

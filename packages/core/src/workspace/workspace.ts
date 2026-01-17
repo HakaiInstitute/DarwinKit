@@ -14,7 +14,14 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import type { DatasetConfig, WorkspaceConfig, WorkspaceValidationResult } from "@dwkt/domain";
+import type {
+  DatasetConfig,
+  TransformAndValidationConfig,
+  TransformOnlyConfig,
+  ValidationOnlyConfig,
+  WorkspaceConfig,
+  WorkspaceValidationResult,
+} from "@dwkt/domain";
 import {
   createTaggedFormatter,
   hasValidationConfig,
@@ -28,9 +35,11 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as YAML from "js-yaml";
 // Import database utilities
+import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
 import { importCsv } from "../database/index.ts";
 import {
   type ConfigError,
+  ConfigMissingSettingsError,
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
@@ -54,6 +63,9 @@ const formatConfigError = createTaggedFormatter<ConfigError>({
   },
   ConfigParseError: (error) => {
     return `Failed to parse configuration file: ${error.configPath}\n\n${error.message}\n\nCause: ${error.cause?.message}`;
+  },
+  ConfigMissingSettingsError: (error) => {
+    return `Configuration is missing the following settings: ${error.missingSetting}\n\n${error.message}\n\nCause: ${error.cause?.message}`;
   },
   ConfigValidationError: (error) => {
     return `Configuration validation failed: ${error.configPath}\n\nValidation errors:\n${
@@ -83,6 +95,36 @@ export function prettyPrintConfigError(
 // Configuration file constants
 const DEFAULT_CONFIG_FILENAME = "darwinkit.json";
 const MAX_SEARCH_DEPTH = 10;
+
+/**
+ * Branded workspace type for workspaces with transformation configuration.
+ *
+ * This type intersection ensures that:
+ * - The workspace has transformation settings in its config
+ * - getConfig() returns a config with transformation capabilities
+ * - Transformation operations can safely access config.transform
+ *
+ * Use the workspace.assertHasTransformations() method to narrow a
+ * regular Workspace to this type.
+ */
+export type WorkspaceWithTransformations = Workspace & {
+  getConfig(): TransformOnlyConfig | TransformAndValidationConfig;
+};
+
+/**
+ * Branded workspace type for workspaces with validation configuration.
+ *
+ * This type intersection ensures that:
+ * - The workspace has validation settings in its config
+ * - getConfig() returns a config with validation capabilities
+ * - Validation operations can safely access config.validation
+ *
+ * Use the workspace.assertHasValidation() method to narrow a
+ * regular Workspace to this type.
+ */
+export type WorkspaceWithValidation = Workspace & {
+  getConfig(): ValidationOnlyConfig | TransformAndValidationConfig;
+};
 
 /**
  * Workspace class - represents a single Darwin Core data project
@@ -355,7 +397,8 @@ export class Workspace {
       }
 
       // Check transform inputs if present
-      if ("transform" in config && config.transform) {
+      //
+      if (hasTransformationConfig(config)) {
         for (const [inputName, path] of Object.entries(config.transform.inputs)) {
           if (typeof path !== "string") continue;
 
@@ -479,12 +522,99 @@ export class Workspace {
   }
 
   /**
+   * Assert that this workspace has validation configuration.
+   *
+   * This method narrows the workspace type to WorkspaceWithValidation,
+   * allowing TypeScript to know that getConfig() returns a config with
+   * validation settings.
+   *
+   * @throws Error if workspace configuration does not include validation settings
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * workspace.assertHasValidation(); // Throws if no validation config
+   * // TypeScript now knows workspace is WorkspaceWithValidation
+   * const config = workspace.getConfig();
+   * config.validation // ✓ TypeScript knows this exists
+   * ```
+   */
+  assertHasValidation(): asserts this is WorkspaceWithValidation {
+    if (!hasValidationConfig(this.config)) {
+      throw new ConfigMissingSettingsError({
+        message: "Workspace configuration does not include validation settings. " +
+          "Add a 'validation' section to your darwinkit.json to enable validation operations.",
+        missingSetting: "validation",
+      });
+    }
+  }
+
+  /**
+   * Get the validation config from this workspace.
+   *
+   * Helper method that asserts the workspace has validation configuration
+   * and returns the properly typed config.
+   *
+   * @returns Config with validation settings
+   * @throws Error if workspace configuration does not include validation settings
+   */
+  getValidationConfig(): ValidationOnlyConfig | TransformAndValidationConfig {
+    this.assertHasValidation();
+    // Safe cast: assertHasValidation() guarantees this.config has validation
+    return this.config as ValidationOnlyConfig | TransformAndValidationConfig;
+  }
+
+  /**
+   * Assert that this workspace has transformation configuration.
+   *
+   * This method narrows the workspace type to WorkspaceWithTransformations,
+   * allowing TypeScript to know that getConfig() returns a config with
+   * transformation settings.
+   *
+   * @throws Error if workspace configuration does not include transformation settings
+   *
+   * @example
+   * ```typescript
+   * const workspace = await Effect.runPromise(Workspace.discover());
+   * workspace.assertHasTransformations(); // Throws if no transform config
+   * // TypeScript now knows workspace is WorkspaceWithTransformations
+   * const config = workspace.getConfig();
+   * config.transform // ✓ TypeScript knows this exists
+   * ```
+   */
+  assertHasTransformations(): asserts this is WorkspaceWithTransformations {
+    if (!hasTransformationConfig(this.config)) {
+      throw new ConfigMissingSettingsError({
+        message: "Workspace configuration does not include transformation settings. " +
+          "Add a 'transform' section to your darwinkit.json to enable transformation operations.",
+        missingSetting: "transform",
+      });
+    }
+  }
+
+  /**
+   * Get the transformation config from this workspace.
+   *
+   * Helper method that asserts the workspace has transformation configuration
+   * and returns the properly typed config.
+   *
+   * @returns Config with transformation settings
+   * @throws Error if workspace configuration does not include transformation settings
+   */
+  getTransformConfig(): TransformOnlyConfig | TransformAndValidationConfig {
+    this.assertHasTransformations();
+    // Safe cast: assertHasTransformations() guarantees this.config has transform
+    return this.config as TransformOnlyConfig | TransformAndValidationConfig;
+  }
+
+  /**
    * Get the validator for this workspace
    *
    * Lazy-initializes the validator on first access. The validator handles
    * all validation orchestration and result caching.
    *
    * @returns Validator instance for this workspace
+   * @throws Error if workspace configuration does not include validation settings
    *
    * @example
    * ```typescript
@@ -514,7 +644,7 @@ export class Workspace {
    * @example
    * ```typescript
    * const workspace = await Effect.runPromise(Workspace.discover());
-   * const result = await Effect.runPromise(workspace.transformer.transform());
+   * const result = await Effect.runPromise(workspace.transformer.run());
    * workspace.close();
    * ```
    */
@@ -601,7 +731,7 @@ export class Workspace {
    * ```
    */
   getDatasets(): readonly DatasetConfig[] {
-    if (!("validation" in this.config)) {
+    if (!hasValidationConfig(this.config)) {
       return [];
     }
     return this.config.validation.datasets || [];
@@ -708,9 +838,9 @@ export class Workspace {
 
       // Get nullValues from either validation or transform config
       let nullValues: readonly string[] = [];
-      if (hasValidationConfig(this.config) && this.config.validation?.nullValues) {
+      if (hasValidationConfig(this.config)) {
         nullValues = this.config.validation.nullValues;
-      } else if ("transform" in this.config && this.config.transform?.nullValues) {
+      } else if (hasTransformationConfig(this.config)) {
         nullValues = this.config.transform.nullValues;
       }
 

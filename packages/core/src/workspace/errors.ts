@@ -62,6 +62,14 @@ export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
   readonly code = ErrorCode.PARSE_ERROR;
 }
 
+export class ConfigMissingSettingsError extends Data.TaggedError("ConfigMissingSettingsError")<{
+  readonly message: string;
+  readonly missingSetting: string;
+  readonly cause?: Error;
+}> {
+  readonly code = ErrorCode.MISSING_SETTINGS;
+}
+
 export class ConfigValidationError extends Data.TaggedError("ConfigValidationError")<{
   readonly message: string;
   readonly configPath: string;
@@ -84,6 +92,7 @@ export class DatasetFileNotFoundError extends Data.TaggedError("DatasetFileNotFo
 export type ConfigError =
   | ConfigNotFoundError
   | ConfigParseError
+  | ConfigMissingSettingsError
   | ConfigValidationError
   | DatasetFileNotFoundError;
 
@@ -98,6 +107,7 @@ export type CoreErrorTag =
   // Configuration Management
   | InstanceType<typeof ConfigNotFoundError>["_tag"]
   | InstanceType<typeof ConfigParseError>["_tag"]
+  | InstanceType<typeof ConfigMissingSettingsError>["_tag"]
   | InstanceType<typeof ConfigValidationError>["_tag"]
   | InstanceType<typeof DatasetFileNotFoundError>["_tag"]
   // Validation & Import

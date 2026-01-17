@@ -10,6 +10,7 @@ import { exportToPersistentDB, Workspace } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
+import { hasTransformationConfig } from "../packages/domain/src/schemas/workspace-config.ts";
 
 Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
   // 1. Setup: temp output dir and config
@@ -53,7 +54,15 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1');");
 
     // 3. Act: Execute the export function
-    await Effect.runPromise(exportToPersistentDB(workspace));
+    const config = workspace.getConfig();
+    if (!hasTransformationConfig(config)) {
+      throw new Error("Expected transform config");
+    }
+    await Effect.runPromise(exportToPersistentDB(connection, config.transform.datasets, {
+      outputDir: config.transform.output.outputDir,
+      withTimestamp: config.transform.output.outputFilesWithTimestamp,
+      fileName: config.transform.output.exportDBFileName,
+    }));
 
     // 4. Assert: Verify the contents of the created DB file
     // Connect to the newly created persistent DB file
@@ -102,8 +111,14 @@ Deno.test("exportToPersistentDB - does nothing if exportDB is false", async () =
   };
 
   const workspace = Workspace.create(config);
+  const connection = await Effect.runPromise(workspace.getConnection());
 
-  await Effect.runPromise(exportToPersistentDB(workspace));
+  // When exportDB is false, we still call the function but it should skip export
+  await Effect.runPromise(exportToPersistentDB(connection, config.transform.datasets, {
+    outputDir: config.transform.output.outputDir,
+    withTimestamp: false,
+    fileName: "obis",
+  }));
 
   // Assert that no files were created in the output directory
   const files = Array.from(Deno.readDirSync(outputDir));

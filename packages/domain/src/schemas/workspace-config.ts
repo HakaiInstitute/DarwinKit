@@ -77,7 +77,7 @@ export const validationSettingsSchema = S.Struct({
  */
 export const transformSettingsSchema = S.Struct({
   nullValues: S.Array(S.String),
-  inputs: S.Object,
+  inputs: S.Record({ key: S.String, value: S.String }), // Map of table names to CSV file paths
   postImportTransforms: S.optional(S.Array(S.String)),
   datasets: S.Array(transformDatasetConfigSchema),
   output: S.Struct({

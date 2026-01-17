@@ -10,6 +10,7 @@ import { createTableFromSchema, populateSchemaFromDataTables, Workspace } from "
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
+import { hasTransformationConfig } from "../packages/domain/src/schemas/workspace-config.ts";
 
 Deno.test("populateSchemaFromDataTables - populates schema from source tables", async () => {
   // 1. Setup: Test configuration
@@ -79,10 +80,15 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
     );
 
     // Create the target schema tables (they will be empty)
-    await Effect.runPromise(createTableFromSchema(workspace));
+    const config = workspace.getConfig();
+    if (!hasTransformationConfig(config)) {
+      throw new Error("Expected transform config");
+    }
+
+    await Effect.runPromise(createTableFromSchema(connection, config.transform.datasets));
 
     // 3. Act: Execute the data population function
-    const effect = populateSchemaFromDataTables(workspace);
+    const effect = populateSchemaFromDataTables(connection, config.transform.datasets);
     await Effect.runPromise(effect);
 
     // 4. Assert: Verify the data was populated and transformed correctly

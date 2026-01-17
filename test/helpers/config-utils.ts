@@ -17,6 +17,7 @@ export {
   readCsvFile,
   toCsvString,
   withTestDirectory,
+  withTestWorkspace,
   writeCsvFile,
 } from "../../packages/core/src/testing/csv-fixtures.ts";
 

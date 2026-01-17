@@ -10,6 +10,7 @@ import { createTableFromSchema, Workspace } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
+import { hasTransformationConfig } from "../packages/domain/src/schemas/workspace-config.ts";
 
 /**
  * Helper function to verify foreign key constraints in DuckDB
@@ -139,12 +140,17 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
   const workspace = Workspace.create(config);
 
   try {
-    // 2. Execute the function
-    const effect = createTableFromSchema(workspace);
-    await Effect.runPromise(effect);
-
     // Get connection for verification
     const connection = await Effect.runPromise(workspace.getConnection());
+    const config = workspace.getConfig();
+
+    if (!hasTransformationConfig(config)) {
+      throw new Error("Expected transform config");
+    }
+
+    // 2. Execute the function
+    const effect = createTableFromSchema(connection, config.transform.datasets);
+    await Effect.runPromise(effect);
 
     // 3. Verify the results
     // Verify that ENUMs are created for controlled vocabulary fields
@@ -271,10 +277,15 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
   const workspace = Workspace.create(config);
 
   try {
-    await Effect.runPromise(createTableFromSchema(workspace));
-
     // Get connection for verification
     const connection = await Effect.runPromise(workspace.getConnection());
+    const config = workspace.getConfig();
+
+    if (!hasTransformationConfig(config)) {
+      throw new Error("Expected transform config");
+    }
+
+    await Effect.runPromise(createTableFromSchema(connection, config.transform.datasets));
 
     // Verify Event table
     const eventInfo = await connection.runAndReadAll("PRAGMA table_info(event);");
@@ -371,10 +382,11 @@ Deno.test("createTableFromSchema - comprehensive FK verification", async () => {
   const workspace = Workspace.create(config);
 
   try {
-    await Effect.runPromise(createTableFromSchema(workspace));
-
     // Get connection for verification
     const connection = await Effect.runPromise(workspace.getConnection());
+    const config = workspace.getTransformConfig();
+
+    await Effect.runPromise(createTableFromSchema(connection, config.transform.datasets));
 
     // Test 1: Verify specific FK exists
     const hasFK = await verifyForeignKey(

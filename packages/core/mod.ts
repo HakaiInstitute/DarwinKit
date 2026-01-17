@@ -7,9 +7,8 @@ export * from "./src/workspace/workspace.ts";
 export { Transformer } from "./src/workspace/transformer.ts";
 export { Validator } from "./src/workspace/validator.ts";
 
-// Validation utilities
-export { importSchemaToWorkspace } from "./src/database/index.ts";
-export { validateDataset } from "./src/validation/dataset-validator.ts";
+// Database utilities
+export { importCsv, importSchemaToWorkspace } from "./src/database/index.ts";
 
 // Transformation
 export * from "./src/transform.ts";
@@ -19,6 +18,7 @@ export * from "./src/import/get_dwc_schema.ts";
 
 // Error tag types (for test autocomplete)
 export {
+  ConfigMissingSettingsError,
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,

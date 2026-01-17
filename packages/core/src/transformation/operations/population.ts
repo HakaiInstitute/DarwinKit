@@ -2,31 +2,48 @@
  * Population operations - Populate schema tables with transformed data
  */
 
+import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
+import type { TransformDatasetConfig } from "@dwkt/domain";
 import { ErrorCode, getValidationProfile } from "@dwkt/domain";
-import type { Workspace } from "../../workspace/workspace.ts";
 import { TransformationError } from "../errors.ts";
 
 /**
- * Populates the schema tables with data from the source data tables using SQL transformations.
+ * Populates schema tables with data from source tables using SQL transformations.
  *
- * @param workspace - The workspace containing configuration and connection
- * @returns An Effect that completes when the tables are populated, or fails with a TransformationError.
+ * This function reads the field mappings and source configurations from each dataset,
+ * generates INSERT...SELECT statements, and populates the target schema tables.
+ *
+ * This function takes explicit dependencies rather than a workspace reference,
+ * making it easier to test and reuse in different contexts.
+ *
+ * @param connection - DuckDB connection to use for populating tables
+ * @param datasets - Array of dataset configurations with field transformations
+ * @returns An Effect that completes when tables are populated, or fails with a TransformationError.
+ *
+ * @example
+ * ```typescript
+ * const connection = yield* createConnection();
+ * yield* populateSchemaFromDataTables(connection, [
+ *   {
+ *     name: "events",
+ *     profile: "Event",
+ *     source: { e: "raw_events" },
+ *     fields: {
+ *       eventID: "e.event_id",
+ *       eventDate: "e.date"
+ *     }
+ *   }
+ * ]);
+ * ```
  */
 export function populateSchemaFromDataTables(
-  workspace: Workspace,
+  connection: DuckDBConnection,
+  datasets: readonly TransformDatasetConfig[],
 ): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
-    const config = workspace.getConfig();
-    const connection = yield* _(workspace.getConnection());
-
-    // Type guard - ensure config has transform settings
-    if (!("transform" in config)) {
-      return;
-    }
-
-    for (const dataset of config.transform.datasets) {
+    for (const dataset of datasets) {
       if (!dataset.fields) {
         return yield* _(Effect.fail(
           new TransformationError({
@@ -59,8 +76,9 @@ export function populateSchemaFromDataTables(
       const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) => {
         // Simple table names don't contain spaces, just an identifier
         // Only wrap subqueries in parentheses, not simple table names
-        const isSimpleTable = !joinSQL.trim().includes(" ");
-        return isSimpleTable ? `${joinSQL} AS ${tableName}` : `(${joinSQL}) AS ${tableName}`;
+        const joinSQLStr = String(joinSQL);
+        const isSimpleTable = !joinSQLStr.trim().includes(" ");
+        return isSimpleTable ? `${joinSQLStr} AS ${tableName}` : `(${joinSQLStr}) AS ${tableName}`;
       }).join(", ");
 
       const insertSQL = `INSERT INTO ${tableName} (${targetColumnNames.join(", ")}) SELECT ${

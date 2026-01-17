@@ -8,6 +8,7 @@
 import * as Effect from "effect/Effect";
 
 import type {
+  ConfigMissingSettingsError,
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
@@ -27,15 +28,7 @@ export {
   runPostImportTransformations,
 } from "./transformation/operations/index.ts";
 
-// Import operations for use in transformFile
-import {
-  createTableFromSchema,
-  createTablesFromCSV,
-  exportObisTablesToCSV,
-  exportToPersistentDB,
-  populateSchemaFromDataTables,
-  runPostImportTransformations,
-} from "./transformation/operations/index.ts";
+// Import error types for use in function signature
 import type { OutputError, TransformationError } from "./transformation/errors.ts";
 
 /**
@@ -53,6 +46,7 @@ export function transformFile(
   | TransformationError
   | OutputError
   | WorkspaceImportError
+  | ConfigMissingSettingsError
   | ConfigNotFoundError
   | ConfigParseError
   | ConfigValidationError
@@ -63,23 +57,8 @@ export function transformFile(
     const workspace = yield* _(Workspace.discover(configPath));
 
     try {
-      console.log("Creating tables from CSV files...");
-      yield* _(createTablesFromCSV(workspace));
-
-      // Execute any post-import SQL transformations defined in the configuration.
-      yield* _(runPostImportTransformations(workspace));
-
-      console.log("Creating OBIS tables from schema...");
-      yield* _(createTableFromSchema(workspace));
-
-      console.log("Populating OBIS tables from data tables...");
-      yield* _(populateSchemaFromDataTables(workspace));
-
-      console.log("Exporting OBIS tables to CSV...");
-      yield* _(exportObisTablesToCSV(workspace));
-
-      console.log("Exporting DuckDB database to persistent file...");
-      yield* _(exportToPersistentDB(workspace));
+      // Use the workspace transformer for the actual transformation
+      yield* _(workspace.transformer.run());
     } finally {
       // Clean up workspace resources
       workspace.close();

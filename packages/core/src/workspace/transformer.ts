@@ -8,6 +8,8 @@
  * - Export to CSV and DuckDB
  */
 
+import { hasTransformationConfig } from "@dwkt/domain";
+import { dirname } from "@std/path";
 import * as Effect from "effect/Effect";
 
 import type { OutputError, TransformationError } from "../transformation/errors.ts";
@@ -19,7 +21,7 @@ import {
   populateSchemaFromDataTables,
   runPostImportTransformations,
 } from "../transformation/operations/index.ts";
-import type { WorkspaceImportError } from "./errors.ts";
+import { ConfigMissingSettingsError, type WorkspaceImportError } from "./errors.ts";
 import type { Workspace } from "./workspace.ts";
 
 /**
@@ -55,6 +57,27 @@ export class Transformer {
   constructor(private workspace: Workspace) {}
 
   /**
+   * Get the transformation config from the workspace, failing if not present.
+   *
+   * @returns Effect yielding the transform config or ConfigMissingSettingsError
+   */
+  private getTransformConfig() {
+    const config = this.workspace.getConfig();
+
+    if (!hasTransformationConfig(config)) {
+      return Effect.fail(
+        new ConfigMissingSettingsError({
+          message: "Workspace configuration does not include transformation settings. " +
+            "Add a 'transform' section to your darwinkit.json to enable transformation operations.",
+          missingSetting: "transform",
+        }),
+      );
+    }
+
+    return Effect.succeed(config);
+  }
+
+  /**
    * Execute the full transformation pipeline.
    *
    * @param options - Optional configuration for transformation operations
@@ -62,37 +85,64 @@ export class Transformer {
    */
   run(
     options: TransformOptions = {},
-  ): Effect.Effect<void, TransformationError | OutputError | WorkspaceImportError, never> {
+  ): Effect.Effect<
+    void,
+    TransformationError | OutputError | WorkspaceImportError | ConfigMissingSettingsError,
+    never
+  > {
     const workspace = this.workspace;
     const { skipImport = false, skipPostImport = false, skipExport = false } = options;
 
-    return Effect.gen(function* () {
+    return Effect.gen(this, function* () {
+      const config = yield* this.getTransformConfig();
+      const connection = yield* workspace.getConnection();
+
+      const basePath = dirname(workspace.getConfigPath());
+
       // Step 1: Import CSV files
       if (!skipImport) {
         console.log("Creating tables from CSV files...");
-        yield* createTablesFromCSV(workspace);
+        yield* createTablesFromCSV(
+          connection,
+          config.transform.inputs,
+          basePath,
+          config.transform.nullValues,
+        );
       }
 
       // Step 2: Run post-import transformations
       if (!skipPostImport) {
-        yield* runPostImportTransformations(workspace);
+        yield* runPostImportTransformations(
+          connection,
+          config.transform.postImportTransforms || [],
+        );
       }
 
       // Step 3: Create schema tables
       console.log("Creating OBIS tables from schema...");
-      yield* createTableFromSchema(workspace);
+      yield* createTableFromSchema(connection, config.transform.datasets);
 
       // Step 4: Populate schema tables
       console.log("Populating OBIS tables from data tables...");
-      yield* populateSchemaFromDataTables(workspace);
+      yield* populateSchemaFromDataTables(connection, config.transform.datasets);
 
       // Step 5: Export results
       if (!skipExport) {
         console.log("Exporting OBIS tables to CSV...");
-        yield* exportObisTablesToCSV(workspace);
+        yield* exportObisTablesToCSV(connection, config.transform.datasets, {
+          outputDir: config.transform.output.outputDir,
+          withTimestamp: config.transform.output.outputFilesWithTimestamp,
+          dropNullColumns: config.transform.output.dropNullColumns,
+        });
 
-        console.log("Exporting DuckDB database to persistent file...");
-        yield* exportToPersistentDB(workspace);
+        if (config.transform.output.exportDB) {
+          console.log("Exporting DuckDB database to persistent file...");
+          yield* exportToPersistentDB(connection, config.transform.datasets, {
+            outputDir: config.transform.output.outputDir,
+            withTimestamp: config.transform.output.outputFilesWithTimestamp,
+            fileName: config.transform.output.exportDBFileName,
+          });
+        }
       }
     });
   }
@@ -102,13 +152,27 @@ export class Transformer {
    *
    * Useful for loading data before running validation or other operations.
    */
-  importData(): Effect.Effect<void, TransformationError | WorkspaceImportError, never> {
+  importData(): Effect.Effect<
+    void,
+    TransformationError | WorkspaceImportError | ConfigMissingSettingsError,
+    never
+  > {
     const workspace = this.workspace;
 
-    return Effect.gen(function* () {
+    return Effect.gen(this, function* () {
+      const config = yield* this.getTransformConfig();
+      const connection = yield* workspace.getConnection();
+
+      const basePath = dirname(workspace.getConfigPath());
+
       console.log("Creating tables from CSV files...");
-      yield* createTablesFromCSV(workspace);
-      yield* runPostImportTransformations(workspace);
+      yield* createTablesFromCSV(
+        connection,
+        config.transform.inputs,
+        basePath,
+        config.transform.nullValues,
+      );
+      yield* runPostImportTransformations(connection, config.transform.postImportTransforms || []);
     });
   }
 
@@ -117,12 +181,15 @@ export class Transformer {
    *
    * Useful for verifying schema structure before data import.
    */
-  createSchemas(): Effect.Effect<void, WorkspaceImportError, never> {
+  createSchemas(): Effect.Effect<void, WorkspaceImportError | ConfigMissingSettingsError, never> {
     const workspace = this.workspace;
 
-    return Effect.gen(function* () {
+    return Effect.gen(this, function* () {
+      const config = yield* this.getTransformConfig();
+      const connection = yield* workspace.getConnection();
+
       console.log("Creating OBIS tables from schema...");
-      yield* createTableFromSchema(workspace);
+      yield* createTableFromSchema(connection, config.transform.datasets);
     });
   }
 
@@ -131,12 +198,15 @@ export class Transformer {
    *
    * Useful for re-running transformations after fixing data issues.
    */
-  populateData(): Effect.Effect<void, TransformationError, never> {
+  populateData(): Effect.Effect<void, TransformationError | ConfigMissingSettingsError, never> {
     const workspace = this.workspace;
 
-    return Effect.gen(function* () {
+    return Effect.gen(this, function* () {
+      const config = yield* this.getTransformConfig();
+      const connection = yield* workspace.getConnection();
+
       console.log("Populating OBIS tables from data tables...");
-      yield* populateSchemaFromDataTables(workspace);
+      yield* populateSchemaFromDataTables(connection, config.transform.datasets);
     });
   }
 
@@ -145,15 +215,28 @@ export class Transformer {
    *
    * Useful for re-exporting after manual data corrections.
    */
-  exportResults(): Effect.Effect<void, OutputError, never> {
+  exportResults(): Effect.Effect<void, OutputError | ConfigMissingSettingsError, never> {
     const workspace = this.workspace;
 
-    return Effect.gen(function* () {
-      console.log("Exporting OBIS tables to CSV...");
-      yield* exportObisTablesToCSV(workspace);
+    return Effect.gen(this, function* () {
+      const config = yield* this.getTransformConfig();
+      const connection = yield* workspace.getConnection();
 
-      console.log("Exporting DuckDB database to persistent file...");
-      yield* exportToPersistentDB(workspace);
+      console.log("Exporting OBIS tables to CSV...");
+      yield* exportObisTablesToCSV(connection, config.transform.datasets, {
+        outputDir: config.transform.output.outputDir,
+        withTimestamp: config.transform.output.outputFilesWithTimestamp,
+        dropNullColumns: config.transform.output.dropNullColumns,
+      });
+
+      if (config.transform.output.exportDB) {
+        console.log("Exporting DuckDB database to persistent file...");
+        yield* exportToPersistentDB(connection, config.transform.datasets, {
+          outputDir: config.transform.output.outputDir,
+          withTimestamp: config.transform.output.outputFilesWithTimestamp,
+          fileName: config.transform.output.exportDBFileName,
+        });
+      }
     });
   }
 }

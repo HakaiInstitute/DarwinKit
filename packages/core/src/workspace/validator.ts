@@ -24,6 +24,7 @@ import { importSchemaToWorkspace, sanitizeTableName } from "../database/index.ts
 import { ConstraintValidator } from "../validation/constraint-validator.ts";
 import { validateDataset } from "../validation/dataset-validator.ts";
 import { calculateSummary } from "../validation/utils.ts";
+import { ConfigMissingSettingsError } from "./errors.ts";
 import type { Workspace } from "./workspace.ts";
 
 /**
@@ -52,6 +53,27 @@ export class Validator {
   constructor(private readonly workspace: Workspace) {}
 
   /**
+   * Get the validation config from the workspace, failing if not present.
+   *
+   * @returns Effect yielding the validation config or ConfigMissingSettingsError
+   */
+  private getValidationConfig() {
+    const config = this.workspace.getConfig();
+
+    if (!hasValidationConfig(config)) {
+      return Effect.fail(
+        new ConfigMissingSettingsError({
+          message: "Workspace configuration does not include validation settings. " +
+            "Add a 'validation' section to your darwinkit.json to enable validation operations.",
+          missingSetting: "validation",
+        }),
+      );
+    }
+
+    return Effect.succeed(config);
+  }
+
+  /**
    * Validate all datasets in the workspace
    *
    * This is the main validation entry point that:
@@ -78,26 +100,18 @@ export class Validator {
     options?: {
       failFast?: boolean;
     },
-  ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
-    const config = this.workspace.getConfig();
-    const configPath = this.workspace.getConfigPath();
+  ): Effect.Effect<
+    WorkspaceValidationResult,
+    WorkspaceValidationError | ConfigMissingSettingsError
+  > {
+    const workspace = this.workspace;
+    const configPath = workspace.getConfigPath();
 
     return Effect.gen(this, function* (_) {
+      const config = yield* _(this.getValidationConfig());
       const startTime = Date.now();
 
-      // Ensure config has validation settings using type guard
-      if (!hasValidationConfig(config)) {
-        return yield* _(
-          Effect.fail(
-            new WorkspaceValidationError({
-              message: `Configuration '${configPath}' does not contain validation settings`,
-              code: ErrorCode.INVALID_CONFIG,
-            }),
-          ),
-        );
-      }
-
-      // Type narrowed to validation config - now we can safely access config.validation
+      // Type narrowed to validation config - we can safely access config.validation
       const datasets = config.validation.datasets;
 
       // Ensure datasets exist

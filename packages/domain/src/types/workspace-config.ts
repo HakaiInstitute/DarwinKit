@@ -13,7 +13,9 @@ import type {
   configWithValidationSchema,
   datasetConfigSchema,
   transformAndValidationConfigSchema,
+  transformDatasetConfigSchema,
   transformOnlyConfigSchema,
+  transformSettingsSchema,
   validationSettingsSchema,
   workspaceConfigSchema,
   workspaceCrossDatasetRuleSchema,
@@ -22,9 +24,11 @@ import type {
 
 // Types derived from schemas
 export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
+export type TransformSettings = S.Schema.Type<typeof transformSettingsSchema>;
 export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
 export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
+export type TransformDatasetConfig = S.Schema.Type<typeof transformDatasetConfigSchema>;
 export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
 export type ValidationOnlyConfig = S.Schema.Type<typeof validationOnlyConfigSchema>;
 export type TransformOnlyConfig = S.Schema.Type<typeof transformOnlyConfigSchema>;
