@@ -8,7 +8,8 @@
  * - Export to CSV and DuckDB
  */
 
-import { hasTransformationConfig } from "@dwkt/domain";
+import type { ConfigMissingSettingsError, ConfigWithTransformation } from "@dwkt/domain";
+import { requireTransform } from "@dwkt/domain";
 import { dirname } from "@std/path";
 import * as Effect from "effect/Effect";
 
@@ -21,7 +22,7 @@ import {
   populateSchemaFromDataTables,
   runPostImportTransformations,
 } from "../transformation/operations/index.ts";
-import { ConfigMissingSettingsError, type WorkspaceImportError } from "./errors.ts";
+import type { WorkspaceImportError } from "./errors.ts";
 import type { Workspace } from "./workspace.ts";
 
 /**
@@ -59,22 +60,15 @@ export class Transformer {
   /**
    * Get the transformation config from the workspace, failing if not present.
    *
+   * Uses the requireTransform helper for type-safe access to transform settings.
+   *
    * @returns Effect yielding the transform config or ConfigMissingSettingsError
    */
-  private getTransformConfig() {
-    const config = this.workspace.getConfig();
-
-    if (!hasTransformationConfig(config)) {
-      return Effect.fail(
-        new ConfigMissingSettingsError({
-          message: "Workspace configuration does not include transformation settings. " +
-            "Add a 'transform' section to your darwinkit.json to enable transformation operations.",
-          missingSetting: "transform",
-        }),
-      );
-    }
-
-    return Effect.succeed(config);
+  private getTransformConfig(): Effect.Effect<
+    ConfigWithTransformation,
+    ConfigMissingSettingsError
+  > {
+    return requireTransform(this.workspace.getConfig());
   }
 
   /**
@@ -106,7 +100,7 @@ export class Transformer {
           connection,
           config.transform.inputs,
           basePath,
-          config.transform.nullValues,
+          config.transform.import,
         );
       }
 
@@ -129,19 +123,17 @@ export class Transformer {
       // Step 5: Export results
       if (!skipExport) {
         console.log("Exporting OBIS tables to CSV...");
-        yield* exportObisTablesToCSV(connection, config.transform.datasets, {
-          outputDir: config.transform.output.outputDir,
-          withTimestamp: config.transform.output.outputFilesWithTimestamp,
-          dropNullColumns: config.transform.output.dropNullColumns,
-        });
+        yield* exportObisTablesToCSV(
+          connection,
+          config.transform,
+        );
 
         if (config.transform.output.exportDB) {
           console.log("Exporting DuckDB database to persistent file...");
-          yield* exportToPersistentDB(connection, config.transform.datasets, {
-            outputDir: config.transform.output.outputDir,
-            withTimestamp: config.transform.output.outputFilesWithTimestamp,
-            fileName: config.transform.output.exportDBFileName,
-          });
+          yield* exportToPersistentDB(
+            connection,
+            config.transform,
+          );
         }
       }
     });
@@ -170,7 +162,7 @@ export class Transformer {
         connection,
         config.transform.inputs,
         basePath,
-        config.transform.nullValues,
+        config.transform.import,
       );
       yield* runPostImportTransformations(connection, config.transform.postImportTransforms || []);
     });
@@ -223,19 +215,11 @@ export class Transformer {
       const connection = yield* workspace.getConnection();
 
       console.log("Exporting OBIS tables to CSV...");
-      yield* exportObisTablesToCSV(connection, config.transform.datasets, {
-        outputDir: config.transform.output.outputDir,
-        withTimestamp: config.transform.output.outputFilesWithTimestamp,
-        dropNullColumns: config.transform.output.dropNullColumns,
-      });
+      yield* exportObisTablesToCSV(connection, config.transform);
 
       if (config.transform.output.exportDB) {
         console.log("Exporting DuckDB database to persistent file...");
-        yield* exportToPersistentDB(connection, config.transform.datasets, {
-          outputDir: config.transform.output.outputDir,
-          withTimestamp: config.transform.output.outputFilesWithTimestamp,
-          fileName: config.transform.output.exportDBFileName,
-        });
+        yield* exportToPersistentDB(connection, config.transform);
       }
     });
   }

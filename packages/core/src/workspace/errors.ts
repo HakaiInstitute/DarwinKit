@@ -21,8 +21,11 @@
  */
 
 import type { OutputError, TransformationError } from "@dwkt/core";
-import { ErrorCode } from "@dwkt/domain";
+import { ConfigMissingSettingsError, ErrorCode } from "@dwkt/domain";
 import { Data } from "effect";
+
+// Re-export ConfigMissingSettingsError from domain (defined alongside type predicates)
+export { ConfigMissingSettingsError };
 
 /**
  * Error classes for workspace validation
@@ -60,14 +63,6 @@ export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
   readonly cause?: Error;
 }> {
   readonly code = ErrorCode.PARSE_ERROR;
-}
-
-export class ConfigMissingSettingsError extends Data.TaggedError("ConfigMissingSettingsError")<{
-  readonly message: string;
-  readonly missingSetting: string;
-  readonly cause?: Error;
-}> {
-  readonly code = ErrorCode.MISSING_SETTINGS;
 }
 
 export class ConfigValidationError extends Data.TaggedError("ConfigValidationError")<{

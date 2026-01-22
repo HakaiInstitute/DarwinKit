@@ -3,13 +3,18 @@
   "version": "1.0.0",
   "description": "Test workspace for CLI validation",
   "validation": {
-    "nullValues": [
-      "",
-      "NA",
-      "N/A"
-    ],
+    "import": {
+      "nullValues": [
+        "",
+        "NA",
+        "N/A"
+      ],
+      "dropTable": false
+    },
+    "output": {
+      "dir": "./validation_results"
+    },
     "failFast": false,
-    "outputDir": "./validation_results",
     "datasets": [
       {
         "name": "events",

@@ -4,7 +4,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import type { WorkspaceValidationError } from "@dwkt/core";
-import type { FieldViolation, ValidationProfile, ValidationSettings } from "@dwkt/domain";
+import type { FieldViolation, ValidationConfig, ValidationProfile } from "@dwkt/domain";
 import {
   enforcementToSeverity,
   EnumViolation,
@@ -94,7 +94,7 @@ export function insertRowByRow(
   schemaTableName: string,
   columnMappings: { origin: string; target: string }[],
   profile: ValidationProfile,
-  validationSettings?: ValidationSettings,
+  validationSettings?: ValidationConfig,
 ): Effect.Effect<FieldViolation[], WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     const violations: FieldViolation[] = [];

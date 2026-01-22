@@ -24,6 +24,7 @@
 
 import { Workspace } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
+import { makeImportConfig, makeValidationConfig, makeWorkspaceConfig } from "@dwkt/domain";
 import { parse, stringify } from "@std/csv";
 import { join } from "@std/path";
 
@@ -33,21 +34,22 @@ import { join } from "@std/path";
 
 /** Prefix for all test temp directories */
 export const TEST_DIR_PREFIX = "dwkt_test_";
-export const DEFAULT_TEST_CONFIG: WorkspaceConfig = {
+export const DEFAULT_TEST_CONFIG: WorkspaceConfig = makeWorkspaceConfig({
   id: `test-config`,
   name: `test-config`,
   description: `test config`,
   version: "1.0.0",
   createdAt: new Date(),
   updatedAt: new Date(),
-  validation: {
+  validation: makeValidationConfig({
     description: "test validation",
-    nullValues: ["NA", "N/A", "NULL", ""],
+    import: makeImportConfig({
+      nullValues: ["NA", "N/A", "NULL", ""],
+    }),
     failFast: false,
-    outputDir: "./output",
     datasets: [],
-  },
-};
+  }),
+});
 
 // ============================================================================
 // CSV Writing - Objects → CSV

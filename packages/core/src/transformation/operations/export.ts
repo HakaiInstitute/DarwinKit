@@ -7,33 +7,9 @@ import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 import { json2csv } from "json-2-csv";
 
-import type { TransformDatasetConfig } from "@dwkt/domain";
+import type { TransformSettings } from "@dwkt/domain";
 import { ErrorCode, getValidationProfile } from "@dwkt/domain";
 import { OutputError } from "../errors.ts";
-
-/**
- * Configuration for CSV export operations
- */
-export interface ExportCSVConfig {
-  /** Directory where CSV files should be written */
-  outputDir: string;
-  /** Whether to include timestamp in output filenames (default: true) */
-  withTimestamp?: boolean;
-  /** Whether to drop columns that contain only NULL values (default: false) */
-  dropNullColumns?: boolean;
-}
-
-/**
- * Configuration for DuckDB export operations
- */
-export interface ExportDBConfig {
-  /** Directory where DuckDB file should be written */
-  outputDir: string;
-  /** Whether to include timestamp in output filename (default: true) */
-  withTimestamp?: boolean;
-  /** Filename for exported database (without extension, default: "obis") */
-  fileName?: string;
-}
 
 /**
  * Exports data from schema tables to CSV files.
@@ -49,16 +25,16 @@ export interface ExportDBConfig {
  * @example
  * ```typescript
  * const connection = yield* createConnection();
- * yield* exportObisTablesToCSV(connection,
- *   [{ name: "events", profile: "Event", ... }],
- *   { outputDir: "./output", withTimestamp: true, dropNullColumns: false }
- * );
+ * const settings = {
+ *   datasets: [{ name: "events", profile: "Event", ... }],
+ *   output: { dir: "./output", outputFilesWithTimestamp: true, dropNullColumns: false }
+ * };
+ * yield* exportObisTablesToCSV(connection, settings);
  * ```
  */
 export function exportObisTablesToCSV(
   connection: DuckDBConnection,
-  datasets: readonly TransformDatasetConfig[],
-  config: ExportCSVConfig,
+  { datasets, output }: TransformSettings,
 ): Effect.Effect<void, OutputError> {
   return Effect.gen(function* (_) {
     // If no datasets provided, return early
@@ -66,11 +42,11 @@ export function exportObisTablesToCSV(
       return;
     }
 
-    const withTimestamp = config.withTimestamp ?? true;
+    const withTimestamp = output.outputFilesWithTimestamp ?? true;
     const tables = [
       ...new Set(datasets.map((ds) => ds.profile.toLowerCase())),
     ];
-    const outputPath = config.outputDir;
+    const outputPath = output.dir;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     // Create output directory, recursively if necessary
     yield* _(
@@ -90,7 +66,7 @@ export function exportObisTablesToCSV(
 
     for (const tableName of tables) {
       const selectColumns: string[] = [];
-      if (config.dropNullColumns) {
+      if (output.dropNullColumns) {
         // Get column names
         const columnNamesResult = yield* _(
           Effect.tryPromise({
@@ -181,22 +157,22 @@ export function exportObisTablesToCSV(
  *
  * @param connection - DuckDB connection to use for exporting
  * @param datasets - Array of dataset configurations (used to determine which tables to export)
- * @param config - Export configuration (output directory, timestamp, filename)
+ * @param transformConfig - Export configuration (output directory, timestamp, filename)
  * @returns An Effect that completes when the database is exported, or fails with an OutputError.
  *
  * @example
  * ```typescript
  * const connection = yield* createConnection();
- * yield* exportToPersistentDB(connection,
- *   [{ name: "events", profile: "Event", ... }],
- *   { outputDir: "./output", withTimestamp: true, fileName: "obis" }
- * );
+ * const settings = {
+ *   datasets: [{ name: "events", profile: "Event", ... }],
+ *   output: { dir: "./output", outputFilesWithTimestamp: true, exportDbFileName: "obis" }
+ * };
+ * yield* exportToPersistentDB(connection, settings);
  * ```
  */
 export function exportToPersistentDB(
   connection: DuckDBConnection,
-  datasets: readonly TransformDatasetConfig[],
-  config: ExportDBConfig,
+  { datasets, output }: TransformSettings,
 ): Effect.Effect<void, OutputError> {
   return Effect.gen(function* (_) {
     // If no datasets provided, return early
@@ -204,11 +180,11 @@ export function exportToPersistentDB(
       return;
     }
 
-    const withTimestamp = config.withTimestamp ?? true;
-    const outputPath = config.outputDir;
+    const withTimestamp = output.outputFilesWithTimestamp ?? true;
+    const outputPath = output.dir;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const dbName = "obis"; // Default database name for the exported file
-    const dbFileName = config.fileName || dbName;
+    const dbFileName = output.exportDbFileName || dbName;
     const filename = withTimestamp ? `${dbFileName}-${timestamp}.duckdb` : `${dbFileName}.duckdb`;
     const fullPath = join(outputPath, filename);
 

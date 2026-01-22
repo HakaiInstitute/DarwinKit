@@ -6,13 +6,13 @@
  */
 
 import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
+import { parseSpecIdentifier } from "../../schemas/workspace-config.ts";
 import type {
   Field,
   FieldOverride,
   ValidationProfile,
   ValidationProfileRegistry,
 } from "../../types/validation-profile.ts";
-import { parseSpecIdentifier } from "../../types/workspace-config.ts";
 import { type FieldDefinition, normalizeField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";

@@ -2,39 +2,56 @@
  * Workspace Configuration Types
  *
  * Defines the structure for darwinkit.json configuration files that specify
- * multi-dataset validation workflows. Each dataset is validated against a
- * specification (e.g., Darwin Core) with explicit field mappings.
+ * multi-dataset validation and transformation workflows.
+ *
+ * Note: Most types and functions are defined in and exported from
+ * ../schemas/workspace-config.ts. This file provides additional type aliases
+ * for convenience.
  */
 
-import type { validationOnlyConfigSchema } from "@dwkt/domain";
 import type * as S from "effect/Schema";
 import type {
-  configWithTransformationSchema,
-  configWithValidationSchema,
+  crossDatasetRuleSchema,
   datasetConfigSchema,
-  transformAndValidationConfigSchema,
+  fieldMappingSchema,
+  importConfigSchema,
+  outputConfigSchema,
   transformDatasetConfigSchema,
-  transformOnlyConfigSchema,
-  transformSettingsSchema,
-  validationSettingsSchema,
-  workspaceConfigSchema,
-  workspaceCrossDatasetRuleSchema,
-  workspaceFieldMappingSchema,
+  transformOutputConfigSchema,
 } from "../schemas/workspace-config.ts";
 
-// Types derived from schemas
-export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
-export type TransformSettings = S.Schema.Type<typeof transformSettingsSchema>;
-export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
-export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
+// =============================================================================
+// Common Configuration Types (Type Aliases from Schema Types)
+// =============================================================================
+
+/** Import configuration - common settings for data import */
+export type ImportConfig = S.Schema.Type<typeof importConfigSchema>;
+
+/** Base output configuration */
+export type OutputConfig = S.Schema.Type<typeof outputConfigSchema>;
+
+/** Transform output configuration with additional options */
+export type TransformOutputConfig = S.Schema.Type<typeof transformOutputConfigSchema>;
+
+// =============================================================================
+// Dataset Configuration Types (Type Aliases from Schema Types)
+// =============================================================================
+
+/** Field mapping from source to Darwin Core */
+export type WorkspaceFieldMapping = S.Schema.Type<typeof fieldMappingSchema>;
+
+/** Cross-dataset relationship rule */
+export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof crossDatasetRuleSchema>;
+
+/** Dataset configuration for validation */
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
+
+/** Dataset configuration for transformation */
 export type TransformDatasetConfig = S.Schema.Type<typeof transformDatasetConfigSchema>;
-export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
-export type ValidationOnlyConfig = S.Schema.Type<typeof validationOnlyConfigSchema>;
-export type TransformOnlyConfig = S.Schema.Type<typeof transformOnlyConfigSchema>;
-export type TransformAndValidationConfig = S.Schema.Type<typeof transformAndValidationConfigSchema>;
-export type ConfigWithValidation = S.Schema.Type<typeof configWithValidationSchema>;
-export type ConfigWithTransformation = S.Schema.Type<typeof configWithTransformationSchema>;
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
 
 /**
  * Supported spec identifiers

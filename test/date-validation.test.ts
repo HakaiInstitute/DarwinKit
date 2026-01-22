@@ -6,9 +6,16 @@
  */
 
 import { Workspace } from "@dwkt/core";
-import { isRangeViolation, type WorkspaceConfig } from "@dwkt/domain";
+import type { ConfigWithValidation } from "@dwkt/domain";
+import {
+  fieldMappingSchema,
+  isRangeViolation,
+  makeValidationConfig,
+  makeWorkspaceConfig,
+} from "@dwkt/domain";
 import { assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
+import { makeImportConfig } from "../packages/domain/src/schemas/workspace-config.ts";
 import { withTestDirectory, writeCsvFile, writeWorkspaceConfig } from "./helpers/config-utils.ts";
 
 // ============================================================================
@@ -40,14 +47,14 @@ Deno.test({
       // Write CSV from structured data
       await writeCsvFile(tempDir, "events", TEST_DATA.DATE_VALIDATION_EVENTS);
 
-      const config: WorkspaceConfig = {
+      const config = makeWorkspaceConfig({
         id: "date-test-workspace",
         name: "Date Validation Test",
         version: "1.0.0",
-        validation: {
-          nullValues: [""],
+        validation: makeValidationConfig({
+          // import: override nullValues for this test
+          import: makeImportConfig({ nullValues: [""] }),
           failFast: false,
-          outputDir: "./output",
           datasets: [
             {
               name: "events",
@@ -55,18 +62,19 @@ Deno.test({
               path: "./events.csv",
               profile: "Event",
               fieldMappings: [
-                { originName: "eventID", targetName: "eventID" },
-                { originName: "year", targetName: "year" },
-                { originName: "month", targetName: "month" },
-                { originName: "day", targetName: "day" },
-                { originName: "eventDate", targetName: "eventDate" },
+                fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+                fieldMappingSchema.make({ originName: "year", targetName: "year" }),
+                fieldMappingSchema.make({ originName: "month", targetName: "month" }),
+                fieldMappingSchema.make({ originName: "day", targetName: "day" }),
+                fieldMappingSchema.make({
+                  originName: "eventDate",
+                  targetName: "eventDate",
+                }),
               ],
             },
           ],
-        },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+        }),
+      }) as ConfigWithValidation;
 
       await writeWorkspaceConfig(tempDir, config);
 

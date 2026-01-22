@@ -16,7 +16,7 @@
  */
 
 // CSV import (pure function)
-export { type CsvImportOptions, importCsv } from "./csv-importer.ts";
+export { importCsv } from "./csv-importer.ts";
 
 // Schema creation (pure function)
 export { importSchemaToWorkspace } from "./schema-builder.ts";

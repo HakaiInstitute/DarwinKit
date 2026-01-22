@@ -12,6 +12,7 @@ import {
   Workspace,
 } from "@dwkt/core";
 import type { ConfigWithValidation, DatasetConfig } from "@dwkt/domain";
+import { decodeDatasetConfig, makeValidationConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertGreaterOrEqual } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
@@ -19,7 +20,6 @@ import * as Effect from "effect/Effect";
 // Import shared test utilities
 import {
   createTestConfig,
-  DEFAULT_VALIDATION_SETTINGS,
   writeCsvFile,
   writeJsonFile,
 } from "../../../test/helpers/config-utils.ts";
@@ -32,18 +32,32 @@ import { ConfigMissingSettingsError } from "./workspace/errors.ts";
 const TEST_CONFIG_FILENAME = "darwinkit.json";
 const TEST_DIR_PREFIX = "workspace_test_";
 
-/** Factory for creating dataset configurations */
+/** Local validation settings with correct nested structure */
+const VALIDATION_SETTINGS = makeValidationConfig({
+  import: {
+    nullValues: ["", "NA"],
+    dropTable: false,
+  },
+  output: {
+    dir: "./output",
+  },
+  failFast: false,
+  datasets: [],
+});
+
+/** Factory for creating dataset configurations with validation and defaults */
 const createDatasetConfig = (
   name: string,
   spec: string,
   path: string,
   fieldMappings: DatasetConfig["fieldMappings"] = [],
-): DatasetConfig => ({
-  name,
-  spec,
-  path,
-  fieldMappings,
-});
+): DatasetConfig =>
+  decodeDatasetConfig({
+    name,
+    spec,
+    path,
+    fieldMappings,
+  });
 
 // ============================================================================
 // Test Helpers
@@ -187,7 +201,7 @@ Deno.test("Workspace.fromPath - validates dataset file paths exist", async () =>
   await withTempDir(async (tempDir) => {
     const { configPath } = await createTestConfig(tempDir, {
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("test_dataset", "dwc-event", "./nonexistent.csv"),
         ],
@@ -213,7 +227,7 @@ Deno.test("Workspace.fromPath - succeeds when dataset files exist", async () => 
     const { config, configPath } = await createTestConfig(tempDir, {
       name: "Valid Dataset Workspace",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             {
@@ -233,8 +247,7 @@ Deno.test("Workspace.fromPath - succeeds when dataset files exist", async () => 
     assertExists(workspace);
     assertEquals(workspace.getName(), config.name);
 
-    const workspaceConfig = workspace.getConfig();
-    assert("validation" in workspaceConfig);
+    const workspaceConfig = workspace.getValidationConfig();
     assertEquals(
       workspaceConfig.validation.datasets.length,
       config.validation.datasets.length,
@@ -309,7 +322,7 @@ Deno.test("Workspace - multiple datasets validation", async () => {
     const { config } = await createTestConfig(tempDir, {
       name: "Multi Dataset Workspace",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./events.csv"),
           createDatasetConfig("occurrences", "dwc-occurrence", "./occurrences.csv"),
@@ -322,8 +335,7 @@ Deno.test("Workspace - multiple datasets validation", async () => {
       Workspace.fromPath(configPath),
     );
 
-    const workspaceConfig = workspace.getConfig();
-    assert("validation" in workspaceConfig);
+    const workspaceConfig = workspace.getValidationConfig();
     assertEquals(
       workspaceConfig.validation.datasets.length,
       config.validation.datasets.length,
@@ -347,7 +359,7 @@ Deno.test("Workspace.validate - validates datasets successfully", async () => {
     const { configPath } = await createTestConfig(tempDir, {
       name: "Validation Test Workspace",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./events.csv", [
             {
@@ -393,7 +405,7 @@ Deno.test("Workspace.validate - validates multiple datasets", async () => {
 
     const { configPath } = await createTestConfig(tempDir, {
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./events.csv", [
             {
@@ -437,11 +449,14 @@ Deno.test("Workspace.validate - fails on config without validation settings", as
       name: "Transform Only",
       version: "1.0.0",
       transform: {
-        nullValues: [""],
+        import: {
+          nullValues: [""],
+          // dropTable: omitted - uses default (false)
+        },
         inputs: {},
         datasets: [],
         output: {
-          outputDir: "./output",
+          dir: "./output",
           exportDB: false,
         },
       },
@@ -472,7 +487,7 @@ Deno.test("Workspace.transform - fails on config without transformation settings
     const { configPath } = await createTestConfig(tempDir, {
       name: "Validation Only",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -505,7 +520,7 @@ Deno.test("Workspace - connection is created on first validation", async () => {
     const { configPath } = await createTestConfig(tempDir, {
       name: "First Validation Test",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -536,7 +551,7 @@ Deno.test("Workspace - multiple validations work correctly", async () => {
     const { configPath } = await createTestConfig(tempDir, {
       name: "Multiple Validations Test",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -576,7 +591,7 @@ Deno.test("Workspace.getValidationResult - returns undefined before validation",
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -604,7 +619,7 @@ Deno.test("Workspace.getValidationResult - returns cached result after validatio
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -639,7 +654,7 @@ Deno.test("Workspace.isValid - returns false before validation", async () => {
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -667,7 +682,7 @@ Deno.test("Workspace.isValid - returns true after passing validation", async () 
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -699,7 +714,7 @@ Deno.test("Workspace.isValid - returns false for non-passing validation", async 
     const { configPath } = await createTestConfig(tempDir, {
       name: "State Test",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },
@@ -735,7 +750,7 @@ Deno.test("Workspace - state updates after multiple validations", async () => {
     const { configPath } = await createTestConfig(tempDir, {
       name: "Multi Validation Test",
       validation: {
-        ...DEFAULT_VALIDATION_SETTINGS,
+        ...VALIDATION_SETTINGS,
         datasets: [
           createDatasetConfig("events", "dwc-event", "./test.csv", [
             { originName: "eventID", targetName: "eventID", isRequired: true },

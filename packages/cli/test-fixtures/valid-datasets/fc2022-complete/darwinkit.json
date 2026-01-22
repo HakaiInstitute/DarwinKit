@@ -6,15 +6,19 @@
   "createdAt": "2024-01-01T00:00:00.000Z",
   "updatedAt": "2025-01-22T00:00:00.000Z",
   "validation": {
-    "nullValues": [
-      "NA",
-      "N/A",
-      "",
-      "NULL",
-      "null"
-    ],
+    "import": {
+      "nullValues": [
+        "NA",
+        "N/A",
+        "",
+        "NULL",
+        "null"
+      ]
+    },
+    "output": {
+      "dir": "./validation_results"
+    },
     "failFast": false,
-    "outputDir": "./validation_results",
     "datasets": [
       {
         "name": "event_data",

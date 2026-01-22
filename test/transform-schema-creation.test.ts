@@ -7,10 +7,14 @@
 
 import { DuckDBConnection } from "@duckdb/node-api";
 import { createTableFromSchema, Workspace } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
+import {
+  type ConfigWithTransformation,
+  makeTransformConfig,
+  makeTransformOutputConfig,
+  makeWorkspaceConfig,
+} from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { hasTransformationConfig } from "../packages/domain/src/schemas/workspace-config.ts";
 
 /**
  * Helper function to verify foreign key constraints in DuckDB
@@ -106,18 +110,15 @@ async function getForeignKeys(
 
 Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", async () => {
   // 1. Setup: Test configuration
-  const config: WorkspaceConfig = {
+  const config = makeWorkspaceConfig({
     version: "1",
     name: "",
     id: "",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    transform: {
-      nullValues: [],
-      output: {
-        outputDir: "",
-        exportDB: false,
-      },
+    transform: makeTransformConfig({
+      // import: omitted - uses defaults { nullValues: [], dropTable: false }
+      output: makeTransformOutputConfig({
+        dir: "",
+      }),
       inputs: {},
       postImportTransforms: [],
       datasets: [
@@ -134,20 +135,16 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
           fields: {},
         },
       ],
-    },
-  };
+    }),
+  }) as ConfigWithTransformation;
 
   const workspace = Workspace.create(config);
 
   try {
     // Get connection for verification
     const connection = await Effect.runPromise(workspace.getConnection());
-    const config = workspace.getConfig();
 
-    if (!hasTransformationConfig(config)) {
-      throw new Error("Expected transform config");
-    }
-
+    // Config is already typed as TransformOnlyConfig, so we can access transform directly
     // 2. Execute the function
     const effect = createTableFromSchema(connection, config.transform.datasets);
     await Effect.runPromise(effect);
@@ -247,14 +244,12 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
 });
 
 Deno.test("createTableFromSchema - handles complex schema with multiple tables and FKs", async () => {
-  const config: WorkspaceConfig = {
+  const config = makeWorkspaceConfig({
     version: "1",
     name: "",
     id: "",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    transform: {
-      nullValues: [],
+    transform: makeTransformConfig({
+      // import: omitted - uses defaults { nullValues: [], dropTable: false }
       inputs: {},
       postImportTransforms: [],
       datasets: [
@@ -267,24 +262,19 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
           fields: {},
         },
       ],
-      output: {
-        outputDir: "",
-        exportDB: false,
-      },
-    },
-  };
+      output: makeTransformOutputConfig({
+        dir: "",
+      }),
+    }),
+  }) as ConfigWithTransformation;
 
   const workspace = Workspace.create(config);
 
   try {
     // Get connection for verification
     const connection = await Effect.runPromise(workspace.getConnection());
-    const config = workspace.getConfig();
 
-    if (!hasTransformationConfig(config)) {
-      throw new Error("Expected transform config");
-    }
-
+    // Config is already typed as TransformOnlyConfig
     await Effect.runPromise(createTableFromSchema(connection, config.transform.datasets));
 
     // Verify Event table
@@ -358,26 +348,23 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
 });
 
 Deno.test("createTableFromSchema - comprehensive FK verification", async () => {
-  const config: WorkspaceConfig = {
+  const config = makeWorkspaceConfig({
     version: "1",
     name: "",
     id: "",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    transform: {
-      nullValues: [],
+    transform: makeTransformConfig({
+      // import: omitted - uses defaults { nullValues: [], dropTable: false }
       inputs: {},
       postImportTransforms: [],
       datasets: [
         { name: "Event", profile: "Event", source: { test: "" }, fields: {} },
         { name: "Occurrence", profile: "Occurrence", source: { test: "" }, fields: {} },
       ],
-      output: {
-        outputDir: "",
-        exportDB: false,
-      },
-    },
-  };
+      output: makeTransformOutputConfig({
+        dir: "",
+      }),
+    }),
+  }) as ConfigWithTransformation;
 
   const workspace = Workspace.create(config);
 

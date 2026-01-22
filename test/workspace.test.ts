@@ -12,6 +12,7 @@ import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 
 import { DatasetFileNotFoundError, Workspace } from "@dwkt/core";
+import { fieldMappingSchema, importConfigSchema, makeValidationConfig } from "@dwkt/domain";
 
 import { cleanupTempDir, createTempDir } from "./helpers/workspace-test-utils.ts";
 
@@ -35,17 +36,18 @@ Deno.test("Workspace - discover config in current directory", async () => {
     await writeCsvFile(tempDir, "test", [{ eventID: "1" }, { eventID: "2" }]);
 
     await createTestConfig(tempDir, {
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "test",
           spec: "dwc-event",
           path: "./test.csv",
           fieldMappings: [],
         }],
-        nullValues: ["", "NA"],
+        import: importConfigSchema.make({
+          nullValues: ["", "NA"],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     // Discover from directory
@@ -69,17 +71,18 @@ Deno.test("Workspace - discover config in parent directory", async () => {
     await writeCsvFile(tempDir, "test", [{ eventID: "1" }]);
 
     await createTestConfig(tempDir, {
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "test",
           spec: "dwc-event",
           path: "./test.csv",
           fieldMappings: [],
         }],
-        nullValues: ["", "NA"],
+        import: importConfigSchema.make({
+          nullValues: ["", "NA"],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     // Create subdirectory
@@ -105,17 +108,18 @@ Deno.test("Workspace - load from specific config path", async () => {
     await writeCsvFile(tempDir, "test", [{ eventID: "1" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "test",
           spec: "dwc-event",
           path: "./test.csv",
           fieldMappings: [],
         }],
-        nullValues: ["", "NA"],
+        import: importConfigSchema.make({
+          nullValues: ["", "NA"],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     // Load directly from path
@@ -156,17 +160,18 @@ Deno.test("Workspace - error on missing dataset file", async () => {
   try {
     // Create config pointing to non-existent CSV
     await createTestConfig(tempDir, {
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "missing",
           spec: "dwc-event",
           path: "./nonexistent.csv",
           fieldMappings: [],
         }],
-        nullValues: ["", "NA"],
+        import: importConfigSchema.make({
+          nullValues: ["", "NA"],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     // Should fail during discovery (validates dataset paths). Flip to intercept the failure
@@ -192,17 +197,18 @@ Deno.test("Workspace - access workspace metadata", async () => {
       name: "Marine Survey 2024",
       version: "2.1.0",
       description: "Test survey data",
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "events",
           spec: "dwc-event",
           path: "./events.csv",
           fieldMappings: [],
         }],
-        nullValues: [""],
+        import: importConfigSchema.make({
+          nullValues: [""],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     const workspace = await Effect.runPromise(Workspace.fromPath(configPath));
@@ -233,17 +239,18 @@ Deno.test("Workspace - getDataset returns undefined for missing dataset", async 
     await writeCsvFile(tempDir, "test", [{ eventID: "1" }]);
 
     await createTestConfig(tempDir, {
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "test",
           spec: "dwc-event",
           path: "./test.csv",
           fieldMappings: [],
         }],
-        nullValues: ["", "NA"],
+        import: importConfigSchema.make({
+          nullValues: ["", "NA"],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     const workspace = await Effect.runPromise(Workspace.discover(tempDir));
@@ -273,20 +280,25 @@ Deno.test("Workspace - validate with passing dataset", async () => {
     // Create config with field mappings
     const { configPath } = await createTestConfig(tempDir, {
       name: "Valid Events",
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "events",
           spec: "dwc-event",
           path: "./events.csv",
           fieldMappings: [
-            { originName: "eventID", targetName: "eventID", isRequired: true },
-            { originName: "eventDate", targetName: "eventDate" },
+            fieldMappingSchema.make({
+              originName: "eventID",
+              targetName: "eventID",
+              isRequired: true,
+            }),
+            fieldMappingSchema.make({ originName: "eventDate", targetName: "eventDate" }),
           ],
         }],
-        nullValues: [""],
+        import: importConfigSchema.make({
+          nullValues: [""],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     const workspace = await Effect.runPromise(Workspace.fromPath(configPath));
@@ -318,17 +330,18 @@ Deno.test("Workspace - validation state before validation", async () => {
     await writeCsvFile(tempDir, "test", [{ eventID: "1" }]);
 
     await createTestConfig(tempDir, {
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "test",
           spec: "dwc-event",
           path: "./test.csv",
           fieldMappings: [],
         }],
-        nullValues: ["", "NA"],
+        import: importConfigSchema.make({
+          nullValues: ["", "NA"],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     const workspace = await Effect.runPromise(Workspace.discover(tempDir));
@@ -350,19 +363,24 @@ Deno.test("Workspace - validate updates cached state", async () => {
     await writeCsvFile(tempDir, "events", [{ eventID: "E1" }, { eventID: "E2" }]);
 
     const { configPath } = await createTestConfig(tempDir, {
-      validation: {
+      validation: makeValidationConfig({
         datasets: [{
           name: "events",
           spec: "dwc-event",
           path: "./events.csv",
           fieldMappings: [
-            { originName: "eventID", targetName: "eventID", isRequired: true },
+            fieldMappingSchema.make({
+              originName: "eventID",
+              targetName: "eventID",
+              isRequired: true,
+            }),
           ],
         }],
-        nullValues: [""],
+        import: importConfigSchema.make({
+          nullValues: [""],
+        }),
         failFast: false,
-        outputDir: "./output",
-      },
+      }),
     });
 
     const workspace = await Effect.runPromise(Workspace.fromPath(configPath));

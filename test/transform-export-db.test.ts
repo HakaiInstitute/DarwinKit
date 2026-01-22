@@ -7,38 +7,35 @@
 
 import { DuckDBInstance } from "@duckdb/node-api";
 import { exportToPersistentDB, Workspace } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
+import type { ConfigWithTransformation } from "@dwkt/domain";
+import { makeTransformConfig, makeTransformOutputConfig, makeWorkspaceConfig } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { hasTransformationConfig } from "../packages/domain/src/schemas/workspace-config.ts";
 
 Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
   // 1. Setup: temp output dir and config
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-db-export-test-" });
 
-  const config: WorkspaceConfig = {
+  const config = makeWorkspaceConfig({
     version: "1",
-    createdAt: new Date(),
-    updatedAt: new Date(),
     id: "test-workspace",
     name: "Test Workspace",
     description: "A workspace for testing",
-    transform: {
-      nullValues: [],
+    transform: makeTransformConfig({
+      // import: omitted - uses defaults { nullValues: [], dropTable: false }
       inputs: {},
       postImportTransforms: [],
       datasets: [
         { name: "Event", profile: "Event", source: {}, fields: {} },
         { name: "Occurrence", profile: "Occurrence", source: {}, fields: {} },
       ],
-      output: {
-        outputDir: outputDir,
+      output: makeTransformOutputConfig({
+        dir: outputDir,
         exportDB: true,
-        outputFilesWithTimestamp: false, // For predictable filename
-        exportDBFileName: "test-output",
-      },
-    },
-  };
+        exportDbFileName: "test-output",
+      }),
+    }),
+  }) as ConfigWithTransformation;
 
   const workspace = Workspace.create(config);
   const dbPath = `${outputDir}/test-output.duckdb`;
@@ -54,15 +51,10 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1');");
 
     // 3. Act: Execute the export function
-    const config = workspace.getConfig();
-    if (!hasTransformationConfig(config)) {
-      throw new Error("Expected transform config");
-    }
-    await Effect.runPromise(exportToPersistentDB(connection, config.transform.datasets, {
-      outputDir: config.transform.output.outputDir,
-      withTimestamp: config.transform.output.outputFilesWithTimestamp,
-      fileName: config.transform.output.exportDBFileName,
-    }));
+    // Config is already typed as TransformOnlyConfig
+    await Effect.runPromise(
+      exportToPersistentDB(connection, config.transform),
+    );
 
     // 4. Assert: Verify the contents of the created DB file
     // Connect to the newly created persistent DB file
@@ -91,34 +83,32 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
 
 Deno.test("exportToPersistentDB - does nothing if exportDB is false", async () => {
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-db-no-export-" });
-  const config: WorkspaceConfig = {
+  const config = makeWorkspaceConfig({
     version: "1",
-    createdAt: new Date(),
-    updatedAt: new Date(),
     id: "test-workspace",
     name: "Test Workspace",
     description: "A workspace for testing",
-    transform: {
-      nullValues: [],
+    transform: makeTransformConfig({
+      // import: omitted - uses defaults { nullValues: [], dropTable: false }
       inputs: {},
       postImportTransforms: [],
       datasets: [],
       output: {
-        outputDir: outputDir,
+        dir: outputDir,
         exportDB: false,
+        outputFilesWithTimestamp: false,
+        dropNullColumns: false,
       },
-    },
-  };
+    }),
+  }) as ConfigWithTransformation;
 
   const workspace = Workspace.create(config);
   const connection = await Effect.runPromise(workspace.getConnection());
 
   // When exportDB is false, we still call the function but it should skip export
-  await Effect.runPromise(exportToPersistentDB(connection, config.transform.datasets, {
-    outputDir: config.transform.output.outputDir,
-    withTimestamp: false,
-    fileName: "obis",
-  }));
+  await Effect.runPromise(
+    exportToPersistentDB(connection, config.transform!),
+  );
 
   // Assert that no files were created in the output directory
   const files = Array.from(Deno.readDirSync(outputDir));

@@ -15,17 +15,17 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
 import type {
+  ConfigWithTransformation,
+  ConfigWithValidation,
   DatasetConfig,
-  TransformAndValidationConfig,
-  TransformOnlyConfig,
-  ValidationOnlyConfig,
   WorkspaceConfig,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
 import {
+  ConfigMissingSettingsError,
   createTaggedFormatter,
-  hasValidationConfig,
-  isValidationOnlyConfig,
+  hasTransform,
+  hasValidation,
   prettyPrintCause,
   workspaceConfigSchema,
 } from "@dwkt/domain";
@@ -35,11 +35,9 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as YAML from "js-yaml";
 // Import database utilities
-import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
 import { importCsv } from "../database/index.ts";
 import {
   type ConfigError,
-  ConfigMissingSettingsError,
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
@@ -65,7 +63,7 @@ const formatConfigError = createTaggedFormatter<ConfigError>({
     return `Failed to parse configuration file: ${error.configPath}\n\n${error.message}\n\nCause: ${error.cause?.message}`;
   },
   ConfigMissingSettingsError: (error) => {
-    return `Configuration is missing the following settings: ${error.missingSetting}\n\n${error.message}\n\nCause: ${error.cause?.message}`;
+    return `Configuration is missing the following settings: ${error.missingSetting}\n\n${error.message}`;
   },
   ConfigValidationError: (error) => {
     return `Configuration validation failed: ${error.configPath}\n\nValidation errors:\n${
@@ -108,7 +106,7 @@ const MAX_SEARCH_DEPTH = 10;
  * regular Workspace to this type.
  */
 export type WorkspaceWithTransformations = Workspace & {
-  getConfig(): TransformOnlyConfig | TransformAndValidationConfig;
+  getConfig(): ConfigWithTransformation;
 };
 
 /**
@@ -123,7 +121,7 @@ export type WorkspaceWithTransformations = Workspace & {
  * regular Workspace to this type.
  */
 export type WorkspaceWithValidation = Workspace & {
-  getConfig(): ValidationOnlyConfig | TransformAndValidationConfig;
+  getConfig(): ConfigWithValidation;
 };
 
 /**
@@ -377,45 +375,44 @@ export class Workspace {
     basePath: string,
   ): Effect.Effect<void, DatasetFileNotFoundError> {
     return Effect.gen(function* (_) {
-      // Check validation datasets if present
-      if (isValidationOnlyConfig(config)) {
-        for (const dataset of config.validation.datasets) {
-          const filePath = resolve(basePath, dataset.path);
+      // Extract datasets and inputs using type predicates
+      const validationDatasets = hasValidation(config) ? config.validation.datasets : [];
+      const transformInputs = hasTransform(config) ? config.transform.inputs : {};
 
-          yield* _(
-            Effect.tryPromise({
-              try: () => Deno.stat(filePath),
-              catch: () =>
-                new DatasetFileNotFoundError({
-                  message: `Dataset file not found: ${filePath}`,
-                  datasetName: dataset.name,
-                  filePath,
-                }),
-            }),
-          );
-        }
+      // Check validation datasets if present
+      for (const dataset of validationDatasets) {
+        const filePath = resolve(basePath, dataset.path);
+
+        yield* _(
+          Effect.tryPromise({
+            try: () => Deno.stat(filePath),
+            catch: () =>
+              new DatasetFileNotFoundError({
+                message: `Dataset file not found: ${filePath}`,
+                datasetName: dataset.name,
+                filePath,
+              }),
+          }),
+        );
       }
 
       // Check transform inputs if present
-      //
-      if (hasTransformationConfig(config)) {
-        for (const [inputName, path] of Object.entries(config.transform.inputs)) {
-          if (typeof path !== "string") continue;
+      for (const [inputName, path] of Object.entries(transformInputs)) {
+        if (typeof path !== "string") continue;
 
-          const filePath = resolve(basePath, path);
+        const filePath = resolve(basePath, path);
 
-          yield* _(
-            Effect.tryPromise({
-              try: () => Deno.stat(filePath),
-              catch: () =>
-                new DatasetFileNotFoundError({
-                  message: `Transform input file not found: ${filePath}`,
-                  datasetName: inputName,
-                  filePath,
-                }),
-            }),
-          );
-        }
+        yield* _(
+          Effect.tryPromise({
+            try: () => Deno.stat(filePath),
+            catch: () =>
+              new DatasetFileNotFoundError({
+                message: `Transform input file not found: ${filePath}`,
+                datasetName: inputName,
+                filePath,
+              }),
+          }),
+        );
       }
     });
   }
@@ -540,7 +537,7 @@ export class Workspace {
    * ```
    */
   assertHasValidation(): asserts this is WorkspaceWithValidation {
-    if (!hasValidationConfig(this.config)) {
+    if (!hasValidation(this.config)) {
       throw new ConfigMissingSettingsError({
         message: "Workspace configuration does not include validation settings. " +
           "Add a 'validation' section to your darwinkit.json to enable validation operations.",
@@ -558,10 +555,10 @@ export class Workspace {
    * @returns Config with validation settings
    * @throws Error if workspace configuration does not include validation settings
    */
-  getValidationConfig(): ValidationOnlyConfig | TransformAndValidationConfig {
+  getValidationConfig(): ConfigWithValidation {
     this.assertHasValidation();
     // Safe cast: assertHasValidation() guarantees this.config has validation
-    return this.config as ValidationOnlyConfig | TransformAndValidationConfig;
+    return this.config as ConfigWithValidation;
   }
 
   /**
@@ -583,7 +580,7 @@ export class Workspace {
    * ```
    */
   assertHasTransformations(): asserts this is WorkspaceWithTransformations {
-    if (!hasTransformationConfig(this.config)) {
+    if (!hasTransform(this.config)) {
       throw new ConfigMissingSettingsError({
         message: "Workspace configuration does not include transformation settings. " +
           "Add a 'transform' section to your darwinkit.json to enable transformation operations.",
@@ -601,10 +598,10 @@ export class Workspace {
    * @returns Config with transformation settings
    * @throws Error if workspace configuration does not include transformation settings
    */
-  getTransformConfig(): TransformOnlyConfig | TransformAndValidationConfig {
+  getTransformConfig(): ConfigWithTransformation {
     this.assertHasTransformations();
     // Safe cast: assertHasTransformations() guarantees this.config has transform
-    return this.config as TransformOnlyConfig | TransformAndValidationConfig;
+    return this.config as ConfigWithTransformation;
   }
 
   /**
@@ -731,10 +728,7 @@ export class Workspace {
    * ```
    */
   getDatasets(): readonly DatasetConfig[] {
-    if (!hasValidationConfig(this.config)) {
-      return [];
-    }
-    return this.config.validation.datasets || [];
+    return hasValidation(this.config) ? this.config.validation.datasets ?? [] : [];
   }
 
   /**
@@ -836,21 +830,20 @@ export class Workspace {
       // Get or create connection
       const connection = yield* _(this.getConnection());
 
-      // Get nullValues from either validation or transform config
-      let nullValues: readonly string[] = [];
-      if (hasValidationConfig(this.config)) {
-        nullValues = this.config.validation.nullValues;
-      } else if (hasTransformationConfig(this.config)) {
-        nullValues = this.config.transform.nullValues;
-      }
+      // Get import config from either validation or transform config using type predicates
+      // Config import settings now have defaults (nullValues: null, dropTable: false)
+      // The dropTable parameter overrides the config value
+      // Prefer validation import config if available, otherwise use transform import config
+      const baseImport = hasValidation(this.config)
+        ? this.config.validation.import
+        : hasTransform(this.config)
+        ? this.config.transform.import
+        : { nullValues: null, dropTable: false };
+
+      const importConfig = { ...baseImport, dropTable };
 
       // Delegate to pure importCsv function
-      yield* _(
-        importCsv(connection, csvPath, tableName, {
-          nullValues,
-          dropTable,
-        }),
-      );
+      yield* _(importCsv(connection, csvPath, tableName, importConfig));
     });
   }
 

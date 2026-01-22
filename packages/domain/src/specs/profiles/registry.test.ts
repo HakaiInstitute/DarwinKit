@@ -3,7 +3,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import type { DatasetConfig } from "../../types/workspace-config.ts";
+import type { DatasetConfig } from "../../schemas/workspace-config.ts";
 import { resolveDatasetProfile } from "./registry.ts";
 
 // ============================================================================

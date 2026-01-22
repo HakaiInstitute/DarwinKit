@@ -9,6 +9,7 @@
  */
 
 import type { ConfigWithValidation, WorkspaceConfig } from "@dwkt/domain";
+import { makeTransformConfig, makeValidationConfig, makeWorkspaceConfig } from "@dwkt/domain";
 import { join } from "@std/path";
 
 // Re-export shared CSV utilities from the core testing module
@@ -26,35 +27,51 @@ export {
 // ============================================================================
 
 /** Default validation settings used across tests */
-export const DEFAULT_VALIDATION_SETTINGS = {
-  nullValues: ["", "NA"],
+export const DEFAULT_VALIDATION_SETTINGS = makeValidationConfig({
+  import: {
+    nullValues: ["", "NA"],
+    dropTable: false,
+  },
+  output: {
+    dir: "./output",
+  },
   failFast: false,
-  outputDir: "./output",
-} as const;
+  datasets: [],
+});
+
+/** Default transform settings used across tests */
+export const DEFAULT_TRANSFORM_SETTINGS = makeTransformConfig({
+  inputs: {},
+  datasets: [],
+  // output omitted - uses schema defaults: { dir: "./output", exportDB: false, ... }
+});
 
 /**
  * Create a test workspace configuration file
  *
  * Handles all required fields for ConfigWithValidation schema and allows
  * partial overrides for test-specific configurations.
+ *
+ * Note: If you pass a custom validation.import config with nullValues but omit
+ * dropTable, use makeImportConfig to ensure defaults are applied correctly.
  */
 export async function createTestConfig(
   tempDir: string,
   config?: Partial<ConfigWithValidation>,
 ): Promise<{ config: ConfigWithValidation; configPath: string }> {
-  const fullConfig: ConfigWithValidation = {
+  const validation = config?.validation
+    ? { ...DEFAULT_VALIDATION_SETTINGS, ...config.validation }
+    : DEFAULT_VALIDATION_SETTINGS;
+
+  const fullConfig = makeWorkspaceConfig({
     id: config?.id ?? "test-workspace",
     name: config?.name ?? "Test Workspace",
     version: config?.version ?? "1.0.0",
     description: config?.description,
-    validation: {
-      ...DEFAULT_VALIDATION_SETTINGS,
-      datasets: [],
-      ...config?.validation,
-    },
+    validation,
     createdAt: config?.createdAt ?? new Date(),
     updatedAt: config?.updatedAt ?? new Date(),
-  };
+  }) as ConfigWithValidation;
 
   const configPath = join(tempDir, "darwinkit.json");
   await Deno.writeTextFile(configPath, JSON.stringify(fullConfig, null, 2));

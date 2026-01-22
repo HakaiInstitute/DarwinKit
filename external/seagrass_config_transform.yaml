@@ -5,12 +5,14 @@ description: Seagrass site production (density and habitat) OBIS Event validatio
 createdAt: '2024-10-06T00:00:00.000Z'
 updatedAt: '2024-10-06T00:00:00.000Z'
 transform:
-  nullValues:
-    - NA
-    - N/A
-    - ""
-    - "NULL"
-    - "null"
+  import:
+    nullValues:
+      - NA
+      - N/A
+      - ""
+      - "NULL"
+      - "null"
+    dropTable: false
   inputs:
     density: ./seagrass-site-production/output/seagrass_density_survey.csv
     habitat: ./seagrass-site-production/output/seagrass_habitat_survey.csv
@@ -24,7 +26,7 @@ transform:
     # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cottoidea', 'Cottidae')
     # - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cadilna luteomarginata', 'Cadlina luteomarginata')
   output:
-    outputDir: ../../external/seagrass-site-production/obis
+    dir: ../../external/seagrass-site-production/obis
     outputFilesWithTimestamp: false
     exportDB: false
     exportDBFileName: obis_marine_survey

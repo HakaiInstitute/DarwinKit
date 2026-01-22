@@ -12,7 +12,8 @@ validation:
     - "NULL"
     - "null"
   failFast: false
-  outputDir: "./test-validation-results"
+  output:
+    dir: "./test-validation-results"
   datasets:
     - name: events
       spec: dwc-event

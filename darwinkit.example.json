@@ -12,7 +12,9 @@
       "n/a"
     ],
     "failFast": false,
-    "outputDir": "./validation_results"
+    "output": {
+      "dir": "./validation_results"
+    }
   },
   "datasets": [
     {

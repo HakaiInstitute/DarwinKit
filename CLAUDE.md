@@ -326,7 +326,9 @@ DarwinKit supports configuration-driven validation for multi-dataset projects us
   "validation": {
     "nullValues": ["NA", "N/A", "", "NULL", "null"],
     "failFast": false,
-    "outputDir": "./validation_results"
+    "output": {
+      "dir": "./validation_results"
+    }
   },
 
   "datasets": [
@@ -420,6 +422,118 @@ await Effect.runPromise(workspace.transformer.createSchemas());
 await Effect.runPromise(workspace.transformer.populateData());
 await Effect.runPromise(workspace.transformer.exportResults());
 ```
+
+### Configuration Access Patterns
+
+DarwinKit uses a consistent approach to accessing workspace configuration data throughout the codebase. Follow these patterns when working with configurations:
+
+**Pattern 1: Effect Helpers (Recommended for class methods)**
+
+Use `requireValidation()` or `requireTransform()` in Validator/Transformer classes and other Effect-based code:
+
+```typescript
+import { requireValidation } from "@dwkt/domain";
+
+class Validator {
+  private getValidationConfig(): Effect.Effect<ConfigWithValidation, ConfigMissingSettingsError> {
+    return requireValidation(this.workspace.getConfig());
+  }
+  
+  run(): Effect.Effect<ValidationResult, ValidationError> {
+    return Effect.gen(this, function* (_) {
+      const config = yield* _(this.getValidationConfig());
+      // config.validation is guaranteed to exist here
+      const datasets = config.validation.datasets;
+      // ...
+    });
+  }
+}
+```
+
+**Pattern 2: Type Predicates (Recommended for Workspace methods)**
+
+Use `hasValidation()` or `hasTransform()` type predicates in Workspace class methods:
+
+```typescript
+import { hasValidation, hasTransform } from "@dwkt/domain";
+
+class Workspace {
+  getDatasets(): readonly DatasetConfig[] {
+    // Type predicate narrows config type
+    return hasValidation(this.config) ? this.config.validation.datasets ?? [] : [];
+  }
+}
+```
+
+**Pattern 3: Explicit Parameters (Recommended for operation functions)**
+
+Pass specific configuration slices as explicit parameters for better testability:
+
+```typescript
+// Operation function signature
+export function exportObisTablesToCSV(
+  connection: DuckDBConnection,
+  { datasets, output }: TransformConfig,  // Destructured from config
+): Effect.Effect<void, OutputError> {
+  // Operation doesn't need the entire workspace, just the relevant config
+}
+
+// Called from transformer
+yield* exportObisTablesToCSV(connection, config.transform);
+```
+
+**Creating Configurations Programmatically:**
+
+Use `makeWorkspaceConfig()` factory function with optional defaults:
+
+```typescript
+import { makeWorkspaceConfig, makeValidationConfig, makeTransformConfig } from "@dwkt/domain";
+
+// Validation-only config
+const config = makeWorkspaceConfig({
+  name: "Test Workspace",
+  version: "1.0.0",
+  validation: makeValidationConfig({
+    datasets: [/* ... */],
+  }),
+}) as ConfigWithValidation;  // Type assertion for compile-time safety
+
+// Transform-only config (output is optional, defaults applied)
+const transformConfig = makeWorkspaceConfig({
+  name: "Transform Workspace",
+  version: "1.0.0",
+  transform: makeTransformConfig({
+    datasets: [/* ... */],
+    // output omitted - defaults to { dir: "./output", exportDB: false, ... }
+  }),
+}) as ConfigWithTransformation;
+
+// Full config with both
+const fullConfig = makeWorkspaceConfig({
+  name: "Full Workspace",
+  version: "1.0.0",
+  validation: makeValidationConfig({/* ... */}),
+  transform: makeTransformConfig({/* ... */}),
+});
+```
+
+**Note:** When omitting optional fields, defaults are applied automatically. For nested configs with custom values, use the corresponding `make*` helper:
+
+```typescript
+// output omitted - uses defaults { dir: "./output", exportDB: false, ... }
+makeTransformConfig({ datasets: [...] })
+
+// Custom output - use makeTransformOutputConfig() to get defaults for other fields
+makeTransformConfig({ datasets: [...], output: makeTransformOutputConfig({ dir: "/tmp" }) })
+```
+
+**Guidelines:**
+
+- **Import types from schemas**: All workspace config types are exported from `@dwkt/domain/schemas/workspace-config.ts` (re-exported via `@dwkt/domain`)
+- **Use Effect helpers in Effect code**: When working within Effect generators, prefer `requireValidation()` / `requireTransform()`
+- **Use type predicates for branching**: When you need to check existence and narrow types
+- **Pass explicit parameters to operations**: Keep operation functions pure and testable
+- **Type assertions for factory outputs**: Use `as ConfigWithValidation` when you know the config structure
 
 ### Example Configuration
 

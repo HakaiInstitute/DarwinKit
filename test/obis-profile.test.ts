@@ -6,7 +6,15 @@
  */
 
 import { Workspace } from "@dwkt/core";
-import { isRangeViolation, type WorkspaceConfig } from "@dwkt/domain";
+import type { ConfigWithValidation } from "@dwkt/domain";
+import {
+  fieldMappingSchema,
+  importConfigSchema,
+  isRangeViolation,
+  makeOutputConfig,
+  makeValidationConfig,
+  makeWorkspaceConfig,
+} from "@dwkt/domain";
 import {
   assert,
   assertEquals,
@@ -113,17 +121,19 @@ Deno.test({
       // Write CSV with all OBIS-required fields
       await writeCsvFile(tempDir, "events", TEST_DATA.VALID_OBIS_EVENTS);
 
-      const config: WorkspaceConfig = {
+      const config = makeWorkspaceConfig({
         id: "obis-profile-test",
         name: "OBIS Profile Test",
         version: "1.0.0",
         description: "Test OBIS validation profile",
         createdAt: new Date(),
         updatedAt: new Date(),
-        validation: {
-          nullValues: ["NA", "N/A", "", "NULL", "null"],
+        validation: makeValidationConfig({
+          // import: override nullValues for this test
+          import: importConfigSchema.make({
+            nullValues: ["NA", "N/A", "", "NULL", "null"],
+          }),
           failFast: false,
-          outputDir: "./validation_results",
           datasets: [
             {
               name: "events",
@@ -132,17 +142,32 @@ Deno.test({
               profile: "obis-event",
               description: "Marine sampling events",
               fieldMappings: [
-                { originName: "eventID", targetName: "eventID" },
-                { originName: "eventDate", targetName: "eventDate" },
-                { originName: "decimalLatitude", targetName: "decimalLatitude" },
-                { originName: "decimalLongitude", targetName: "decimalLongitude" },
-                { originName: "geodeticDatum", targetName: "geodeticDatum" },
-                { originName: "locality", targetName: "locality" },
+                fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+                fieldMappingSchema.make({
+                  originName: "eventDate",
+                  targetName: "eventDate",
+                }),
+                fieldMappingSchema.make({
+                  originName: "decimalLatitude",
+                  targetName: "decimalLatitude",
+                }),
+                fieldMappingSchema.make({
+                  originName: "decimalLongitude",
+                  targetName: "decimalLongitude",
+                }),
+                fieldMappingSchema.make({
+                  originName: "geodeticDatum",
+                  targetName: "geodeticDatum",
+                }),
+                fieldMappingSchema.make({
+                  originName: "locality",
+                  targetName: "locality",
+                }),
               ],
             },
           ],
-        },
-      };
+        }),
+      }) as ConfigWithValidation;
 
       await writeWorkspaceConfig(tempDir, config);
 
@@ -181,17 +206,19 @@ Deno.test({
       // Write CSV WITHOUT geodeticDatum (required by OBIS)
       await writeCsvFile(tempDir, "events", TEST_DATA.EVENTS_MISSING_GEODETIC_DATUM);
 
-      const config: WorkspaceConfig = {
+      const config = makeWorkspaceConfig({
         id: "obis-missing-field-test",
         name: "OBIS Missing Field Test",
         version: "1.0.0",
         description: "Test OBIS validation profile with missing required field",
         createdAt: new Date(),
         updatedAt: new Date(),
-        validation: {
-          nullValues: ["NA", "N/A", "", "NULL", "null"],
+        validation: makeValidationConfig({
+          // import: override nullValues for this test
+          import: importConfigSchema.make({
+            nullValues: ["NA", "N/A", "", "NULL", "null"],
+          }),
           failFast: false,
-          outputDir: "./validation_results",
           datasets: [
             {
               name: "events",
@@ -200,16 +227,25 @@ Deno.test({
               profile: "obis-event",
               description: "Marine sampling events",
               fieldMappings: [
-                { originName: "eventID", targetName: "eventID" },
-                { originName: "eventDate", targetName: "eventDate" },
-                { originName: "decimalLatitude", targetName: "decimalLatitude" },
-                { originName: "decimalLongitude", targetName: "decimalLongitude" },
+                fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+                fieldMappingSchema.make({
+                  originName: "eventDate",
+                  targetName: "eventDate",
+                }),
+                fieldMappingSchema.make({
+                  originName: "decimalLatitude",
+                  targetName: "decimalLatitude",
+                }),
+                fieldMappingSchema.make({
+                  originName: "decimalLongitude",
+                  targetName: "decimalLongitude",
+                }),
                 // Missing geodeticDatum mapping!
               ],
             },
           ],
-        },
-      };
+        }),
+      }) as ConfigWithValidation;
 
       await writeWorkspaceConfig(tempDir, config);
 
@@ -246,17 +282,23 @@ Deno.test("OBIS Profile - applies depth range constraints", async () => {
     // Write CSV with depth values (one exceeds max ocean depth)
     await writeCsvFile(tempDir, "events", TEST_DATA.EVENTS_WITH_DEPTHS);
 
-    const config: WorkspaceConfig = {
+    const config = makeWorkspaceConfig({
       id: "obis-depth-test",
       name: "OBIS Depth Validation Test",
       version: "1.0.0",
       description: "Test OBIS depth range constraints",
       createdAt: new Date(),
       updatedAt: new Date(),
-      validation: {
-        nullValues: ["NA", "N/A", "", "NULL", "null"],
+      validation: makeValidationConfig({
+        // import: override nullValues for this test, explicit dropTable for type safety
+        import: importConfigSchema.make({
+          nullValues: ["NA", "N/A", "", "NULL", "null"],
+          dropTable: false,
+        }),
+        output: makeOutputConfig({
+          dir: "./validation_results",
+        }),
         failFast: false,
-        outputDir: "./validation_results",
         datasets: [
           {
             name: "events",
@@ -265,18 +307,36 @@ Deno.test("OBIS Profile - applies depth range constraints", async () => {
             path: "./events.csv",
             description: "Marine sampling events",
             fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "eventDate", targetName: "eventDate" },
-              { originName: "decimalLatitude", targetName: "decimalLatitude" },
-              { originName: "decimalLongitude", targetName: "decimalLongitude" },
-              { originName: "geodeticDatum", targetName: "geodeticDatum" },
-              { originName: "minimumDepthInMeters", targetName: "minimumDepthInMeters" },
-              { originName: "maximumDepthInMeters", targetName: "maximumDepthInMeters" },
+              fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+              fieldMappingSchema.make({
+                originName: "eventDate",
+                targetName: "eventDate",
+              }),
+              fieldMappingSchema.make({
+                originName: "decimalLatitude",
+                targetName: "decimalLatitude",
+              }),
+              fieldMappingSchema.make({
+                originName: "decimalLongitude",
+                targetName: "decimalLongitude",
+              }),
+              fieldMappingSchema.make({
+                originName: "geodeticDatum",
+                targetName: "geodeticDatum",
+              }),
+              fieldMappingSchema.make({
+                originName: "minimumDepthInMeters",
+                targetName: "minimumDepthInMeters",
+              }),
+              fieldMappingSchema.make({
+                originName: "maximumDepthInMeters",
+                targetName: "maximumDepthInMeters",
+              }),
             ],
           },
         ],
-      },
-    };
+      }),
+    }) as ConfigWithValidation;
 
     await writeWorkspaceConfig(tempDir, config);
 

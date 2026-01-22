@@ -1,19 +1,25 @@
 import { Workspace, WorkspaceValidationError } from "@dwkt/core";
 import type {
+  ConfigWithValidation,
   DatasetConfig,
-  ValidationOnlyConfig,
-  ValidationSettings,
+  ForeignKeyViolation,
+  ValidationConfig,
   WorkspaceConfig,
   WorkspaceCrossDatasetRule,
   WorkspaceFieldMapping,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
 import {
+  crossDatasetRuleSchema,
+  decodeDatasetConfig,
   ErrorCode,
-  type ForeignKeyViolation,
+  fieldMappingSchema,
   isEnumViolation,
   isPrimaryKeyViolation,
   isRangeViolation,
+  makeImportConfig,
+  makeValidationConfig,
+  makeWorkspaceConfig,
 } from "@dwkt/domain";
 import { assertEquals, assertExists, assertInstanceOf, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
@@ -27,7 +33,7 @@ type TestWorkspaceOptions = {
   occurrenceData?: Array<Record<string, unknown>>;
   datasets?: DatasetConfig[];
   crossDatasetRules?: WorkspaceCrossDatasetRule[];
-  validation?: ValidationSettings;
+  validation?: ValidationConfig;
 };
 
 // Test data as structured objects (easier to read and modify than CSV strings)
@@ -190,55 +196,91 @@ async function createMultiDatasetWorkspace(
   const occurrenceData = options?.occurrenceData ?? TEST_DATA.VALID_OCCURRENCES;
   await writeCsvFile(tempDir, "occurrences", occurrenceData);
 
-  // Default datasets
+  // Default datasets (decoded to ensure validation and defaults)
   const datasets = options?.datasets ?? [
-    {
+    decodeDatasetConfig({
       name: "events",
       spec: "dwc-event",
       path: "./events.csv",
       fieldMappings: [
-        { originName: "eventID", targetName: "eventID", isRequired: true },
-        { originName: "country", targetName: "country", isRequired: true },
-        { originName: "countryCode", targetName: "countryCode", isRequired: true },
-        { originName: "decimalLatitude", targetName: "decimalLatitude" },
-        { originName: "decimalLongitude", targetName: "decimalLongitude" },
+        fieldMappingSchema.make({
+          originName: "eventID",
+          targetName: "eventID",
+          isRequired: true,
+        }),
+        fieldMappingSchema.make({
+          originName: "country",
+          targetName: "country",
+          isRequired: true,
+        }),
+        fieldMappingSchema.make({
+          originName: "countryCode",
+          targetName: "countryCode",
+          isRequired: true,
+        }),
+        fieldMappingSchema.make({
+          originName: "decimalLatitude",
+          targetName: "decimalLatitude",
+        }),
+        fieldMappingSchema.make({
+          originName: "decimalLongitude",
+          targetName: "decimalLongitude",
+        }),
       ],
-    },
-    {
+    }),
+    decodeDatasetConfig({
       name: "occurrences",
       spec: "dwc-occurrence",
       path: "./occurrences.csv",
       fieldMappings: [
-        { originName: "eventID", targetName: "eventID", isRequired: true },
-        { originName: "occurrenceID", targetName: "occurrenceID", isRequired: true },
-        { originName: "basisOfRecord", targetName: "basisOfRecord", isRequired: true },
-        { originName: "scientificName", targetName: "scientificName", isRequired: true },
+        fieldMappingSchema.make({
+          originName: "eventID",
+          targetName: "eventID",
+          isRequired: true,
+        }),
+        fieldMappingSchema.make({
+          originName: "occurrenceID",
+          targetName: "occurrenceID",
+          isRequired: true,
+        }),
+        fieldMappingSchema.make({
+          originName: "basisOfRecord",
+          targetName: "basisOfRecord",
+          isRequired: true,
+        }),
+        fieldMappingSchema.make({
+          originName: "scientificName",
+          targetName: "scientificName",
+          isRequired: true,
+        }),
       ],
-    },
+    }),
   ];
 
   // Default cross-dataset rules
   const crossDatasetRules = options?.crossDatasetRules ?? [
-    {
+    crossDatasetRuleSchema.make({
       ruleType: "foreignKey",
       sourceDataset: "occurrences",
       sourceField: "eventID",
       targetDataset: "events",
       targetField: "eventID",
       description: "Occurrences must reference existing events",
-    },
+    }),
   ];
 
-  // Default validation settings
-  const validation: ValidationSettings = options?.validation ?? {
-    nullValues: ["", "NA"],
-    failFast: false,
-    outputDir: "./output",
-    datasets,
-  };
+  // Default validation settings (using make to apply constructor defaults)
+  const validation: ValidationConfig = options?.validation ??
+    makeValidationConfig({
+      import: makeImportConfig({
+        nullValues: ["", "NA"],
+      }),
+      failFast: false,
+      datasets,
+    });
 
   // Create config
-  const config: ValidationOnlyConfig = {
+  const config = makeWorkspaceConfig({
     id: "test-workspace",
     name: "Test Workspace",
     version: "1.0.0",
@@ -246,7 +288,7 @@ async function createMultiDatasetWorkspace(
     crossDatasetRules,
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
+  }) as ConfigWithValidation;
 
   await writeConfig(tempDir, config);
 }
@@ -261,14 +303,13 @@ async function createSingleDatasetWorkspace(
 ): Promise<void> {
   await writeCsvFile(tempDir, datasetName, data);
 
-  const config: WorkspaceConfig = {
+  const config = makeWorkspaceConfig({
     id: "test-workspace",
     name: "Test Workspace",
     version: "1.0.0",
-    validation: {
-      nullValues: [""],
+    validation: makeValidationConfig({
+      import: makeImportConfig({ nullValues: [""] }),
       failFast: false,
-      outputDir: "./output",
       datasets: [
         {
           name: datasetName,
@@ -278,10 +319,10 @@ async function createSingleDatasetWorkspace(
           fieldMappings,
         },
       ],
-    },
+    }),
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
+  }) as ConfigWithValidation;
 
   await writeConfig(tempDir, config);
 }
@@ -411,21 +452,22 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
     await writeCsvFile(tempDir, "occurrences", TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF);
 
     // Create minimal config
-    const config: WorkspaceConfig = {
+    const config = makeWorkspaceConfig({
       id: "test-workspace",
       name: "Test Workspace",
       version: "1.0.0",
-      validation: {
-        nullValues: [""],
+      validation: makeValidationConfig({
+        import: makeImportConfig({
+          nullValues: [""],
+        }),
         failFast: false,
-        outputDir: "./output",
         datasets: [
           {
             name: "events",
             spec: "dwc-event",
             path: "./events.csv",
             fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
+              fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
             ],
           },
           {
@@ -433,24 +475,27 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
             spec: "dwc-occurrence",
             path: "./occurrences.csv",
             fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "occurrenceID", targetName: "occurrenceID" },
+              fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+              fieldMappingSchema.make({
+                originName: "occurrenceID",
+                targetName: "occurrenceID",
+              }),
             ],
           },
         ],
-      },
+      }),
       crossDatasetRules: [
-        {
+        crossDatasetRuleSchema.make({
           ruleType: "foreignKey",
           sourceDataset: "occurrences",
           sourceField: "eventID",
           targetDataset: "events",
           targetField: "eventID",
-        },
+        }),
       ],
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    }) as ConfigWithValidation;
 
     await writeConfig(tempDir, config);
 
@@ -493,22 +538,26 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
       { occurrenceID: "O2", eventID: "E2" },
     ]);
 
-    const config: WorkspaceConfig = {
+    const config = makeWorkspaceConfig({
       id: "test-workspace",
       name: "Test FK Recording",
       version: "1.0.0",
-      validation: {
-        nullValues: [""],
+      validation: makeValidationConfig({
+        import: makeImportConfig({
+          nullValues: [""],
+        }),
         failFast: false,
-        outputDir: "./output",
         datasets: [
           {
             name: "events",
             spec: "dwc-event",
             path: "./events.csv",
             fieldMappings: [
-              { originName: "eventID", targetName: "eventID" },
-              { originName: "eventDate", targetName: "eventDate" },
+              fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+              fieldMappingSchema.make({
+                originName: "eventDate",
+                targetName: "eventDate",
+              }),
             ],
           },
           {
@@ -516,24 +565,27 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
             spec: "dwc-occurrence",
             path: "./occurrence.csv",
             fieldMappings: [
-              { originName: "occurrenceID", targetName: "occurrenceID" },
-              { originName: "eventID", targetName: "eventID" },
+              fieldMappingSchema.make({
+                originName: "occurrenceID",
+                targetName: "occurrenceID",
+              }),
+              fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
             ],
           },
         ],
-      },
+      }),
       crossDatasetRules: [
-        {
+        crossDatasetRuleSchema.make({
           ruleType: "foreignKey",
           sourceDataset: "occurrence",
           sourceField: "eventID",
           targetDataset: "events",
           targetField: "eventID",
-        },
+        }),
       ],
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    }) as ConfigWithValidation;
 
     await writeConfig(tempDir, config);
     const result = await validateWorkspace(tempDir);
@@ -560,14 +612,15 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
     const tempDir = await createTempDir("detect_missing_required_fields");
     await writeCsvFile(tempDir, "events", TEST_DATA.EVENTS_MISSING_COUNTRY_CODE);
 
-    const config: WorkspaceConfig = {
+    const config = makeWorkspaceConfig({
       id: "test-workspace",
       name: "Test Workspace",
       version: "1.0.0",
-      validation: {
-        nullValues: [""],
+      validation: makeValidationConfig({
+        import: makeImportConfig({
+          nullValues: [""],
+        }),
         failFast: false,
-        outputDir: "./output",
         datasets: [
           {
             name: "events",
@@ -575,15 +628,23 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
             path: "./events.csv",
             profile: "Event",
             fieldMappings: [
-              { originName: "eventID", targetName: "eventID", isRequired: true },
-              { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
+              fieldMappingSchema.make({
+                originName: "eventID",
+                targetName: "eventID",
+                isRequired: true,
+              }),
+              fieldMappingSchema.make({
+                originName: "countryCode",
+                targetName: "countryCode",
+                isRequired: true,
+              }), // Missing!
             ],
           },
         ],
-      },
+      }),
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    }) as ConfigWithValidation;
 
     await writeConfig(tempDir, config);
 
@@ -620,9 +681,15 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
       "events",
       TEST_DATA.EVENTS_WITH_INVALID_LATITUDE,
       [
-        { originName: "eventID", targetName: "eventID" },
-        { originName: "decimalLatitude", targetName: "decimalLatitude" },
-        { originName: "decimalLongitude", targetName: "decimalLongitude" },
+        fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+        fieldMappingSchema.make({
+          originName: "decimalLatitude",
+          targetName: "decimalLatitude",
+        }),
+        fieldMappingSchema.make({
+          originName: "decimalLongitude",
+          targetName: "decimalLongitude",
+        }),
       ],
       { profile: "Event", spec: "dwc-event" },
     );
@@ -640,9 +707,18 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
       "occurrences",
       TEST_DATA.OCCURRENCES_WITH_INVALID_BASIS,
       [
-        { originName: "occurrenceID", targetName: "occurrenceID" },
-        { originName: "basisOfRecord", targetName: "basisOfRecord" },
-        { originName: "scientificName", targetName: "scientificName" },
+        fieldMappingSchema.make({
+          originName: "occurrenceID",
+          targetName: "occurrenceID",
+        }),
+        fieldMappingSchema.make({
+          originName: "basisOfRecord",
+          targetName: "basisOfRecord",
+        }),
+        fieldMappingSchema.make({
+          originName: "scientificName",
+          targetName: "scientificName",
+        }),
       ],
       { profile: "Occurrence", spec: "dwc-occurrence" },
     );
@@ -661,8 +737,8 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
       "events",
       TEST_DATA.EVENTS_WITH_DUPLICATE_E1,
       [
-        { originName: "eventID", targetName: "eventID" },
-        { originName: "country", targetName: "country" },
+        fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+        fieldMappingSchema.make({ originName: "country", targetName: "country" }),
       ],
       { profile: "Event", spec: "dwc-event" },
     );
@@ -683,8 +759,8 @@ Deno.test("Workspace Validation - Row Number Tests", async (t) => {
       "events",
       TEST_DATA.EVENTS_WITH_DUPLICATE_E1,
       [
-        { originName: "eventID", targetName: "eventID" },
-        { originName: "country", targetName: "country" },
+        fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+        fieldMappingSchema.make({ originName: "country", targetName: "country" }),
       ],
       { profile: "Event", spec: "dwc-event" },
     );
@@ -702,8 +778,8 @@ Deno.test("Workspace Validation - Row Number Tests", async (t) => {
       "events",
       TEST_DATA.EVENTS_WITH_4_DUPLICATES,
       [
-        { originName: "eventID", targetName: "eventID" },
-        { originName: "country", targetName: "country" },
+        fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+        fieldMappingSchema.make({ originName: "country", targetName: "country" }),
       ],
       { profile: "Event", spec: "dwc-event" },
     );
@@ -721,8 +797,8 @@ Deno.test("Workspace Validation - Row Number Tests", async (t) => {
       "events",
       TEST_DATA.EVENTS_WITH_2_DUPLICATE_VALUES,
       [
-        { originName: "eventID", targetName: "eventID" },
-        { originName: "country", targetName: "country" },
+        fieldMappingSchema.make({ originName: "eventID", targetName: "eventID" }),
+        fieldMappingSchema.make({ originName: "country", targetName: "country" }),
       ],
       { profile: "Event", spec: "dwc-event" },
     );

@@ -5,12 +5,14 @@ description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
 createdAt: '2024-10-06T00:00:00.000Z'
 updatedAt: '2024-10-06T00:00:00.000Z'
 transform:
-  nullValues:
-    - NA
-    - N/A
-    - ""
-    - "NULL"
-    - "null"
+  import:
+    nullValues:
+      - NA
+      - N/A
+      - ""
+      - "NULL"
+      - "null"
+    dropTable: false
   inputs:
     sites: ./rocky-subtidal-fish-invertebrate/data/site_metadata.csv
     fish_inverts: ./rocky-subtidal-fish-invertebrate/data/fish_inverts.csv
@@ -27,7 +29,7 @@ transform:
     - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cottoidea', 'Cottidae')
     - UPDATE fish_inverts SET species_name = REPLACE(species_name, 'Cadilna luteomarginata', 'Cadlina luteomarginata')
   output:
-    outputDir: ./transform_results
+    dir: ./transform_results
     outputFilesWithTimestamp: false
     exportDB: true
     exportDBFileName: obis_marine_survey

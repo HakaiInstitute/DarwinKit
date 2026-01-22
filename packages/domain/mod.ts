@@ -9,7 +9,6 @@ export * from "./src/types/schema.ts";
 export * from "./src/types/validation-profile.ts";
 export { FieldRequirementLevel } from "./src/types/validation-profile.ts";
 export * from "./src/types/validation-violation.ts";
-export * from "./src/types/workspace-config.ts";
 export * from "./src/types/workspace-validation.ts";
 export * from "./src/types/workspace.ts";
 

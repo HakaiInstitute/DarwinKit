@@ -13,18 +13,19 @@ import * as Effect from "effect/Effect";
 
 import { WorkspaceValidationError } from "@dwkt/core";
 import type {
+  ConfigMissingSettingsError,
+  ConfigWithValidation,
   DatasetConfig,
   DatasetValidationResult,
-  ValidationSettings,
+  ValidationConfig,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
-import { ErrorCode, hasValidationConfig, resolveDatasetProfile } from "@dwkt/domain";
+import { ErrorCode, requireValidation, resolveDatasetProfile } from "@dwkt/domain";
 
 import { importSchemaToWorkspace, sanitizeTableName } from "../database/index.ts";
 import { ConstraintValidator } from "../validation/constraint-validator.ts";
 import { validateDataset } from "../validation/dataset-validator.ts";
 import { calculateSummary } from "../validation/utils.ts";
-import { ConfigMissingSettingsError } from "./errors.ts";
 import type { Workspace } from "./workspace.ts";
 
 /**
@@ -55,22 +56,12 @@ export class Validator {
   /**
    * Get the validation config from the workspace, failing if not present.
    *
+   * Uses the requireValidation helper for type-safe access to validation settings.
+   *
    * @returns Effect yielding the validation config or ConfigMissingSettingsError
    */
-  private getValidationConfig() {
-    const config = this.workspace.getConfig();
-
-    if (!hasValidationConfig(config)) {
-      return Effect.fail(
-        new ConfigMissingSettingsError({
-          message: "Workspace configuration does not include validation settings. " +
-            "Add a 'validation' section to your darwinkit.json to enable validation operations.",
-          missingSetting: "validation",
-        }),
-      );
-    }
-
-    return Effect.succeed(config);
+  private getValidationConfig(): Effect.Effect<ConfigWithValidation, ConfigMissingSettingsError> {
+    return requireValidation(this.workspace.getConfig());
   }
 
   /**
@@ -127,7 +118,7 @@ export class Validator {
       }
 
       // Override validation settings with options if provided
-      const validationSettings: ValidationSettings = options?.failFast !== undefined
+      const validationSettings: ValidationConfig = options?.failFast !== undefined
         ? { ...config.validation, failFast: options.failFast }
         : config.validation;
 
@@ -204,7 +195,7 @@ export class Validator {
   private performValidation(
     connection: DuckDBConnection,
     datasets: readonly DatasetConfig[],
-    validationSettings: ValidationSettings,
+    validationSettings: ValidationConfig,
     workspaceId: string,
     configPath: string,
     startTime: number,

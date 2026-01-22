@@ -8,7 +8,12 @@
 
 import { DuckDBConnection } from "@duckdb/node-api";
 import { ConfigNotFoundError, transformFile } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
+import {
+  importConfigSchema,
+  makeTransformConfig,
+  makeTransformOutputConfig,
+  makeWorkspaceConfig,
+} from "@dwkt/domain";
 import { assertEquals, assertExists, assertInstanceOf } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
@@ -24,18 +29,17 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     const outputDir = join(workspaceDir, "output");
     const configPath = join(workspaceDir, "workspace.dwc.json");
 
-    const config: WorkspaceConfig = {
+    const config = makeWorkspaceConfig({
       version: "1",
-      createdAt: new Date(),
-      updatedAt: new Date(),
       id: "test-workspace",
       name: "Test Workspace",
       description: "A workspace for testing",
-      transform: {
+      transform: makeTransformConfig({
+        // import: override nullValues for this test
+        import: importConfigSchema.make({ nullValues: ["NA"] }),
         inputs: {
           source_data: "source_data.csv",
         },
-        nullValues: ["NA"],
         postImportTransforms: [],
         datasets: [
           {
@@ -58,15 +62,14 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
             },
           },
         ],
-        output: {
-          outputDir: outputDir,
+        output: makeTransformOutputConfig({
+          dir: outputDir,
           exportDB: true,
-          outputFilesWithTimestamp: false,
-          exportDBFileName: "final_db",
+          exportDbFileName: "final_db",
           dropNullColumns: true,
-        },
-      },
-    };
+        }),
+      }),
+    });
 
     // 1. Arrange: Write the config and source CSV file to the temp directory
     await writeJsonFile(workspaceDir, "workspace.dwc.json", config);

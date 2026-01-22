@@ -15,8 +15,8 @@ import type {
   FieldDefinition,
   FieldViolation,
   SchemaViolation,
+  ValidationConfig,
   ValidationProfile,
-  ValidationSettings,
   ValidatorConfig,
   WorkspaceFieldMapping,
 } from "@dwkt/domain";
@@ -93,7 +93,7 @@ export function validateDataset(
   connection: DuckDBConnection,
   dataset: DatasetConfig,
   profile?: ValidationProfile,
-  validationSettings?: ValidationSettings,
+  validationSettings?: ValidationConfig,
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     const startTime = Date.now();

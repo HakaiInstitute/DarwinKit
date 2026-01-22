@@ -5,14 +5,17 @@ description: Seagrass Site Production OBIS Event validation profile
 createdAt: '2025-12-15T00:00:00.000Z'
 updatedAt: '2025-12-15T00:00:00.000Z'
 validation:
-  nullValues:
-    - NA
-    - N/A
-    - ''
-    - 'NULL'
-    - 'null'
+  import:
+    nullValues:
+      - NA
+      - N/A
+      - ''
+      - 'NULL'
+      - 'null'
+    dropTable: false
   failFast: false
-  outputDir: ./validation_results
+  output:
+    dir: ./validation_results
   datasets:
     - name: events
       spec: dwc-event

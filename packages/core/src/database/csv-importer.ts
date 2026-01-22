@@ -10,23 +10,8 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { WorkspaceImportError } from "@dwkt/core";
-import { ErrorCode } from "@dwkt/domain";
+import { ErrorCode, type ImportConfig } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
-
-/**
- * Options for CSV import
- */
-export interface CsvImportOptions {
-  /**
-   * Values to treat as NULL (defaults to empty array)
-   */
-  nullValues?: readonly string[];
-
-  /**
-   * Whether to drop existing table first (defaults to false)
-   */
-  dropTable?: boolean;
-}
 
 /**
  * Import a CSV file into a DuckDB table with automatic row numbering
@@ -69,10 +54,10 @@ export function importCsv(
   connection: DuckDBConnection,
   csvPath: string,
   tableName: string,
-  options: CsvImportOptions = {},
+  options: ImportConfig,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
-    const { nullValues = [], dropTable = false } = options;
+    const { nullValues, dropTable } = options;
 
     yield* _(
       Effect.tryPromise({
@@ -88,11 +73,14 @@ export function importCsv(
           await connection.run(`CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1`);
 
           // Import CSV with row numbers
-          const quotedNullValues = nullValues.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ");
+          // Only include nullstr parameter if explicitly configured - DuckDB rejects empty nullstr lists
+          const nullstrClause = nullValues
+            ? `, nullstr=[${nullValues.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ")}]`
+            : "";
           await connection.run(
             `CREATE TABLE IF NOT EXISTS ${tableName} AS
              SELECT *, nextval('${sequenceName}') as _row_number
-             FROM read_csv_auto('${csvPath}', nullstr=[${quotedNullValues}])`,
+             FROM read_csv_auto('${csvPath}'${nullstrClause})`,
           );
         },
         catch: (error) =>

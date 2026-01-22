@@ -2403,7 +2403,8 @@
         "minizlib",
         "mkdirp",
         "yallist@5.0.0"
-      ]
+      ],
+      "deprecated": true
     },
     "through2@3.0.2": {
       "integrity": "sha512-enaDQ4MUyP2W6ZyT6EsMzqBPZaM/avg8iuo+l2d3QCs0J+6RaqkHV/2/lOwDTueBHeJ/2LG9lrLW3d5rWPucuQ==",

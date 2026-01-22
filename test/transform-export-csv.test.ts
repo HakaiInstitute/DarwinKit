@@ -6,6 +6,7 @@
  */
 
 import { exportObisTablesToCSV } from "@dwkt/core";
+import { makeTransformConfig, makeTransformOutputConfig } from "@dwkt/domain";
 import { assertEquals, assertExists, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
 import { readCsvFile, withTestWorkspace } from "./helpers/config-utils.ts";
@@ -21,14 +22,18 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
     await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1');");
 
     // Act: Execute the export function
-    const datasets = [
-      { name: "Event", profile: "Event", source: {}, fields: {} },
-      { name: "Occurrence", profile: "Occurrence", source: {}, fields: {} },
-    ];
-    await Effect.runPromise(exportObisTablesToCSV(connection, datasets, {
-      outputDir: tempDir,
-      withTimestamp: false,
-    }));
+    const transformSettings = makeTransformConfig({
+      // import: omitted - uses defaults { nullValues: [], dropTable: false }
+      inputs: {},
+      datasets: [
+        { name: "Event", profile: "Event", source: {}, fields: {} },
+        { name: "Occurrence", profile: "Occurrence", source: {}, fields: {} },
+      ],
+      output: makeTransformOutputConfig({
+        dir: tempDir,
+      }),
+    });
+    await Effect.runPromise(exportObisTablesToCSV(connection, transformSettings));
 
     // Assert: Verify the CSV files and their contents
     const eventRows = await readCsvFile<{ eventID: string; year: string }>(`${tempDir}/event.csv`);
@@ -58,12 +63,16 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
     );
 
     // Act
-    const datasets = [{ name: "Event", profile: "Event", source: {}, fields: {} }];
-    await Effect.runPromise(exportObisTablesToCSV(connection, datasets, {
-      outputDir: tempDir,
-      withTimestamp: false,
-      dropNullColumns: true,
-    }));
+    const transformSettings = makeTransformConfig({
+      // import: omitted - uses defaults { nullValues: [], dropTable: false }
+      inputs: {},
+      datasets: [{ name: "Event", profile: "Event", source: {}, fields: {} }],
+      output: makeTransformOutputConfig({
+        dir: tempDir,
+        dropNullColumns: true,
+      }),
+    });
+    await Effect.runPromise(exportObisTablesToCSV(connection, transformSettings));
 
     // Assert
     const rows = await readCsvFile<{
@@ -99,12 +108,18 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
     const connection = await Effect.runPromise(workspace.getConnection());
 
     // Act
-    const datasets = [{ name: "Event", profile: "Event", source: {}, fields: {} }];
-    const effect = exportObisTablesToCSV(connection, datasets, {
-      outputDir: invalidOutputDir,
-      withTimestamp: false,
-      dropNullColumns: false,
+    const transformSettings = makeTransformConfig({
+      // import: omitted - uses defaults { nullValues: [], dropTable: false }
+      inputs: {},
+      datasets: [{ name: "Event", profile: "Event", source: {}, fields: {} }],
+      output: {
+        dir: invalidOutputDir,
+        exportDB: false,
+        outputFilesWithTimestamp: false,
+        dropNullColumns: false,
+      },
     });
+    const effect = exportObisTablesToCSV(connection, transformSettings);
     const result = await Effect.runPromise(Effect.flip(effect));
 
     // Assert
