@@ -26,6 +26,16 @@ If you know how your data should be mapped to Darwin Core, you can use DarwinKit
 
 Install [Deno 2.0+](https://deno.land/)
 
+MacOS/Linux
+```bash
+curl -fsSL https://deno.land/install.sh | sh
+```
+
+Windows
+```bash
+irm https://deno.land/install.ps1 | iex
+```
+
 Create a `darwinkit.json` configuration file:
 
 ```json
@@ -93,6 +103,14 @@ dwc transform --config ./my-config.json --output ./output
 ```
 
 This applies the field mappings from your config, renaming columns to Darwin Core standard names and writing the transformed CSV files to the output directory.
+
+Update local schema file:
+
+Convert Darwin Core xml schemas to json
+
+```bash
+deno run external/get_dc_schema.cjs
+```
 
 ## Architecture
 

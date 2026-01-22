@@ -11,7 +11,7 @@ validation:
     - ""
     - "NULL"
     - "null"
-  failFast: false
+  failFast: true
   outputDir: ./validation_results
   datasets:
     - name: events

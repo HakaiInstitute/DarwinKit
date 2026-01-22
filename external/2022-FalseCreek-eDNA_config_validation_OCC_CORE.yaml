@@ -1,0 +1,196 @@
+id: obis-marine-survey
+name: OBIS Marine Survey
+version: 1.0.0
+description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
+createdAt: '2024-10-06T00:00:00.000Z'
+updatedAt: '2024-10-06T00:00:00.000Z'
+validation:
+  nullValues:
+    - NA
+    - N/A
+    - ""
+    - "NULL"
+    - "null"
+  failFast: true
+  outputDir: ./validation_results
+  datasets:
+    - name: occurrence
+      spec: dwc-occurrence
+      path: ./2022-FalseCreek-eDNA/obis/interim_obis/edna/FC2022_occ_core.csv
+      description: Marine sampling occurrence for OBIS
+      profile: Occurrence
+      fieldMappings:
+        - originName: scientificName
+          targetName: scientificName
+        # - originName: vernacularName
+        #   targetName: vernacularName
+        - originName: identificationRemarks
+          targetName: identificationRemarks
+        # - originName: occurrenceRemarks
+        #   targetName: occurrenceRemarks
+        - originName: verbatimIdentification
+          targetName: verbatimIdentification
+        - originName: scientificNameID
+          targetName: scientificNameID
+        # - originName: taxonomicStatus
+        #   targetName: taxonomicStatus
+        - originName: scientificNameAuthorship
+          targetName: scientificNameAuthorship
+        - originName: kingdom
+          targetName: kingdom
+        - originName: phylum
+          targetName: phylum
+        - originName: class
+          targetName: class
+        - originName: order
+          targetName: order
+        - originName: family
+          targetName: family
+        - originName: genus
+          targetName: genus
+        # - originName: recordedBy
+        #   targetName: recordedBy
+        - originName: occurrenceStatus
+          targetName: occurrenceStatus
+        # - originName: individualCount
+        #   targetName: individualCount
+        # - originName: specificEpithet
+        #   targetName: specificEpithet
+        - originName: basisOfRecord
+          targetName: basisOfRecord
+        # - originName: eventID
+        #   targetName: eventID
+        - originName: occurrenceID
+          targetName: occurrenceID
+        # - originName: taxonRemarks
+        #   targetName: taxonRemarks
+        - originName: taxonRank
+          targetName: taxonRank
+        - originName: organismQuantity
+          targetName: organismQuantity
+        - originName: organismQuantityType
+          targetName: organismQuantityType
+        - originName: sampleSizeValue
+          targetName: sampleSizeValue
+        - originName: sampleSizeUnit
+          targetName: sampleSizeUnit
+        - originName: samplingProtocol
+          targetName: samplingProtocol
+        - originName: associatedSequences
+          targetName: associatedSequences
+        - originName: materialSampleID
+          targetName: materialSampleID
+        - originName: identificationQualifier
+          targetName: identificationQualifier
+        - originName: language
+          targetName: language
+        - originName: license
+          targetName: license
+        - originName: rightsHolder
+          targetName: rightsHolder
+        - originName: modified
+          targetName: modified
+        - originName: country
+          targetName: country
+        - originName: countryCode
+          targetName: countryCode
+        - originName: geodeticDatum
+          targetName: geodeticDatum
+        - originName: stateProvince
+          targetName: stateProvince
+        - originName: county
+          targetName: county
+        - originName: municipality
+          targetName: municipality
+        - originName: verbatimEventDate
+          targetName: verbatimEventDate
+        - originName: decimalLatitude
+          targetName: decimalLatitude
+        - originName: decimalLongitude
+          targetName: decimalLongitude
+        - originName: fieldNotes
+          targetName: fieldNotes
+        - originName: verbatimLocality
+          targetName: verbatimLocality
+        - originName: month
+          targetName: month
+        - originName: day
+          targetName: day
+        - originName: year
+          targetName: year
+        - originName: eventDate
+          targetName: eventDate
+        - originName: minimumDepthInMeters
+          targetName: minimumDepthInMeters
+        - originName: maximumDepthInMeters
+          targetName: maximumDepthInMeters
+        - originName: institutionCode
+          targetName: institutionCode
+        - originName: institutionID
+          targetName: institutionID
+        # - originName: recordNumber
+        #   targetName: recordNumber
+        # - originName: catalogNumber
+        #   targetName: catalogNumber
+        # - originName: subfamily
+        #   targetName: subfamily
+        # - originName: tribe
+        #   targetName: tribe
+        # - originName: identifiedBy
+        #   targetName: identifiedBy
+        # - originName: sex
+        #   targetName: sex
+        # - originName: lifeStage
+        #   targetName: lifeStage
+        # - originName: typeStatus
+        #   targetName: typeStatus
+        # - originName: materialSample
+        #   targetName: materialSample
+        # - originName: organismRemarks
+        #   targetName: organismRemarks
+
+
+    - name: dnaDerivedData
+      spec: dwc-dna
+      path: ./2022-FalseCreek-eDNA/obis/interim_obis/edna/FC2022_DNA.csv
+      description: Dna dervied data for OBIS
+      profile: dnaDerivedData
+      fieldMappings:
+        # - originName: eventID
+        #   targetName: eventID
+        - originName: occurrenceID
+          targetName: occurrenceID
+        - originName: DNA_sequence
+          targetName: DNA_sequence
+        - originName: sop
+          targetName: sop
+        - originName: target_gene
+          targetName: target_gene
+        - originName: target_subfragment
+          targetName: target_subfragment
+        - originName: pcr_primer_forward
+          targetName: pcr_primer_forward
+        - originName: pcr_primer_reverse
+          targetName: pcr_primer_reverse
+        - originName: pcr_primer_name_forward
+          targetName: pcr_primer_name_forward
+        - originName: pcr_primer_name_reverse
+          targetName: pcr_primer_name_reverse
+        - originName: env_broad_scale
+          targetName: env_broad_scale
+        - originName: env_local_scale
+          targetName: env_local_scale
+        - originName: env_medium
+          targetName: env_medium
+        - originName: lib_layout
+          targetName: lib_layout
+        - originName: seq_meth
+          targetName: seq_meth
+        - originName: otu_class_appr
+          targetName: otu_class_appr
+        - originName: otu_seq_comp_appr
+          targetName: otu_seq_comp_appr
+        - originName: otu_db
+          targetName: otu_db
+        - originName: samp_size
+          targetName: samp_size
