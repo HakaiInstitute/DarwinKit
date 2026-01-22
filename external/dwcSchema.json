@@ -14,22 +14,6 @@
     "name": "ExtendedMeasurementOrFact",
     "fieldOverrides": {},
     "fields": {
-      "eventID": {
-        "group": "ExtendedMeasurementOrFact",
-        "name": "eventID",
-        "label": "Event ID",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/eventID",
-        "dc:relation": "http://rs.tdwg.org/dwc/terms/index.htm#eventID",
-        "dc:description": "The identifier of the event the measurement or fact refers to. If not applicable, it should be left empty.",
-        "examples": "",
-        "gbif_required": "true",
-        "type": "identifier",
-        "obis_required": "required",
-        "validators": [
-          "required"
-        ]
-      },
       "measurementID": {
         "group": "ExtendedMeasurementOrFact",
         "name": "measurementID",
@@ -48,6 +32,22 @@
           "uniqueIdentifier"
         ]
       },
+      "eventID": {
+        "group": "ExtendedMeasurementOrFact",
+        "name": "eventID",
+        "label": "Event ID",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/eventID",
+        "dc:relation": "http://rs.tdwg.org/dwc/terms/index.htm#eventID",
+        "dc:description": "The identifier of the event the measurement or fact refers to. If not applicable, it should be left empty.",
+        "examples": "",
+        "gbif_required": "false",
+        "type": "identifier",
+        "obis_required": "required",
+        "validators": [
+          "required"
+        ]
+      },
       "occurrenceID": {
         "group": "ExtendedMeasurementOrFact",
         "name": "occurrenceID",
@@ -59,8 +59,10 @@
         "examples": "",
         "gbif_required": "false",
         "type": "identifier",
-        "obis_required": "",
-        "validators": []
+        "obis_required": "required",
+        "validators": [
+          "required"
+        ]
       },
       "measurementType": {
         "group": "ExtendedMeasurementOrFact",
@@ -162,7 +164,7 @@
         "qualName": "http://rs.iobis.org/obis/terms/measurementUnitID",
         "dc:relation": "",
         "dc:description": "An identifier for the measurementUnit (global unique identifier, URI). The identifier should reference the measurementUnit in a vocabulary.",
-        "examples": "\"http://vocab.nerc.ac.uk/collection/P06/current/UMSQ/\", \u201chttp://vocab.nerc.ac.uk/collection/P06/current/UCPL/\u201d, \u201chttp://vocab.nerc.ac.uk/collection/P06/current/CMCM/\u201d",
+        "examples": "\"http://vocab.nerc.ac.uk/collection/P06/current/UMSQ/\", “http://vocab.nerc.ac.uk/collection/P06/current/UCPL/”, “http://vocab.nerc.ac.uk/collection/P06/current/CMCM/”",
         "gbif_required": "false",
         "type": "identifier",
         "obis_required": "strongly recommended",
@@ -426,7 +428,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dcterms:bibliographicCitation",
         "dc:description": "A bibliographic reference for the resource.",
         "comments": "From Dublin Core, &quot;Recommended practice is to include sufficient bibliographic detail to identify the resource as unambiguously as possible.&quot; The intended usage of this term in Darwin Core is to provide the preferred way to cite the resource itself - &quot;how to cite this record&quot;. Note that the intended usage of dcterms:references in Darwin Core, by contrast, is to point to the definitive source representation of the resource - &quot;where to find the as-close-to-original reference&quot;, if one is available.",
-        "examples": "`Museum of Vertebrate Zoology, UC Berkeley. MVZ Mammal Collection (Arctos). Record ID: http://arctos.database.museum/guid/MVZ:Mamm:165861?seid=101356. Source: http://ipt.vertnet.org:8080/ipt/resource.do?r=mvz_mammal.` (Occurrence example); `https://www.gbif.org/species/2439608 Source: GBIF Taxonomic Backbone` (Taxon example); `Rand, K.M., Logerwell, E.A. The first demersal trawl survey of benthic fish and invertebrates in the Beaufort Sea since the late 1970s. Polar Biol 34, 475\u2013488 (2011). https://doi.org/10.1007/s00300-010-0900-2` (Event example)",
+        "examples": "`Museum of Vertebrate Zoology, UC Berkeley. MVZ Mammal Collection (Arctos). Record ID: http://arctos.database.museum/guid/MVZ:Mamm:165861?seid=101356. Source: http://ipt.vertnet.org:8080/ipt/resource.do?r=mvz_mammal.` (Occurrence example); `https://www.gbif.org/species/2439608 Source: GBIF Taxonomic Backbone` (Taxon example); `Rand, K.M., Logerwell, E.A. The first demersal trawl survey of benthic fish and invertebrates in the Beaufort Sea since the late 1970s. Polar Biol 34, 475–488 (2011). https://doi.org/10.1007/s00300-010-0900-2` (Event example)",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -564,7 +566,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:dynamicProperties",
         "dc:description": "A list of additional measurements, facts, characteristics, or assertions about the record. Meant to provide a mechanism for structured content.",
         "comments": "Recommended best practice is to use a key:value encoding schema for a data interchange format such as JSON.",
-        "examples": "`{&quot;heightInMeters&quot;:1.5}`; `{&quot;targusLengthInMeters&quot;:0.014, &quot;weightInGrams&quot;:120}`; `{&quot;natureOfID&quot;:&quot;expert identification&quot;, &quot;identificationEvidence&quot;:&quot;cytochrome B sequence&quot;}`; `{&quot;relativeHumidity&quot;:28, &quot;airTemperatureInCelsius&quot;:22, &quot;sampleSizeInKilograms&quot;:10}`; `{&quot;aspectHeading&quot;:277, &quot;slopeInDegrees&quot;:6}`; `{&quot;iucnStatus&quot;:&quot;vulnerable&quot;, &quot;taxonDistribution&quot;:&quot;Neuqu\u00e9n, Argentina&quot;}`",
+        "examples": "`{&quot;heightInMeters&quot;:1.5}`; `{&quot;targusLengthInMeters&quot;:0.014, &quot;weightInGrams&quot;:120}`; `{&quot;natureOfID&quot;:&quot;expert identification&quot;, &quot;identificationEvidence&quot;:&quot;cytochrome B sequence&quot;}`; `{&quot;relativeHumidity&quot;:28, &quot;airTemperatureInCelsius&quot;:22, &quot;sampleSizeInKilograms&quot;:10}`; `{&quot;aspectHeading&quot;:277, &quot;slopeInDegrees&quot;:6}`; `{&quot;iucnStatus&quot;:&quot;vulnerable&quot;, &quot;taxonDistribution&quot;:&quot;Neuquén, Argentina&quot;}`",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -720,16 +722,7 @@
         "obis_required": "strongly recommended",
         "validators": [
           "recommended",
-          "integer",
-          {
-            "type": "range",
-            "enforcement": "required",
-            "params": {
-              "min": 1582,
-              "max": 2100
-            },
-            "message": "Year must be between 1582 and 2100 (Gregorian calendar adoption to near future)"
-          }
+          "integer"
         ]
       },
       "month": {
@@ -747,16 +740,7 @@
         "obis_required": "strongly recommended",
         "validators": [
           "recommended",
-          "integer",
-          {
-            "type": "range",
-            "enforcement": "required",
-            "params": {
-              "min": 1,
-              "max": 12
-            },
-            "message": "Month must be between 1 and 12"
-          }
+          "integer"
         ]
       },
       "day": {
@@ -774,16 +758,7 @@
         "obis_required": "recommended",
         "validators": [
           "recommended",
-          "integer",
-          {
-            "type": "range",
-            "enforcement": "required",
-            "params": {
-              "min": 1,
-              "max": 31
-            },
-            "message": "Day must be between 1 and 31"
-          }
+          "integer"
         ]
       },
       "verbatimEventDate": {
@@ -974,10 +949,10 @@
           "microlitre": {
             "dc:URI": "http://www.wurvoc.org/vocabularies/om-1.8/microlitre",
             "dc:relation": "",
-            "dc:description": "microlitre (\u00b5l)",
+            "dc:description": "microlitre (µl)",
             "names": [
               "microlitre",
-              "\u00b5l"
+              "µl"
             ]
           },
           "litre": {
@@ -1121,7 +1096,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:higherGeographyID",
         "dc:description": "An identifier for the geographic region within which the dcterms:Location occurred.",
         "comments": "Recommended best practice is to use a persistent identifier from a controlled vocabulary such as the Getty Thesaurus of Geographic Names.",
-        "examples": "`http://vocab.getty.edu/tgn/1002002` (Ant\u00e1rtida e Islas del Atl\u00e1ntico Sur, Territorio Nacional de la Tierra del Fuego, Argentina).",
+        "examples": "`http://vocab.getty.edu/tgn/1002002` (Antártida e Islas del Atlántico Sur, Territorio Nacional de la Tierra del Fuego, Argentina).",
         "gbif_required": "false",
         "type": "identifier",
         "obis_required": "optional",
@@ -1136,7 +1111,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:higherGeography",
         "dc:description": "A list (concatenated and separated) of geographic names less specific than the information captured in the dwc:locality term.",
         "comments": "Recommended best practice is to separate the values in a list with space vertical bar space (` | `), with terms in order from least specific to most specific.",
-        "examples": "`North Atlantic Ocean`; `South America | Argentina | Patagonia | Parque Nacional Nahuel Huapi | Neuqu\u00e9n | Los Lagos` with accompanying values `South America` (continent) `Argentina` (country), `Neuqu\u00e9n` (first order division), and `Los Lagos` (second order division)",
+        "examples": "`North Atlantic Ocean`; `South America | Argentina | Patagonia | Parque Nacional Nahuel Huapi | Neuquén | Los Lagos` with accompanying values `South America` (continent) `Argentina` (country), `Neuquén` (first order division), and `Los Lagos` (second order division)",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -1182,7 +1157,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:islandGroup",
         "dc:description": "The name of the island group in which the dcterms:Location occurs.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names.",
-        "examples": "`Alexander Archipelago`; `Archipi\u00e9lago Diego Ram\u00edrez`; `Seychelles`",
+        "examples": "`Alexander Archipelago`; `Archipiélago Diego Ramírez`; `Seychelles`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -1210,7 +1185,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:country",
         "dc:description": "The name of the country or major administrative unit in which the dcterms:Location occurs.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
-        "examples": "`Denmark`; `Colombia`; `Espa\u00f1a`",
+        "examples": "`Denmark`; `Colombia`; `España`",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -1240,7 +1215,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:stateProvince",
         "dc:description": "The name of the next smaller administrative region than country (state, province, canton, department, region, etc.) in which the dcterms:Location occurs.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
-        "examples": "`Montana`; `Minas Gerais`; `C\u00f3rdoba`",
+        "examples": "`Montana`; `Minas Gerais`; `Córdoba`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -1254,7 +1229,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:county",
         "dc:description": "The full, unabbreviated name of the next smaller administrative region than stateProvince (county, shire, department, etc.) in which the dcterms:Location occurs.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
-        "examples": "`Missoula`; `Los Lagos`; `Matar\u00f3`",
+        "examples": "`Missoula`; `Los Lagos`; `Mataró`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -1268,7 +1243,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:municipality",
         "dc:description": "The full, unabbreviated name of the next smaller administrative region than county (city, municipality, etc.) in which the dcterms:Location occurs. Do not use this term for a nearby named place that does not contain the actual dcterms:Location.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
-        "examples": "`Holzminden`; `Ara\u00e7atuba`; `Ga-Segonyana`",
+        "examples": "`Holzminden`; `Araçatuba`; `Ga-Segonyana`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -1484,14 +1459,7 @@
         "gbif_required": "false",
         "obis_required": "required",
         "validators": [
-          "required",
-          {
-            "type": "range",
-            "min": -90,
-            "max": 90,
-            "inclusive": true,
-            "message": "Latitude must be between -90 and +90 degrees"
-          }
+          "required"
         ]
       },
       "decimalLongitude": {
@@ -1508,14 +1476,7 @@
         "gbif_required": "false",
         "obis_required": "required",
         "validators": [
-          "required",
-          {
-            "type": "range",
-            "min": -180,
-            "max": 180,
-            "inclusive": true,
-            "message": "Longitude must be between -180 and +180 degrees"
-          }
+          "required"
         ]
       },
       "geodeticDatum": {
@@ -2018,20 +1979,6 @@
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
-      },
-      "collectionCode": {
-        "group": "Record-level",
-        "name": "collectionCode",
-        "label": "Collection Code",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/collectionCode",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:collectionCode",
-        "dc:description": "The name, acronym, coden, or initialism identifying the collection or data set from which the record was derived.",
-        "comments": "",
-        "examples": "`Mammals`; `Hildebrandt`; `EBIRD`; `VP`",
-        "gbif_required": "false",
-        "obis_required": "optional",
-        "validators": []
       }
     }
   },
@@ -2231,7 +2178,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dcterms:bibliographicCitation",
         "dc:description": "A bibliographic reference for the resource.",
         "comments": "From Dublin Core, &quot;Recommended practice is to include sufficient bibliographic detail to identify the resource as unambiguously as possible.&quot; The intended usage of this term in Darwin Core is to provide the preferred way to cite the resource itself - &quot;how to cite this record&quot;. Note that the intended usage of dcterms:references in Darwin Core, by contrast, is to point to the definitive source representation of the resource - &quot;where to find the as-close-to-original reference&quot;, if one is available.",
-        "examples": "`Museum of Vertebrate Zoology, UC Berkeley. MVZ Mammal Collection (Arctos). Record ID: http://arctos.database.museum/guid/MVZ:Mamm:165861?seid=101356. Source: http://ipt.vertnet.org:8080/ipt/resource.do?r=mvz_mammal.` (Occurrence example); `https://www.gbif.org/species/2439608 Source: GBIF Taxonomic Backbone` (Taxon example); `Rand, K.M., Logerwell, E.A. The first demersal trawl survey of benthic fish and invertebrates in the Beaufort Sea since the late 1970s. Polar Biol 34, 475\u2013488 (2011). https://doi.org/10.1007/s00300-010-0900-2` (Event example)",
+        "examples": "`Museum of Vertebrate Zoology, UC Berkeley. MVZ Mammal Collection (Arctos). Record ID: http://arctos.database.museum/guid/MVZ:Mamm:165861?seid=101356. Source: http://ipt.vertnet.org:8080/ipt/resource.do?r=mvz_mammal.` (Occurrence example); `https://www.gbif.org/species/2439608 Source: GBIF Taxonomic Backbone` (Taxon example); `Rand, K.M., Logerwell, E.A. The first demersal trawl survey of benthic fish and invertebrates in the Beaufort Sea since the late 1970s. Polar Biol 34, 475–488 (2011). https://doi.org/10.1007/s00300-010-0900-2` (Event example)",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -2530,7 +2477,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:dynamicProperties",
         "dc:description": "A list of additional measurements, facts, characteristics, or assertions about the record. Meant to provide a mechanism for structured content.",
         "comments": "Recommended best practice is to use a key:value encoding schema for a data interchange format such as JSON.",
-        "examples": "`{&quot;heightInMeters&quot;:1.5}`; `{&quot;targusLengthInMeters&quot;:0.014, &quot;weightInGrams&quot;:120}`; `{&quot;natureOfID&quot;:&quot;expert identification&quot;, &quot;identificationEvidence&quot;:&quot;cytochrome B sequence&quot;}`; `{&quot;relativeHumidity&quot;:28, &quot;airTemperatureInCelsius&quot;:22, &quot;sampleSizeInKilograms&quot;:10}`; `{&quot;aspectHeading&quot;:277, &quot;slopeInDegrees&quot;:6}`; `{&quot;iucnStatus&quot;:&quot;vulnerable&quot;, &quot;taxonDistribution&quot;:&quot;Neuqu\u00e9n, Argentina&quot;}`",
+        "examples": "`{&quot;heightInMeters&quot;:1.5}`; `{&quot;targusLengthInMeters&quot;:0.014, &quot;weightInGrams&quot;:120}`; `{&quot;natureOfID&quot;:&quot;expert identification&quot;, &quot;identificationEvidence&quot;:&quot;cytochrome B sequence&quot;}`; `{&quot;relativeHumidity&quot;:28, &quot;airTemperatureInCelsius&quot;:22, &quot;sampleSizeInKilograms&quot;:10}`; `{&quot;aspectHeading&quot;:277, &quot;slopeInDegrees&quot;:6}`; `{&quot;iucnStatus&quot;:&quot;vulnerable&quot;, &quot;taxonDistribution&quot;:&quot;Neuquén, Argentina&quot;}`",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -2597,7 +2544,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:recordedBy",
         "dc:description": "A list (concatenated and separated) of names of people, groups, or organizations responsible for recording the original dwc:Occurrence. The primary collector or observer, especially one who applies a personal identifier (dwc:recordNumber), should be listed first.",
         "comments": "Recommended best practice is to separate the values in a list with space vertical bar space (` | `). This term has an equivalent in the dwciri: namespace that allows only an IRI as a value, whereas this term allows for any string literal value.",
-        "examples": "`Jos\u00e9 E. Crespo`; `Oliver P. Pearson | Anita K. Pearson` (where the value in recordNumber `OPP 7101` corresponds to the collector number for the specimen in the field catalog of Oliver P. Pearson)",
+        "examples": "`José E. Crespo`; `Oliver P. Pearson | Anita K. Pearson` (where the value in recordNumber `OPP 7101` corresponds to the collector number for the specimen in the field catalog of Oliver P. Pearson)",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -2748,9 +2695,9 @@
           "biovolumeCubicMicrons": {
             "dc:URI": "http://rs.gbif.org/vocabulary/gbif/quantityType/biovolumeCubicMicrons",
             "dc:relation": "",
-            "dc:description": "a measurement type where the quantity of a species in a\n    sample is recorded as the biovolume in cubic microns (\u00b5^3)",
+            "dc:description": "a measurement type where the quantity of a species in a\n    sample is recorded as the biovolume in cubic microns (µ^3)",
             "names": [
-              "biovolume in cubic microns (\u00b5^3)"
+              "biovolume in cubic microns (µ^3)"
             ]
           },
           "biovolumeMl": {
@@ -4023,7 +3970,7 @@
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/verbatimLabel",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:verbatimLabel",
-        "dc:description": "The content of this term should include no embellishments, prefixes, headers or other additions made to the text. Abbreviations must not be expanded and supposed misspellings must not be corrected. Lines or breakpoints between blocks of text that could be verified by seeing the original labels or images of them may be used. Examples of material entities include preserved specimens, fossil specimens, and material samples. Best practice is to use UTF-8 for all characters. Best practice is to add comment \u201cverbatimLabel derived from human transcription\u201d in dwc:occurrenceRemarks.",
+        "dc:description": "The content of this term should include no embellishments, prefixes, headers or other additions made to the text. Abbreviations must not be expanded and supposed misspellings must not be corrected. Lines or breakpoints between blocks of text that could be verified by seeing the original labels or images of them may be used. Examples of material entities include preserved specimens, fossil specimens, and material samples. Best practice is to use UTF-8 for all characters. Best practice is to add comment “verbatimLabel derived from human transcription” in dwc:occurrenceRemarks.",
         "comments": "Examples can be found at https://dwc.tdwg.org/examples/verbatimLabel.",
         "examples": "",
         "gbif_required": "false",
@@ -4157,7 +4104,7 @@
         "dc:relation": "None",
         "dc:description": "Text description of organizations or individuals who funded the creation of the resource.",
         "comments": "Specify the full official name of the funding body. This should include the complete name without abbreviations, unless the abbreviation is an official and commonly recognized form (e.g., NSF for the National Science Foundation). The recommended best practice is to separate the values in a list with space vertical bar space ( | ).",
-        "examples": "`Norges forskningsr\u00e5d`; `Artsdatabanken`; `Ocean Census | Nippon Foundation`",
+        "examples": "`Norges forskningsråd`; `Artsdatabanken`; `Ocean Census | Nippon Foundation`",
         "gbif_required": "false",
         "validators": []
       },
@@ -4482,10 +4429,10 @@
           "microlitre": {
             "dc:URI": "http://www.wurvoc.org/vocabularies/om-1.8/microlitre",
             "dc:relation": "",
-            "dc:description": "microlitre (\u00b5l)",
+            "dc:description": "microlitre (µl)",
             "names": [
               "microlitre",
-              "\u00b5l"
+              "µl"
             ]
           },
           "litre": {
@@ -4623,7 +4570,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:higherGeographyID",
         "dc:description": "An identifier for the geographic region within which the dcterms:Location occurred.",
         "comments": "Recommended best practice is to use a persistent identifier from a controlled vocabulary such as the Getty Thesaurus of Geographic Names.",
-        "examples": "`http://vocab.getty.edu/tgn/1002002` (Ant\u00e1rtida e Islas del Atl\u00e1ntico Sur, Territorio Nacional de la Tierra del Fuego, Argentina).",
+        "examples": "`http://vocab.getty.edu/tgn/1002002` (Antártida e Islas del Atlántico Sur, Territorio Nacional de la Tierra del Fuego, Argentina).",
         "gbif_required": "false",
         "type": "identifier",
         "obis_required": "optional",
@@ -4638,7 +4585,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:higherGeography",
         "dc:description": "A list (concatenated and separated) of geographic names less specific than the information captured in the dwc:locality term.",
         "comments": "Recommended best practice is to separate the values in a list with space vertical bar space (` | `), with terms in order from least specific to most specific.",
-        "examples": "`North Atlantic Ocean`; `South America | Argentina | Patagonia | Parque Nacional Nahuel Huapi | Neuqu\u00e9n | Los Lagos` with accompanying values `South America` (continent) `Argentina` (country), `Neuqu\u00e9n` (first order division), and `Los Lagos` (second order division)",
+        "examples": "`North Atlantic Ocean`; `South America | Argentina | Patagonia | Parque Nacional Nahuel Huapi | Neuquén | Los Lagos` with accompanying values `South America` (continent) `Argentina` (country), `Neuquén` (first order division), and `Los Lagos` (second order division)",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -4680,7 +4627,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:islandGroup",
         "dc:description": "The name of the island group in which the dcterms:Location occurs.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names.",
-        "examples": "`Alexander Archipelago`; `Archipi\u00e9lago Diego Ram\u00edrez`; `Seychelles`",
+        "examples": "`Alexander Archipelago`; `Archipiélago Diego Ramírez`; `Seychelles`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -4708,7 +4655,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:country",
         "dc:description": "The name of the country or major administrative unit in which the dcterms:Location occurs.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
-        "examples": "`Denmark`; `Colombia`; `Espa\u00f1a`",
+        "examples": "`Denmark`; `Colombia`; `España`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -4736,7 +4683,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:stateProvince",
         "dc:description": "The name of the next smaller administrative region than country (state, province, canton, department, region, etc.) in which the dcterms:Location occurs.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
-        "examples": "`Montana`; `Minas Gerais`; `C\u00f3rdoba`",
+        "examples": "`Montana`; `Minas Gerais`; `Córdoba`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -4750,7 +4697,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:county",
         "dc:description": "The full, unabbreviated name of the next smaller administrative region than stateProvince (county, shire, department, etc.) in which the dcterms:Location occurs.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
-        "examples": "`Missoula`; `Los Lagos`; `Matar\u00f3`",
+        "examples": "`Missoula`; `Los Lagos`; `Mataró`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -4764,7 +4711,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:municipality",
         "dc:description": "The full, unabbreviated name of the next smaller administrative region than county (city, municipality, etc.) in which the dcterms:Location occurs. Do not use this term for a nearby named place that does not contain the actual dcterms:Location.",
         "comments": "Recommended best practice is to use a controlled vocabulary such as the Getty Thesaurus of Geographic Names. Recommended best practice is to leave this field blank if the dcterms:Location spans multiple entities at this administrative level or if the dcterms:Location might be in one or another of multiple possible entities at this level. Multiplicity and uncertainty of the geographic entity can be captured either in the term dwc:higherGeography or in the term dwc:locality, or both.",
-        "examples": "`Holzminden`; `Ara\u00e7atuba`; `Ga-Segonyana`",
+        "examples": "`Holzminden`; `Araçatuba`; `Ga-Segonyana`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -5503,7 +5450,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:verbatimIdentification",
         "dc:description": "A string representing the taxonomic identification as it appeared in the original record.",
         "comments": "This term is meant to allow the capture of an unaltered original identification/determination, including identification qualifiers, hybrid formulas, uncertainties, etc. This term is meant to be used in addition to dwc:scientificName (and dwc:identificationQualifier etc.), not instead of it.",
-        "examples": "`Peromyscus sp.`; `Ministrymon sp. nov. 1`; `Anser anser \u00d7 Branta canadensis`; `Pachyporidae?`; `Potentilla \u00d7 pantotricha Soj\u00e1k`; `Aconitum pilipes \u00d7 A. variegatum`; `Lepomis auritus x cyanellus`",
+        "examples": "`Peromyscus sp.`; `Ministrymon sp. nov. 1`; `Anser anser × Branta canadensis`; `Pachyporidae?`; `Potentilla × pantotricha Soják`; `Aconitum pilipes × A. variegatum`; `Lepomis auritus x cyanellus`",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -5633,7 +5580,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:identificationRemarks",
         "dc:description": "Comments or notes about the dwc:Identification.",
         "comments": "",
-        "examples": "`Distinguished between Anthus correndera and Anthus hellmayri based on the comparative lengths of the u\u00f1as.`",
+        "examples": "`Distinguished between Anthus correndera and Anthus hellmayri based on the comparative lengths of the uñas.`",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -5778,8 +5725,8 @@
         "qualName": "http://rs.tdwg.org/dwc/terms/scientificName",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:scientificName",
         "dc:description": "The full scientific name, with authorship and date information if known. When forming part of a dwc:Identification, this should be the name in lowest level taxonomic rank that can be determined. This term should not contain identification qualifications, which should instead be supplied in the dwc:identificationQualifier term.",
-        "comments": "This term should not contain identification qualifications, which should instead be supplied in the IdentificationQualifier term. When applied to an Organism or Occurrence, this term should be used to represent the scientific name that was applied to the associated Organism in accordance with the Taxon to which it was or is currently identified. Names should be compliant to the most recent nomenclatural code. For example, names of hybrids for algae, fungi and plants should follow the rules of the International Code of Nomenclature for algae, fungi, and plants (Schenzhen Code Articles H.1, H.2 and H.3). Thus, use the multiplication sign `\u00d7` (Unicode `U+00D7`, HTML `&amp;times;`) to identify a hybrid, not `x` or `X`, if possible.",
-        "examples": "`Coleoptera` (order); `Vespertilionidae` (family); `Manis` (genus); `Ctenomys sociabilis` (genus + specificEpithet); `Ambystoma tigrinum diaboli` (genus + specificEpithet + infraspecificEpithet); `Roptrocerus typographi (Gy\u00f6rfi, 1952)` (genus + specificEpithet + scientificNameAuthorship); `Quercus agrifolia var. oxyadenia (Torr.) J.T. Howell` (genus + specificEpithet + taxonRank + infraspecificEpithet + scientificNameAuthorship); `\u00d7Agropogon littoralis (Sm.) C. E. Hubb.`; `Mentha \u00d7smithiana R. A. Graham`; `Agrostis stolonifera L. \u00d7 Polypogon monspeliensis (L.) Desf.`",
+        "comments": "This term should not contain identification qualifications, which should instead be supplied in the IdentificationQualifier term. When applied to an Organism or Occurrence, this term should be used to represent the scientific name that was applied to the associated Organism in accordance with the Taxon to which it was or is currently identified. Names should be compliant to the most recent nomenclatural code. For example, names of hybrids for algae, fungi and plants should follow the rules of the International Code of Nomenclature for algae, fungi, and plants (Schenzhen Code Articles H.1, H.2 and H.3). Thus, use the multiplication sign `×` (Unicode `U+00D7`, HTML `&amp;times;`) to identify a hybrid, not `x` or `X`, if possible.",
+        "examples": "`Coleoptera` (order); `Vespertilionidae` (family); `Manis` (genus); `Ctenomys sociabilis` (genus + specificEpithet); `Ambystoma tigrinum diaboli` (genus + specificEpithet + infraspecificEpithet); `Roptrocerus typographi (Györfi, 1952)` (genus + specificEpithet + scientificNameAuthorship); `Quercus agrifolia var. oxyadenia (Torr.) J.T. Howell` (genus + specificEpithet + taxonRank + infraspecificEpithet + scientificNameAuthorship); `×Agropogon littoralis (Sm.) C. E. Hubb.`; `Mentha ×smithiana R. A. Graham`; `Agrostis stolonifera L. × Polypogon monspeliensis (L.) Desf.`",
         "gbif_required": "false",
         "obis_required": "required",
         "validators": [
@@ -5843,7 +5790,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:nameAccordingTo",
         "dc:description": "The reference to the source in which the specific taxon concept circumscription is defined or implied - traditionally signified by the Latin &quot;sensu&quot; or &quot;sec.&quot; (from secundum, meaning &quot;according to&quot;). For taxa that result from identifications, a reference to the keys, monographs, experts and other sources should be given.",
         "comments": "This term provides context to the dwc:scientificName. Together with the dwc:scientificName, separated by `sensu` or `sec.`, it forms the taxon concept label, which may be seen as having the same relationship to dwc:taxonConceptID as, for example, dwc:acceptedNameUsage has to dwc:acceptedNameUsageID. When not provided, in Taxon Core data sets the dwc:nameAccordingTo can be taken to be the data set. In this case the data set mostly provides sufficient context to infer the delimitation of the taxon and its relationship with other taxa. In Occurrence Core data sets, when not provided, dwc:nameAccordingTo can be an underlying taxonomy of the data set, e.g. Plants of the World Online (http://powo.science.kew.org/) for vascular plant records in iNaturalist (in which case it should be provided), or, which is the case for most dwc:PreservedSpecimen data sets, the dwc:Identification, in which case there is no further context.",
-        "examples": "`Franz NM, Cardona-Duque J (2013) Description of two new species and phylogenetic reassessment of Perelleschus Wibmer &amp; O\u2019Brien, 1986 (Coleoptera: Curculionidae), with a complete taxonomic concept history of Perelleschus sec. Franz &amp; Cardona-Duque, 2013. Syst Biodivers. 11: 209\u2013236.` (as the full citation of the Franz &amp; Cardona-Duque (2013) in Perelleschus splendida sec. Franz &amp; Cardona-Duque (2013))",
+        "examples": "`Franz NM, Cardona-Duque J (2013) Description of two new species and phylogenetic reassessment of Perelleschus Wibmer &amp; O’Brien, 1986 (Coleoptera: Curculionidae), with a complete taxonomic concept history of Perelleschus sec. Franz &amp; Cardona-Duque, 2013. Syst Biodivers. 11: 209–236.` (as the full citation of the Franz &amp; Cardona-Duque (2013) in Perelleschus splendida sec. Franz &amp; Cardona-Duque (2013))",
         "gbif_required": "false",
         "validators": []
       },
@@ -5856,7 +5803,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:namePublishedIn",
         "dc:description": "A reference for the publication in which the dwc:scientificName was originally established under the rules of the associated dwc:nomenclaturalCode.",
         "comments": "A citation of the first publication of the name in its given combination, not the basionym / original name. Recombinations are often not published in zoology, in which case dwc:namePublishedIn should be empty.",
-        "examples": "`Pearson O. P., and M. I. Christie. 1985. Historia Natural, 5(37):388`; `Forel, Auguste, Diagnosies provisoires de quelques esp\u00e8ces nouvelles de fourmis de Madagascar, r\u00e9colt\u00e9es par M. Grandidier., Annales de la Societe Entomologique de Belgique, Comptes-rendus des Seances 30, 1886`",
+        "examples": "`Pearson O. P., and M. I. Christie. 1985. Historia Natural, 5(37):388`; `Forel, Auguste, Diagnosies provisoires de quelques espèces nouvelles de fourmis de Madagascar, récoltées par M. Grandidier., Annales de la Societe Entomologique de Belgique, Comptes-rendus des Seances 30, 1886`",
         "gbif_required": "false",
         "validators": []
       },
@@ -6474,7 +6421,7 @@
           "pathovar": {
             "dc:URI": "http://rs.gbif.org/vocabulary/gbif/rank/pathovar",
             "dc:relation": "http://www.ncbi.nlm.nih.gov/books/NBK8812/table/A844/?report=objectonly",
-            "dc:description": "Microbial rank based on pathogenic reactions in one or more hosts. For recommendations on designating pathovars and use of designations when reviving names see Dye et al. (1980) Standards for naming pathovars of phytopathogenic bacteria and a list of pathovar names and pathotype strains. Rev. Plant Pathol. 59:153\u2013168. Example: Pseudomonas syringae pv. lachrymans.",
+            "dc:description": "Microbial rank based on pathogenic reactions in one or more hosts. For recommendations on designating pathovars and use of designations when reviving names see Dye et al. (1980) Standards for naming pathovars of phytopathogenic bacteria and a list of pathovar names and pathotype strains. Rev. Plant Pathol. 59:153–168. Example: Pseudomonas syringae pv. lachrymans.",
             "names": [
               "pathovar"
             ]
@@ -6547,7 +6494,7 @@
           "cultivar": {
             "dc:URI": "http://rs.gbif.org/vocabulary/gbif/rank/cultivar",
             "dc:relation": "http://rs.gbif.org/vocabulary/gbif/rank/cultivar",
-            "dc:description": "The epithet is usually output in single quotes and may contain multiple words, see ICBN \u00a728. Examples: Taxus baccata 'Variegata', Juniperus \u00d7pfitzeriana 'Wilhelm Pfitzer'; Magnolia 'Elizabeth' (= a hybrid, no species epithet).",
+            "dc:description": "The epithet is usually output in single quotes and may contain multiple words, see ICBN §28. Examples: Taxus baccata 'Variegata', Juniperus ×pfitzeriana 'Wilhelm Pfitzer'; Magnolia 'Elizabeth' (= a hybrid, no species epithet).",
             "names": [
               "cultivar"
             ]
@@ -6608,7 +6555,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:scientificNameAuthorship",
         "dc:description": "The authorship information for the dwc:scientificName formatted according to the conventions of the applicable dwc:nomenclaturalCode.",
         "comments": "",
-        "examples": "`(Torr.) J.T. Howell`; `(Martinovsk\u00fd) Tzvelev`; `(Gy\u00f6rfi, 1952)`",
+        "examples": "`(Torr.) J.T. Howell`; `(Martinovský) Tzvelev`; `(Györfi, 1952)`",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -6624,7 +6571,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:vernacularName",
         "dc:description": "A common or vernacular name.",
         "comments": "",
-        "examples": "`Andean Condor`; `Condor Andino`; `American Eagle`; `G\u00e4nsegeier`",
+        "examples": "`Andean Condor`; `Condor Andino`; `American Eagle`; `Gänsegeier`",
         "gbif_required": "false",
         "obis_required": "recommended",
         "validators": [
@@ -7141,8 +7088,8 @@
         "qualName": "http://rs.tdwg.org/dwc/terms/scientificName",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:scientificName",
         "dc:description": "The full scientific name, with authorship and date information if known. When forming part of a dwc:Identification, this should be the name in lowest level taxonomic rank that can be determined. This term should not contain identification qualifications, which should instead be supplied in the dwc:identificationQualifier term.",
-        "comments": "This term should not contain identification qualifications, which should instead be supplied in the IdentificationQualifier term. When applied to an Organism or Occurrence, this term should be used to represent the scientific name that was applied to the associated Organism in accordance with the Taxon to which it was or is currently identified. Names should be compliant to the most recent nomenclatural code. For example, names of hybrids for algae, fungi and plants should follow the rules of the International Code of Nomenclature for algae, fungi, and plants (Schenzhen Code Articles H.1, H.2 and H.3). Thus, use the multiplication sign `\u00d7` (Unicode `U+00D7`, HTML `&amp;times;`) to identify a hybrid, not `x` or `X`, if possible.",
-        "examples": "`Coleoptera` (order); `Vespertilionidae` (family); `Manis` (genus); `Ctenomys sociabilis` (genus + specificEpithet); `Ambystoma tigrinum diaboli` (genus + specificEpithet + infraspecificEpithet); `Roptrocerus typographi (Gy\u00f6rfi, 1952)` (genus + specificEpithet + scientificNameAuthorship); `Quercus agrifolia var. oxyadenia (Torr.) J.T. Howell` (genus + specificEpithet + taxonRank + infraspecificEpithet + scientificNameAuthorship); `\u00d7Agropogon littoralis (Sm.) C. E. Hubb.`; `Mentha \u00d7smithiana R. A. Graham`; `Agrostis stolonifera L. \u00d7 Polypogon monspeliensis (L.) Desf.`",
+        "comments": "This term should not contain identification qualifications, which should instead be supplied in the IdentificationQualifier term. When applied to an Organism or Occurrence, this term should be used to represent the scientific name that was applied to the associated Organism in accordance with the Taxon to which it was or is currently identified. Names should be compliant to the most recent nomenclatural code. For example, names of hybrids for algae, fungi and plants should follow the rules of the International Code of Nomenclature for algae, fungi, and plants (Schenzhen Code Articles H.1, H.2 and H.3). Thus, use the multiplication sign `×` (Unicode `U+00D7`, HTML `&amp;times;`) to identify a hybrid, not `x` or `X`, if possible.",
+        "examples": "`Coleoptera` (order); `Vespertilionidae` (family); `Manis` (genus); `Ctenomys sociabilis` (genus + specificEpithet); `Ambystoma tigrinum diaboli` (genus + specificEpithet + infraspecificEpithet); `Roptrocerus typographi (Györfi, 1952)` (genus + specificEpithet + scientificNameAuthorship); `Quercus agrifolia var. oxyadenia (Torr.) J.T. Howell` (genus + specificEpithet + taxonRank + infraspecificEpithet + scientificNameAuthorship); `×Agropogon littoralis (Sm.) C. E. Hubb.`; `Mentha ×smithiana R. A. Graham`; `Agrostis stolonifera L. × Polypogon monspeliensis (L.) Desf.`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -7198,7 +7145,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:nameAccordingTo",
         "dc:description": "The reference to the source in which the specific taxon concept circumscription is defined or implied - traditionally signified by the Latin &quot;sensu&quot; or &quot;sec.&quot; (from secundum, meaning &quot;according to&quot;). For taxa that result from identifications, a reference to the keys, monographs, experts and other sources should be given.",
         "comments": "This term provides context to the dwc:scientificName. Together with the dwc:scientificName, separated by `sensu` or `sec.`, it forms the taxon concept label, which may be seen as having the same relationship to dwc:taxonConceptID as, for example, dwc:acceptedNameUsage has to dwc:acceptedNameUsageID. When not provided, in Taxon Core data sets the dwc:nameAccordingTo can be taken to be the data set. In this case the data set mostly provides sufficient context to infer the delimitation of the taxon and its relationship with other taxa. In Occurrence Core data sets, when not provided, dwc:nameAccordingTo can be an underlying taxonomy of the data set, e.g. Plants of the World Online (http://powo.science.kew.org/) for vascular plant records in iNaturalist (in which case it should be provided), or, which is the case for most dwc:PreservedSpecimen data sets, the dwc:Identification, in which case there is no further context.",
-        "examples": "`Franz NM, Cardona-Duque J (2013) Description of two new species and phylogenetic reassessment of Perelleschus Wibmer &amp; O\u2019Brien, 1986 (Coleoptera: Curculionidae), with a complete taxonomic concept history of Perelleschus sec. Franz &amp; Cardona-Duque, 2013. Syst Biodivers. 11: 209\u2013236.` (as the full citation of the Franz &amp; Cardona-Duque (2013) in Perelleschus splendida sec. Franz &amp; Cardona-Duque (2013))",
+        "examples": "`Franz NM, Cardona-Duque J (2013) Description of two new species and phylogenetic reassessment of Perelleschus Wibmer &amp; O’Brien, 1986 (Coleoptera: Curculionidae), with a complete taxonomic concept history of Perelleschus sec. Franz &amp; Cardona-Duque, 2013. Syst Biodivers. 11: 209–236.` (as the full citation of the Franz &amp; Cardona-Duque (2013) in Perelleschus splendida sec. Franz &amp; Cardona-Duque (2013))",
         "gbif_required": "false",
         "validators": []
       },
@@ -7211,7 +7158,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:namePublishedIn",
         "dc:description": "A reference for the publication in which the dwc:scientificName was originally established under the rules of the associated dwc:nomenclaturalCode.",
         "comments": "A citation of the first publication of the name in its given combination, not the basionym / original name. Recombinations are often not published in zoology, in which case dwc:namePublishedIn should be empty.",
-        "examples": "`Pearson O. P., and M. I. Christie. 1985. Historia Natural, 5(37):388`; `Forel, Auguste, Diagnosies provisoires de quelques esp\u00e8ces nouvelles de fourmis de Madagascar, r\u00e9colt\u00e9es par M. Grandidier., Annales de la Societe Entomologique de Belgique, Comptes-rendus des Seances 30, 1886`",
+        "examples": "`Pearson O. P., and M. I. Christie. 1985. Historia Natural, 5(37):388`; `Forel, Auguste, Diagnosies provisoires de quelques espèces nouvelles de fourmis de Madagascar, récoltées par M. Grandidier., Annales de la Societe Entomologique de Belgique, Comptes-rendus des Seances 30, 1886`",
         "gbif_required": "false",
         "validators": []
       },
@@ -7809,7 +7756,7 @@
           "pathovar": {
             "dc:URI": "http://rs.gbif.org/vocabulary/gbif/rank/pathovar",
             "dc:relation": "http://www.ncbi.nlm.nih.gov/books/NBK8812/table/A844/?report=objectonly",
-            "dc:description": "Microbial rank based on pathogenic reactions in one or more hosts. For recommendations on designating pathovars and use of designations when reviving names see Dye et al. (1980) Standards for naming pathovars of phytopathogenic bacteria and a list of pathovar names and pathotype strains. Rev. Plant Pathol. 59:153\u2013168. Example: Pseudomonas syringae pv. lachrymans.",
+            "dc:description": "Microbial rank based on pathogenic reactions in one or more hosts. For recommendations on designating pathovars and use of designations when reviving names see Dye et al. (1980) Standards for naming pathovars of phytopathogenic bacteria and a list of pathovar names and pathotype strains. Rev. Plant Pathol. 59:153–168. Example: Pseudomonas syringae pv. lachrymans.",
             "names": [
               "pathovar"
             ]
@@ -7882,7 +7829,7 @@
           "cultivar": {
             "dc:URI": "http://rs.gbif.org/vocabulary/gbif/rank/cultivar",
             "dc:relation": "http://rs.gbif.org/vocabulary/gbif/rank/cultivar",
-            "dc:description": "The epithet is usually output in single quotes and may contain multiple words, see ICBN \u00a728. Examples: Taxus baccata 'Variegata', Juniperus \u00d7pfitzeriana 'Wilhelm Pfitzer'; Magnolia 'Elizabeth' (= a hybrid, no species epithet).",
+            "dc:description": "The epithet is usually output in single quotes and may contain multiple words, see ICBN §28. Examples: Taxus baccata 'Variegata', Juniperus ×pfitzeriana 'Wilhelm Pfitzer'; Magnolia 'Elizabeth' (= a hybrid, no species epithet).",
             "names": [
               "cultivar"
             ]
@@ -7939,7 +7886,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:scientificNameAuthorship",
         "dc:description": "The authorship information for the dwc:scientificName formatted according to the conventions of the applicable dwc:nomenclaturalCode.",
         "comments": "",
-        "examples": "`(Torr.) J.T. Howell`; `(Martinovsk\u00fd) Tzvelev`; `(Gy\u00f6rfi, 1952)`",
+        "examples": "`(Torr.) J.T. Howell`; `(Martinovský) Tzvelev`; `(Györfi, 1952)`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -7953,7 +7900,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:vernacularName",
         "dc:description": "A common or vernacular name.",
         "comments": "",
-        "examples": "`Andean Condor`; `Condor Andino`; `American Eagle`; `G\u00e4nsegeier`",
+        "examples": "`Andean Condor`; `Condor Andino`; `American Eagle`; `Gänsegeier`",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -8400,7 +8347,7 @@
         "dc:relation": "https://dwc.tdwg.org/terms/#dcterms:bibliographicCitation",
         "dc:description": "A bibliographic reference for the resource.",
         "comments": "From Dublin Core, &quot;Recommended practice is to include sufficient bibliographic detail to identify the resource as unambiguously as possible.&quot; The intended usage of this term in Darwin Core is to provide the preferred way to cite the resource itself - &quot;how to cite this record&quot;. Note that the intended usage of dcterms:references in Darwin Core, by contrast, is to point to the definitive source representation of the resource - &quot;where to find the as-close-to-original reference&quot;, if one is available.",
-        "examples": "`Museum of Vertebrate Zoology, UC Berkeley. MVZ Mammal Collection (Arctos). Record ID: http://arctos.database.museum/guid/MVZ:Mamm:165861?seid=101356. Source: http://ipt.vertnet.org:8080/ipt/resource.do?r=mvz_mammal.` (Occurrence example); `https://www.gbif.org/species/2439608 Source: GBIF Taxonomic Backbone` (Taxon example); `Rand, K.M., Logerwell, E.A. The first demersal trawl survey of benthic fish and invertebrates in the Beaufort Sea since the late 1970s. Polar Biol 34, 475\u2013488 (2011). https://doi.org/10.1007/s00300-010-0900-2` (Event example)",
+        "examples": "`Museum of Vertebrate Zoology, UC Berkeley. MVZ Mammal Collection (Arctos). Record ID: http://arctos.database.museum/guid/MVZ:Mamm:165861?seid=101356. Source: http://ipt.vertnet.org:8080/ipt/resource.do?r=mvz_mammal.` (Occurrence example); `https://www.gbif.org/species/2439608 Source: GBIF Taxonomic Backbone` (Taxon example); `Rand, K.M., Logerwell, E.A. The first demersal trawl survey of benthic fish and invertebrates in the Beaufort Sea since the late 1970s. Polar Biol 34, 475–488 (2011). https://doi.org/10.1007/s00300-010-0900-2` (Event example)",
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": []
@@ -8528,6 +8475,20 @@
           "uniqueIdentifier"
         ]
       },
+      "eventID": {
+        "group": "dnaDerivedData",
+        "name": "eventID",
+        "label": "Event ID",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/eventID",
+        "dc:relation": "http://rs.tdwg.org/dwc/terms/index.htm#eventID",
+        "dc:description": "The identifier of the event the DNA sequence relates to. If not applicable, it should be left empty.",
+        "examples": "",
+        "gbif_required": "false",
+        "type": "identifier",
+        "obis_required": "optional",
+        "validators": []
+      },
       "occurrenceID": {
         "group": "dnaDerivedData",
         "name": "occurrenceID",
@@ -8609,7 +8570,7 @@
         "namespace": "https://w3id.org/mixs/",
         "qualName": "https://w3id.org/mixs/0000012",
         "dc:relation": "",
-        "dc:description": "In this field, report which major environmental system your sample or specimen came from. The systems identified should have a coarse spatial grain, to provide the general environmental context of where the sampling was done (e.g. were you in the desert or a rainforest?). We recommend using subclasses of ENVO\u2019s biome class: http://purl.obolibrary.org/obo/ENVO_00000428. Format (one term): termLabel [termID], Format (multiple terms): termLabel [termID]|termLabel [termID]|termLabel [termID]. Example: Annotating a water sample from the photic zone in middle of the Atlantic Ocean, consider: oceanic epipelagic zone biome [ENVO:01000033]. Example: Annotating a sample from the Amazon rainforest consider: tropical moist broadleaf forest biome [ENVO:01000228]. If needed, request new terms on the ENVO tracker, identified here: http://www.obofoundry.org/ontology/envo.html",
+        "dc:description": "In this field, report which major environmental system your sample or specimen came from. The systems identified should have a coarse spatial grain, to provide the general environmental context of where the sampling was done (e.g. were you in the desert or a rainforest?). We recommend using subclasses of ENVO’s biome class: http://purl.obolibrary.org/obo/ENVO_00000428. Format (one term): termLabel [termID], Format (multiple terms): termLabel [termID]|termLabel [termID]|termLabel [termID]. Example: Annotating a water sample from the photic zone in middle of the Atlantic Ocean, consider: oceanic epipelagic zone biome [ENVO:01000033]. Example: Annotating a sample from the Amazon rainforest consider: tropical moist broadleaf forest biome [ENVO:01000228]. If needed, request new terms on the ENVO tracker, identified here: http://www.obofoundry.org/ontology/envo.html",
         "examples": "forest biome [ENVO:01000174]",
         "gbif_required": "false",
         "obis_required": "optional",
@@ -8622,7 +8583,7 @@
         "namespace": "https://w3id.org/mixs/",
         "qualName": "https://w3id.org/mixs/0000013",
         "dc:relation": "",
-        "dc:description": "In this field, report the entity or entities which are in your sample or specimen\u2019s local vicinity and which you believe have significant causal influences on your sample or specimen. Please use terms that are present in ENVO and which are of smaller spatial grain than your entry for env_broad_scale. Format (one term): termLabel [termID]; Format (multiple terms): termLabel [termID]|termLabel [termID]|termLabel [termID]. Example: Annotating a pooled sample taken from various vegetation layers in a forest consider: canopy [ENVO:00000047]|herb and fern layer [ENVO:01000337]|litter layer [ENVO:01000338]|understory [01000335]|shrub layer [ENVO:01000336]. If needed, request new terms on the ENVO tracker, identified here: http://www.obofoundry.org/ontology/envo.html",
+        "dc:description": "In this field, report the entity or entities which are in your sample or specimen’s local vicinity and which you believe have significant causal influences on your sample or specimen. Please use terms that are present in ENVO and which are of smaller spatial grain than your entry for env_broad_scale. Format (one term): termLabel [termID]; Format (multiple terms): termLabel [termID]|termLabel [termID]|termLabel [termID]. Example: Annotating a pooled sample taken from various vegetation layers in a forest consider: canopy [ENVO:00000047]|herb and fern layer [ENVO:01000337]|litter layer [ENVO:01000338]|understory [01000335]|shrub layer [ENVO:01000336]. If needed, request new terms on the ENVO tracker, identified here: http://www.obofoundry.org/ontology/envo.html",
         "examples": "litter layer [ENVO:01000338]",
         "gbif_required": "false",
         "validators": []
@@ -8634,7 +8595,7 @@
         "namespace": "https://w3id.org/mixs/",
         "qualName": "https://w3id.org/mixs/0000014",
         "dc:relation": "",
-        "dc:description": "In this field, report which environmental material or materials (pipe separated) immediately surrounded your sample or specimen prior to sampling, using one or more subclasses of ENVO\u2019s environmental material class: http://purl.obolibrary.org/obo/ENVO_00010483. Format (one term): termLabel [termID]; Format (multiple terms): termLabel [termID]|termLabel [termID]|termLabel [termID]. Example: Annotating a fish swimming in the upper 100 m of the Atlantic Ocean, consider: ocean water [ENVO:00002151]. Example: Annotating a duck on a pond consider: pond water [ENVO:00002228]|air ENVO_00002005. If needed, request new terms on the ENVO tracker, identified here: http://www.obofoundry.org/ontology/envo.html",
+        "dc:description": "In this field, report which environmental material or materials (pipe separated) immediately surrounded your sample or specimen prior to sampling, using one or more subclasses of ENVO’s environmental material class: http://purl.obolibrary.org/obo/ENVO_00010483. Format (one term): termLabel [termID]; Format (multiple terms): termLabel [termID]|termLabel [termID]|termLabel [termID]. Example: Annotating a fish swimming in the upper 100 m of the Atlantic Ocean, consider: ocean water [ENVO:00002151]. Example: Annotating a duck on a pond consider: pond water [ENVO:00002228]|air ENVO_00002005. If needed, request new terms on the ENVO tracker, identified here: http://www.obofoundry.org/ontology/envo.html",
         "examples": "soil [ENVO:00001998]",
         "gbif_required": "false",
         "obis_required": "optional",
@@ -8728,7 +8689,7 @@
         "namespace": "https://w3id.org/mixs/",
         "qualName": "https://w3id.org/mixs/0000026",
         "dc:relation": "",
-        "dc:description": "A unique identifier assigned to a material sample (as defined by http://rs.tdwg.org/dwc/terms/materialSampleID, and as opposed to a particular digital record of a material sample) used for extracting nucleic acids, and subsequent sequencing. The identifier can refer either to the original material collected or to any derived sub-samples. The INSDC qualifiers /specimen_voucher, /bio_material, or /culture_collection may or may not share the same value as the source_mat_id field. For instance, the /specimen_voucher qualifier and source_mat_id may both contain \u00b4UAM:Herps:14\u00b4 , referring to both the specimen voucher and sampled tissue with the same identifier. However, the /culture_collection qualifier may refer to a value from an initial culture (e.g. ATCC:11775) while source_mat_id would refer to an identifier from some derived culture from which the nucleic acids were extracted (e.g. xatc123 or ark:/2154/R2).",
+        "dc:description": "A unique identifier assigned to a material sample (as defined by http://rs.tdwg.org/dwc/terms/materialSampleID, and as opposed to a particular digital record of a material sample) used for extracting nucleic acids, and subsequent sequencing. The identifier can refer either to the original material collected or to any derived sub-samples. The INSDC qualifiers /specimen_voucher, /bio_material, or /culture_collection may or may not share the same value as the source_mat_id field. For instance, the /specimen_voucher qualifier and source_mat_id may both contain ´UAM:Herps:14´ , referring to both the specimen voucher and sampled tissue with the same identifier. However, the /culture_collection qualifier may refer to a value from an initial culture (e.g. ATCC:11775) while source_mat_id would refer to an identifier from some derived culture from which the nucleic acids were extracted (e.g. xatc123 or ark:/2154/R2).",
         "examples": "MPI012345",
         "gbif_required": "false",
         "validators": []
@@ -9631,7 +9592,7 @@
         "namespace": "https://w3id.org/mixs/",
         "qualName": "https://w3id.org/mixs/0000049",
         "dc:relation": "",
-        "dc:description": "Description of reaction conditions and components of PCR in the form of \u00b4initial denaturation:94degC_1.5min; annealing=...\u00b4",
+        "dc:description": "Description of reaction conditions and components of PCR in the form of ´initial denaturation:94degC_1.5min; annealing=...´",
         "examples": "initial denaturation:94_3;annealing:50_1;elongation:72_1.5;final elongation:72_10;35",
         "gbif_required": "false",
         "validators": []
@@ -10064,7 +10025,7 @@
         "namespace": "https://w3id.org/mixs/",
         "qualName": "https://w3id.org/mixs/0000056",
         "dc:relation": "",
-        "dc:description": "The assembly quality category is based on sets of criteria outlined for each assembly quality category. For MISAG/MIMAG; Finished: Single, validated, contiguous sequence per replicon without gaps or ambiguities with a consensus error rate equivalent to Q50 or better. High Quality Draft:Multiple fragments where gaps span repetitive regions. Presence of the 23S, 16S and 5S rRNA genes and at least 18 tRNAs. Medium Quality Draft:Many fragments with little to no review of assembly other than reporting of standard assembly statistics. Low Quality Draft:Many fragments with little to no review of assembly other than reporting of standard assembly statistics. Assembly statistics include, but are not limited to total assembly size, number of contigs, contig N50/L50, and maximum contig length. For MIUVIG; Finished: Single, validated, contiguous sequence per replicon without gaps or ambiguities, with extensive manual review and editing to annotate putative gene functions and transcriptional units. High-quality draft genome: One or multiple fragments, totaling \u2265 90% of the expected genome or replicon sequence or predicted complete. Genome fragment(s): One or multiple fragments, totalling &lt; 90% of the expected genome or replicon sequence, or for which no genome size could be estimated",
+        "dc:description": "The assembly quality category is based on sets of criteria outlined for each assembly quality category. For MISAG/MIMAG; Finished: Single, validated, contiguous sequence per replicon without gaps or ambiguities with a consensus error rate equivalent to Q50 or better. High Quality Draft:Multiple fragments where gaps span repetitive regions. Presence of the 23S, 16S and 5S rRNA genes and at least 18 tRNAs. Medium Quality Draft:Many fragments with little to no review of assembly other than reporting of standard assembly statistics. Low Quality Draft:Many fragments with little to no review of assembly other than reporting of standard assembly statistics. Assembly statistics include, but are not limited to total assembly size, number of contigs, contig N50/L50, and maximum contig length. For MIUVIG; Finished: Single, validated, contiguous sequence per replicon without gaps or ambiguities, with extensive manual review and editing to annotate putative gene functions and transcriptional units. High-quality draft genome: One or multiple fragments, totaling ≥ 90% of the expected genome or replicon sequence or predicted complete. Genome fragment(s): One or multiple fragments, totalling &lt; 90% of the expected genome or replicon sequence, or for which no genome size could be estimated",
         "examples": "High-quality draft genome",
         "gbif_required": "false",
         "thesaurus": "https://rs.gbif.org/vocabulary/dna/assembly_qual.xml",
@@ -10278,7 +10239,7 @@
         "namespace": "https://w3id.org/mixs/",
         "qualName": "https://w3id.org/mixs/0000070",
         "dc:relation": "",
-        "dc:description": "Tools used for completion estimate, i.e. checkm, anvi\u00b4o, busco",
+        "dc:description": "Tools used for completion estimate, i.e. checkm, anvi´o, busco",
         "examples": "checkm",
         "gbif_required": "false",
         "validators": []
@@ -10382,7 +10343,7 @@
         "qualName": "https://w3id.org/mixs/0000074",
         "dc:relation": "",
         "dc:description": "Tool(s) used in contamination screening",
-        "examples": "anvi\u00b4o",
+        "examples": "anvi´o",
         "gbif_required": "false",
         "thesaurus": "https://rs.gbif.org/vocabulary/dna/decontam_software.xml",
         "values": {
@@ -11166,7 +11127,7 @@
         "namespace": "http://data.ggbn.org/schemas/ggbn/terms/",
         "qualName": "http://data.ggbn.org/schemas/ggbn/terms/concentration",
         "dc:relation": "http://terms.tdwg.org/wiki/ggbn:concentration",
-        "dc:description": "Concentration of DNA (weight ng/volume \u00b5l)",
+        "dc:description": "Concentration of DNA (weight ng/volume µl)",
         "examples": "67.5",
         "gbif_required": "false",
         "validators": []
@@ -11179,7 +11140,7 @@
         "qualName": "http://data.ggbn.org/schemas/ggbn/terms/concentrationUnit",
         "dc:relation": "http://terms.tdwg.org/wiki/ggbn:concentrationUnit",
         "dc:description": "Unit used for concentration measurement",
-        "examples": "ng/\u00b5l",
+        "examples": "ng/µl",
         "gbif_required": "false",
         "validators": []
       },
@@ -11265,7 +11226,7 @@
         "namespace": "http://rs.gbif.org/terms/miqe/",
         "qualName": "http://rs.gbif.org/terms/miqe/probeQuencher",
         "dc:relation": "",
-        "dc:description": "Type of quencher used. The quencher molecule quenches the fluorescence emitted by the fluorophore when excited by the cycler\u2019s light source As long as fluorophore and the quencher are in proximity, quenching inhibits any fluorescence signals.",
+        "dc:description": "Type of quencher used. The quencher molecule quenches the fluorescence emitted by the fluorophore when excited by the cycler’s light source As long as fluorophore and the quencher are in proximity, quenching inhibits any fluorescence signals.",
         "examples": "NFQ-MGB",
         "gbif_required": "false",
         "validators": []
@@ -11398,7 +11359,7 @@
         "namespace": "http://rs.gbif.org/terms/miqe/",
         "qualName": "http://rs.gbif.org/terms/miqe/estimatedNumberOfCopies",
         "dc:relation": "",
-        "dc:description": "Number of target molecules per \u00b5l. Mean copies per partition (?) can be calculated using the number of partitions (n) and the estimated copy number in the total volume of all partitions (m) with a formula ?=m/n.",
+        "dc:description": "Number of target molecules per µl. Mean copies per partition (?) can be calculated using the number of partitions (n) and the estimated copy number in the total volume of all partitions (m) with a formula ?=m/n.",
         "examples": "10300",
         "gbif_required": "false",
         "validators": [
@@ -11426,7 +11387,7 @@
         "qualName": "http://rs.gbif.org/terms/miqe/amplificationReactionVolumeUnit",
         "dc:relation": "",
         "dc:description": "Unit used for PCR reaction volume. Many of the instruments require preparation of a much larger initial sample volume than is actually analyzed.",
-        "examples": "\u00b5l",
+        "examples": "µl",
         "gbif_required": "false",
         "validators": []
       },
@@ -11461,7 +11422,7 @@
         "namespace": "http://rs.gbif.org/terms/miqe/",
         "qualName": "http://rs.gbif.org/terms/miqe/pcr_primer_lod",
         "dc:relation": "",
-        "dc:description": "The assay\u2019s ability to detect the target at low levels.",
+        "dc:description": "The assay’s ability to detect the target at low levels.",
         "examples": "51",
         "gbif_required": "false",
         "validators": []
@@ -11473,8 +11434,136 @@
         "namespace": "http://rs.gbif.org/terms/miqe/",
         "qualName": "http://rs.gbif.org/terms/miqe/pcr_primer_loq",
         "dc:relation": "",
-        "dc:description": "The assay\u2019s ability to quantify copy number at low levels.",
+        "dc:description": "The assay’s ability to quantify copy number at low levels.",
         "examples": "184",
+        "gbif_required": "false",
+        "validators": []
+      }
+    }
+  },
+  "ResourceRelationship": {
+    "xmlns": "http://rs.gbif.org/extension/",
+    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+    "xmlns:dc": "http://purl.org/dc/terms/",
+    "xsi:schemaLocation": "http://rs.gbif.org/extension/ http://rs.gbif.org/schema/extension.xsd",
+    "dc:title": "Darwin Core Resource Relationship",
+    "namespace": "http://rs.tdwg.org/dwc/terms/",
+    "rowType": "http://rs.tdwg.org/dwc/terms/ResourceRelationship",
+    "dc:issued": "2025-07-10",
+    "dc:subject": "dwc:Occurrence dwc:Event dwc:Taxon",
+    "dc:relation": "http://rs.tdwg.org/dwc/terms/ResourceRelationship",
+    "dc:description": "Extended support for relationships between resources in a Darwin Core Occurrence, Event, or Taxon Core to resources in an extension or external to the data set. The identifiers for subject (resourceID) and object (relatedResourceID) may exist in the dataset or be accessible via an externally resolvable identifiers.",
+    "name": "ResourceRelationship",
+    "fieldOverrides": {},
+    "fields": {
+      "resourceRelationshipID": {
+        "group": "ResourceRelationship",
+        "name": "resourceRelationshipID",
+        "label": "Resource Relationship ID",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/resourceRelationshipID",
+        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:resourceRelationshipID",
+        "dc:description": "An identifier for an instance of relationship between one resource (the subject) and another (dwc:relatedResource, the object).",
+        "comments": "",
+        "examples": "`04b16710-b09c-11e8-96f8-529269fb1459`",
+        "gbif_required": "false",
+        "unique": "true",
+        "type": "identifier",
+        "validators": [
+          "uniqueIdentifier"
+        ]
+      },
+      "resourceID": {
+        "group": "ResourceRelationship",
+        "name": "resourceID",
+        "label": "Resource ID",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/resourceID",
+        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:resourceID",
+        "dc:description": "An identifier for the resource that is the subject of the relationship.",
+        "comments": "",
+        "examples": "`f809b9e0-b09b-11e8-96f8-529269fb1459`",
+        "gbif_required": "true",
+        "type": "identifier",
+        "validators": []
+      },
+      "relationshipOfResourceID": {
+        "group": "ResourceRelationship",
+        "name": "relationshipOfResourceID",
+        "label": "Relationship Of Resource ID",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipOfResourceID",
+        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipOfResourceID",
+        "dc:description": "An identifier for the relationship type (predicate) that connects the subject identified by dwc:resourceID to its object identified by dwc:relatedResourceID.",
+        "comments": "Recommended best practice is to use the identifiers of the terms in a controlled vocabulary, such as the OBO Relation Ontology.",
+        "examples": "`http://purl.obolibrary.org/obo/RO_0002456` (for the relation `pollinated by`); `http://purl.obolibrary.org/obo/RO_0002455` (for the relation `pollinates`); `https://www.inaturalist.org/observation_fields/879` (for the relation `eaten by`)",
+        "gbif_required": "false",
+        "type": "identifier",
+        "validators": []
+      },
+      "relatedResourceID": {
+        "group": "ResourceRelationship",
+        "name": "relatedResourceID",
+        "label": "Related Resource ID",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/relatedResourceID",
+        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relatedResourceID",
+        "dc:description": "An identifier for a related resource (the object, rather than the subject of the relationship).",
+        "comments": "",
+        "examples": "`dc609808-b09b-11e8-96f8-529269fb1459`",
+        "gbif_required": "true",
+        "type": "identifier",
+        "validators": []
+      },
+      "relationshipOfResource": {
+        "group": "ResourceRelationship",
+        "name": "relationshipOfResource",
+        "label": "Relationship Of Resource",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipOfResource",
+        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipOfResource",
+        "dc:description": "The relationship of the subject (identified by dwc:resourceID) to the object (identified by dwc:relatedResourceID).",
+        "comments": "Recommended best practice is to use a controlled vocabulary.",
+        "examples": "`same as`; `duplicate of`; `mother of`; `offspring of`; `sibling of`; `parasite of`; `host of`; `valid synonym of`; `located within`; `pollinator of members of taxon`; `pollinated specific plant`; `pollinated by members of taxon`; `on slab with`",
+        "gbif_required": "false",
+        "validators": []
+      },
+      "relationshipAccordingTo": {
+        "group": "ResourceRelationship",
+        "name": "relationshipAccordingTo",
+        "label": "Relationship According To",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipAccordingTo",
+        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipAccordingTo",
+        "dc:description": "The source (person, organization, publication, reference) establishing the relationship between the two resources.",
+        "comments": "",
+        "examples": "`Julie Woodruff`",
+        "gbif_required": "false",
+        "validators": []
+      },
+      "relationshipEstablishedDate": {
+        "group": "ResourceRelationship",
+        "name": "relationshipEstablishedDate",
+        "label": "Relationship Established Date",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipEstablishedDate",
+        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipEstablishedDate",
+        "dc:description": "The date-time on which the relationship between the two resources was established.",
+        "comments": "Recommended best practice is to use a date that conforms to ISO 8601-1:2019.",
+        "examples": "`1963-03-08T14:07-06:00` (8 Mar 1963 at or after 2:07pm and before 2:08pm in the time zone six hours earlier than UTC); `2009-02-20T08:40Z` (20 February 2009 at or after 8:40am and before 8:41 UTC); `2018-08-29T15:19` (29 August 2018 at or after 3:19pm and before 3:20pm local time); `1809-02-12` (within the day 12 February 1809); `1906-06` (in the month of June 1906); `1971` (in the year 1971); `2007-03-01T13:00:00Z/2008-05-11T15:30:00Z` (some time within the interval beginning 1 March 2007 at 1pm UTC and before 11 May 2008 at 3:30pm UTC); `1900/1909` (some time within the interval between the beginning of the year 1900 and before the year 1909); `2007-11-13/15` (some time in the interval between the beginning of 13 November 2007 and before 15 November 2007)",
+        "gbif_required": "false",
+        "validators": []
+      },
+      "relationshipRemarks": {
+        "group": "ResourceRelationship",
+        "name": "relationshipRemarks",
+        "label": "Relationship Remarks",
+        "namespace": "http://rs.tdwg.org/dwc/terms/",
+        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipRemarks",
+        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipRemarks",
+        "dc:description": "Comments or notes about the relationship between the two resources.",
+        "comments": "",
+        "examples": "`mother and offspring collected from the same nest`; `pollinator captured in the act`",
         "gbif_required": "false",
         "validators": []
       }
