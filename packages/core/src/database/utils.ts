@@ -5,6 +5,7 @@
 /**
  * Minimal dataset interface for schema import
  * Works with both validation and transform dataset configs
+ * TODO: Replace this with proper schema usage
  */
 export type DatasetWithProfile = {
   readonly name: string;
