@@ -2,8 +2,8 @@
  * CLI Output utilities using Cliffy TTY for better terminal control
  */
 
-import { tty } from '@cliffy/ansi/tty';
 import { colors } from '@cliffy/ansi/colors';
+import { tty } from '@cliffy/ansi/tty';
 
 /**
  * Output utilities for CLI with TTY control
@@ -23,7 +23,7 @@ export const Output = {
    * Write line to stdout (with newline)
    */
   line(text = ''): void {
-    tty.text(text + '\n');
+    this.write(text, true);
   },
 
   /**
@@ -31,13 +31,6 @@ export const Output = {
    */
   blank(): void {
     tty.text('\n');
-  },
-
-  /**
-   * Clear the current line
-   */
-  clearLine(): void {
-    tty.eraseLine();
   },
 
   /**
@@ -105,38 +98,8 @@ export const Output = {
     }
   },
 
-  /**
-   * Update current line (useful for progress)
-   */
-  updateLine(text: string): void {
-    tty.cursorLeft.eraseLine.text(text);
-  },
-
-  /**
-   * Save cursor position
-   */
-  saveCursor(): void {
-    tty.cursorSave();
-  },
-
-  /**
-   * Restore cursor position
-   */
-  restoreCursor(): void {
-    tty.cursorRestore();
-  },
-
-  /**
-   * Move cursor up N lines
-   */
-  cursorUp(lines = 1): void {
-    tty.cursorUp(lines);
-  },
-
-  /**
-   * Move cursor down N lines
-   */
-  cursorDown(lines = 1): void {
-    tty.cursorDown(lines);
+  // For advanced usage/one-off cases where a new method isn't necessary
+  getTTY(): typeof tty {
+    return tty;
   },
 };

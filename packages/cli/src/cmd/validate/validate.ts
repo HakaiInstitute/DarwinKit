@@ -20,6 +20,7 @@ import { ErrorCode } from '@dwkt/domain';
 import * as Match from 'effect/Match';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
+import { displayWorkspaceInfo } from '../../utils/workspace-display.ts';
 
 // CLI-specific errors with structured types
 // Using Data.TaggedError for proper Error extension and stack traces
@@ -210,27 +211,6 @@ function handleCLIError(error: unknown): never {
     Output.error(String(error));
     Deno.exit(3);
   }
-}
-
-/**
- * Display workspace information before validation
- */
-function displayWorkspaceInfo(workspace: Workspace) {
-  Output.blank();
-  Output.section('📂', 'Workspace Information');
-  Output.line(`  Name: ${workspace.getName()}`);
-  Output.line(`  Version: ${workspace.getVersion()}`);
-  if (workspace.getDescription()) {
-    Output.line(`  Description: ${workspace.getDescription()}`);
-  }
-  Output.line(`  Config: ${workspace.getConfigPath()}`);
-
-  const datasets = workspace.getDatasets();
-  Output.line(`  Datasets: ${datasets.length}`);
-  for (const dataset of datasets) {
-    Output.muted(`    • ${dataset.name} (${dataset.spec})`);
-  }
-  Output.blank();
 }
 
 // Main validate function

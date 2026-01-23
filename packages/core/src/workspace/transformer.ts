@@ -95,7 +95,6 @@ export class Transformer {
 
       // Step 1: Import CSV files
       if (!skipImport) {
-        console.log("Creating tables from CSV files...");
         yield* createTablesFromCSV(
           connection,
           config.transform.inputs,
@@ -113,23 +112,19 @@ export class Transformer {
       }
 
       // Step 3: Create schema tables
-      console.log("Creating OBIS tables from schema...");
       yield* createTableFromSchema(connection, config.transform.datasets);
 
       // Step 4: Populate schema tables
-      console.log("Populating OBIS tables from data tables...");
       yield* populateSchemaFromDataTables(connection, config.transform.datasets);
 
       // Step 5: Export results
       if (!skipExport) {
-        console.log("Exporting OBIS tables to CSV...");
         yield* exportObisTablesToCSV(
           connection,
           config.transform,
         );
 
         if (config.transform.output.exportDB) {
-          console.log("Exporting DuckDB database to persistent file...");
           yield* exportToPersistentDB(
             connection,
             config.transform,
@@ -157,7 +152,6 @@ export class Transformer {
 
       const basePath = dirname(workspace.getConfigPath());
 
-      console.log("Creating tables from CSV files...");
       yield* createTablesFromCSV(
         connection,
         config.transform.inputs,
@@ -180,7 +174,6 @@ export class Transformer {
       const config = yield* this.getTransformConfig();
       const connection = yield* workspace.getConnection();
 
-      console.log("Creating OBIS tables from schema...");
       yield* createTableFromSchema(connection, config.transform.datasets);
     });
   }
@@ -197,7 +190,6 @@ export class Transformer {
       const config = yield* this.getTransformConfig();
       const connection = yield* workspace.getConnection();
 
-      console.log("Populating OBIS tables from data tables...");
       yield* populateSchemaFromDataTables(connection, config.transform.datasets);
     });
   }
@@ -214,11 +206,9 @@ export class Transformer {
       const config = yield* this.getTransformConfig();
       const connection = yield* workspace.getConnection();
 
-      console.log("Exporting OBIS tables to CSV...");
       yield* exportObisTablesToCSV(connection, config.transform);
 
       if (config.transform.output.exportDB) {
-        console.log("Exporting DuckDB database to persistent file...");
         yield* exportToPersistentDB(connection, config.transform);
       }
     });

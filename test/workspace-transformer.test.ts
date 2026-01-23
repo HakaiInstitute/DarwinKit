@@ -1,13 +1,13 @@
 /**
  * End-to-End Transformation Test
  *
- * Ensures that `transformFile` correctly orchestrates the entire data
+ * Ensures that `Workspace.transformer` correctly orchestrates the entire data
  * transformation pipeline, from reading source CSVs to exporting final
  * CSVs and a persistent database file.
  */
 
 import { DuckDBConnection } from "@duckdb/node-api";
-import { ConfigNotFoundError, transformFile } from "@dwkt/core";
+import { ConfigNotFoundError, Workspace } from "@dwkt/core";
 import {
   importConfigSchema,
   makeTransformConfig,
@@ -24,7 +24,7 @@ import {
   writeJsonFile,
 } from "./helpers/config-utils.ts";
 
-Deno.test("transformFile - runs the full end-to-end transformation process", async () => {
+Deno.test("Workspace.transformer - runs the full end-to-end transformation process", async () => {
   await withTestDirectory(async (workspaceDir) => {
     const outputDir = join(workspaceDir, "output");
     const configPath = join(workspaceDir, "workspace.dwc.json");
@@ -77,8 +77,13 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
       { event_id: "evt01", event_year: "2024", occ_id: "occ01" },
     ]);
 
-    // 2. Act: Run the entire transformation process
-    await Effect.runPromise(transformFile(configPath));
+    // 2. Act: Run the entire transformation process using Workspace API
+    const workspace = await Effect.runPromise(Workspace.discover(configPath));
+    try {
+      await Effect.runPromise(workspace.transformer.run());
+    } finally {
+      workspace.close();
+    }
 
     // 3. Assert: Verify the output files
     // Assert CSV output
@@ -124,9 +129,9 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
   });
 });
 
-Deno.test("transformFile - returns ConfigError for non-existent config", async () => {
+Deno.test("Workspace.discover - returns ConfigNotFoundError for non-existent config", async () => {
   const nonExistentConfigPath = "/path/to/nothing/workspace.dwc.json";
-  const result = await Effect.runPromise(Effect.flip(transformFile(nonExistentConfigPath)));
+  const result = await Effect.runPromise(Effect.flip(Workspace.discover(nonExistentConfigPath)));
 
   assertInstanceOf(result, ConfigNotFoundError);
 });
