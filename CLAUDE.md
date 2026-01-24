@@ -430,7 +430,21 @@ DarwinKit uses the Effect library extensively for functional error handling, sch
 - Debugging unexpected Effect behavior
 - Implementing new Effect-based features
 
-**Note:** These reference materials are stored as git subtrees for AI context only and are not tracked in the repository (see `.gitignore`).
+**Setup Instructions:**
+
+These reference materials are for AI context when working with Claude Code and are not tracked in the repository. To set up the `.context` directory:
+
+```bash
+# Clone both reference repositories (shallow clones for smaller size)
+mkdir -p .context
+git clone --depth=1 git@github.com:Effect-TS/effect.git .context/effect
+git clone --depth=1 https://github.com/PaulJPhilp/EffectPatterns .context/effect-patterns
+
+# Remove .git directories to make them plain directories
+rm -rf .context/effect/.git .context/effect-patterns/.git
+```
+
+The `.context/` directory is already in `.gitignore` and will not be committed to the repository.
 
 ### Error Handling with Effect
 
