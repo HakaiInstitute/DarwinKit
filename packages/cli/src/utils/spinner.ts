@@ -177,28 +177,3 @@ export function withSpinner<A, E, R>(
     (spinner) => Effect.sync(() => spinner.stop()),
   );
 }
-
-/**
- * Simplified version of withSpinner for effects that don't need to update the spinner.
- *
- * Use this when you just want to show a spinner during an operation without
- * needing to update its message.
- *
- * @example
- * ```typescript
- * const program = withSimpleSpinner(
- *   { message: 'Loading...' },
- *   loadData()
- * );
- * ```
- *
- * @param options - Spinner configuration (message, color)
- * @param effect - Effect to run with spinner active
- * @returns Effect that manages spinner lifecycle
- */
-export function withSimpleSpinner<A, E, R>(
-  options: SpinnerOptions,
-  effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, R> {
-  return withSpinner(options, () => effect);
-}
