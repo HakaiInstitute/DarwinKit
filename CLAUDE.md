@@ -406,6 +406,32 @@ const result = await Effect.runPromise(
 
 ## Development Guidelines
 
+### Effect Library References
+
+DarwinKit uses the Effect library extensively for functional error handling, schema validation, and data transformation. When working with Effect-related code, reference materials are available in the `.context` directory:
+
+**Available References:**
+
+- **`.context/effect/`** - Complete Effect library source code for deep dives into implementation details
+  - Explore core modules: Effect, Schema, Data, Match, etc.
+  - Understand internal patterns and advanced usage
+  - Reference when debugging complex Effect chains or type issues
+
+- **`.context/effect-patterns/`** - Curated collection of Effect patterns and best practices
+  - Common patterns for real-world scenarios
+  - Solutions to frequent Effect challenges
+  - Idioms for combining Effect primitives
+
+**When to Reference:**
+
+- Solving complex Effect composition problems
+- Understanding type errors from Effect chains
+- Learning advanced Effect patterns (retries, resources, layers)
+- Debugging unexpected Effect behavior
+- Implementing new Effect-based features
+
+**Note:** These reference materials are stored as git subtrees for AI context only and are not tracked in the repository (see `.gitignore`).
+
 ### Error Handling with Effect
 
 DarwinKit uses Effect's two-error-types model to distinguish between expected and unexpected errors:
