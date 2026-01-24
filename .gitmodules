@@ -10,3 +10,6 @@
 [submodule "external/seagrass-site-production"]
 	path = external/seagrass-site-production
 	url = https://github.com/HakaiInstitute/seagrass-site-production
+[submodule "external/2022-FalseCreek-eDNA"]
+	path = external/2022-FalseCreek-eDNA
+	url = git@github.com:HakaiInstitute/2022-FalseCreek-eDNA.git

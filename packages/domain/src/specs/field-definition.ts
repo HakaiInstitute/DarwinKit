@@ -211,10 +211,10 @@ function deriveVocabularyEnforcement(field: Field): "strict" | "recommended" | "
   const comments = field.comments || "";
 
   // Check OBIS requirements first (preferred for marine biodiversity)
-  if (obisRequired === "required" || obisRequired === "strongly recommended") {
+  if (obisRequired === "required") {
     return "strict";
   }
-  if (obisRequired === "recommended") {
+  if (obisRequired === "strongly recommended" || obisRequired === "recommended") {
     return "recommended";
   }
 

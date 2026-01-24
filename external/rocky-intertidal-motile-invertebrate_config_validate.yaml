@@ -75,6 +75,16 @@ validation:
           targetName: country
         - originName: countryCode
           targetName: countryCode
+        - originName: minimumDistanceAboveSurfaceInMeters
+          targetName: minimumDistanceAboveSurfaceInMeters
+        - originName: maximumDistanceAboveSurfaceInMeters
+          targetName: maximumDistanceAboveSurfaceInMeters
+        - originName: habitat
+          targetName: habitat
+        - originName: sampleSizeValue
+          targetName: sampleSizeValue
+        - originName: sampleSizeUnit
+          targetName: sampleSizeUnit
         # - originName: locality
         #   targetName: locality
         # - originName: minimumDepthInMeters
@@ -135,6 +145,10 @@ validation:
           targetName: eventID
         - originName: occurrenceID
           targetName: occurrenceID
+        - originName: taxonRank
+          targetName: taxonRank
+        - originName: vitality
+          targetName: vitality
     - name: extendedMeasurementOrFact
       spec: dwc-eMOF
       path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/eMoF.csv
@@ -145,6 +159,8 @@ validation:
           targetName: eventID
         - originName: measurementValue
           targetName: measurementValue
+        - originName: measurementValueID
+          targetName: measurementValueID
         - originName: measurementType
           targetName: measurementType
         - originName: measurementTypeID
