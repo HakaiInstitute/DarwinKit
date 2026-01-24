@@ -7,12 +7,12 @@
  * This test serves as both documentation and a smoke test for the validation system.
  */
 
+import { Workspace } from "@dwkt/core";
 import { assert, assertEquals, assertMatch } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { WorkspaceValidator } from "../packages/core/src/workspace/workspace-validator.ts";
 
 Deno.test("Example config - validates FC2022 dataset", async () => {
-  const validator = new WorkspaceValidator();
+  const workspace = await Effect.runPromise(Workspace.discover("./test/example-config"));
 
   // NOTE: This test uses real-world marine survey data (FC2022) which contains values
   // that aren't in Darwin Core controlled vocabularies (e.g., 'Species' in taxonRank).
@@ -24,9 +24,8 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
   //
   // taxonRank uses "recommended" enforcement in Darwin Core, so violations are
   // collected as warnings rather than errors.
-  const result = await Effect.runPromise(
-    validator.validateFromConfig("./test/example-config"),
-  );
+  const result = await Effect.runPromise(workspace.validator.run());
+  workspace.close();
 
   // Verify we get successful validation result
   assertEquals(result.overallStatus, "warn", "Should have warnings due to taxonRank violations");
@@ -38,12 +37,12 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
 
   // Verify we collected ENUM violations for taxonRank
   assert(
-    occResult.violations.warnings.length > 0,
+    occResult.fieldViolations.warnings.length > 0,
     "Should have warnings from taxonRank ENUM violations",
   );
 
   // Check that violations are EnumViolation type with correct details
-  const taxonRankViolations = occResult.violations.warnings.filter((v) =>
+  const taxonRankViolations = occResult.fieldViolations.warnings.filter((v) =>
     v.targetName === "taxonRank"
   );
   assert(
