@@ -55,7 +55,7 @@ packages/
 ├── domain/          # Domain layer: types, schemas, and business rules
 │   ├── types/       # TypeScript interfaces and type definitions
 │   ├── schemas/     # Effect validation schemas
-│   ├── errors/      # Error codes, types, presenter, and severity definitions
+│   ├── errors/      # Error types and severity definitions
 │   ├── specs/       # Darwin Core field definitions and validation profiles
 │   │   ├── profiles/      # TypeScript validation profiles (OBIS, etc.)
 │   │   ├── vocabularies/  # Controlled vocabulary definitions
@@ -134,7 +134,7 @@ packages/
 **External Resources:**
 
 - **external/dwcSchema.json** - Base Darwin Core specifications (Event, Occurrence, Taxon, etc.)
-- **external/get_dc_schema.cjs** - Script to regenerate specs from Darwin Core XML schemas
+- **packages/core/src/import/get_dwc_schema.ts** - TypeScript module to regenerate specs from Darwin Core XML schemas
 
 ### Darwin Core Specifications
 
@@ -144,7 +144,7 @@ DarwinKit uses a hybrid specification system combining external JSON schemas wit
 
 The foundation of DarwinKit's validation system comes from official Darwin Core schemas:
 
-- Generated from Darwin Core XML schemas via `external/get_dc_schema.cjs`
+- Generated from Darwin Core XML schemas via the CLI import command
 - Contains 5 standard profiles: `Event`, `Occurrence`, `Taxon`, `ExtendedMeasurementOrFact`, `dnaDerivedData`
 - Provides canonical field definitions with types, descriptions, and validation rules
 - Imported as JSON into `packages/domain/src/specs/profiles/registry.ts`
@@ -199,11 +199,10 @@ JSON schemas use different field formats than TypeScript profiles, requiring nor
 
 **Regenerating Base Schemas:**
 
-When Darwin Core standards are updated, regenerate the base schemas:
+When Darwin Core standards are updated, regenerate the base schemas using the CLI import command:
 
 ```bash
-cd external
-node get_dc_schema.cjs
+deno task dev:cli import
 ```
 
 This fetches the latest Darwin Core XML schemas and generates `dwcSchema.json` with all standard profiles and field definitions.
@@ -211,7 +210,7 @@ This fetches the latest Darwin Core XML schemas and generates `dwcSchema.json` w
 **Key Files:**
 
 - `external/dwcSchema.json` - Base Darwin Core specifications
-- `external/get_dc_schema.cjs` - Schema generation script
+- `packages/core/src/import/get_dwc_schema.ts` - Schema generation module (run via `deno task dev:cli import`)
 - `packages/domain/src/specs/profiles/registry.ts` - Profile resolution and merging
 - `packages/domain/src/specs/field-definition.ts` - JSON field normalization
 - `packages/domain/src/specs/vocabularies/registry.ts` - Controlled vocabularies
@@ -790,3 +789,10 @@ See `docs/error-handling-guide.md` for comprehensive guidelines.
 - **Business logic implementations** go in `packages/core/src/`
 - **API endpoints** go in `packages/api/src/routes/` (served at `/api/*`)
 - **CLI commands** go in `packages/cli/src/cmd/`
+
+## Additional Documentation
+
+The following documents provide deeper guidance on specific architectural topics:
+
+- **[Error Handling Guide](docs/error-handling-guide.md)** - Comprehensive guidelines for Effect's two-error-types model (expected errors vs. defects), error handling patterns, and decision frameworks
+- **[Effect Services Exploration](docs/effect-services-exploration.md)** - Exploration of Effect's service layer pattern for dependency injection, including proposed architecture, migration strategy, and testing patterns. This is a proposal for future enhancement to improve testability and maintainability.

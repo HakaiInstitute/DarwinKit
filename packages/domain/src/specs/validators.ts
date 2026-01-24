@@ -25,11 +25,7 @@ export type ValidatorType = S.Schema.Type<typeof ValidatorType>;
 /**
  * Enforcement levels determine how strictly validators are applied
  */
-export const EnforcementLevel: S.Literal<[
-  "required",
-  "recommended",
-  "optional",
-]> = S.Literal(
+export const EnforcementLevel = S.Literal(
   "required",
   "recommended",
   "optional",

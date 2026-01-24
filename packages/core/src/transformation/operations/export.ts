@@ -5,10 +5,11 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
-import { json2csv } from "json-2-csv";
+// import { json2csv } from "json-2-csv";
+import { stringify as stringifyCSV } from "@std/csv";
 
 import type { TransformSettings } from "@dwkt/domain";
-import { ErrorCode, getValidationProfile } from "@dwkt/domain";
+import { getValidationProfile } from "@dwkt/domain";
 import { OutputError } from "../errors.ts";
 
 /**
@@ -57,7 +58,6 @@ export function exportObisTablesToCSV(
               error instanceof Error ? error.message : String(error)
             }`,
             outputPath: outputPath,
-            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         ),
@@ -65,26 +65,32 @@ export function exportObisTablesToCSV(
     );
 
     for (const tableName of tables) {
-      const selectColumns: string[] = [];
-      if (output.dropNullColumns) {
-        // Get column names
-        const columnNamesResult = yield* _(
-          Effect.tryPromise({
-            try: () => connection.runAndReadAll(`PRAGMA table_info(${tableName});`),
-            catch: (error) =>
-              new OutputError({
-                message: `Failed to read table schema for ${tableName}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-                outputPath,
-                code: ErrorCode.DATABASE_ERROR,
-                cause: error instanceof Error ? error : new Error(String(error)),
-              }),
-          }),
-        );
-        const columnNames = columnNamesResult.getRowObjectsJson().map((row) => row.name);
+      // Get all column names from table schema
+      const columnNamesResult = yield* _(
+        Effect.tryPromise({
+          try: () => connection.runAndReadAll(`PRAGMA table_info(${tableName});`),
+          catch: (error) =>
+            new OutputError({
+              message: `Failed to read table schema for ${tableName}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+              outputPath,
+              cause: error instanceof Error ? error : new Error(String(error)),
+            }),
+        }),
+      );
+      const allColumnNames: string[] = columnNamesResult.getRowObjectsJson().map((row) =>
+        String(row.name)
+      );
 
-        for (const columnName of columnNames) {
+      // Determine which columns to include in export
+      let columnsToExport: string[] = allColumnNames;
+      const selectColumns: string[] = [];
+
+      if (output.dropNullColumns) {
+        // Filter out columns that are entirely NULL
+        const nonNullColumns: string[] = [];
+        for (const columnName of allColumnNames) {
           // Check if the column is entirely NULL
           const nullCountResult = yield* _(
             Effect.tryPromise({
@@ -98,16 +104,17 @@ export function exportObisTablesToCSV(
                     error instanceof Error ? error.message : String(error)
                   }`,
                   outputPath,
-                  code: ErrorCode.DATABASE_ERROR,
                   cause: error instanceof Error ? error : new Error(String(error)),
                 }),
             }),
           );
           const notNullCount = Number(nullCountResult.getRowObjectsJson()[0].null_count ?? 0);
           if (notNullCount > 0) {
+            nonNullColumns.push(columnName);
             selectColumns.push(`"${columnName}"`);
           }
         }
+        columnsToExport = nonNullColumns;
       } else {
         selectColumns.push("*");
       }
@@ -123,7 +130,6 @@ export function exportObisTablesToCSV(
                 error instanceof Error ? error.message : String(error)
               }`,
               outputPath,
-              code: ErrorCode.DATABASE_ERROR,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }),
@@ -134,14 +140,17 @@ export function exportObisTablesToCSV(
 
       // Write the data to the CSV file
       yield* _(Effect.tryPromise({
-        try: () => Deno.writeTextFile(fullPath, json2csv(result.getRowObjectsJson())),
+        try: () =>
+          Deno.writeTextFile(
+            fullPath,
+            stringifyCSV(result.getRowObjectsJson(), { columns: columnsToExport }),
+          ),
         catch: (error) =>
           new OutputError({
             message: `Failed to write results file: ${
               error instanceof Error ? error.message : String(error)
             }`,
             outputPath: fullPath,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -195,7 +204,6 @@ export function exportToPersistentDB(
           new OutputError({
             message: `Failed to create output directory: ${error}`,
             outputPath,
-            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         ),
@@ -209,7 +217,6 @@ export function exportToPersistentDB(
         new OutputError({
           message: `Failed get statistics for DB at ${fullPath}: ${error}`,
           outputPath,
-          code: ErrorCode.FILE_NOT_FOUND,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
     }));
@@ -222,7 +229,6 @@ export function exportToPersistentDB(
           new OutputError({
             message: `Failed to delete existing output file: ${error}`,
             outputPath: fullPath,
-            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -251,7 +257,6 @@ export function exportToPersistentDB(
             new OutputError({
               message: `Failed export DB to ${fullPath}: ${error}`,
               outputPath,
-              code: ErrorCode.FILE_NOT_FOUND,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }),

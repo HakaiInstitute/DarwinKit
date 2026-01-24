@@ -10,7 +10,7 @@ Deno.test('CLI executable runs and displays help', async () => {
       'run',
       '--allow-read',
       '--allow-write',
-      '--allow-env',
+      '--allow-env=READABLE_STREAM',
       '--allow-run',
       '--allow-ffi',
       '--allow-net',

@@ -5,7 +5,6 @@
  */
 
 import { join } from "@std/path";
-import { v4 as uuidv4 } from "uuid";
 
 // Simple logger for tests
 const logger = {
@@ -17,7 +16,7 @@ const logger = {
  * Creates a temporary directory for test isolation
  */
 export async function createTempDir(): Promise<string> {
-  const tempDir = join(Deno.cwd(), "test", "tmp", `test-${uuidv4().slice(0, 8)}`);
+  const tempDir = join(Deno.cwd(), "test", "tmp", `test-${crypto.randomUUID().slice(0, 8)}`);
   await Deno.mkdir(tempDir, { recursive: true });
   return tempDir;
 }

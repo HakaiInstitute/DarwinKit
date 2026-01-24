@@ -2,7 +2,6 @@
  * Transformation errors - Errors specific to transformation operations
  */
 
-import type { ErrorCode } from "@dwkt/domain";
 import * as Data from "effect/Data";
 
 /**
@@ -10,7 +9,6 @@ import * as Data from "effect/Data";
  */
 export class TransformationError extends Data.TaggedError("TransformationError")<{
   readonly message: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }> {}
 
@@ -20,6 +18,5 @@ export class TransformationError extends Data.TaggedError("TransformationError")
 export class OutputError extends Data.TaggedError("OutputError")<{
   readonly message: string;
   readonly outputPath: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }> {}

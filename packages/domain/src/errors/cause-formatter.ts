@@ -93,11 +93,11 @@ export function prettyPrintCause<E>(
  * @example
  * ```typescript
  * class FooError extends Data.TaggedError("Foo")<{ message: string }> {}
- * class BarError extends Data.TaggedError("Bar")<{ code: number }> {}
+ * class BarError extends Data.TaggedError("Bar")<{ count: number }> {}
  *
  * const formatter = createTaggedFormatter<FooError | BarError>({
  *   Foo: (error) => `Foo error: ${error.message}`,
- *   Bar: (error) => `Bar error code: ${error.code}`,
+ *   Bar: (error) => `Bar error count: ${error.count}`,
  * });
  * ```
  */

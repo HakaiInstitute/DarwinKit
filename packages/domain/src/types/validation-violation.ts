@@ -26,7 +26,7 @@
  */
 
 import { Schema } from "effect";
-import { ErrorSeverity } from "../errors/severity.ts";
+import type { ErrorSeverity } from "../errors/severity.ts";
 import type { EnforcementLevel } from "../specs/validators.ts";
 
 /**
@@ -347,11 +347,11 @@ export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolati
 export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSeverity {
   switch (enforcement) {
     case "required":
-      return ErrorSeverity.ERROR;
+      return "error";
     case "recommended":
-      return ErrorSeverity.WARNING;
+      return "warning";
     case "optional":
-      return ErrorSeverity.INFO;
+      return "info";
   }
 }
 
@@ -447,14 +447,14 @@ export function partitionFieldViolations(
   const info: FieldViolation[] = [];
 
   for (const v of violations) {
-    switch (v.enforcement) {
-      case "required":
+    switch (v.severity) {
+      case "error":
         errors.push(v);
         break;
-      case "recommended":
+      case "warning":
         warnings.push(v);
         break;
-      case "optional":
+      case "info":
         info.push(v);
         break;
     }

@@ -1,13 +1,12 @@
 /**
  * Validation module - Exports for workspace validation functionality
  *
- * This module provides validation functionality using class-based validators
+ * This module provides validation functionality using Either-based validators
  * and utility functions. Organized by category for clarity.
  */
 
-// Validation classes (NEW - preferred approach)
+// Validation classes
 export { ConstraintValidator } from "./constraint-validator.ts";
-export { FieldValidator } from "./field-validator.ts";
 
 // Error classes and utilities
 export {
@@ -18,14 +17,12 @@ export {
   partitionFieldViolations,
 } from "./utils.ts";
 
-// Backward-compatible validation functions (kept for compatibility)
+// Field-level validation functions (Either-based with error channel)
 export {
-  findCrossDatasetViolations,
-  findRangeViolations,
-  findUniquenessViolations,
-  findVocabularyViolations,
   resolveSchemaTableName,
   validateCrossDatasetRule,
+  validateField,
+  validateRangeConstraint,
   validateRangeConstraints,
   validateUniqueness,
   validateVocabulary,

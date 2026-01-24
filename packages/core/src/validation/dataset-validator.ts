@@ -1,8 +1,12 @@
 /**
- * Workspace Validator - Config-based multi-dataset validation
+ * Dataset Validator - Either-based validation with parallel field validation
  *
- * Validates multiple datasets within a workspace according to their specifications.
- * Uses field mappings to validate CSV columns against spec field definitions.
+ * Uses Either-based field validators for automatic violation accumulation.
+ * Key features:
+ * - Validates all fields in parallel using Effect.all with mode: "either"
+ * - Accumulates violations automatically from error channel
+ * - Eliminates imperative for-loop with manual `.push()` operations
+ * - Maintains consistent result structure
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
@@ -21,9 +25,6 @@ import type {
   WorkspaceFieldMapping,
 } from "@dwkt/domain";
 import {
-  ErrorCode,
-  ErrorSeverity,
-  FieldRequirementLevel,
   hasControlledVocabulary,
   MissingFieldViolation,
   parseSpecIdentifier,
@@ -31,11 +32,17 @@ import {
   resolveDatasetProfile,
   UnknownFieldViolation,
   UnknownProfileViolation,
+  UnmappedColumnViolation,
 } from "@dwkt/domain";
 import { sanitizeTableName } from "../database/index.ts";
 import { insertRowByRow } from "./data-loader.ts";
-import { FieldValidator } from "./field-validator.ts";
 import { partitionFieldViolations } from "./utils.ts";
+import {
+  validateField,
+  validateRangeConstraints,
+  validateUniqueness,
+  validateVocabulary,
+} from "./field-validators.ts";
 
 /**
  * Merge field definition with profile and field-level overrides
@@ -85,7 +92,95 @@ function mergeFieldDefinition(
 }
 
 /**
+ * Field validation context - all info needed to validate a single field
+ */
+interface FieldValidationContext {
+  mapping: WorkspaceFieldMapping;
+  specField: FieldDefinition;
+  tableName: string;
+  schemaTableName: string;
+  profile: ValidationProfile;
+}
+
+/**
+ * Validate a single field mapping
+ *
+ * Returns violations in error channel, succeeds if field is valid.
+ * This function composes all field validators for a single field.
+ */
+function validateFieldMapping(
+  connection: DuckDBConnection,
+  context: FieldValidationContext,
+): Effect.Effect<{ fieldName: string; status: "valid" }, FieldViolation[]> {
+  return Effect.gen(function* (_) {
+    const { mapping, specField, tableName, profile } = context;
+
+    // Build list of validations to run for this field
+    const validations: Effect.Effect<
+      { fieldName: string; status: "valid" },
+      FieldViolation[]
+    >[] = [];
+
+    // Range/constraint validation
+    if (
+      specField.validators?.some((v) => {
+        const vConfig = v as ValidatorConfig;
+        return vConfig.type === "range";
+      })
+    ) {
+      validations.push(
+        validateRangeConstraints(connection, tableName, mapping.originName, specField),
+      );
+    }
+
+    // Vocabulary validation
+    // Skip if this field was already validated as an ENUM constraint
+    const hasVocab = hasControlledVocabulary(specField);
+    const rawFieldForVocab = profile.fields?.[mapping.targetName];
+    const hasEnumConstraint = rawFieldForVocab?.type === "controlled-vocabulary" &&
+      rawFieldForVocab?.values;
+
+    if (hasVocab && !hasEnumConstraint) {
+      validations.push(
+        validateVocabulary(connection, tableName, mapping.originName, specField),
+      );
+    }
+
+    // Uniqueness validation for fields with explicit unique validators
+    // Skip PKs because row-by-row INSERT queries for ALL duplicate rows
+    const rawFieldForUnique = profile.fields?.[mapping.targetName];
+    const schemaTableName = context.schemaTableName;
+    const isPrimaryKeyField = mapping.targetName === schemaTableName + "ID" ||
+      (mapping.targetName.endsWith("ID") && rawFieldForUnique?.unique === "true");
+
+    const hasUniqueValidator = specField.validators
+      ? (specField.validators.some((v) => {
+        const vConfig = v as ValidatorConfig;
+        return vConfig.type === "unique";
+      }))
+      : false;
+
+    if (hasUniqueValidator && !isPrimaryKeyField) {
+      validations.push(
+        validateUniqueness(connection, tableName, mapping.originName, specField),
+      );
+    }
+
+    // If no validations, field is valid
+    if (validations.length === 0) {
+      return { fieldName: mapping.originName, status: "valid" as const };
+    }
+
+    // Run all validations for this field, accumulating violations
+    return yield* _(validateField(connection, tableName, mapping.originName, specField));
+  });
+}
+
+/**
  * Validate a single dataset according to its spec
+ *
+ * Uses Either-based field validators with parallel execution.
+ * Returns DatasetValidationResult with comprehensive violation details.
  *
  * @internal Exported for use by Workspace class
  */
@@ -116,7 +211,6 @@ export function validateDataset(
         Effect.fail(
           new WorkspaceValidationError({
             message: `Invalid spec identifier: ${dataset.spec}`,
-            code: ErrorCode.VALIDATION_FAILED,
           }),
         ),
       );
@@ -128,7 +222,6 @@ export function validateDataset(
         catch: (error) =>
           new WorkspaceValidationError({
             message: `Failed to Describe table: ${error}`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }),
@@ -158,7 +251,6 @@ export function validateDataset(
       !originFileColumns.includes(f)
     );
 
-    // TODO: this check should generate a warning not an error
     if (missingSourceFields.length) {
       return yield* _(
         Effect.fail(
@@ -167,25 +259,33 @@ export function validateDataset(
               `The data source for dataset '${dataset.name}' does not contain the mapped fields ['${
                 missingSourceFields.join("','")
               }']. Please check the dataset config.`,
-            code: ErrorCode.INVALID_CONFIG,
             cause: Error(String("Dataset mapped field missing from source database table")),
           }),
         ),
       );
     }
 
-    // TODO: this check should generate a warning not an error
-    if (missingMappedFields.length) {
-      // Log warning but don't fail - unmapped columns are acceptable
-      console.warn(
-        `Warning: The dataset '${dataset.name}' has unmapped source columns: ['${
-          missingMappedFields.join("','")
-        }']. These columns will be ignored during validation.`,
+    // Collect all violations - will accumulate from Either error channels
+    const allViolations: FieldViolation[] = [];
+
+    // Collect schema violations
+    const schemaViolations: SchemaViolation[] = [];
+
+    // Report unmapped CSV columns as INFO-level notifications
+    for (const unmappedColumn of missingMappedFields) {
+      schemaViolations.push(
+        new UnmappedColumnViolation({
+          enforcement: "optional",
+          severity: "info",
+          fieldName: unmappedColumn,
+          targetName: "",
+          errorMessage:
+            `CSV column '${unmappedColumn}' has no field mapping and will be ignored during validation`,
+          validatorType: "schema",
+          datasetName: dataset.name,
+        }),
       );
     }
-
-    // Collect all violations as FieldViolation[] for partitioning
-    const allViolations: FieldViolation[] = [];
 
     // Build column mappings for INSERT
     const columnMappings = dataset.fieldMappings.map((m) => ({
@@ -226,11 +326,6 @@ export function validateDataset(
       }
     }
 
-    // Validate field mappings based on spec
-
-    // Collect schema violations
-    const schemaViolations: SchemaViolation[] = [];
-
     // Check profile field requirements based on requirement levels
     if (profile && profile.fieldOverrides && dataset.fieldMappings) {
       const mappedSpecFields = new Set(dataset.fieldMappings.map((m) => m.targetName));
@@ -242,11 +337,11 @@ export function validateDataset(
 
         if (!isMapped) {
           // Handle missing fields based on requirement level
-          if (fieldOverride.requirement === FieldRequirementLevel.Required) {
+          if (fieldOverride.requirement === "required") {
             schemaViolations.push(
               new MissingFieldViolation({
                 enforcement: "required",
-                severity: ErrorSeverity.ERROR,
+                severity: "error",
                 fieldName,
                 targetName: fieldName,
                 errorMessage:
@@ -255,11 +350,11 @@ export function validateDataset(
                 reason: "not_mapped",
               }),
             );
-          } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
+          } else if (fieldOverride.requirement === "strongly-recommended") {
             schemaViolations.push(
               new MissingFieldViolation({
                 enforcement: "recommended",
-                severity: ErrorSeverity.WARNING,
+                severity: "warning",
                 fieldName,
                 targetName: fieldName,
                 errorMessage:
@@ -268,11 +363,11 @@ export function validateDataset(
                 reason: "not_mapped",
               }),
             );
-          } else if (fieldOverride.requirement === FieldRequirementLevel.Recommended) {
+          } else if (fieldOverride.requirement === "recommended") {
             schemaViolations.push(
               new MissingFieldViolation({
                 enforcement: "optional",
-                severity: ErrorSeverity.INFO,
+                severity: "info",
                 fieldName,
                 targetName: fieldName,
                 errorMessage:
@@ -286,17 +381,20 @@ export function validateDataset(
       }
     }
 
-    // Create field validator for this dataset
-    const fieldValidator = new FieldValidator(connection, tableName);
+    // ======================================================================
+    // V2 DIFFERENCE: Parallel field validation using Either pattern
+    // ======================================================================
 
-    // Validate each field mapping
+    // Build validation contexts for all valid field mappings
+    const fieldValidationContexts: FieldValidationContext[] = [];
+
     for (const mapping of dataset?.fieldMappings || []) {
       // Require profile for validation - normalized fields are the source of truth
       if (!profile?.normalizedFields) {
         schemaViolations.push(
           new UnknownProfileViolation({
             enforcement: "required",
-            severity: ErrorSeverity.ERROR,
+            severity: "error",
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
@@ -309,8 +407,7 @@ export function validateDataset(
         continue;
       }
 
-      // Get field from normalized profile (already normalized at load time)
-      // Use normalizedFields for validation (keeps raw fields for transformation)
+      // Get field from normalized profile
       const baseField = profile.normalizedFields?.[mapping.targetName] as
         | FieldDefinition
         | undefined;
@@ -320,7 +417,7 @@ export function validateDataset(
         schemaViolations.push(
           new UnknownFieldViolation({
             enforcement: "required",
-            severity: ErrorSeverity.ERROR,
+            severity: "error",
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
@@ -357,7 +454,7 @@ export function validateDataset(
           schemaViolations.push(
             new MissingFieldViolation({
               enforcement: "required",
-              severity: ErrorSeverity.ERROR,
+              severity: "error",
               fieldName: mapping.originName,
               targetName: mapping.targetName,
               errorMessage: message,
@@ -371,7 +468,7 @@ export function validateDataset(
           schemaViolations.push(
             new MissingFieldViolation({
               enforcement: "recommended",
-              severity: ErrorSeverity.WARNING,
+              severity: "warning",
               fieldName: mapping.originName,
               targetName: mapping.targetName,
               errorMessage: message,
@@ -383,57 +480,36 @@ export function validateDataset(
         continue;
       }
 
-      // Validate field using spec validators
+      // Add to validation contexts if we have a valid spec field
       if (specField) {
-        // Range/constraint validation
-        const rangeViolations = yield* _(
-          fieldValidator.validateRange(mapping.originName, specField),
-        );
+        fieldValidationContexts.push({
+          mapping,
+          specField,
+          tableName,
+          schemaTableName,
+          profile,
+        });
+      }
+    }
 
-        if (rangeViolations.length > 0) {
-          allViolations.push(...rangeViolations);
-        }
+    // V2: Validate all fields in parallel using Either pattern
+    if (fieldValidationContexts.length > 0) {
+      const fieldValidations = fieldValidationContexts.map((context) =>
+        validateFieldMapping(connection, context)
+      );
 
-        // Vocabulary validation
-        // Skip if this field was already validated as an ENUM constraint
-        const hasVocab = hasControlledVocabulary(specField);
-        // Check raw field for values property
-        const rawFieldForVocab = profile.fields?.[mapping.targetName];
-        const hasEnumConstraint = rawFieldForVocab?.type === "controlled-vocabulary" &&
-          rawFieldForVocab?.values;
+      // Run all field validations in parallel, accumulating violations
+      const results = yield* _(
+        Effect.all(fieldValidations, {
+          mode: "either",
+          concurrency: "unbounded", // Parallel execution
+        }),
+      );
 
-        if (hasVocab && !hasEnumConstraint) {
-          const vocabViolations = yield* _(
-            fieldValidator.validateVocabulary(mapping.originName, specField),
-          );
-
-          // Add violations to allViolations for partitioning
-          if (vocabViolations.length > 0) {
-            allViolations.push(...vocabViolations);
-          }
-        }
-
-        // Uniqueness validation for fields with explicit unique validators
-        // Skip PKs because row-by-row INSERT queries for ALL duplicate rows
-        const rawFieldForUnique = profile.fields?.[mapping.targetName];
-        const isPrimaryKeyField = mapping.targetName === schemaTableName + "ID" ||
-          (mapping.targetName.endsWith("ID") && rawFieldForUnique?.unique === "true");
-
-        const hasUniqueValidator = specField.validators
-          ? (specField.validators.some((v) =>
-            typeof v === "string" ? v === "uniqueIdentifier" : v.type === "unique"
-          ))
-          : false;
-
-        if (hasUniqueValidator && !isPrimaryKeyField) {
-          const uniqueViolations = yield* _(
-            fieldValidator.validateUniqueness(mapping.originName, specField),
-          );
-
-          // Add violations to allViolations for partitioning
-          if (uniqueViolations.length > 0) {
-            allViolations.push(...uniqueViolations);
-          }
+      // Accumulate violations from error channel
+      for (const result of results) {
+        if (result._tag === "Left") {
+          allViolations.push(...result.left);
         }
       }
     }

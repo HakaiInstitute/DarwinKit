@@ -76,25 +76,25 @@ export const Output = {
   },
 
   /**
-   * Section header with emoji
+   * Section header
    */
-  section(emoji: string, title: string): void {
-    tty.text('\n' + colors.blue(`${emoji} ${title}`) + '\n');
+  section(title: string): void {
+    tty.text('\n' + colors.bold(colors.blue(title)) + '\n');
   },
 
   /**
-   * Status icon
+   * Status text with color
    */
-  statusIcon(status: 'pass' | 'warn' | 'fail' | string): string {
+  statusText(status: 'pass' | 'warn' | 'fail' | string): string {
     switch (status) {
       case 'pass':
-        return '✅';
+        return colors.bold(colors.green('PASS'));
       case 'warn':
-        return '⚠️';
+        return colors.bold(colors.yellow('WARN'));
       case 'fail':
-        return '❌';
+        return colors.bold(colors.red('FAIL'));
       default:
-        return '❓';
+        return colors.gray('UNKNOWN');
     }
   },
 

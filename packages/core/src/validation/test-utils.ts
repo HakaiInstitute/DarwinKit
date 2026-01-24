@@ -13,7 +13,7 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
 import type { DatasetValidationResult, EnforcementLevel, FieldViolation } from "@dwkt/domain";
 import {
-  ErrorSeverity,
+  enforcementToSeverity,
   MissingFieldViolation,
   RangeViolation,
   type SchemaViolation,
@@ -170,9 +170,10 @@ interface MockViolationBase {
 export function createMockRangeViolation(
   overrides?: MockViolationBase & { params?: { min?: number; max?: number } },
 ): RangeViolation {
+  const enforcement = overrides?.enforcement ?? "required";
   return new RangeViolation({
-    enforcement: overrides?.enforcement ?? "required",
-    severity: ErrorSeverity.ERROR,
+    enforcement,
+    severity: enforcementToSeverity(enforcement),
     fieldName: overrides?.fieldName ?? "testField",
     targetName: overrides?.targetName ?? "testField",
     rowNumber: overrides?.rowNumber ?? 1,
@@ -237,10 +238,10 @@ export function createMockSchemaViolation(
   return new MissingFieldViolation({
     enforcement,
     severity: enforcement === "required"
-      ? ErrorSeverity.ERROR
+      ? "error"
       : enforcement === "recommended"
-      ? ErrorSeverity.WARNING
-      : ErrorSeverity.INFO,
+      ? "warning"
+      : "info",
     fieldName: overrides?.fieldName ?? "testField",
     targetName: overrides?.targetName ?? "testField",
     errorMessage: overrides?.errorMessage ?? "Test schema violation",

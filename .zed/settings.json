@@ -30,9 +30,15 @@
       // Use Deno language server for TypeScript support
       "language_servers": [
         "deno",
-        "!vtsls",
-        "!typescript-language-server"
-      ]
+        // "!vtsls",
+        // "!typescript-language-server"
+      ],
+      "inlay_hints": {
+        "enabled": true,
+        "show_type_hints": true,
+        "show_parameter_hints": true,
+        "show_other_hints": true
+      },
     },
     "TSX": {
       // Use Deno's built-in formatter for TSX files
@@ -70,28 +76,36 @@
         "eslint"
       ]
     }
-    // "JSX": {
-    //   // Use Prettier as the formatter for JSX files
-    //   "formatter": {
-    //     "external": {
-    //       "command": "node_modules/.bin/prettier",
-    //       "arguments": [
-    //         "--stdin-filepath",
-    //         "{buffer_path}"
-    //       ]
-    //     }
-    //   },
-    //   // Run ESLint fixes on format
-    //   "code_actions_on_format": {
-    //     "source.fixAll.eslint": true,
-    //     "source.organizeImports": true
-    //   },
-    //   // Language servers for JSX
-    //   "language_servers": ["vtsls", "eslint"]
-    // }
   },
   // LSP (Language Server Protocol) configurations
   "lsp": {
+    "deno": {
+      "settings": {
+        "deno": {
+          "enable": true,
+          "inlayHints": {
+            "parameterNames": {
+              "enabled": "all"
+            },
+            "parameterTypes": {
+              "enabled": true
+            },
+            "variableTypes": {
+              "enabled": true
+            },
+            "propertyDeclarationTypes": {
+              "enabled": true
+            },
+            "functionLikeReturnTypes": {
+              "enabled": true
+            },
+            "enumMemberValues": {
+              "enabled": true
+            }
+          }
+        }
+      }
+    },
     // vtsls configuration (Vue/TypeScript Language Server - faster than typescript-language-server)
     "vtsls": {
       "settings": {

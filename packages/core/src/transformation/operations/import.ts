@@ -7,7 +7,7 @@ import { resolve } from "@std/path";
 import * as Effect from "effect/Effect";
 
 import { importCsv, type WorkspaceImportError } from "@dwkt/core";
-import { ErrorCode, type ImportConfig, type TransformSettings } from "@dwkt/domain";
+import type { ImportConfig, TransformSettings } from "@dwkt/domain";
 import { TransformationError } from "../errors.ts";
 
 /**
@@ -94,7 +94,6 @@ export function runPostImportTransformations(
         catch: (error) =>
           new TransformationError({
             message: `Failed to execute post-import transform SQL: ${transformSQL}`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));

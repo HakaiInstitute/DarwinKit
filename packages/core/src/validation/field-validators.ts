@@ -1,11 +1,17 @@
 /**
- * Validators - Field-level and cross-dataset validation functions
+ * Field Validators - Either-based validation with error channel accumulation
+ *
+ * Uses Effect.Either pattern where violations live in the error channel.
+ * Key features:
+ * - Returns Effect.Effect<ValidField, FieldViolation[]> instead of Effect.Effect<FieldViolation[], Error>
+ * - Uses Effect.fail() to put violations in error channel (semantic correctness)
+ * - Uses Effect.all with mode: "either" for automatic accumulation
+ * - Supports parallel execution with concurrency: "unbounded"
+ * - Eliminates imperative array accumulation
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
-import type { WorkspaceValidationError } from "@dwkt/core";
 import type {
-  CrossDatasetValidationResult,
   DatasetConfig,
   EnforcementLevel,
   FieldDefinition,
@@ -26,6 +32,19 @@ import {
 } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
 import { extractRowNumbers, sanitizeTableName } from "../database/index.ts";
+
+/**
+ * Represents a successfully validated field
+ */
+export interface ValidField {
+  readonly fieldName: string;
+  readonly status: "valid";
+}
+
+/**
+ * Validation result type - violations in error channel, success in data channel
+ */
+export type ValidationResult<T = ValidField> = Effect.Effect<T, FieldViolation[]>;
 
 /**
  * Resolve dataset name to its schema table name
@@ -50,111 +69,6 @@ export function resolveSchemaTableName(
   return profileName
     ? sanitizeTableName(profileName).toLowerCase()
     : sanitizeTableName(dataset.name).toLowerCase();
-}
-
-/**
- * Find cross-dataset foreign key violations
- *
- * Returns fully-formed CrossDatasetViolation objects with all metadata.
- */
-export function findCrossDatasetViolations(
-  connection: DuckDBConnection,
-  rule: {
-    ruleType?: string;
-    sourceDataset: string;
-    sourceField: string;
-    targetDataset: string;
-    targetField: string;
-    enforcement?: EnforcementLevel;
-  },
-  datasets: readonly DatasetConfig[],
-): Effect.Effect<CrossDatasetViolation[], never> {
-  return Effect.gen(function* (_) {
-    // Resolve dataset names to schema table names
-    const sourceTable = resolveSchemaTableName(rule.sourceDataset, datasets);
-    const targetTable = resolveSchemaTableName(rule.targetDataset, datasets);
-
-    // Find values in source that don't exist in target
-    const violationsQuery = `
-      SELECT
-        s._row_number,
-        s."${rule.sourceField}" as source_value
-      FROM ${sourceTable} s
-      LEFT JOIN ${targetTable} t ON s."${rule.sourceField}" = t."${rule.targetField}"
-      WHERE s."${rule.sourceField}" IS NOT NULL
-        AND t."${rule.targetField}" IS NULL
-    `;
-
-    // SQL query execution should work - query failure is a defect
-    const violationsResult = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(violationsQuery)).pipe(Effect.orDie),
-    );
-
-    const rows = violationsResult.getRowObjects();
-    const enforcement = rule.enforcement ?? "required";
-
-    // Return fully-formed CrossDatasetViolation objects
-    return rows.map((row) =>
-      new CrossDatasetViolation({
-        enforcement,
-        severity: enforcementToSeverity(enforcement),
-        fieldName: rule.sourceField,
-        targetName: rule.targetField,
-        rowNumber: Number(row._row_number),
-        value: String(row.source_value),
-        errorMessage:
-          `Value '${row.source_value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`,
-        validatorType: rule.ruleType || "foreignKey",
-        params: {
-          sourceDataset: rule.sourceDataset,
-          targetDataset: rule.targetDataset,
-          targetField: rule.targetField,
-        },
-      })
-    );
-  });
-}
-
-/**
- * Validate cross-dataset rule
- *
- * Returns cross-dataset violations with enforcement-aware metadata.
- */
-export function validateCrossDatasetRule(
-  connection: DuckDBConnection,
-  rule: {
-    ruleType: string;
-    sourceDataset: string;
-    sourceField: string;
-    targetDataset: string;
-    targetField: string;
-    enforcement?: string;
-    description?: string;
-  },
-  datasets: readonly DatasetConfig[],
-): Effect.Effect<CrossDatasetValidationResult, WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    // Map string enforcement to EnforcementLevel with cleaner mapping
-    const enforcementMap: Record<string, EnforcementLevel> = {
-      recommended: "recommended",
-      optional: "optional",
-    };
-    const enforcement: EnforcementLevel = enforcementMap[rule.enforcement || ""] || "required";
-
-    // Get fully-formed violations
-    const violations = yield* _(
-      findCrossDatasetViolations(connection, { ...rule, enforcement }, datasets),
-    );
-
-    return {
-      ruleType: rule.ruleType as "foreignKey" | "referentialIntegrity",
-      sourceDataset: rule.sourceDataset,
-      sourceField: rule.sourceField,
-      targetDataset: rule.targetDataset,
-      targetField: rule.targetField,
-      violations,
-    };
-  });
 }
 
 /**
@@ -189,21 +103,42 @@ function normalizeRangeValidator(validator: ValidatorConfig): ValidatorConfig {
 }
 
 /**
- * Find range violations for a single validator
+ * Map VocabularyEnforcement to EnforcementLevel
  *
- * Returns fully-formed RangeViolation objects with all metadata.
+ * Converts vocabulary-specific enforcement to standard enforcement levels:
+ * - strict → required (ERROR)
+ * - recommended → recommended (WARNING)
+ * - loose → optional (not used - loose enforcement skips validation)
  */
-export function findRangeViolations(
+export function vocabularyEnforcementToStandard(
+  vocabEnforcement: VocabularyEnforcement,
+): EnforcementLevel {
+  const mapping: Record<VocabularyEnforcement, EnforcementLevel> = {
+    strict: "required",
+    recommended: "recommended",
+    loose: "optional", // Not actually used - loose enforcement skips validation
+  };
+  return mapping[vocabEnforcement];
+}
+
+/**
+ * Validate range constraint for a single validator
+ *
+ * Returns ValidField on success, fails with RangeViolation[] on constraint violations.
+ */
+export function validateRangeConstraint(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   validator: ValidatorConfig,
   specField: FieldDefinition,
-): Effect.Effect<RangeViolation[], never> {
+): ValidationResult {
   return Effect.gen(function* (_) {
     const { min, max, inclusive = true } = validator.params || {};
 
-    if (min === undefined && max === undefined) return [];
+    if (min === undefined && max === undefined) {
+      return { fieldName, status: "valid" as const };
+    }
 
     // Build range condition
     const conditions: string[] = [];
@@ -237,93 +172,117 @@ export function findRangeViolations(
 
     const rows = result.getRowObjects();
 
-    // Return fully-formed RangeViolation objects
-    return rows.map((row) =>
-      new RangeViolation({
-        enforcement: validator.enforcement,
-        severity: enforcementToSeverity(validator.enforcement),
-        fieldName,
-        targetName: specField.name,
-        rowNumber: Number(row._row_number),
-        value: String(row.value),
-        errorMessage: validator.message || `Value out of range`,
-        validatorType: validator.type,
-        params: validator.params,
-      })
-    );
+    // If violations found, fail with violations in error channel
+    if (rows.length > 0) {
+      const violations = rows.map((row) =>
+        new RangeViolation({
+          enforcement: validator.enforcement,
+          severity: enforcementToSeverity(validator.enforcement),
+          fieldName,
+          targetName: specField.name,
+          rowNumber: Number(row._row_number),
+          value: String(row.value),
+          errorMessage: validator.message || `Value out of range`,
+          validatorType: validator.type,
+          params: validator.params,
+        })
+      );
+
+      return yield* _(Effect.fail(violations));
+    }
+
+    // No violations - succeed
+    return { fieldName, status: "valid" as const };
   });
 }
 
 /**
- * Validate range constraints for a field
+ * Validate all range constraints for a field
  *
- * Calls findRangeViolations() for each range validator.
+ * Uses Effect.all with mode: "either" to accumulate violations automatically.
+ * Returns ValidField on success, fails with accumulated FieldViolation[] on errors.
  */
 export function validateRangeConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
-): Effect.Effect<FieldViolation[], WorkspaceValidationError> {
+): ValidationResult {
   return Effect.gen(function* (_) {
-    const violations: FieldViolation[] = [];
-
     if (!specField.validators || !Array.isArray(specField.validators)) {
-      return violations;
+      return { fieldName, status: "valid" as const };
     }
 
-    // Get range validators (now always ValidatorConfig[] after normalization)
+    // Get range validators
     const rangeValidators = specField.validators.filter((v: ValidatorConfig) => v.type === "range");
 
-    for (const validator of rangeValidators) {
-      // Ensure validator has proper params structure
-      const normalizedValidator = normalizeRangeValidator(validator);
-
-      const rangeViolations = yield* _(
-        findRangeViolations(connection, tableName, fieldName, normalizedValidator, specField),
-      );
-
-      violations.push(...rangeViolations);
+    if (rangeValidators.length === 0) {
+      return { fieldName, status: "valid" as const };
     }
 
-    return violations;
+    // Create validation for each range validator
+    const validations = rangeValidators.map((validator) => {
+      const normalizedValidator = normalizeRangeValidator(validator);
+      return validateRangeConstraint(
+        connection,
+        tableName,
+        fieldName,
+        normalizedValidator,
+        specField,
+      );
+    });
+
+    // Use Effect.all with mode: "either" to collect results without short-circuiting
+    // This returns an array of Either values - one for each validation
+    const results = yield* _(
+      Effect.all(validations, { mode: "either", concurrency: "unbounded" }),
+    );
+
+    // Partition results into successes and failures
+    const violations: FieldViolation[] = [];
+    for (const result of results) {
+      if (result._tag === "Left") {
+        violations.push(...result.left);
+      }
+    }
+
+    // If any violations found, fail with accumulated violations
+    if (violations.length > 0) {
+      return yield* _(Effect.fail(violations));
+    }
+
+    // All validations passed
+    return { fieldName, status: "valid" as const };
   });
 }
 
 /**
- * Map VocabularyEnforcement to EnforcementLevel
+ * Validate controlled vocabulary for a field
  *
- * Converts vocabulary-specific enforcement to standard enforcement levels:
- * - strict → required (ERROR)
- * - recommended → recommended (WARNING)
- * - loose → optional (not used - loose enforcement skips validation)
+ * Returns ValidField on success, fails with VocabularyViolation[] on invalid values.
  */
-export function vocabularyEnforcementToStandard(
-  vocabEnforcement: VocabularyEnforcement,
-): EnforcementLevel {
-  const mapping: Record<VocabularyEnforcement, EnforcementLevel> = {
-    strict: "required",
-    recommended: "recommended",
-    loose: "optional", // Not actually used - loose enforcement skips validation
-  };
-  return mapping[vocabEnforcement];
-}
-
-/**
- * Find vocabulary violations using vocabulary key
- *
- * Returns fully-formed VocabularyViolation objects with all metadata.
- */
-export function findVocabularyViolations(
+export function validateVocabulary(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  vocabularyKey: VocabularyKey,
   specField: FieldDefinition,
-  enforcement: EnforcementLevel,
-  caseSensitive = false,
-): Effect.Effect<VocabularyViolation[], never> {
+): ValidationResult {
   return Effect.gen(function* (_) {
+    // After normalization, vocabulary config is always present if field has controlled vocabulary
+    if (!specField.vocabulary) {
+      return { fieldName, status: "valid" as const };
+    }
+
+    const { vocabularyKey, caseSensitive = false, enforcement = "strict" } = specField.vocabulary;
+
+    // Skip validation for loose enforcement - any value is accepted
+    if (enforcement === "loose") {
+      return { fieldName, status: "valid" as const };
+    }
+
+    // Map vocabulary enforcement to standard enforcement level
+    const standardEnforcement = vocabularyEnforcementToStandard(enforcement);
+
     // Get distinct values from the field with ordered row numbers
     const query = `
       SELECT
@@ -349,10 +308,10 @@ export function findVocabularyViolations(
       // Check if value is valid in vocabulary
       let isValid = false;
       if (caseSensitive) {
-        isValid = isValidVocabularyValue(vocabularyKey, value);
+        isValid = isValidVocabularyValue(vocabularyKey as VocabularyKey, value);
       } else {
         const vocabValues = yield* _(
-          getVocabularyValues(vocabularyKey).pipe(
+          getVocabularyValues(vocabularyKey as VocabularyKey).pipe(
             Effect.catchAll(() => Effect.succeed([] as readonly string[])),
           ),
         );
@@ -367,8 +326,8 @@ export function findVocabularyViolations(
         for (const rowNum of rowNumbers) {
           violations.push(
             new VocabularyViolation({
-              enforcement,
-              severity: enforcementToSeverity(enforcement),
+              enforcement: standardEnforcement,
+              severity: enforcementToSeverity(standardEnforcement),
               fieldName,
               targetName: specField.name,
               rowNumber: Number(rowNum),
@@ -382,68 +341,32 @@ export function findVocabularyViolations(
       }
     }
 
-    return violations;
+    // If violations found, fail with violations in error channel
+    if (violations.length > 0) {
+      return yield* _(Effect.fail(violations));
+    }
+
+    // No violations - succeed
+    return { fieldName, status: "valid" as const };
   });
 }
 
 /**
- * Validate controlled vocabulary for a field
+ * Validate uniqueness for a field
  *
- * Returns FieldViolation[] with enforcement-aware metadata.
+ * Returns ValidField on success, fails with UniquenessViolation[] on duplicates.
  */
-export function validateVocabulary(
+export function validateUniqueness(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
-): Effect.Effect<FieldViolation[], never> {
+): ValidationResult {
   return Effect.gen(function* (_) {
-    // After normalization, vocabulary config is always present if field has controlled vocabulary
-    if (!specField.vocabulary) {
-      return [];
-    }
+    // Check if field has explicit uniqueness validator
+    const uniqueValidator = specField.validators?.find((v: ValidatorConfig) => v.type === "unique");
+    const enforcement = uniqueValidator?.enforcement ?? "required";
 
-    const { vocabularyKey, caseSensitive = false, enforcement = "strict" } = specField.vocabulary;
-
-    // Skip validation for loose enforcement - any value is accepted
-    if (enforcement === "loose") {
-      return [];
-    }
-
-    // Map vocabulary enforcement to standard enforcement level
-    const standardEnforcement = vocabularyEnforcementToStandard(enforcement);
-
-    // Get fully-formed violations
-    return yield* _(
-      findVocabularyViolations(
-        connection,
-        tableName,
-        fieldName,
-        vocabularyKey as VocabularyKey,
-        specField,
-        standardEnforcement,
-        caseSensitive,
-      ),
-    );
-  });
-}
-
-/**
- * Find uniqueness violations
- *
- * Returns fully-formed UniquenessViolation objects with all metadata.
- *
- * Note: This "explodes" duplicate values into individual violations,
- * so a value duplicated 3 times creates 3 UniquenessViolations.
- */
-export function findUniquenessViolations(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  specField: FieldDefinition,
-  enforcement: EnforcementLevel,
-): Effect.Effect<UniquenessViolation[], WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
     // Query to find duplicate values with ordered row numbers
     const query = `
       SELECT
@@ -488,29 +411,151 @@ export function findUniquenessViolations(
       }
     }
 
-    return violations;
+    // If violations found, fail with violations in error channel
+    if (violations.length > 0) {
+      return yield* _(Effect.fail(violations));
+    }
+
+    // No violations - succeed
+    return { fieldName, status: "valid" as const };
   });
 }
 
 /**
- * Validate uniqueness for a field
+ * Validate all constraints for a single field
  *
- * Returns FieldViolation[] with enforcement-aware metadata.
+ * Composes range, vocabulary, and uniqueness validations using Effect.all with mode: "either".
+ * Executes validations in parallel with concurrency: "unbounded".
+ *
+ * Returns ValidField on success, fails with accumulated FieldViolation[] on errors.
  */
-export function validateUniqueness(
+export function validateField(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
-): Effect.Effect<FieldViolation[], WorkspaceValidationError> {
+): ValidationResult {
   return Effect.gen(function* (_) {
-    // Check if field has explicit uniqueness validator (already normalized)
-    const uniqueValidator = specField.validators?.find((v: ValidatorConfig) => v.type === "unique");
-    const enforcement = uniqueValidator?.enforcement ?? "required";
+    const validations: ValidationResult[] = [];
 
-    // Get fully-formed violations
-    return yield* _(
-      findUniquenessViolations(connection, tableName, fieldName, specField, enforcement),
+    // Add applicable validations
+    if (specField.validators?.some((v: ValidatorConfig) => v.type === "range")) {
+      validations.push(validateRangeConstraints(connection, tableName, fieldName, specField));
+    }
+
+    if (specField.vocabulary) {
+      validations.push(validateVocabulary(connection, tableName, fieldName, specField));
+    }
+
+    if (specField.validators?.some((v: ValidatorConfig) => v.type === "unique")) {
+      validations.push(validateUniqueness(connection, tableName, fieldName, specField));
+    }
+
+    // If no validations, field is valid
+    if (validations.length === 0) {
+      return { fieldName, status: "valid" as const };
+    }
+
+    // Run all validations in parallel, accumulate violations automatically
+    // Effect.all with mode: "either" returns an array of Either values
+    const results = yield* _(
+      Effect.all(validations, {
+        mode: "either",
+        concurrency: "unbounded", // Parallel execution
+      }),
     );
+
+    // Partition results into successes and failures
+    const violations: FieldViolation[] = [];
+    for (const result of results) {
+      if (result._tag === "Left") {
+        violations.push(...result.left);
+      }
+    }
+
+    // If any violations found, fail with accumulated violations
+    if (violations.length > 0) {
+      return yield* _(Effect.fail(violations));
+    }
+
+    // All validations passed
+    return { fieldName, status: "valid" as const };
+  });
+}
+
+/**
+ * Validate cross-dataset foreign key constraint
+ *
+ * Returns valid marker on success, fails with CrossDatasetViolation[] on referential integrity errors.
+ */
+export function validateCrossDatasetRule(
+  connection: DuckDBConnection,
+  rule: {
+    ruleType: string;
+    sourceDataset: string;
+    sourceField: string;
+    targetDataset: string;
+    targetField: string;
+    enforcement?: string;
+    description?: string;
+  },
+  datasets: readonly DatasetConfig[],
+): Effect.Effect<{ ruleType: string; status: "valid" }, CrossDatasetViolation[]> {
+  return Effect.gen(function* (_) {
+    // Map string enforcement to EnforcementLevel
+    const enforcementMap: Record<string, EnforcementLevel> = {
+      recommended: "recommended",
+      optional: "optional",
+    };
+    const enforcement: EnforcementLevel = enforcementMap[rule.enforcement || ""] || "required";
+
+    // Resolve dataset names to schema table names
+    const sourceTable = resolveSchemaTableName(rule.sourceDataset, datasets);
+    const targetTable = resolveSchemaTableName(rule.targetDataset, datasets);
+
+    // Find values in source that don't exist in target
+    const violationsQuery = `
+      SELECT
+        s._row_number,
+        s."${rule.sourceField}" as source_value
+      FROM ${sourceTable} s
+      LEFT JOIN ${targetTable} t ON s."${rule.sourceField}" = t."${rule.targetField}"
+      WHERE s."${rule.sourceField}" IS NOT NULL
+        AND t."${rule.targetField}" IS NULL
+    `;
+
+    // SQL query execution should work - query failure is a defect
+    const violationsResult = yield* _(
+      Effect.tryPromise(() => connection.runAndReadAll(violationsQuery)).pipe(Effect.orDie),
+    );
+
+    const rows = violationsResult.getRowObjects();
+
+    // If violations found, fail with violations in error channel
+    if (rows.length > 0) {
+      const violations = rows.map((row) =>
+        new CrossDatasetViolation({
+          enforcement,
+          severity: enforcementToSeverity(enforcement),
+          fieldName: rule.sourceField,
+          targetName: rule.targetField,
+          rowNumber: Number(row._row_number),
+          value: String(row.source_value),
+          errorMessage:
+            `Value '${row.source_value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`,
+          validatorType: rule.ruleType || "foreignKey",
+          params: {
+            sourceDataset: rule.sourceDataset,
+            targetDataset: rule.targetDataset,
+            targetField: rule.targetField,
+          },
+        })
+      );
+
+      return yield* _(Effect.fail(violations));
+    }
+
+    // No violations - succeed
+    return { ruleType: rule.ruleType, status: "valid" as const };
   });
 }

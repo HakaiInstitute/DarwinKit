@@ -21,7 +21,7 @@
  */
 
 import type { OutputError, TransformationError } from "@dwkt/core";
-import { ConfigMissingSettingsError, ErrorCode } from "@dwkt/domain";
+import { ConfigMissingSettingsError } from "@dwkt/domain";
 import { Data } from "effect";
 
 // Re-export ConfigMissingSettingsError from domain (defined alongside type predicates)
@@ -32,7 +32,6 @@ export { ConfigMissingSettingsError };
  */
 const WorkspaceValidationErrorBase = Data.TaggedError("WorkspaceValidationError")<{
   readonly message: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }>;
 
@@ -53,33 +52,25 @@ export class ConfigNotFoundError extends Data.TaggedError("ConfigNotFoundError")
   readonly message: string;
   readonly searchDir: string;
   readonly searchedPaths: readonly string[];
-}> {
-  readonly code = ErrorCode.FILE_NOT_FOUND;
-}
+}> {}
 
 export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
   readonly message: string;
   readonly configPath: string;
   readonly cause?: Error;
-}> {
-  readonly code = ErrorCode.PARSE_ERROR;
-}
+}> {}
 
 export class ConfigValidationError extends Data.TaggedError("ConfigValidationError")<{
   readonly message: string;
   readonly configPath: string;
   readonly validationErrors: readonly string[];
-}> {
-  readonly code = ErrorCode.VALIDATION_FAILED;
-}
+}> {}
 
 export class DatasetFileNotFoundError extends Data.TaggedError("DatasetFileNotFoundError")<{
   readonly message: string;
   readonly datasetName: string;
   readonly filePath: string;
-}> {
-  readonly code = ErrorCode.FILE_NOT_FOUND;
-}
+}> {}
 
 /**
  * Union type of all configuration errors

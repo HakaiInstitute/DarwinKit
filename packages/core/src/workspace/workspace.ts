@@ -33,7 +33,7 @@ import { dirname, join, resolve } from "@std/path";
 import type * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import * as YAML from "js-yaml";
+import { parse as parseYaml } from "@std/yaml";
 // Import database utilities
 import { importCsv } from "../database/index.ts";
 import {
@@ -314,7 +314,7 @@ export class Workspace {
         configJson = yield* _(
           Effect.try({
             try: () => {
-              return YAML.load(configContent);
+              return parseYaml(configContent);
             },
             catch: (error) =>
               new ConfigParseError({
@@ -904,8 +904,9 @@ export class Workspace {
       try {
         this.duckdb.connection.closeSync();
         // Note: DuckDBInstance doesn't have explicit close method in current API
-      } catch (error) {
-        console.warn("Failed to close DuckDB connection:", error);
+      } catch {
+        // Silently handle close errors - connection cleanup is best-effort during teardown
+        // The connection reference will be cleared regardless, preventing further use
       } finally {
         this.duckdb = undefined;
       }

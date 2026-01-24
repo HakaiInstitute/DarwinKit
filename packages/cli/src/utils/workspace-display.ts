@@ -13,7 +13,7 @@ import { Output } from './output.ts';
  */
 export function displayWorkspaceInfo(workspace: Workspace): void {
   Output.blank();
-  Output.section('📂', 'Workspace Information');
+  Output.section('Workspace Information');
   Output.line(`  Name: ${workspace.getName()}`);
   Output.line(`  Version: ${workspace.getVersion()}`);
   if (workspace.getDescription()) {

@@ -12,7 +12,6 @@
  */
 
 import type { ValidationProfile } from "../../types/validation-profile.ts";
-import { FieldRequirementLevel } from "../../types/validation-profile.ts";
 
 /**
  * OBIS Base Profile
@@ -32,7 +31,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
   fieldOverrides: {
     // === Geographic Location (Required for all OBIS data) ===
     decimalLatitude: {
-      requirement: FieldRequirementLevel.Required,
+      requirement: "required",
       validators: [
         {
           type: "range",
@@ -44,7 +43,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     },
 
     decimalLongitude: {
-      requirement: FieldRequirementLevel.Required,
+      requirement: "required",
       validators: [
         {
           type: "range",
@@ -56,7 +55,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     },
 
     geodeticDatum: {
-      requirement: FieldRequirementLevel.Required,
+      requirement: "required",
       validators: [
         {
           type: "required",
@@ -67,7 +66,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     },
 
     coordinateUncertaintyInMeters: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "strongly-recommended",
       validators: [
         {
           type: "range",
@@ -80,7 +79,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
 
     // === Temporal Information ===
     eventDate: {
-      requirement: FieldRequirementLevel.Required,
+      requirement: "required",
       validators: [
         {
           type: "format",
@@ -93,20 +92,20 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     },
 
     year: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "strongly-recommended",
     },
 
     month: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     day: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     // === Taxonomic Information ===
     scientificName: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "strongly-recommended",
       validators: [
         {
           type: "required",
@@ -117,7 +116,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     },
 
     scientificNameID: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "strongly-recommended",
       validators: [
         {
           type: "format",
@@ -129,21 +128,21 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     },
 
     kingdom: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     // === Occurrence Information ===
     basisOfRecord: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "strongly-recommended",
     },
 
     occurrenceStatus: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "strongly-recommended",
     },
 
     // === Depth Information (Marine-specific) ===
     minimumDepthInMeters: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
       validators: [
         {
           type: "range",
@@ -155,7 +154,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     },
 
     maximumDepthInMeters: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
       validators: [
         {
           type: "range",
@@ -168,32 +167,32 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
 
     // === Dataset/Record Metadata ===
     datasetName: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     institutionCode: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     collectionCode: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     // === Location Details ===
     country: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     countryCode: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     locality: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     waterBody: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
   },
 

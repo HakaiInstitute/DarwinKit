@@ -6,7 +6,7 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
 import type { TransformDatasetConfig } from "@dwkt/domain";
-import { ErrorCode, getValidationProfile } from "@dwkt/domain";
+import { getValidationProfile } from "@dwkt/domain";
 import { TransformationError } from "../errors.ts";
 
 /**
@@ -48,7 +48,6 @@ export function populateSchemaFromDataTables(
         return yield* _(Effect.fail(
           new TransformationError({
             message: `No field definitions found in '${dataset?.name}'`,
-            code: ErrorCode.INVALID_CONFIG,
             cause: new Error("field property missing from dataset definition"),
           }),
         ));
@@ -64,7 +63,6 @@ export function populateSchemaFromDataTables(
           new TransformationError({
             message:
               `Validation profile '${dataset.profile}' not found for dataset '${dataset.name}'`,
-            code: ErrorCode.INVALID_CONFIG,
           }),
         ));
       }
@@ -91,7 +89,6 @@ export function populateSchemaFromDataTables(
           new TransformationError({
             message:
               `Failed to populate table '${tableName}' from dataset '${dataset.name}'. SQL: ${insertSQL}`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));

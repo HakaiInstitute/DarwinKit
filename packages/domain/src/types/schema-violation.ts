@@ -116,41 +116,67 @@ export class UnknownFieldViolation extends Data.TaggedClass("UnknownFieldViolati
 > {}
 
 /**
+ * Unmapped column violation - CSV column exists but has no field mapping
+ *
+ * This is an INFO-level notification to help users identify columns in their
+ * source data that are not being processed. This can catch:
+ * - Accidentally forgotten field mappings
+ * - Typos in field mapping names (e.g., "eventId" vs "eventID")
+ * - Columns that should be mapped but weren't
+ *
+ * Properties:
+ * - `fieldName`: The CSV column name that has no mapping (inherited from SchemaViolationBase)
+ * - `targetName`: Empty string (no Darwin Core target since unmapped)
+ * - `datasetName`: The dataset containing this unmapped column
+ *
+ * @example CSV column without mapping
+ * ```typescript
+ * new UnmappedColumnViolation({
+ *   enforcement: "optional",
+ *   severity: ErrorSeverity.INFO,
+ *   fieldName: "internalNotes",  // The unmapped CSV column
+ *   targetName: "",              // No target (unmapped)
+ *   errorMessage: "CSV column 'internalNotes' has no field mapping and will be ignored",
+ *   validatorType: "schema",
+ *   datasetName: "events",       // Which dataset contains this column
+ * });
+ * ```
+ */
+export class UnmappedColumnViolation extends Data.TaggedClass("UnmappedColumnViolation")<
+  SchemaViolationBase & {
+    /** The dataset containing this unmapped column */
+    readonly datasetName: string;
+  }
+> {}
+
+/**
  * Discriminated union of all schema violation types
  *
- * Use the provided type guard helpers for filtering:
+ * Use `Match` from Effect for exhaustive pattern matching:
  *
- * @example Type guard filtering
+ * @example Exhaustive matching with Effect.Match
  * ```typescript
- * const missingFields = violations.filter(isMissingFieldViolation);
- * const unknownProfiles = violations.filter(isUnknownProfileViolation);
+ * import { Match } from "effect";
+ *
+ * const message = Match.value(violation).pipe(
+ *   Match.tag("MissingFieldViolation", (v) => `Missing: ${v.fieldName}`),
+ *   Match.tag("UnknownProfileViolation", (v) => `Unknown profile: ${v.profileId}`),
+ *   Match.tag("UnknownFieldViolation", (v) => `Unknown field: ${v.fieldName}`),
+ *   Match.tag("UnmappedColumnViolation", (v) => `Unmapped: ${v.fieldName}`),
+ *   Match.exhaustive,
+ * );
+ * ```
+ *
+ * @example Filter by tag
+ * ```typescript
+ * const missingFields = violations.filter(v => v._tag === "MissingFieldViolation");
  * ```
  */
 export type SchemaViolation =
   | MissingFieldViolation
   | UnknownProfileViolation
-  | UnknownFieldViolation;
-
-/**
- * Type guard helper for MissingFieldViolation
- */
-export function isMissingFieldViolation(v: SchemaViolation): v is MissingFieldViolation {
-  return v._tag === "MissingFieldViolation";
-}
-
-/**
- * Type guard helper for UnknownProfileViolation
- */
-export function isUnknownProfileViolation(v: SchemaViolation): v is UnknownProfileViolation {
-  return v._tag === "UnknownProfileViolation";
-}
-
-/**
- * Type guard helper for UnknownFieldViolation
- */
-export function isUnknownFieldViolation(v: SchemaViolation): v is UnknownFieldViolation {
-  return v._tag === "UnknownFieldViolation";
-}
+  | UnknownFieldViolation
+  | UnmappedColumnViolation;
 
 /**
  * Partition schema violations by enforcement level

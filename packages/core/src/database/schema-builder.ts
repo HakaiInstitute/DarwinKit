@@ -4,7 +4,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { WorkspaceImportError } from "@dwkt/core";
-import { ErrorCode, resolveDatasetProfile } from "@dwkt/domain";
+import { resolveDatasetProfile } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
 import type { DatasetWithProfile } from "./utils.ts";
 import { sanitizeTableName } from "./utils.ts";
@@ -125,7 +125,6 @@ export function importSchemaToWorkspace(
         catch: (error) =>
           new WorkspaceImportError({
             message: `Failed to create ENUM types for table '${tableName}'`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -138,7 +137,6 @@ export function importSchemaToWorkspace(
       catch: (error) =>
         new WorkspaceImportError({
           message: `Failed to drop table '${tableName}'`,
-          code: ErrorCode.DATABASE_ERROR,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
     }));
@@ -149,7 +147,6 @@ export function importSchemaToWorkspace(
       catch: (error) =>
         new WorkspaceImportError({
           message: `Failed to create table '${tableName}'. SQL: ${tableSql}`,
-          code: ErrorCode.DATABASE_ERROR,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
     }));

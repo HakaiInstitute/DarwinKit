@@ -10,7 +10,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { WorkspaceImportError } from "@dwkt/core";
-import { ErrorCode, type ImportConfig } from "@dwkt/domain";
+import type { ImportConfig } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
 
 /**
@@ -86,7 +86,6 @@ export function importCsv(
         catch: (error) =>
           new WorkspaceImportError({
             message: `Failed to create table '${tableName}' from CSV ${csvPath}`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }),

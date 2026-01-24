@@ -1,8 +1,8 @@
 import { Command } from '@cliffy/command';
-import { importCommand } from './src/cmd/import/import.ts';
-import { validateCommand } from './src/cmd/validate/validate.ts';
-import { transformCommand } from './src/cmd/transform/transform.ts';
-import packageInfo from './deno.json' with { type: 'json' };
+import packageInfo from '../deno.json' with { type: 'json' };
+import { importCommand } from './cmd/import/import.ts';
+import { transformCommand } from './cmd/transform/transform.ts';
+import { validateCommand } from './cmd/validate/validate.ts';
 
 const darwinkit = new Command()
   .name('darwinkit')

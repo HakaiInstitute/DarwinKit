@@ -12,7 +12,6 @@ import type {
 import {
   crossDatasetRuleSchema,
   decodeDatasetConfig,
-  ErrorCode,
   fieldMappingSchema,
   isEnumViolation,
   isPrimaryKeyViolation,
@@ -660,8 +659,9 @@ Deno.test("Workspace Validation - Violation Detection Tests", async (t) => {
     );
 
     // Verify we get an invalid config error about missing field
+    // TODO: This error could be more specific; WorkspaceValidationError is vague when it could be
+    // as specific as WorkspaceInvalidConfigError
     assertInstanceOf(error, WorkspaceValidationError);
-    assertEquals(error.code, ErrorCode.INVALID_CONFIG);
     assertStringIncludes(
       error.message,
       "does not contain the mapped fields",

@@ -436,24 +436,59 @@ export class ConfigMissingSettingsError extends S.TaggedError<ConfigMissingSetti
     message: S.String,
     missingSetting: S.Literal("validation", "transform"),
   },
-) {
-  /** Error code for programmatic error handling */
-  readonly code = "MISSING_SETTINGS" as const;
-}
+) {}
 
 /**
  * Require validation settings, failing with descriptive error if missing.
  *
- * Returns an Effect that succeeds with a narrowed config type where
- * `validation` is guaranteed to be present.
+ * **Pattern:** Use this Effect helper in Effect generators for runtime validation with type narrowing.
+ * Returns an Effect that succeeds with ConfigWithValidation or fails with ConfigMissingSettingsError.
  *
- * @example
+ * **When to use:**
+ * - Inside Effect.gen functions where you need validation config
+ * - In class methods that return Effects (Validator, Transformer)
+ * - When you want automatic error handling via Effect pipeline
+ *
+ * **Alternative:** For synchronous code or type guards, use `hasValidation()` type predicate instead.
+ *
+ * @param config - Workspace configuration to validate
+ * @returns Effect yielding narrowed config with validation settings
+ * @throws ConfigMissingSettingsError if validation settings are missing
+ *
+ * @example Effect pipeline usage (recommended for class methods)
  * ```typescript
- * // In Effect pipeline
- * const validateWorkspace = (config: WorkspaceConfig) =>
- *   requireValidation(config).pipe(
- *     Effect.flatMap(c => runValidation(c.validation))
- *   );
+ * class Validator {
+ *   private getConfig() {
+ *     return requireValidation(this.workspace.getConfig());
+ *   }
+ *
+ *   run(): Effect.Effect<ValidationResult, ConfigMissingSettingsError> {
+ *     return Effect.gen(this, function* (_) {
+ *       const config = yield* _(this.getConfig());
+ *       // config.validation is guaranteed to exist
+ *       const datasets = config.validation.datasets;
+ *       // ...
+ *     });
+ *   }
+ * }
+ * ```
+ *
+ * @example Compare with hasValidation() type predicate
+ * ```typescript
+ * // Synchronous code - use type predicate
+ * getDatasets(): readonly DatasetConfig[] {
+ *   return hasValidation(this.config)
+ *     ? this.config.validation.datasets ?? []
+ *     : [];
+ * }
+ *
+ * // Effect code - use Effect helper
+ * validate(): Effect.Effect<Result, ConfigMissingSettingsError> {
+ *   return Effect.gen(function* (_) {
+ *     const config = yield* _(requireValidation(workspace.getConfig()));
+ *     // Use config.validation
+ *   });
+ * }
  * ```
  */
 export function requireValidation(
@@ -474,16 +509,52 @@ export function requireValidation(
 /**
  * Require transform settings, failing with descriptive error if missing.
  *
- * Returns an Effect that succeeds with a narrowed config type where
- * `transform` is guaranteed to be present.
+ * **Pattern:** Use this Effect helper in Effect generators for runtime validation with type narrowing.
+ * Returns an Effect that succeeds with ConfigWithTransformation or fails with ConfigMissingSettingsError.
  *
- * @example
+ * **When to use:**
+ * - Inside Effect.gen functions where you need transform config
+ * - In class methods that return Effects (Validator, Transformer)
+ * - When you want automatic error handling via Effect pipeline
+ *
+ * **Alternative:** For synchronous code or type guards, use `hasTransform()` type predicate instead.
+ *
+ * @param config - Workspace configuration to validate
+ * @returns Effect yielding narrowed config with transformation settings
+ * @throws ConfigMissingSettingsError if transform settings are missing
+ *
+ * @example Effect pipeline usage (recommended for class methods)
  * ```typescript
- * // In Effect pipeline
- * const transformWorkspace = (config: WorkspaceConfig) =>
- *   requireTransform(config).pipe(
- *     Effect.flatMap(c => runTransform(c.transform))
- *   );
+ * class Transformer {
+ *   private getConfig() {
+ *     return requireTransform(this.workspace.getConfig());
+ *   }
+ *
+ *   run(): Effect.Effect<void, ConfigMissingSettingsError> {
+ *     return Effect.gen(this, function* (_) {
+ *       const config = yield* _(this.getConfig());
+ *       // config.transform is guaranteed to exist
+ *       const datasets = config.transform.datasets;
+ *       // ...
+ *     });
+ *   }
+ * }
+ * ```
+ *
+ * @example Compare with hasTransform() type predicate
+ * ```typescript
+ * // Synchronous code - use type predicate
+ * hasTransformConfig(): boolean {
+ *   return hasTransform(this.config);
+ * }
+ *
+ * // Effect code - use Effect helper
+ * transform(): Effect.Effect<void, ConfigMissingSettingsError> {
+ *   return Effect.gen(function* (_) {
+ *     const config = yield* _(requireTransform(workspace.getConfig()));
+ *     // Use config.transform
+ *   });
+ * }
  * ```
  */
 export function requireTransform(

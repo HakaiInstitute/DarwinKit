@@ -20,7 +20,7 @@ import type {
   ValidationConfig,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
-import { ErrorCode, requireValidation, resolveDatasetProfile } from "@dwkt/domain";
+import { requireValidation, resolveDatasetProfile } from "@dwkt/domain";
 
 import { importSchemaToWorkspace, sanitizeTableName } from "../database/index.ts";
 import { ConstraintValidator } from "../validation/constraint-validator.ts";
@@ -111,7 +111,6 @@ export class Validator {
           Effect.fail(
             new WorkspaceValidationError({
               message: `Configuration '${configPath}' does not contain datasets`,
-              code: ErrorCode.INVALID_CONFIG,
             }),
           ),
         );
@@ -204,22 +203,36 @@ export class Validator {
 
     return Effect.gen(function* (_) {
       // Validate each dataset
-      const datasetResults: DatasetValidationResult[] = [];
+      let datasetResults: DatasetValidationResult[] = [];
 
-      for (const dataset of datasets) {
-        // Resolve validation profile (explicit profile or derived from spec)
-        const datasetProfile = resolveDatasetProfile(dataset);
+      if (validationSettings.failFast) {
+        // Sequential validation when fail-fast is enabled
+        for (const dataset of datasets) {
+          // Resolve validation profile (explicit profile or derived from spec)
+          const datasetProfile = resolveDatasetProfile(dataset);
 
-        const result = yield* _(
-          validateDataset(connection, dataset, datasetProfile, validationSettings),
-        );
+          const result = yield* _(
+            validateDataset(connection, dataset, datasetProfile, validationSettings),
+          );
 
-        datasetResults.push(result);
+          datasetResults.push(result);
 
-        // Fail-fast if enabled and we have critical errors
-        if (validationSettings.failFast && result.status === "fail") {
-          break;
+          // Fail-fast: stop on first critical error
+          if (result.status === "fail") {
+            break;
+          }
         }
+      } else {
+        // Parallel validation when fail-fast is disabled (V2 improvement)
+        const validations = datasets.map((dataset) => {
+          const datasetProfile = resolveDatasetProfile(dataset);
+          return validateDataset(connection, dataset, datasetProfile, validationSettings);
+        });
+
+        // Run all dataset validations in parallel
+        datasetResults = yield* _(
+          Effect.all(validations, { concurrency: "unbounded" }),
+        );
       }
 
       // Validate cross-dataset rules if provided

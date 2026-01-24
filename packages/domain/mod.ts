@@ -7,7 +7,7 @@ export * from "./src/types/common.ts";
 export * from "./src/types/schema-violation.ts";
 export * from "./src/types/schema.ts";
 export * from "./src/types/validation-profile.ts";
-export { FieldRequirementLevel } from "./src/types/validation-profile.ts";
+export { FieldRequirementLevels } from "./src/types/validation-profile.ts";
 export * from "./src/types/validation-violation.ts";
 export * from "./src/types/workspace-validation.ts";
 export * from "./src/types/workspace.ts";
@@ -49,7 +49,6 @@ export {
 
 // Error handling
 export * from "./src/errors/cause-formatter.ts";
-export * from "./src/errors/codes.ts";
 export * from "./src/errors/severity.ts";
 
 // Darwin Core Specifications

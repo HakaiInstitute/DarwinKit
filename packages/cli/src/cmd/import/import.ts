@@ -3,9 +3,9 @@ import { import_schema } from '@dwkt/core';
 import { Output } from '../../utils/output.ts';
 
 async function importSchema() {
-  Output.section('🚀', 'Starting schema import from gbif...');
+  Output.section('Starting schema import from GBIF');
   await import_schema();
-  Output.success('✅ Import complete.');
+  Output.success('Import complete');
 }
 
 export const importCommand = new Command()
