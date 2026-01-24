@@ -3,12 +3,14 @@ import * as Effect from 'effect/Effect';
 import * as Match from 'effect/Match';
 
 import { Workspace } from '@dwkt/core';
+import { hasTransform } from '@dwkt/domain';
 import { Output } from '../../utils/output.ts';
 import { withSpinner } from '../../utils/spinner.ts';
 import { displayWorkspaceInfo } from '../../utils/workspace-display.ts';
 
 /**
  * Display transformation summary after completion
+ * TODO: // Remove Output statements, use output strategies (see validaton command)
  */
 function displayTransformationSummary(workspace: Workspace, startTime: number) {
   const config = workspace.getConfig();
@@ -22,7 +24,7 @@ function displayTransformationSummary(workspace: Workspace, startTime: number) {
   Output.line(`  Datasets transformed: ${datasets.length}`);
 
   // Check if transform config exists and has output settings
-  if ('transform' in config && config.transform?.output) {
+  if (hasTransform(config)) {
     const outputDir = config.transform.output.dir;
     Output.line(`  Output directory: ${outputDir}`);
 
