@@ -34,13 +34,6 @@ export const workspaceInfoSchema = S.Struct({
   updatedAt: S.Date,
 });
 
-// Workspace creation input validation
-export const createWorkspaceInputSchema = S.Struct({
-  name: S.String.pipe(S.minLength(1)),
-  description: S.optional(S.String),
-  filePath: S.String.pipe(S.minLength(1)),
-});
-
 // Workspace creation options validation
 export const createWorkspaceOptionsSchema = S.Struct({
   name: S.String.pipe(S.minLength(1)),

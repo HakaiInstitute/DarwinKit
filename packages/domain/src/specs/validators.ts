@@ -25,11 +25,7 @@ export type ValidatorType = S.Schema.Type<typeof ValidatorType>;
 /**
  * Enforcement levels determine how strictly validators are applied
  */
-export const EnforcementLevel: S.Literal<[
-  "required",
-  "recommended",
-  "optional",
-]> = S.Literal(
+export const EnforcementLevel = S.Literal(
   "required",
   "recommended",
   "optional",
@@ -201,8 +197,3 @@ export const DARWIN_CORE_VALIDATORS = {
     message: "Value must be whole numbers (integers)",
   }),
 } as const;
-
-/**
- * Type for pre-configured validator names
- */
-export type DarwinCoreValidatorName = keyof typeof DARWIN_CORE_VALIDATORS;

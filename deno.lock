@@ -39,6 +39,7 @@
     "jsr:@std/testing@1.0.0": "1.0.0",
     "jsr:@std/text@~1.0.7": "1.0.16",
     "jsr:@std/yaml@*": "1.0.10",
+    "jsr:@std/yaml@^1.0.11": "1.0.11",
     "npm:@duckdb/node-api@^1.3.2-alpha.26": "1.3.2-alpha.26",
     "npm:@headlessui/react@^2.2.7": "2.2.7_react@18.3.1_react-dom@18.3.1__react@18.3.1",
     "npm:@hono/node-server@^1.13.8": "1.19.0_hono@4.9.4",
@@ -228,6 +229,9 @@
     },
     "@std/yaml@1.0.10": {
       "integrity": "245706ea3511cc50c8c6d00339c23ea2ffa27bd2c7ea5445338f8feff31fa58e"
+    },
+    "@std/yaml@1.0.11": {
+      "integrity": "bd139ce77f2d06cbed3713c8b26d301d2a2e12ecc7986130a268107e212143ee"
     }
   },
   "npm": {
@@ -2439,7 +2443,8 @@
         "minizlib",
         "mkdirp",
         "yallist@5.0.0"
-      ]
+      ],
+      "deprecated": true
     },
     "through2@3.0.2": {
       "integrity": "sha512-enaDQ4MUyP2W6ZyT6EsMzqBPZaM/avg8iuo+l2d3QCs0J+6RaqkHV/2/lOwDTueBHeJ/2LG9lrLW3d5rWPucuQ==",
@@ -2707,6 +2712,7 @@
       "jsr:@std/assert@^1.0.6",
       "jsr:@std/csv@^1.0.6",
       "jsr:@std/path@^1.0.8",
+      "jsr:@std/yaml@^1.0.11",
       "npm:@duckdb/node-api@^1.3.2-alpha.26",
       "npm:@headlessui/react@^2.2.7",
       "npm:@hono/node-server@^1.13.8",

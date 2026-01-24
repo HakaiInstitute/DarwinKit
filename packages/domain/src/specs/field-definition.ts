@@ -20,9 +20,9 @@
  */
 
 import * as S from "effect/Schema";
-import type { field } from "../types/validation-profile.ts";
+import type { Field } from "../types/validation-profile.ts";
 import type { ValidatorConfig } from "./validators.ts";
-import { ValidatorConfigSchema } from "./validators.ts";
+import { DARWIN_CORE_VALIDATORS, ValidatorConfigSchema } from "./validators.ts";
 import type { VocabularyConfig } from "./vocabularies/config.ts";
 import type { VocabularyKey } from "./vocabularies/registry.ts";
 
@@ -48,8 +48,11 @@ export type FieldDefinition = S.Schema.Type<typeof FieldDefinitionSchema>;
  * Converts:
  * - validators: string[] → ValidatorConfig[]
  * - values: Record<string, unknown> → vocabulary: VocabularyConfig
+ *
+ * Also applies field-specific validators from DARWIN_CORE_VALIDATORS
+ * for known fields like month, day, year, etc.
  */
-export function normalizeField(jsonField: field): FieldDefinition {
+export function normalizeField(jsonField: Field): FieldDefinition {
   // Convert validators to ValidatorConfig objects
   // JSON schema validators can be either strings or objects
   const validators: ValidatorConfig[] = jsonField.validators?.map((v) => {
@@ -108,6 +111,36 @@ export function normalizeField(jsonField: field): FieldDefinition {
     return v as unknown as ValidatorConfig;
   }) || [];
 
+  // Apply field-specific validators from DARWIN_CORE_VALIDATORS
+  // These add range constraints for fields like month, day, year, etc.
+  const fieldSpecificValidators: ValidatorConfig[] = [];
+
+  switch (jsonField.name) {
+    case "month":
+      fieldSpecificValidators.push(DARWIN_CORE_VALIDATORS.month());
+      break;
+    case "day":
+      fieldSpecificValidators.push(DARWIN_CORE_VALIDATORS.day());
+      break;
+    case "year":
+      fieldSpecificValidators.push(DARWIN_CORE_VALIDATORS.year());
+      break;
+    case "decimalLatitude":
+      fieldSpecificValidators.push(DARWIN_CORE_VALIDATORS.latitude());
+      break;
+    case "decimalLongitude":
+      fieldSpecificValidators.push(DARWIN_CORE_VALIDATORS.longitude());
+      break;
+    case "minimumDepthInMeters":
+    case "maximumDepthInMeters":
+      fieldSpecificValidators.push(DARWIN_CORE_VALIDATORS.depth());
+      break;
+      // Add more field-specific validators as needed
+  }
+
+  // Combine base validators with field-specific validators
+  const allValidators = [...validators, ...fieldSpecificValidators];
+
   // Convert values object to vocabulary config
   const vocabulary: VocabularyConfig | undefined = jsonField.values
     ? {
@@ -121,7 +154,7 @@ export function normalizeField(jsonField: field): FieldDefinition {
   return {
     name: jsonField.name,
     label: jsonField.label,
-    validators,
+    validators: allValidators,
     vocabulary,
     type: jsonField.type,
     comments: jsonField.comments,
@@ -135,7 +168,7 @@ export function normalizeField(jsonField: field): FieldDefinition {
  * Maps Darwin Core field names to their vocabulary keys.
  * Returns the mapped key or the field name as a fallback (cast to any valid key).
  */
-function deriveVocabularyKey(field: field): VocabularyKey {
+function deriveVocabularyKey(field: Field): VocabularyKey {
   // Common Darwin Core vocabulary mappings
   const vocabularyMap: Record<string, string> = {
     "type": "dctype",
@@ -166,27 +199,34 @@ function deriveVocabularyKey(field: field): VocabularyKey {
 /**
  * Derive vocabulary enforcement level from field metadata
  *
- * Determines the appropriate enforcement level based on obis_required and gbif_required.
- * This ensures that vocabulary violations produce appropriate severity levels:
+ * Determines the appropriate enforcement level based on obis_required, gbif_required,
+ * and comments field. This ensures that vocabulary violations produce appropriate severity levels:
  * - strict: errors for required/strongly recommended fields
- * - recommended: warnings for recommended fields
+ * - recommended: warnings for recommended fields (including "Recommended best practice")
  * - loose: info messages for optional fields
  */
-function deriveVocabularyEnforcement(field: field): "strict" | "recommended" | "loose" {
+function deriveVocabularyEnforcement(field: Field): "strict" | "recommended" | "loose" {
   const obisRequired = field.obis_required;
   const gbifRequired = field.gbif_required;
+  const comments = field.comments || "";
 
   // Check OBIS requirements first (preferred for marine biodiversity)
-  if (obisRequired === "required" || obisRequired === "strongly recommended") {
+  if (obisRequired === "required") {
     return "strict";
   }
-  if (obisRequired === "recommended") {
+  if (obisRequired === "strongly recommended" || obisRequired === "recommended") {
     return "recommended";
   }
 
   // Fall back to GBIF requirements
   if (gbifRequired === "true") {
     return "strict";
+  }
+
+  // Check comments for "Recommended best practice"
+  // Darwin Core often uses this phrase to indicate recommended vocabularies
+  if (comments.toLowerCase().includes("recommended best practice")) {
+    return "recommended";
   }
 
   // Default to loose for optional or unspecified fields

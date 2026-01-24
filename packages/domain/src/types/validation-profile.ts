@@ -36,23 +36,37 @@ import type {
  * Field requirement levels for validation profiles
  *
  * Defines the strength of a field requirement in a validation profile.
+ *
+ * Uses Effect's Schema.Enums for a consolidated pattern.
  */
-export enum FieldRequirementLevel {
+
+/**
+ * Field requirement level enum values
+ *
+ * @example
+ * ```typescript
+ * // Discoverable via autocomplete: FieldRequirementLevels.<ctrl+space>
+ * requirement: FieldRequirementLevels.REQUIRED
+ *
+ * // Or use string literal directly (when type is known)
+ * requirement: "required"
+ * ```
+ */
+export const FieldRequirementLevels = {
   /** Field must be present and contain a non-null value (fails validation if missing/null) */
-  Required = "required",
-
+  REQUIRED: "required",
   /** Field should be present; generates warning if missing but doesn't fail validation */
-  StronglyRecommended = "strongly-recommended",
-
+  STRONGLY_RECOMMENDED: "strongly-recommended",
   /** Field is recommended but not critical; generates info message if missing */
-  Recommended = "recommended",
-
+  RECOMMENDED: "recommended",
   /** Field doesn't need to be present, but if it is, it must be valid */
-  RequiredIfExists = "required-if-exists",
-
+  REQUIRED_IF_EXISTS: "required-if-exists",
   /** Field is completely optional; no validation requirements */
-  Optional = "optional",
-}
+  OPTIONAL: "optional",
+} as const;
+
+export type FieldRequirementLevel =
+  typeof FieldRequirementLevels[keyof typeof FieldRequirementLevels];
 
 /**
  * Raw field definition from JSON schema
@@ -65,7 +79,7 @@ export enum FieldRequirementLevel {
  * Validators can be either strings (legacy format) or ValidatorConfig objects.
  * The lowercase naming indicates this is a raw format from JSON schema.
  */
-export interface field {
+export interface Field {
   readonly group: string;
   readonly name: string;
   readonly label: string;

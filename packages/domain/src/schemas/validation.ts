@@ -121,10 +121,7 @@ export type VocabularyError = S.Schema.Type<typeof vocabularyErrorSchema>;
 export type DarwinCoreValidationResult = S.Schema.Type<typeof darwinCoreValidationResultSchema>;
 
 // Additional types for Effect integration (not requiring schemas)
-import type { ErrorCode } from "../errors/codes.ts";
-
 export interface ValidationError {
-  readonly code: ErrorCode;
   readonly message: string;
   readonly filePath?: string;
   readonly details?: Record<string, unknown>;

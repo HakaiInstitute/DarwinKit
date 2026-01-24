@@ -11,7 +11,6 @@
  */
 
 import type { ValidationProfile } from "../../types/validation-profile.ts";
-import { FieldRequirementLevel } from "../../types/validation-profile.ts";
 
 /**
  * OBIS Event Core Profile
@@ -38,73 +37,73 @@ export const OBIS_EVENT_PROFILE: ValidationProfile = {
 
     // eventID: Required for Event core
     eventID: {
-      requirement: FieldRequirementLevel.Required,
+      requirement: "required",
     },
 
     // parentEventID: Strongly recommended for hierarchical events
     parentEventID: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "strongly-recommended",
     },
 
     // Event type and metadata
     eventType: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     eventRemarks: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     // === Location Fields (Event-specific recommendations) ===
 
     locationID: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     locationRemarks: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     verbatimCoordinates: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     verbatimDepth: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     footprintWKT: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     stateProvince: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     island: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     islandGroup: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     // === Sampling Protocol (Event-specific) ===
 
     samplingProtocol: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "strongly-recommended",
     },
 
     sampleSizeValue: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     sampleSizeUnit: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
 
     samplingEffort: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "recommended",
     },
   },
 
