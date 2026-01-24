@@ -60,9 +60,9 @@ jobs:
           || steps.core.outcome == 'success' || steps.core.outcome == 'failure'
           || steps.integration.outcome == 'success' || steps.integration.outcome == 'failure'
         with:
-          name: JEST Tests # Name of the check run which will be created
-          path: ./reports/*.xml # Path to test results
-          reporter: jest-junit # Format of test results
+          name: Deno Test Results # Name of the check run which will be created
+          path: ./reports/*.xml # Path to test results (JUnit XML format from deno test)
+          reporter: jest-junit # JUnit XML parser (works with Deno's --junit-path output)
 
       - name: Test summary
         if: always()
