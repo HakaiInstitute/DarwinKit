@@ -95,7 +95,8 @@
     ".vinxi",
     ".vite",
     "build",
-    "coverage"
+    "coverage",
+    ".context"
   ],
   "fmt": {
     "useTabs": false,

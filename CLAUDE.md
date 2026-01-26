@@ -346,65 +346,68 @@ The following features are on the roadmap but not yet fully implemented:
 - Portable workspaces that can be shared
 - Incremental caching for performance
 
-**Planned CLI Commands:**
-
-```bash
-# Create workspace from CSV (PLANNED)
-deno task dev:cli workspace create "Marine Survey 2024" ./survey-data.csv
-
-# List all workspaces (PLANNED)
-deno task dev:cli workspace list
-
-# Show workspace details (PLANNED)
-deno task dev:cli workspace show <workspace-id>
-```
-
-**Planned API Endpoints:**
-
-```typescript
-// Create workspace via API (PLANNED)
-const response = await fetch("http://localhost:3001/api/workspaces", {
-  method: "POST",
-  body: JSON.stringify({
-    name: "Marine Survey 2024",
-    filePath: "./survey-data.csv",
-  }),
-});
-```
-
-**Planned Programmatic API:**
-
-```typescript
-// Workspace service API (PLANNED)
-import { WorkspaceService } from "@dwkt/core";
-
-const service = new WorkspaceService();
-const result = await Effect.runPromise(
-  service.createFromFile({
-    name: "Marine Survey 2024",
-    filePath: "./survey-data.csv",
-  }),
-);
-```
-
 ### Database Integration
 
-- PostgreSQL for user authentication and authorization
-- Drizzle ORM schema definitions and migrations
-- Workspace persistence in database alongside file-based storage
-- User and project organization features
-
-### Enhanced GUI
-
-- Full React frontend with TanStack Router and Query
-- Interactive workspace creation and management
-- Visual field mapping configuration
-- Real-time validation feedback
-- Data transformation preview
-- Headless UI components throughout
-- TanStack React Form for all form handling
+- DuckDB for workspace persistence and data processing/analysis
+- Uses raw querying, no DBAL or ORM
 
 ## Development Guidelines
+
+### Effect Library References
+
+DarwinKit uses the Effect library extensively for functional program pipelines, error handling, schema validation, services, context, and dependency injection. When working with Effect-related code, reference materials are available in the `.context` directory:
+
+**Available References:**
+
+- **`.context/effect/`** - Complete Effect library source code for deep dives into implementation details
+  - Explore core modules: Effect, Schema, Data, Match, etc.
+  - Understand internal patterns and advanced usage
+  - Reference when debugging complex Effect chains or type issues
+
+- **`.context/effect-patterns/`** - Curated collection of Effect patterns and best practices
+  - Common patterns for real-world scenarios
+  - Solutions to frequent Effect challenges
+  - Idioms for combining Effect primitives
+
+- **`.context/effect-solutions/`** - Worked solutions to Effect exercises and challenges
+  - Practical examples of Effect usage in different scenarios
+  - Step-by-step solutions showing common patterns
+  - Educational resource for learning Effect through examples
+
+**When to Reference:**
+
+- Solving complex Effect composition problems
+- Understanding type errors from Effect chains
+- Learning advanced Effect patterns (retries, resources, layers)
+- Debugging unexpected Effect behavior
+- Implementing new Effect-based features
+- Looking for practical examples of specific Effect patterns
+
+**How to Reference:**
+
+- If looking for Effect API specifics, search in ./context/effect to examine implementation details
+- If exploring options for how to implement Effect-based patterns, search in ./context/effect-patterns and ./context/effect-solutions
+- Prefer narrow, targeted searches of broad, inclusive searches until you've found relevant information to avoid saturating context
+
+**Setup Instructions:**
+
+These reference materials are for AI context when working with Claude Code and are not tracked in the repository. To set up the `.context` directory:
+
+```bash
+# Clone reference repositories (shallow clones for smaller size)
+git clone --branch effect@3.19.15 --depth 1 https://github.com/Effect-TS/effect.git
+git clone --depth=1 git@github.com:PaulJPhilp/EffectPatterns.git .context/effect-patterns
+git clone --depth=1 git@github.com:kitlangton/effect-solutions.git .context/effect-solutions
+```
+
+**Updating References:**
+
+To pull the latest updates from any reference repository:
+
+```bash
+cd .context/effect-solutions  # or effect, or effect-patterns
+git pull
+```
 
 ### Error Handling with Effect
 
@@ -480,12 +483,12 @@ See `docs/error-handling-guide.md` for comprehensive guidelines.
 - File system operations and external service integrations
 - Can import from @dwkt/domain
 
-**@dwkt/gui:**
+**@dwkt/cli:**
 
-- Minimal React frontend implementation
-- Only imports from @dwkt/domain (never from core)
-- Communicates with backend via HTTP API client
-- (Planned) TanStack Router, Query, and Form integration
+- Simple command-line interface for interacting with @dwkt/core API
+- Allows users to validate and transform datasets
+- Intended to provide a powerful yet user-friendly CLI for DarwinKit
+- Can import from @dwkt/domain and @dwkt/core
 
 ### Testing Requirements
 
@@ -497,11 +500,12 @@ See `docs/error-handling-guide.md` for comprehensive guidelines.
 
 ### Code Quality Standards
 
-- Run `deno test` before committing changes
-- Ensure `deno lint` and `deno fmt` pass without errors
+- Run `deno test`, `deno check`, and `deno lint` before committing changes
 - Follow existing patterns within each package
-- Use TypeScript strictly - avoid `any` types
+- Use TypeScript strictly - never use `any` types, avoid `unknown` unless it's technically correct
 - Document workspace-specific functionality and cross-package interactions
+- Keep documentation concise
+- Don't explain lines of code when the code is self-explanatory
 
 ### Code Organization
 
