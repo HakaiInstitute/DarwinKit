@@ -134,10 +134,6 @@
             "targetName": "habitat"
           },
           {
-            "originName": "collectionCode",
-            "targetName": "collectionCode"
-          },
-          {
             "originName": "municipality",
             "targetName": "municipality"
           },

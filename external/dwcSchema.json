@@ -238,7 +238,7 @@
     "dc:title": "Darwin Core Event",
     "namespace": "http://rs.tdwg.org/dwc/terms/",
     "rowType": "http://rs.tdwg.org/dwc/terms/Event",
-    "dc:issued": "2025-07-10",
+    "dc:issued": "2025-12-16",
     "dc:subject": "",
     "dc:relation": "http://rs.tdwg.org/dwc/terms/Event",
     "dc:description": "Support for Darwin Core Event-based records.",
@@ -340,7 +340,7 @@
       "modified": {
         "group": "Record-level",
         "name": "modified",
-        "label": "Modified",
+        "label": "Date Modified",
         "type": "date",
         "namespace": "http://purl.org/dc/terms/",
         "qualName": "http://purl.org/dc/terms/modified",
@@ -722,7 +722,16 @@
         "obis_required": "strongly recommended",
         "validators": [
           "recommended",
-          "integer"
+          "integer",
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": 1600,
+              "max": 2026
+            },
+            "message": "Year must be between 1600 and current year"
+          }
         ]
       },
       "month": {
@@ -740,7 +749,16 @@
         "obis_required": "strongly recommended",
         "validators": [
           "recommended",
-          "integer"
+          "integer",
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": 1,
+              "max": 12
+            },
+            "message": "Month must be between 1 and 12"
+          }
         ]
       },
       "day": {
@@ -758,13 +776,22 @@
         "obis_required": "recommended",
         "validators": [
           "recommended",
-          "integer"
+          "integer",
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": 1,
+              "max": 31
+            },
+            "message": "Day must be between 1 and 31"
+          }
         ]
       },
       "verbatimEventDate": {
         "group": "Event",
         "name": "verbatimEventDate",
-        "label": "Verbatim Event Date",
+        "label": "Verbatim EventDate",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/verbatimEventDate",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:verbatimEventDate",
@@ -1209,7 +1236,7 @@
       "stateProvince": {
         "group": "Location",
         "name": "stateProvince",
-        "label": "State Province",
+        "label": "First Order Division",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/stateProvince",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:stateProvince",
@@ -1223,7 +1250,7 @@
       "county": {
         "group": "Location",
         "name": "county",
-        "label": "County",
+        "label": "Second Order Division",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/county",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:county",
@@ -1237,7 +1264,7 @@
       "municipality": {
         "group": "Location",
         "name": "municipality",
-        "label": "Municipality",
+        "label": "Third Order Division",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/municipality",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:municipality",
@@ -1459,7 +1486,16 @@
         "gbif_required": "false",
         "obis_required": "required",
         "validators": [
-          "required"
+          "required",
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": -90,
+              "max": 90
+            },
+            "message": "Latitude must be between -90 and +90 degrees"
+          }
         ]
       },
       "decimalLongitude": {
@@ -1476,7 +1512,16 @@
         "gbif_required": "false",
         "obis_required": "required",
         "validators": [
-          "required"
+          "required",
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": -180,
+              "max": 180
+            },
+            "message": "Longitude must be between -180 and +180 degrees"
+          }
         ]
       },
       "geodeticDatum": {
@@ -1570,7 +1615,17 @@
         "examples": "`41 05 54.03S`",
         "gbif_required": "false",
         "obis_required": "optional",
-        "validators": []
+        "validators": [
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": -90,
+              "max": 90
+            },
+            "message": "Latitude must be between -90 and +90 degrees"
+          }
+        ]
       },
       "verbatimLongitude": {
         "group": "Location",
@@ -1584,7 +1639,17 @@
         "examples": "`121d 10&#x27; 34&quot; W`",
         "gbif_required": "false",
         "obis_required": "optional",
-        "validators": []
+        "validators": [
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": -180,
+              "max": 180
+            },
+            "message": "Longitude must be between -180 and +180 degrees"
+          }
+        ]
       },
       "verbatimCoordinateSystem": {
         "group": "Location",
@@ -1990,7 +2055,7 @@
     "dc:title": "Darwin Core Occurrence",
     "namespace": "http://rs.tdwg.org/dwc/terms/",
     "rowType": "http://rs.tdwg.org/dwc/terms/Occurrence",
-    "dc:issued": "2025-07-10",
+    "dc:issued": "2025-12-16",
     "dc:subject": "dwc:Event dwc:Taxon",
     "dc:relation": "http://rs.tdwg.org/dwc/terms/Occurrence",
     "dc:description": "Support for Darwin Core Occurrence-based records.",
@@ -2092,7 +2157,7 @@
       "modified": {
         "group": "Record-level",
         "name": "modified",
-        "label": "Modified",
+        "label": "Date Modified",
         "type": "date",
         "namespace": "http://purl.org/dc/terms/",
         "qualName": "http://purl.org/dc/terms/modified",
@@ -2906,7 +2971,7 @@
       "degreeOfEstablishment": {
         "group": "Occurrence",
         "name": "degreeOfEstablishment",
-        "label": "Degree Of Establishment",
+        "label": "Degree of Establishment",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/degreeOfEstablishment",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:degreeOfEstablishment",
@@ -3898,7 +3963,7 @@
       "digitalSpecimenID": {
         "group": "MaterialEntity",
         "name": "digitalSpecimenID",
-        "label": "Digital Specimen ID",
+        "label": "Digital Specimen Identifier",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/digitalSpecimenID",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:digitalSpecimenID",
@@ -4212,7 +4277,16 @@
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": [
-          "integer"
+          "integer",
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": 1600,
+              "max": 2026
+            },
+            "message": "Year must be between 1600 and current year"
+          }
         ]
       },
       "month": {
@@ -4229,7 +4303,16 @@
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": [
-          "integer"
+          "integer",
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": 1,
+              "max": 12
+            },
+            "message": "Month must be between 1 and 12"
+          }
         ]
       },
       "day": {
@@ -4246,13 +4329,22 @@
         "gbif_required": "false",
         "obis_required": "optional",
         "validators": [
-          "integer"
+          "integer",
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": 1,
+              "max": 31
+            },
+            "message": "Day must be between 1 and 31"
+          }
         ]
       },
       "verbatimEventDate": {
         "group": "Event",
         "name": "verbatimEventDate",
-        "label": "Verbatim Event Date",
+        "label": "Verbatim EventDate",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/verbatimEventDate",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:verbatimEventDate",
@@ -4677,7 +4769,7 @@
       "stateProvince": {
         "group": "Location",
         "name": "stateProvince",
-        "label": "State Province",
+        "label": "First Order Division",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/stateProvince",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:stateProvince",
@@ -4691,7 +4783,7 @@
       "county": {
         "group": "Location",
         "name": "county",
-        "label": "County",
+        "label": "Second Order Division",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/county",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:county",
@@ -4705,7 +4797,7 @@
       "municipality": {
         "group": "Location",
         "name": "municipality",
-        "label": "Municipality",
+        "label": "Third Order Division",
         "namespace": "http://rs.tdwg.org/dwc/terms/",
         "qualName": "http://rs.tdwg.org/dwc/terms/municipality",
         "dc:relation": "https://dwc.tdwg.org/terms/#dwc:municipality",
@@ -4916,7 +5008,17 @@
         "examples": "`-41.0983423`",
         "gbif_required": "false",
         "obis_required": "optional",
-        "validators": []
+        "validators": [
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": -90,
+              "max": 90
+            },
+            "message": "Latitude must be between -90 and +90 degrees"
+          }
+        ]
       },
       "decimalLongitude": {
         "group": "Location",
@@ -4931,7 +5033,17 @@
         "examples": "`-121.1761111`",
         "gbif_required": "false",
         "obis_required": "optional",
-        "validators": []
+        "validators": [
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": -180,
+              "max": 180
+            },
+            "message": "Longitude must be between -180 and +180 degrees"
+          }
+        ]
       },
       "geodeticDatum": {
         "group": "Location",
@@ -5018,7 +5130,17 @@
         "examples": "`41 05 54.03S`",
         "gbif_required": "false",
         "obis_required": "optional",
-        "validators": []
+        "validators": [
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": -90,
+              "max": 90
+            },
+            "message": "Latitude must be between -90 and +90 degrees"
+          }
+        ]
       },
       "verbatimLongitude": {
         "group": "Location",
@@ -5032,7 +5154,17 @@
         "examples": "`121d 10&#x27; 34&quot; W`",
         "gbif_required": "false",
         "obis_required": "optional",
-        "validators": []
+        "validators": [
+          {
+            "type": "range",
+            "enforcement": "required",
+            "params": {
+              "min": -180,
+              "max": 180
+            },
+            "message": "Longitude must be between -180 and +180 degrees"
+          }
+        ]
       },
       "verbatimCoordinateSystem": {
         "group": "Location",
@@ -6950,7 +7082,7 @@
     "dc:title": "Darwin Core Taxon",
     "namespace": "http://rs.tdwg.org/dwc/terms/",
     "rowType": "http://rs.tdwg.org/dwc/terms/Taxon",
-    "dc:issued": "2025-07-10",
+    "dc:issued": "2025-12-16",
     "dc:subject": "",
     "dc:relation": "http://rs.tdwg.org/dwc/terms/Taxon",
     "dc:description": "Support for Darwin Core Taxon-based records.",
@@ -8268,7 +8400,7 @@
       "modified": {
         "group": "Record-level",
         "name": "modified",
-        "label": "Modified",
+        "label": "Date Modified",
         "type": "date",
         "namespace": "http://purl.org/dc/terms/",
         "qualName": "http://purl.org/dc/terms/modified",
@@ -11436,134 +11568,6 @@
         "dc:relation": "",
         "dc:description": "The assay’s ability to quantify copy number at low levels.",
         "examples": "184",
-        "gbif_required": "false",
-        "validators": []
-      }
-    }
-  },
-  "ResourceRelationship": {
-    "xmlns": "http://rs.gbif.org/extension/",
-    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-    "xmlns:dc": "http://purl.org/dc/terms/",
-    "xsi:schemaLocation": "http://rs.gbif.org/extension/ http://rs.gbif.org/schema/extension.xsd",
-    "dc:title": "Darwin Core Resource Relationship",
-    "namespace": "http://rs.tdwg.org/dwc/terms/",
-    "rowType": "http://rs.tdwg.org/dwc/terms/ResourceRelationship",
-    "dc:issued": "2025-07-10",
-    "dc:subject": "dwc:Occurrence dwc:Event dwc:Taxon",
-    "dc:relation": "http://rs.tdwg.org/dwc/terms/ResourceRelationship",
-    "dc:description": "Extended support for relationships between resources in a Darwin Core Occurrence, Event, or Taxon Core to resources in an extension or external to the data set. The identifiers for subject (resourceID) and object (relatedResourceID) may exist in the dataset or be accessible via an externally resolvable identifiers.",
-    "name": "ResourceRelationship",
-    "fieldOverrides": {},
-    "fields": {
-      "resourceRelationshipID": {
-        "group": "ResourceRelationship",
-        "name": "resourceRelationshipID",
-        "label": "Resource Relationship ID",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/resourceRelationshipID",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:resourceRelationshipID",
-        "dc:description": "An identifier for an instance of relationship between one resource (the subject) and another (dwc:relatedResource, the object).",
-        "comments": "",
-        "examples": "`04b16710-b09c-11e8-96f8-529269fb1459`",
-        "gbif_required": "false",
-        "unique": "true",
-        "type": "identifier",
-        "validators": [
-          "uniqueIdentifier"
-        ]
-      },
-      "resourceID": {
-        "group": "ResourceRelationship",
-        "name": "resourceID",
-        "label": "Resource ID",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/resourceID",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:resourceID",
-        "dc:description": "An identifier for the resource that is the subject of the relationship.",
-        "comments": "",
-        "examples": "`f809b9e0-b09b-11e8-96f8-529269fb1459`",
-        "gbif_required": "true",
-        "type": "identifier",
-        "validators": []
-      },
-      "relationshipOfResourceID": {
-        "group": "ResourceRelationship",
-        "name": "relationshipOfResourceID",
-        "label": "Relationship Of Resource ID",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipOfResourceID",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipOfResourceID",
-        "dc:description": "An identifier for the relationship type (predicate) that connects the subject identified by dwc:resourceID to its object identified by dwc:relatedResourceID.",
-        "comments": "Recommended best practice is to use the identifiers of the terms in a controlled vocabulary, such as the OBO Relation Ontology.",
-        "examples": "`http://purl.obolibrary.org/obo/RO_0002456` (for the relation `pollinated by`); `http://purl.obolibrary.org/obo/RO_0002455` (for the relation `pollinates`); `https://www.inaturalist.org/observation_fields/879` (for the relation `eaten by`)",
-        "gbif_required": "false",
-        "type": "identifier",
-        "validators": []
-      },
-      "relatedResourceID": {
-        "group": "ResourceRelationship",
-        "name": "relatedResourceID",
-        "label": "Related Resource ID",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/relatedResourceID",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relatedResourceID",
-        "dc:description": "An identifier for a related resource (the object, rather than the subject of the relationship).",
-        "comments": "",
-        "examples": "`dc609808-b09b-11e8-96f8-529269fb1459`",
-        "gbif_required": "true",
-        "type": "identifier",
-        "validators": []
-      },
-      "relationshipOfResource": {
-        "group": "ResourceRelationship",
-        "name": "relationshipOfResource",
-        "label": "Relationship Of Resource",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipOfResource",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipOfResource",
-        "dc:description": "The relationship of the subject (identified by dwc:resourceID) to the object (identified by dwc:relatedResourceID).",
-        "comments": "Recommended best practice is to use a controlled vocabulary.",
-        "examples": "`same as`; `duplicate of`; `mother of`; `offspring of`; `sibling of`; `parasite of`; `host of`; `valid synonym of`; `located within`; `pollinator of members of taxon`; `pollinated specific plant`; `pollinated by members of taxon`; `on slab with`",
-        "gbif_required": "false",
-        "validators": []
-      },
-      "relationshipAccordingTo": {
-        "group": "ResourceRelationship",
-        "name": "relationshipAccordingTo",
-        "label": "Relationship According To",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipAccordingTo",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipAccordingTo",
-        "dc:description": "The source (person, organization, publication, reference) establishing the relationship between the two resources.",
-        "comments": "",
-        "examples": "`Julie Woodruff`",
-        "gbif_required": "false",
-        "validators": []
-      },
-      "relationshipEstablishedDate": {
-        "group": "ResourceRelationship",
-        "name": "relationshipEstablishedDate",
-        "label": "Relationship Established Date",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipEstablishedDate",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipEstablishedDate",
-        "dc:description": "The date-time on which the relationship between the two resources was established.",
-        "comments": "Recommended best practice is to use a date that conforms to ISO 8601-1:2019.",
-        "examples": "`1963-03-08T14:07-06:00` (8 Mar 1963 at or after 2:07pm and before 2:08pm in the time zone six hours earlier than UTC); `2009-02-20T08:40Z` (20 February 2009 at or after 8:40am and before 8:41 UTC); `2018-08-29T15:19` (29 August 2018 at or after 3:19pm and before 3:20pm local time); `1809-02-12` (within the day 12 February 1809); `1906-06` (in the month of June 1906); `1971` (in the year 1971); `2007-03-01T13:00:00Z/2008-05-11T15:30:00Z` (some time within the interval beginning 1 March 2007 at 1pm UTC and before 11 May 2008 at 3:30pm UTC); `1900/1909` (some time within the interval between the beginning of the year 1900 and before the year 1909); `2007-11-13/15` (some time in the interval between the beginning of 13 November 2007 and before 15 November 2007)",
-        "gbif_required": "false",
-        "validators": []
-      },
-      "relationshipRemarks": {
-        "group": "ResourceRelationship",
-        "name": "relationshipRemarks",
-        "label": "Relationship Remarks",
-        "namespace": "http://rs.tdwg.org/dwc/terms/",
-        "qualName": "http://rs.tdwg.org/dwc/terms/relationshipRemarks",
-        "dc:relation": "https://dwc.tdwg.org/terms/#dwc:relationshipRemarks",
-        "dc:description": "Comments or notes about the relationship between the two resources.",
-        "comments": "",
-        "examples": "`mother and offspring collected from the same nest`; `pollinator captured in the act`",
         "gbif_required": "false",
         "validators": []
       }

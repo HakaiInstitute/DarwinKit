@@ -201,8 +201,51 @@ export async function import_schema() {
       if (field.type == "integer") validators.push("integer");
       if (field.type == "date") validators.push("iso8601Date");
       if (field.type == "uri") validators.push("url");
-      if (field.name.includes("latitude")) validators.push("latitude");
-      if (field.name.includes("longitude")) validators.push("longitude");
+
+      // Add range validators for geographic coordinates
+      if (field.name.includes("Latitude") || field.name === "latitude") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: -90, max: 90 },
+          message: "Latitude must be between -90 and +90 degrees",
+        });
+      }
+      if (field.name.includes("Longitude") || field.name === "longitude") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: -180, max: 180 },
+          message: "Longitude must be between -180 and +180 degrees",
+        });
+      }
+
+      // Add range validators for temporal fields
+      if (field.name === "month") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: 1, max: 12 },
+          message: "Month must be between 1 and 12",
+        });
+      }
+      if (field.name === "day") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: 1, max: 31 },
+          message: "Day must be between 1 and 31",
+        });
+      }
+      if (field.name === "year") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: 1600, max: new Date().getFullYear() },
+          message: "Year must be between 1600 and current year",
+        });
+      }
+
       table.fields[fieldname] = { ...field, validators };
     });
   });
