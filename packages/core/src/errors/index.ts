@@ -30,7 +30,7 @@ import type {
   ConfigValidationError,
   DatasetFileNotFoundError,
 } from "../workspace/workspace-config-service.ts";
-import type { WorkspaceImportError } from "../workspace/workspace-validator.ts";
+import type { WorkspaceImportError } from "../validation/workspace-validator.ts";
 import type { OutputError, TransformationError } from "../transform/transform.ts";
 
 /**

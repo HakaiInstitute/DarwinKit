@@ -42,7 +42,8 @@ import {
   UniquenessViolation,
   VocabularyViolation,
 } from "@dwkt/domain";
-import { WorkspaceConfigService } from "./workspace-config-service.ts";
+import { levenshteinDistance } from "../utils/string-utils.ts";
+import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
 
 /**
  * Error classes for workspace validation
@@ -324,12 +325,6 @@ export function WorkspaceImportSchema(
  * Workspace validator for config-based validation
  */
 export class WorkspaceValidator {
-  // private readonly workspacesDir: string;
-
-  // constructor({ workspacesDir = "./workspaces" }: { workspacesDir?: string } = {}) {
-  //   this.workspacesDir = workspacesDir;
-  // }
-
   /**
    * Validate workspace from configuration file
    *
@@ -1828,43 +1823,6 @@ function getOriginalCsvValue(
 
     return String(rows[0].value ?? "");
   });
-}
-
-/**
- * Calculate Levenshtein distance between two strings (for fuzzy matching)
- */
-function levenshteinDistance(a: string, b: string): number {
-  const aLen = a.length;
-  const bLen = b.length;
-
-  if (aLen === 0) return bLen;
-  if (bLen === 0) return aLen;
-
-  const matrix: number[][] = [];
-
-  // Initialize first column
-  for (let i = 0; i <= aLen; i++) {
-    matrix[i] = [i];
-  }
-
-  // Initialize first row
-  for (let j = 0; j <= bLen; j++) {
-    matrix[0][j] = j;
-  }
-
-  // Fill in the rest of the matrix
-  for (let i = 1; i <= aLen; i++) {
-    for (let j = 1; j <= bLen; j++) {
-      const cost = a[i - 1].toLowerCase() === b[j - 1].toLowerCase() ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1, // deletion
-        matrix[i][j - 1] + 1, // insertion
-        matrix[i - 1][j - 1] + cost, // substitution
-      );
-    }
-  }
-
-  return matrix[aLen][bLen];
 }
 
 /**
