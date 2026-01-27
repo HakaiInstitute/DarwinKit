@@ -1,6 +1,7 @@
 import * as duckdb from "@duckdb/node-api";
 import { stringify as stringifyCSV } from "@std/csv";
 import { join, resolve } from "@std/path";
+import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
 import {
@@ -13,10 +14,23 @@ import type { WorkspaceConfig } from "@dwkt/domain";
 import { getValidationProfile } from "@dwkt/domain";
 import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
 import { importCsv } from "../utils/csv-import.ts";
-import { OutputError, TransformationError } from "../errors/index.ts";
 
-// Re-export errors for backwards compatibility
-export { OutputError, TransformationError };
+/**
+ * Represents an error that occurs during the data transformation process.
+ */
+export class TransformationError extends Data.TaggedError("TransformationError")<{
+  readonly message: string;
+  readonly cause?: Error;
+}> {}
+
+/**
+ * Represents an error that occurs during the output process.
+ */
+export class OutputError extends Data.TaggedError("OutputError")<{
+  readonly message: string;
+  readonly outputPath: string;
+  readonly cause?: Error;
+}> {}
 
 /**
  * Creates tables in the DuckDB database from the CSV files specified in the workspace configuration.
@@ -95,11 +109,13 @@ function runPostImportTransformations(
     for (const transformSQL of config.transform.postImportTransforms) {
       yield* _(Effect.tryPromise({
         try: () => connection.run(transformSQL),
-        catch: (error) =>
-          new TransformationError({
+        catch: (error) => {
+          console.error(error);
+          return new TransformationError({
             message: `Failed to execute post-import transform SQL`,
             cause: error instanceof Error ? error : new Error(String(error)),
-          }),
+          });
+        },
       }));
     }
   });
@@ -146,10 +162,14 @@ export function populateSchemaFromDataTables( // Export for testing
 
     for (const dataset of config.transform.datasets) {
       if (!dataset.fields) {
+        console.error(`Error: No field definitions found in ${dataset?.name}`);
+        console.debug(`dataset:\n{JSON.stringify(dataset, null, 2)}`);
         return yield* _(Effect.fail(
           new TransformationError({
             message: `No field definitions found in '${dataset?.name}'`,
-            cause: new Error("field property missing from dataset definition"),
+            cause: new Error(
+              String("field property missing from dataset definition"),
+            ),
           }),
         ));
       }
@@ -160,9 +180,15 @@ export function populateSchemaFromDataTables( // Export for testing
 
       const transformProfile = getValidationProfile(dataset.profile);
       if (!transformProfile) {
+        console.warn(`No validation profile found for ${dataset.profile}`);
         return yield* _(Effect.fail(
           new TransformationError({
-            message: `Validation profile '${dataset.profile}' not found for '${dataset?.name}'`,
+            message: `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
+            cause: new Error(
+              String(
+                `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
+              ),
+            ),
           }),
         ));
       }
@@ -186,12 +212,14 @@ export function populateSchemaFromDataTables( // Export for testing
 
       yield* _(Effect.tryPromise({
         try: () => connection.run(insertSQL),
-        catch: (error) =>
-          new TransformationError({
-            message:
-              `Failed to populate table '${tableName}' from dataset '${dataset.name}': ${insertSQL}`,
+        catch: (error) => {
+          console.error(error);
+          console.log(insertSQL);
+          return new TransformationError({
+            message: `Failed to populate table '${tableName}' from dataset '${dataset.name}'`,
             cause: error instanceof Error ? error : new Error(String(error)),
-          }),
+          });
+        },
       }));
     }
   });
@@ -432,7 +460,9 @@ export function exportToPersistentDB(
       // Load validation profile if specified
       const transformProfile = getValidationProfile(dataset.profile);
       if (!transformProfile) {
-        // No validation profile found, skip table export
+        console.warn(
+          `No validation profile found for ${dataset.profile}, skipping table export.`,
+        );
         continue;
       }
       const tableName = transformProfile.name.toLowerCase();
@@ -477,13 +507,12 @@ export function transformFile(
   return Effect.gen(function* (_) {
     // Load config using Workspace (handles discovery and validation)
     // We use a scoped block to load config, then create our own connection for transform
-    const { config, resolvedConfigPath: _resolvedConfigPath, basePath } = yield* _(
+    const { config, basePath } = yield* _(
       Effect.scoped(
         Effect.gen(function* (_) {
           const workspace = yield* _(Workspace.open(configPath));
           return {
             config: workspace.config,
-            resolvedConfigPath: workspace.configPath,
             basePath: workspace.basePath,
           };
         }),
@@ -498,17 +527,21 @@ export function transformFile(
         ),
         (connection) =>
           Effect.gen(function* (_) {
-            // Create tables from CSV files
+            console.log("Creating tables from CSV files...");
             yield* _(createTablesFromCSV(connection, config, basePath));
-            // Execute any post-import SQL transformations defined in the configuration
+            // Execute any post-import SQL transformations defined in the configuration.
             yield* _(runPostImportTransformations(config, connection));
-            // Create schema tables
+
+            console.log("Creating OBIS tables from schema...");
             yield* _(createTableFromSchema(connection, config));
-            // Populate schema tables from data tables
+
+            console.log("Populating OBIS tables from data tables...");
             yield* _(populateSchemaFromDataTables(connection, config));
-            // Export tables to CSV
+
+            console.log("Exporting OBIS tables to CSV...");
             yield* _(exportObisTablesToCSV(connection, config));
-            // Export to persistent database file
+
+            console.log("Exporting DuckDB database to persistent file...");
             yield* _(exportToPersistentDB(connection, config));
           }),
         // Release: close DuckDB connection (ignore any cleanup errors)

@@ -36,22 +36,9 @@ import type {
   WorkspaceValidationError,
 } from "../validation/workspace-validator.ts";
 
-/**
- * Represents an error that occurs during the data transformation process.
- */
-export class TransformationError extends Data.TaggedError("TransformationError")<{
-  readonly message: string;
-  readonly cause?: Error;
-}> {}
-
-/**
- * Represents an error that occurs during the output process.
- */
-export class OutputError extends Data.TaggedError("OutputError")<{
-  readonly message: string;
-  readonly outputPath: string;
-  readonly cause?: Error;
-}> {}
+// TransformationError and OutputError are defined inline in transform/transform.ts
+// Import them here for type reference in CoreErrorTag
+import type { OutputError, TransformationError } from "../transform/transform.ts";
 
 /**
  * Validation operation errors
