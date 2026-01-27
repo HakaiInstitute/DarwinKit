@@ -49,13 +49,8 @@ export {
   vocabularyErrorSchema,
 } from "./src/schemas/validation.ts";
 
-// Error handling
-export * from "./src/errors/presenter.ts";
-export * from "./src/errors/severity.ts";
-export * from "./src/errors/types.ts";
-
-// Utilities
-export * from "./src/errors/cause-formatter.ts";
+// Error handling and utilities
+export * from "./src/errors.ts";
 
 // Constants
 export * from "./src/constants/darwin-core.ts";
@@ -70,6 +65,3 @@ export * from "./src/specs/field-definition.ts";
 export * from "./src/specs/profiles/obis-event.ts";
 export * from "./src/specs/profiles/obis.ts";
 export * from "./src/specs/profiles/registry.ts";
-
-// Error tag types (for test autocomplete)
-export type { ValidationViolationTag } from "./src/errors/index.ts";

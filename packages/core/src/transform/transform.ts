@@ -3,15 +3,13 @@ import { stringify as stringifyCSV } from "@std/csv";
 import { dirname, join, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 
 import type { WorkspaceImportError } from "@dwkt/core";
 import {
-  ValidationService,
-  type WorkspaceError,
+  ManagedWorkspace,
+  type WorkspaceConfigError,
   WorkspaceImportCSV,
   WorkspaceImportSchema,
-  WorkspaceService,
 } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { getValidationProfile } from "@dwkt/domain";
@@ -501,57 +499,53 @@ export function transformFile(
   | TransformationError
   | OutputError
   | WorkspaceImportError
-  | WorkspaceError,
+  | WorkspaceConfigError,
   never
 > {
-  return Effect.acquireUseRelease(
-    Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(
-      Effect.orDie,
-    ),
-    (connection) =>
-      Effect.gen(function* (_) {
-        // Load workspace using WorkspaceService
-        const workspace = yield* _(
+  return Effect.gen(function* (_) {
+    // Load config using ManagedWorkspace (handles discovery and validation)
+    // We use a scoped block to load config, then create our own connection for transform
+    const { config, resolvedConfigPath, basePath } = yield* _(
+      Effect.scoped(
+        Effect.gen(function* (_) {
+          const workspace = yield* _(ManagedWorkspace.open(configPath));
+          return {
+            config: workspace.config,
+            resolvedConfigPath: workspace.configPath,
+            basePath: workspace.basePath,
+          };
+        }),
+      ),
+    );
+
+    // Create a separate DuckDB connection for transform operations
+    yield* _(
+      Effect.acquireUseRelease(
+        Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(
+          Effect.orDie,
+        ),
+        (connection) =>
           Effect.gen(function* (_) {
-            const service = yield* _(WorkspaceService);
-            return yield* _(service.loadFromDirectory(configPath));
-          }).pipe(
-            Effect.provide(WorkspaceService.layer),
-            // No-op ValidationService since we don't use it here
-            Effect.provide(
-              Layer.succeed(
-                ValidationService,
-                ValidationService.of({
-                  validateDatasets: () =>
-                    Effect.die("ValidationService should not be called during transform"),
-                }),
-              ),
-            ),
-          ),
-        );
+            console.log("Creating tables from CSV files...");
+            yield* _(createTablesFromCSV(connection, config, basePath));
+            // Execute any post-import SQL transformations defined in the configuration.
+            yield* _(runPostImportTransformations(config, connection));
 
-        const config = workspace.config;
-        const resolvedConfigPath = workspace.configPath;
-        const basePath = dirname(resolvedConfigPath);
+            console.log("Creating OBIS tables from schema...");
+            yield* _(createTableFromSchema(connection, config));
 
-        console.log("Creating tables from CSV files...");
-        yield* _(createTablesFromCSV(connection, config, basePath));
-        // Execute any post-import SQL transformations defined in the configuration.
-        yield* _(runPostImportTransformations(config, connection));
+            console.log("Populating OBIS tables from data tables...");
+            yield* _(populateSchemaFromDataTables(connection, config));
 
-        console.log("Creating OBIS tables from schema...");
-        yield* _(createTableFromSchema(connection, config));
+            console.log("Exporting OBIS tables to CSV...");
+            yield* _(exportObisTablesToCSV(connection, config));
 
-        console.log("Populating OBIS tables from data tables...");
-        yield* _(populateSchemaFromDataTables(connection, config));
-
-        console.log("Exporting OBIS tables to CSV...");
-        yield* _(exportObisTablesToCSV(connection, config));
-
-        console.log("Exporting DuckDB database to persistent file...");
-        yield* _(exportToPersistentDB(connection, config));
-      }),
-    // Release: close DuckDB connection (ignore any cleanup errors)
-    (connection) => Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
-  );
+            console.log("Exporting DuckDB database to persistent file...");
+            yield* _(exportToPersistentDB(connection, config));
+          }),
+        // Release: close DuckDB connection (ignore any cleanup errors)
+        (connection) => Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
+      ),
+    );
+  });
 }

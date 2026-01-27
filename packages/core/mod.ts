@@ -2,10 +2,18 @@
  * @dwkt/core - Core business logic and Node.js-specific implementations
  */
 
-// Workspace management
-export * from "./src/workspace/workspace-service.ts";
+// Effect-managed workspace
+export { ManagedWorkspace, type ValidationOptions } from "./src/workspace/workspace.ts";
+
+// Managed workspace service for dependency injection
+export {
+  makeWorkspaceLayer,
+  ManagedWorkspaceService,
+  type ManagedWorkspaceServiceApi,
+} from "./src/workspace/managed-workspace-service.ts";
+
+// Workspace validation
 export * from "./src/validation/workspace-validator.ts";
-export { ValidationService } from "./src/validation/validation-service.ts";
 
 // CSV parsing
 export * from "./src/parsing/csv-parser.ts";
@@ -16,5 +24,5 @@ export * from "./src/transform/transform.ts";
 // Schema Import
 export * from "./src/import/get_dwc_schema.ts";
 
-// Error tag types (for test autocomplete)
-export type { CoreErrorTag } from "./src/errors/index.ts";
+// Error types (all core errors consolidated)
+export * from "./src/errors.ts";

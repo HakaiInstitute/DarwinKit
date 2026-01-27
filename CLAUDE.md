@@ -169,6 +169,25 @@ This fetches the latest Darwin Core XML schemas and generates `dwcSchema.json` w
 - **Effect-based error handling** - Functional approach to error management
 - **External specifications** - Darwin Core specs imported from JSON, extended via TypeScript profiles
 
+### Workspace Architecture
+
+DarwinKit uses Effect's resource management patterns for workspace operations:
+
+**ManagedWorkspace** - Effect-managed workspace with automatic DuckDB lifecycle:
+- Uses `Effect.acquireRelease` for connection management
+- Requires `Scope.Scope` - use `Effect.scoped` for automatic cleanup
+- Best for CLI commands and short-lived operations
+
+**ManagedWorkspaceService** - Service layer for dependency injection:
+- Uses `Context.Tag` pattern for DI
+- `makeWorkspaceLayer(configPath)` creates a scoped layer
+- Best for long-lived applications or when multiple operations share a connection
+
+**Key Files:**
+- `packages/core/src/workspace/workspace.ts` - `ManagedWorkspace` class
+- `packages/core/src/workspace/managed-workspace-service.ts` - Service layer
+- `packages/core/src/workspace/errors.ts` - Workspace error types
+
 ### Environment Setup
 
 - **Deno 2.0+** required for workspace support
@@ -251,6 +270,45 @@ deno task dev:cli validate --format json
 - **Uniqueness Validation** - Detects duplicate identifiers across datasets
 
 ### Programmatic Validation
+
+**Using ManagedWorkspace (recommended for short-lived operations):**
+
+```typescript
+import { ManagedWorkspace } from "@dwkt/core";
+import * as Effect from "effect/Effect";
+
+// Opens workspace, validates, and automatically cleans up DuckDB connection
+const result = await Effect.runPromise(
+  Effect.scoped(
+    Effect.gen(function* () {
+      const workspace = yield* ManagedWorkspace.open("./darwinkit.json");
+      return yield* workspace.validate();
+    })
+  )
+);
+```
+
+**Using ManagedWorkspaceService (recommended for dependency injection/long-lived scenarios):**
+
+```typescript
+import { makeWorkspaceLayer, ManagedWorkspaceService } from "@dwkt/core";
+import * as Effect from "effect/Effect";
+
+// Create a layer for a specific workspace
+const WorkspaceLive = makeWorkspaceLayer("./darwinkit.json");
+
+// Use in Effect programs - connection stays open for layer lifetime
+const program = Effect.gen(function* () {
+  const workspace = yield* ManagedWorkspaceService;
+  return yield* workspace.validate();
+}).pipe(
+  Effect.provide(WorkspaceLive)
+);
+
+await Effect.runPromise(program);
+```
+
+**Using WorkspaceValidator (alternative approach):**
 
 ```typescript
 import { WorkspaceValidator } from "@dwkt/core";

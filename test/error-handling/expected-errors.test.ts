@@ -6,10 +6,9 @@
  */
 
 import {
+  ManagedWorkspace,
   ParseError,
   parseFileForWorkspace,
-  ValidationService,
-  WorkspaceService,
   WorkspaceValidator,
 } from "@dwkt/core";
 import { assert, assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
@@ -44,18 +43,17 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "expected_errors_test_" });
 
   await t.step("Workspace not found", async () => {
-    const program = Effect.gen(function* () {
-      const workspaceService = yield* WorkspaceService;
-      // Try to load non-existent config
-      return yield* workspaceService.load(join(tempDir, "nonexistent", "darwinkit.json"));
-    });
+    const program = Effect.scoped(
+      Effect.gen(function* () {
+        // Try to load non-existent config
+        return yield* ManagedWorkspace.open(join(tempDir, "nonexistent", "darwinkit.json"));
+      }),
+    );
 
     let errorCaught = false;
 
     await Effect.runPromise(
       program.pipe(
-        Effect.provide(WorkspaceService.layer),
-        Effect.provide(ValidationService.layer),
         Effect.catchAll((_error) => {
           errorCaught = true;
           return Effect.succeed<null>(null);
@@ -139,15 +137,14 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "error_messages_test_" });
 
   await t.step("Error messages include context (config not found)", async () => {
-    const program = Effect.gen(function* () {
-      const workspaceService = yield* WorkspaceService;
-      return yield* workspaceService.load(join(tempDir, "test-workspace", "darwinkit.json"));
-    });
+    const program = Effect.scoped(
+      Effect.gen(function* () {
+        return yield* ManagedWorkspace.open(join(tempDir, "test-workspace", "darwinkit.json"));
+      }),
+    );
 
     const result = await Effect.runPromise(
       program.pipe(
-        Effect.provide(WorkspaceService.layer),
-        Effect.provide(ValidationService.layer),
         Effect.catchAll((error) => Effect.succeed(error.message as string)),
       ),
     );
@@ -195,15 +192,18 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
       validationState: { status: "not-validated" as const },
     };
 
-    const program = Effect.gen(function* () {
-      const workspaceService = yield* WorkspaceService;
-      return yield* workspaceService.load(join(tempDir, "nonexistent", "darwinkit.json"));
-    });
+    const program = Effect.scoped(
+      Effect.gen(function* () {
+        const workspace = yield* ManagedWorkspace.open(
+          join(tempDir, "nonexistent", "darwinkit.json"),
+        );
+        // Return a compatible structure (this branch won't execute due to error)
+        return { id: workspace.config.id, name: workspace.name };
+      }),
+    );
 
     const result = await Effect.runPromise(
       program.pipe(
-        Effect.provide(WorkspaceService.layer),
-        Effect.provide(ValidationService.layer),
         Effect.catchAll(() => Effect.succeed(defaultWorkspace)),
       ),
     );
@@ -242,7 +242,7 @@ Deno.test("Expected errors - summary", () => {
   // Summary of all expected errors in DarwinKit:
   //
   // 1. Workspace operations:
-  //    - WorkspaceError - Config not found, parse error, missing datasets
+  //    - WorkspaceConfigError - Config not found, parse error, missing datasets
   //    - ValidationError - Validation operation failures
   //
   // 2. File operations:

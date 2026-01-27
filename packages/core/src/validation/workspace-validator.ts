@@ -10,7 +10,6 @@ import { DuckDBInstance } from "@duckdb/node-api";
 import { dirname, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 
 import type {
   CrossDatasetValidationResult,
@@ -44,8 +43,7 @@ import {
   VocabularyViolation,
 } from "@dwkt/domain";
 import { levenshteinDistance } from "../utils/string-utils.ts";
-import { ValidationService } from "./validation-service.ts";
-import { WorkspaceService } from "../workspace/workspace-service.ts";
+import { ManagedWorkspace } from "../workspace/workspace.ts";
 
 /**
  * Error classes for workspace validation
@@ -447,6 +445,115 @@ export class WorkspaceValidator {
   }
 
   /**
+   * Validate datasets using a provided DuckDB connection
+   *
+   * Unlike validateDatasets(), this method does NOT create or close
+   * the connection. It's designed for use with an Effect-managed
+   * Workspace that owns the connection lifecycle.
+   *
+   * @param connection - An existing DuckDB connection to use
+   * @param datasets - Dataset configurations to validate
+   * @param settings - Validation settings (null values, fail-fast, etc.)
+   * @param basePath - Base directory for resolving relative dataset paths
+   * @param workspaceId - Optional workspace ID for result tracking
+   * @param crossDatasetRules - Optional cross-dataset validation rules
+   */
+  validateDatasetsWithConnection(
+    connection: DuckDBConnection,
+    datasets: readonly DatasetConfig[],
+    settings: ValidationSettings,
+    basePath: string,
+    workspaceId?: string,
+    crossDatasetRules?: readonly {
+      ruleType: string;
+      sourceDataset: string;
+      sourceField: string;
+      targetDataset: string;
+      targetField: string;
+      enforcement?: string;
+      description?: string;
+    }[],
+  ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
+    return Effect.gen(function* (_) {
+      const startTime = Date.now();
+      const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
+
+      // Load each dataset into DuckDB (using the provided connection)
+      for (const dataset of datasets) {
+        const filePath = resolve(basePath, dataset.path);
+        const tableName = `raw_${sanitizeTableName(dataset.name)}`;
+
+        // Build null values string for DuckDB
+        const nullStr = settings.nullValues.map((v: string) => `'${v}'`).join(", ");
+        const dropTable = true;
+        yield* _(WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable));
+        yield* _(WorkspaceImportSchema(connection, dataset, datasets));
+      }
+
+      // Validate each dataset
+      const datasetResults: DatasetValidationResult[] = [];
+
+      for (const dataset of datasets) {
+        // Use dataset-level profile if specified, otherwise derive from spec field
+        let datasetProfile = dataset.profile ? getValidationProfile(dataset.profile) : undefined;
+
+        // If still no profile, try to derive from spec field
+        if (!datasetProfile && dataset.spec) {
+          const parsed = parseSpecIdentifier(dataset.spec);
+          if (parsed) {
+            const derivedProfileId = parsed.type.charAt(0).toUpperCase() +
+              parsed.type.slice(1);
+            datasetProfile = getValidationProfile(derivedProfileId);
+          }
+        }
+
+        const result = yield* _(
+          validateDataset(connection, dataset, datasetProfile, settings),
+        );
+
+        datasetResults.push(result);
+
+        // Fail-fast if enabled and we have critical errors
+        if (settings.failFast && result.status === "fail") {
+          break;
+        }
+      }
+
+      // Validate cross-dataset rules if provided
+      const crossDatasetResults: CrossDatasetValidationResult[] = [];
+      if (crossDatasetRules && !settings.failFast) {
+        for (const rule of crossDatasetRules) {
+          const result = yield* _(
+            validateCrossDatasetRule(connection, rule, datasets),
+          );
+          crossDatasetResults.push(result);
+        }
+      }
+
+      // Calculate summary
+      const summary = calculateSummary(datasetResults);
+      const totalProcessingTimeMs = Date.now() - startTime;
+
+      const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0
+        ? "fail"
+        : summary.datasetsWithWarningsCount > 0
+        ? "warn"
+        : "pass";
+
+      return {
+        workspaceId: resolvedWorkspaceId,
+        configPath: basePath,
+        validatedAt: new Date(),
+        totalProcessingTimeMs,
+        overallStatus,
+        datasetResults,
+        crossDatasetResults,
+        summary,
+      };
+    });
+  }
+
+  /**
    * Validate workspace from configuration file
    *
    * This is the main entry point for config-based validation.
@@ -460,166 +567,34 @@ export class WorkspaceValidator {
       failFast?: boolean;
     },
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
-    return Effect.gen(function* (_) {
-      const startTime = Date.now();
-
-      // Load workspace using WorkspaceService
-      // Note: This requires ValidationService but we don't use it here
-      // We only use the config loading, not the validation
-      const workspace = yield* _(
-        Effect.gen(function* (_) {
-          const service = yield* _(WorkspaceService);
-          return yield* _(service.loadFromDirectory(configPath));
-        }).pipe(
-          Effect.provide(WorkspaceService.layer),
-          // Provide a no-op ValidationService since we don't use it
-          Effect.provide(
-            Layer.succeed(
-              ValidationService,
-              ValidationService.of({
-                validateDatasets: () =>
-                  Effect.die("ValidationService should not be called during config loading"),
-              }),
+    return Effect.scoped(
+      Effect.gen(function* (_) {
+        // Open workspace using ManagedWorkspace (handles config loading, validation, and cleanup)
+        const workspace = yield* _(
+          ManagedWorkspace.open(configPath).pipe(
+            Effect.mapError((error) =>
+              new WorkspaceValidationError({
+                message: `Failed to load workspace config: ${error.message}`,
+                cause: error instanceof Error ? error : new Error(String(error)),
+              })
             ),
           ),
-          Effect.mapError((error) => {
-            return new WorkspaceValidationError({
-              message: `Failed to load workspace config: ${error.message}`,
-              cause: error instanceof Error ? error : new Error(String(error)),
-            });
-          }),
-        ),
-      );
+        );
 
-      const loadedConfig = workspace.config;
-      const resolvedConfigPath = workspace.configPath;
-
-      // Narrow the config type to ensure it has validation settings and datasets
-      if (!("validation" in loadedConfig)) {
+        // Run validation using the workspace's managed connection
+        // ManagedWorkspace.validate() handles failFast option merging
         return yield* _(
-          Effect.fail(
-            new WorkspaceValidationError({
-              message: `Configuration '${resolvedConfigPath}' does not contain validation settings`,
-            }),
+          workspace.validate(options).pipe(
+            Effect.mapError((error) =>
+              new WorkspaceValidationError({
+                message: error.message,
+                cause: error instanceof Error ? error : new Error(String(error)),
+              })
+            ),
           ),
         );
-      }
-
-      if (!("datasets" in loadedConfig.validation)) {
-        return yield* _(
-          Effect.fail(
-            new WorkspaceValidationError({
-              message: `Configuration '${resolvedConfigPath}' does not contain datasets`,
-            }),
-          ),
-        );
-      }
-
-      // At this point TypeScript knows config has validation property and datasets
-      const config = loadedConfig;
-
-      // Override validation settings with CLI options if provided
-      const validationSettings = options?.failFast !== undefined
-        ? { ...config.validation, failFast: options.failFast }
-        : config.validation;
-
-      // Get datasets from root level
-      const datasets = "datasets" in validationSettings && validationSettings.datasets
-        ? validationSettings.datasets
-        : [];
-
-      // Create workspace and load all datasets
-      const { workspaceId, connection, instance } = yield* _(
-        createWorkspaceFromConfig(
-          config.id,
-          datasets,
-          validationSettings,
-          dirname(resolvedConfigPath),
-        ),
-      );
-
-      // Perform validation with guaranteed connection cleanup
-      return yield* _(
-        Effect.gen(function* (_) {
-          // Validate each dataset
-          const datasetResults: DatasetValidationResult[] = [];
-
-          for (const dataset of datasets) {
-            // Use dataset-level profile if specified, otherwise derive from spec field
-            let datasetProfile = dataset.profile
-              ? getValidationProfile(dataset.profile)
-              : undefined;
-
-            // If still no profile, try to derive from spec field
-            if (!datasetProfile && dataset.spec) {
-              const parsed = parseSpecIdentifier(dataset.spec);
-              if (parsed) {
-                // Capitalize the type to match profile names (e.g., "event" -> "Event")
-                const derivedProfileId = parsed.type.charAt(0).toUpperCase() +
-                  parsed.type.slice(1);
-                datasetProfile = getValidationProfile(derivedProfileId);
-              }
-            }
-
-            const result = yield* _(
-              validateDataset(
-                connection,
-                dataset,
-                datasetProfile,
-                validationSettings,
-              ),
-            );
-
-            datasetResults.push(result);
-
-            // Fail-fast if enabled and we have critical errors
-            if (validationSettings.failFast && result.status === "fail") {
-              break;
-            }
-          }
-
-          // Validate cross-dataset rules if provided
-          const crossDatasetResults: CrossDatasetValidationResult[] = [];
-          if (config.crossDatasetRules && !validationSettings.failFast) {
-            for (const rule of config.crossDatasetRules) {
-              const result = yield* _(
-                validateCrossDatasetRule(connection, rule, datasets),
-              );
-              crossDatasetResults.push(result);
-            }
-          }
-
-          // Calculate summary
-          const summary = calculateSummary(datasetResults);
-          const totalProcessingTimeMs = Date.now() - startTime;
-
-          const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0
-            ? "fail"
-            : summary.datasetsWithWarningsCount > 0
-            ? "warn"
-            : "pass";
-
-          return {
-            workspaceId,
-            configPath: resolvedConfigPath,
-            validatedAt: new Date(),
-            totalProcessingTimeMs,
-            overallStatus,
-            datasetResults,
-            crossDatasetResults,
-            summary,
-          };
-        }).pipe(
-          // Ensure connection and instance are closed even if validation fails
-          Effect.ensuring(
-            Effect.all([
-              Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
-              Effect.try(() => instance.closeSync()).pipe(Effect.ignore),
-            ]),
-          ),
-        ),
-      );
-    });
+      }),
+    );
   }
 }
 

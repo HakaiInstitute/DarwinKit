@@ -1,30 +1,16 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { ValidationService, WorkspaceService } from '@dwkt/core';
+import { ManagedWorkspace } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
-import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Match from 'effect/Match';
+import { CLIError, OutputError } from '../../errors.ts';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
-
-// CLI-specific errors with structured types
-// Using Data.TaggedError for proper Error extension and stack traces
-export class CLIError extends Data.TaggedError('CLIError')<{
-  readonly message: string;
-  readonly hint?: string;
-  readonly exitCode: number;
-}> {}
-
-export class OutputError extends Data.TaggedError('OutputError')<{
-  readonly message: string;
-  readonly outputPath: string;
-  readonly cause?: Error;
-}> {}
 
 // Structured output function
 function outputResults(
@@ -203,51 +189,30 @@ export async function validate(options: {
   });
   spinner.start();
 
-  const runValidation = Effect.gen(function* (_) {
-    const workspaceService = yield* _(WorkspaceService);
+  const runValidation = Effect.scoped(
+    Effect.gen(function* (_) {
+      spinner.update('Loading workspace configuration...');
 
-    spinner.update('Loading workspace configuration...');
+      // Open workspace (handles discovery, config loading, path validation, and DuckDB connection)
+      const workspace = yield* _(ManagedWorkspace.open(options.config));
 
-    // Load workspace (handles discovery, config loading, and path validation)
-    const workspace = yield* _(
-      workspaceService.loadFromDirectory(options.config),
-    );
+      spinner.update('Validating datasets...');
 
-    spinner.update('Validating datasets...');
+      // Run validation using the workspace's managed connection
+      const results = yield* _(workspace.validate());
 
-    // Run validation - updates workspace state with results
-    const validatedWorkspace = yield* _(
-      workspaceService.validate(workspace),
-    );
+      // Stop spinner before output
+      spinner.stop();
 
-    // Extract results from workspace state
-    const results = validatedWorkspace.validationState.status === 'validated'
-      ? validatedWorkspace.validationState.result
-      : yield* _(
-        Effect.fail(
-          new CLIError({
-            message: 'Validation failed to produce results',
-            exitCode: 3,
-          }),
-        ),
-      );
+      // Output results with structured error handling
+      yield* _(outputResults(results, validFormat, options.outputDir));
 
-    // Stop spinner before output
-    spinner.stop();
-
-    // Output results with structured error handling
-    yield* _(outputResults(results, validFormat, options.outputDir));
-
-    // Handle exit codes based on results
-    yield* _(handleValidationResults(results));
-  });
-
-  const result = await Effect.runPromiseExit(
-    runValidation.pipe(
-      Effect.provide(WorkspaceService.layer),
-      Effect.provide(ValidationService.layer),
-    ),
+      // Handle exit codes based on results
+      yield* _(handleValidationResults(results));
+    }),
   );
+
+  const result = await Effect.runPromiseExit(runValidation);
 
   if (Exit.isFailure(result)) {
     // Stop spinner on error
