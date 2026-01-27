@@ -6,12 +6,12 @@
  * CSVs and a persistent database file.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
-import * as Effect from "effect/Effect";
 import { DuckDBConnection } from "@duckdb/node-api";
 import { transformFile } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
+import { assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 
 Deno.test("transformFile - runs the full end-to-end transformation process", async () => {
   // 1. Setup: Create a temporary workspace with config and source data
@@ -78,12 +78,12 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     // 4. Assert: Verify the output files
     // Assert CSV output (json-2-csv default format is unquoted)
     const eventCsvContent = await Deno.readTextFile(join(outputDir, "event.csv"));
-    assertEquals(eventCsvContent.trim(), `eventID,year\nevt01,2024`);
+    assertEquals(eventCsvContent.trim(), `eventID,year\r\nevt01,2024`);
 
     const occCsvContent = await Deno.readTextFile(join(outputDir, "occurrence.csv"));
     assertEquals(
       occCsvContent.trim(),
-      `basisOfRecord,occurrenceID,eventID\nHumanObservation,occ01,evt01`,
+      `basisOfRecord,occurrenceID,eventID\r\nHumanObservation,occ01,evt01`,
     );
 
     // Assert persistent DB output

@@ -2,8 +2,5 @@
   "name": "@dwkt/domain",
   "version": "0.1.0",
   "exports": "./mod.ts",
-  "imports": {
-    "zod": "npm:zod@^4.0.0",
-    "effect": "npm:effect@^3.17.8"
-  }
+  "imports": {}
 }

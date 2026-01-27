@@ -2,11 +2,8 @@
  * Error types for consistent error handling
  */
 
-import type { ErrorCode } from "./codes.ts";
-
 // Base error interface that all errors should implement
 export interface DarwinKitError {
-  readonly code: ErrorCode;
   readonly message: string;
   readonly details?: Record<string, unknown>;
   readonly cause?: Error;
@@ -30,7 +27,6 @@ export type Result<T = unknown> = SuccessResult<T> | ErrorResult;
 
 // Utility function types for creating results
 export type CreateError = (
-  code: ErrorCode,
   message: string,
   details?: Record<string, unknown>,
   cause?: Error,

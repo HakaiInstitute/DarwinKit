@@ -30,7 +30,6 @@ import {
   CrossDatasetViolation,
   enforcementToSeverity,
   EnumViolation,
-  ErrorCode,
   FieldRequirementLevel,
   getValidationProfile,
   getVocabularyValues,
@@ -48,9 +47,10 @@ import { WorkspaceConfigService } from "./workspace-config-service.ts";
 /**
  * Error classes for workspace validation
  */
-const WorkspaceValidationErrorBase = Data.TaggedClass("WorkspaceValidationError")<{
+const WorkspaceValidationErrorBase = Data.TaggedClass(
+  "WorkspaceValidationError",
+)<{
   readonly message: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }>;
 
@@ -90,7 +90,9 @@ export function WorkspaceImportCSV(
         }
 
         // Create sequence for deterministic row numbering
-        await connection.run(`CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1`);
+        await connection.run(
+          `CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1`,
+        );
 
         await connection.run(
           `CREATE TABLE IF NOT EXISTS ${tableName} AS
@@ -102,7 +104,6 @@ export function WorkspaceImportCSV(
         console.error(error);
         return new WorkspaceImportError({
           message: `Failed to create table '${tableName}' from CSV ${fullPath}`,
-          code: ErrorCode.DATABASE_ERROR,
           cause: error instanceof Error ? error : new Error(String(error)),
         });
       },
@@ -154,7 +155,7 @@ type DatasetWithProfile = {
  *   - SQL uses `IF NOT EXISTS` so repeated runs are safe (idempotent in typical cases).
  * - Error handling:
  *   - Database execution failures are converted into `WorkspaceImportError` values
- *     with `ErrorCode.DATABASE_ERROR` and the original error attached as `cause`.
+ *     with the original error attached as `cause`.
  *   - The returned Effect fails with that `WorkspaceImportError` on DB errors.
  *
  * Side effects:
@@ -230,7 +231,10 @@ export function WorkspaceImportSchema(
       const field = spec.fields![fieldName];
       const fieldType = (field.type?.toUpperCase() || "TEXT")
         .replace("IDENTIFIER", "TEXT")
-        .replace("CONTROLLED-VOCABULARY", `${tableName}_${fieldName.toLowerCase()}_enum`)
+        .replace(
+          "CONTROLLED-VOCABULARY",
+          `${tableName}_${fieldName.toLowerCase()}_enum`,
+        )
         .replace("URI", "TEXT");
       let fieldStr = `"${fieldName}" ${fieldType}`;
       // Check if this field is the primary identifier for this table
@@ -238,7 +242,10 @@ export function WorkspaceImportSchema(
       // or check if field is marked as unique identifier
       const isUniqueIdentifier = field.unique === "true";
 
-      if (fieldName === tableName + "ID" || (fieldName.endsWith("ID") && isUniqueIdentifier)) {
+      if (
+        fieldName === tableName + "ID" ||
+        (fieldName.endsWith("ID") && isUniqueIdentifier)
+      ) {
         fieldStr += " PRIMARY KEY";
       } else if (
         spec.fieldOverrides?.[fieldName]?.requirement === "required"
@@ -261,7 +268,8 @@ export function WorkspaceImportSchema(
                   ds.spec.slice(ds.spec.indexOf("-") + 1)
                 : undefined);
             return profileName &&
-              getValidationProfile(profileName)?.name.toLowerCase() === referencedTable;
+              getValidationProfile(profileName)?.name.toLowerCase() ===
+                referencedTable;
           })
         ) {
           fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;
@@ -281,7 +289,6 @@ export function WorkspaceImportSchema(
         catch: (error) =>
           new WorkspaceImportError({
             message: `Failed to create ENUM types for table '${tableName}'`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -294,7 +301,6 @@ export function WorkspaceImportSchema(
       catch: (error) =>
         new WorkspaceImportError({
           message: `Failed to drop table '${tableName}'`,
-          code: ErrorCode.DATABASE_ERROR,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
     }));
@@ -307,7 +313,6 @@ export function WorkspaceImportSchema(
         console.error(`Failing SQL: ${tableSql}`);
         return new WorkspaceImportError({
           message: `Failed to create table '${tableName}'`,
-          code: ErrorCode.DATABASE_ERROR,
           cause: error instanceof Error ? error : new Error(String(error)),
         });
       },
@@ -348,7 +353,6 @@ export class WorkspaceValidator {
           Effect.mapError((error) => {
             return new WorkspaceValidationError({
               message: `Failed to load workspace config: ${error.message}`,
-              code: ErrorCode.VALIDATION_FAILED,
               cause: error instanceof Error ? error : new Error(String(error)),
             });
           }),
@@ -361,7 +365,6 @@ export class WorkspaceValidator {
           Effect.fail(
             new WorkspaceValidationError({
               message: `Configuration '${resolvedConfigPath}' does not contain validation settings`,
-              code: ErrorCode.INVALID_CONFIG,
             }),
           ),
         );
@@ -372,7 +375,6 @@ export class WorkspaceValidator {
           Effect.fail(
             new WorkspaceValidationError({
               message: `Configuration '${resolvedConfigPath}' does not contain datasets`,
-              code: ErrorCode.INVALID_CONFIG,
             }),
           ),
         );
@@ -418,13 +420,19 @@ export class WorkspaceValidator {
               const parsed = parseSpecIdentifier(dataset.spec);
               if (parsed) {
                 // Capitalize the type to match profile names (e.g., "event" -> "Event")
-                const derivedProfileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+                const derivedProfileId = parsed.type.charAt(0).toUpperCase() +
+                  parsed.type.slice(1);
                 datasetProfile = getValidationProfile(derivedProfileId);
               }
             }
 
             const result = yield* _(
-              validateDataset(connection, dataset, datasetProfile, validationSettings),
+              validateDataset(
+                connection,
+                dataset,
+                datasetProfile,
+                validationSettings,
+              ),
             );
 
             datasetResults.push(result);
@@ -489,14 +497,20 @@ function createWorkspaceFromConfig(
   validationSettings: ValidationSettings,
   basePath: string,
 ): Effect.Effect<
-  { workspaceId: string; connection: DuckDBConnection; instance: DuckDBInstance },
+  {
+    workspaceId: string;
+    connection: DuckDBConnection;
+    instance: DuckDBInstance;
+  },
   WorkspaceValidationError
 > {
   return Effect.gen(function* (_) {
     // Create isolated DuckDB instance - each workspace gets its own in-memory database
     // This prevents test contamination where tables from one test persist into another
     const instance = yield* _(
-      Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(Effect.orDie),
+      Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(
+        Effect.orDie,
+      ),
     );
 
     // Create connection from isolated instance - failure is a system defect
@@ -511,9 +525,12 @@ function createWorkspaceFromConfig(
       const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
       // Build null values string for DuckDB
-      const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`).join(", ");
+      const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`)
+        .join(", ");
       const dropTable = true;
-      yield* _(WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable));
+      yield* _(
+        WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable),
+      );
       yield* _(WorkspaceImportSchema(connection, dataset, datasets));
     }
 
@@ -598,7 +615,6 @@ function validateDataset(
         Effect.fail(
           new WorkspaceValidationError({
             message: `Invalid spec identifier: ${dataset.spec}`,
-            code: ErrorCode.VALIDATION_FAILED,
           }),
         ),
       );
@@ -606,12 +622,14 @@ function validateDataset(
 
     const originTableColumnsResult = yield* _(
       Effect.tryPromise({
-        try: () => connection.runAndReadAll(`SELECT column_name FROM (DESCRIBE '${tableName}')`),
+        try: () =>
+          connection.runAndReadAll(
+            `SELECT column_name FROM (DESCRIBE '${tableName}')`,
+          ),
         catch: (error) => {
           console.error(error);
           return new WorkspaceValidationError({
             message: `Failed to Describe table: ${error}`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           });
         },
@@ -637,7 +655,8 @@ function validateDataset(
       // Derive from spec if neither profile nor profile ID available
       const parsed = parseSpecIdentifier(dataset.spec);
       if (parsed) {
-        profileName = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+        profileName = parsed.type.charAt(0).toUpperCase() +
+          parsed.type.slice(1);
       }
     }
 
@@ -664,8 +683,9 @@ function validateDataset(
               `The data source for dataset '${dataset.name}' does not contain the mapped fields ['${
                 missingSourceFields.join("','")
               }']. Please check the dataset config.`,
-            code: ErrorCode.INVALID_CONFIG,
-            cause: Error(String("Dataset mapped field missing from source database table")),
+            cause: Error(
+              String("Dataset mapped field missing from source database table"),
+            ),
           }),
         ),
       );
@@ -730,22 +750,34 @@ function validateDataset(
       }
     } else {
       // Bulk INSERT succeeded - no constraint violations
-      console.log(`Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`);
+      console.log(
+        `Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`,
+      );
     }
 
     // Validate field mappings based on spec
 
     // OLD: Keep old structure for backward compatibility (will be deprecated)
     const typeErrors: Array<DatasetValidationResult["typeErrors"][number]> = [];
-    const requiredFieldErrors: Array<DatasetValidationResult["requiredFieldErrors"][number]> = [];
+    const requiredFieldErrors: Array<
+      DatasetValidationResult["requiredFieldErrors"][number]
+    > = [];
     const warnings: Array<DatasetValidationResult["warnings"][number]> = [];
-    const recommendations: Array<DatasetValidationResult["recommendations"][number]> = [];
+    const recommendations: Array<
+      DatasetValidationResult["recommendations"][number]
+    > = [];
 
     // Check profile field requirements based on requirement levels
     if (profile && profile.fieldOverrides && dataset.fieldMappings) {
-      const mappedSpecFields = new Set(dataset.fieldMappings.map((m) => m.targetName));
+      const mappedSpecFields = new Set(
+        dataset.fieldMappings.map((m) => m.targetName),
+      );
 
-      for (const [fieldName, fieldOverride] of Object.entries(profile.fieldOverrides)) {
+      for (
+        const [fieldName, fieldOverride] of Object.entries(
+          profile.fieldOverrides,
+        )
+      ) {
         if (!fieldOverride.requirement) continue;
 
         const isMapped = mappedSpecFields.has(fieldName);
@@ -759,7 +791,10 @@ function validateDataset(
               message:
                 `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
             });
-          } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
+          } else if (
+            fieldOverride.requirement ===
+              FieldRequirementLevel.StronglyRecommended
+          ) {
             warnings.push({
               fieldName,
               targetName: fieldName,
@@ -767,7 +802,9 @@ function validateDataset(
               message:
                 `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
             });
-          } else if (fieldOverride.requirement === FieldRequirementLevel.Recommended) {
+          } else if (
+            fieldOverride.requirement === FieldRequirementLevel.Recommended
+          ) {
             recommendations.push({
               fieldName,
               targetName: fieldName,
@@ -824,9 +861,10 @@ function validateDataset(
 
       // Querying information_schema is infrastructure - should always work (defect if it fails)
       const fieldExistsResult = yield* _(
-        Effect.tryPromise(() => connection.runAndReadAll(fieldExistsQuery)).pipe(
-          Effect.orDie,
-        ),
+        Effect.tryPromise(() => connection.runAndReadAll(fieldExistsQuery))
+          .pipe(
+            Effect.orDie,
+          ),
       );
 
       const fieldExists = fieldExistsResult.getRowObjects().length > 0;
@@ -895,7 +933,8 @@ function validateDataset(
         // Skip PKs because row-by-row INSERT queries for ALL duplicate rows
         const rawFieldForUnique = profile.fields?.[mapping.targetName];
         const isPrimaryKeyField = mapping.targetName === schemaTableName + "ID" ||
-          (mapping.targetName.endsWith("ID") && rawFieldForUnique?.unique === "true");
+          (mapping.targetName.endsWith("ID") &&
+            rawFieldForUnique?.unique === "true");
 
         const hasUniqueValidator = specField.validators
           ? (specField.validators.some((v) =>
@@ -964,7 +1003,10 @@ function validateDataset(
  * Schema tables are named after profiles, not dataset names.
  * For example, dataset "occurrences" with spec "dwc-occurrence" → table "occurrence"
  */
-function resolveSchemaTableName(datasetName: string, datasets: readonly DatasetConfig[]): string {
+function resolveSchemaTableName(
+  datasetName: string,
+  datasets: readonly DatasetConfig[],
+): string {
   const dataset = datasets.find((ds) => ds.name === datasetName);
   if (!dataset) {
     // Fallback to sanitized dataset name if not found
@@ -1020,7 +1062,9 @@ function findCrossDatasetViolations(
 
     // SQL query execution should work - query failure is a defect
     const violationsResult = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(violationsQuery)).pipe(Effect.orDie),
+      Effect.tryPromise(() => connection.runAndReadAll(violationsQuery)).pipe(
+        Effect.orDie,
+      ),
     );
 
     const rows = violationsResult.getRowObjects();
@@ -1076,7 +1120,11 @@ function validateCrossDatasetRule(
 
     // Get fully-formed violations
     const crossDatasetViolations = yield* _(
-      findCrossDatasetViolations(connection, { ...rule, enforcement }, datasets),
+      findCrossDatasetViolations(
+        connection,
+        { ...rule, enforcement },
+        datasets,
+      ),
     );
 
     // Convert to old format for compatibility
@@ -1253,7 +1301,9 @@ function findRangeViolations(
 
     // SQL query execution should work - query failure is a defect
     const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+        Effect.orDie,
+      ),
     );
 
     const rows = result.getRowObjects();
@@ -1294,6 +1344,8 @@ function validateRangeConstraints(
     }
 
     // Get range validators (now always ValidatorConfig[] after normalization)
+    // TODO: Add parsing here; we need to ensure the range validator is valid before trying to apply it
+    // Also ensures type sagety within the loop below
     const rangeValidators = specField.validators.filter((v) => v.type === "range");
 
     for (const validator of rangeValidators) {
@@ -1315,7 +1367,13 @@ function validateRangeConstraints(
       };
 
       const rangeViolations = yield* _(
-        findRangeViolations(connection, tableName, fieldName, normalizedValidator, specField),
+        findRangeViolations(
+          connection,
+          tableName,
+          fieldName,
+          normalizedValidator,
+          specField,
+        ),
       );
 
       violations.push(...rangeViolations);
@@ -1379,7 +1437,9 @@ function findVocabularyViolations(
 
     // SQL query execution should work - query failure is a defect
     const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+        Effect.orDie,
+      ),
     );
 
     const rows = result.getRowObjects();
@@ -1392,7 +1452,10 @@ function findVocabularyViolations(
       let rowNumbers: number[] = [];
       if (Array.isArray(rawRowNumbers)) {
         rowNumbers = rawRowNumbers.map((n) => Number(n));
-      } else if (rawRowNumbers && typeof rawRowNumbers === "object" && "items" in rawRowNumbers) {
+      } else if (
+        rawRowNumbers && typeof rawRowNumbers === "object" &&
+        "items" in rawRowNumbers
+      ) {
         rowNumbers = rawRowNumbers.items.map((n) => Number(n));
       }
 
@@ -1448,7 +1511,9 @@ function validateVocabulary(
 ): Effect.Effect<
   {
     enriched: ValidationViolation[];
-    legacy: Array<{ rowNumber: number; value: string; suggestedValues?: string[] }>;
+    legacy: Array<
+      { rowNumber: number; value: string; suggestedValues?: string[] }
+    >;
   },
   WorkspaceValidationError
 > {
@@ -1524,7 +1589,9 @@ function findUniquenessViolations(
 
     // SQL query execution should work - query failure is a defect
     const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+        Effect.orDie,
+      ),
     );
 
     const rows = result.getRowObjects();
@@ -1593,7 +1660,13 @@ function validateUniqueness(
 
     // Get fully-formed violations
     const enriched = yield* _(
-      findUniquenessViolations(connection, tableName, fieldName, specField, enforcement),
+      findUniquenessViolations(
+        connection,
+        tableName,
+        fieldName,
+        specField,
+        enforcement,
+      ),
     );
 
     // Also return legacy format for backward compatibility
@@ -1613,7 +1686,9 @@ function validateUniqueness(
       group.rows.push(violation.rowNumber);
     }
 
-    const legacy = Array.from(duplicateGroups.entries()).map(([value, group]) => ({
+    const legacy = Array.from(duplicateGroups.entries()).map((
+      [value, group],
+    ) => ({
       duplicateValue: value,
       occurrenceCount: group.count,
       affectedRows: group.rows.sort((a, b) => a - b),
@@ -1634,7 +1709,13 @@ function sanitizeTableName(name: string): string {
  * Parse DuckDB error into structured violation information
  */
 interface ParsedErrorInfo {
-  readonly type: "primary-key" | "not-null" | "enum" | "foreign-key" | "check" | "unknown";
+  readonly type:
+    | "primary-key"
+    | "not-null"
+    | "enum"
+    | "foreign-key"
+    | "check"
+    | "unknown";
   readonly fieldName?: string;
   readonly value?: string;
   readonly message: string;
@@ -1658,7 +1739,9 @@ function parseDuckDBError(error: Error): ParsedErrorInfo {
   }
 
   // Alternative format for duplicate keys
-  pkMatch = message.match(/Duplicate key "(?:\w+:\s*)?([^"]+)" violates primary key constraint/);
+  pkMatch = message.match(
+    /Duplicate key "(?:\w+:\s*)?([^"]+)" violates primary key constraint/,
+  );
   if (pkMatch) {
     return {
       type: "primary-key",
@@ -1680,7 +1763,9 @@ function parseDuckDBError(error: Error): ParsedErrorInfo {
 
   // ENUM/Type conversion error
   // Example: "Conversion Error: Could not convert string 'InvalidBasis' to UINT8 when casting from source column basisOfRecord"
-  const enumMatch = message.match(/Could not convert string '([^']+)'.+from source column (\w+)/);
+  const enumMatch = message.match(
+    /Could not convert string '([^']+)'.+from source column (\w+)/,
+  );
   if (enumMatch) {
     return {
       type: "enum",
@@ -1731,7 +1816,9 @@ function getOriginalCsvValue(
     `;
 
     const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+        Effect.orDie,
+      ),
     );
 
     const rows = result.getRowObjects();
@@ -1821,7 +1908,9 @@ function insertRowByRow(
     // Get maximum _row_number to determine iteration range
     const maxRowResult = yield* _(
       Effect.tryPromise(() =>
-        connection.runAndReadAll(`SELECT MAX(_row_number) as max_row FROM ${rawTableName}`)
+        connection.runAndReadAll(
+          `SELECT MAX(_row_number) as max_row FROM ${rawTableName}`,
+        )
       ).pipe(Effect.orDie),
     );
     const maxRow = Number(maxRowResult.getRowObjects()[0]?.max_row ?? 0);
@@ -1863,7 +1952,10 @@ function insertRowByRow(
                 profile.fields?.[m.target]?.unique === "true")
             );
 
-            if (pkMapping && parsed.value && !processedDuplicates.has(parsed.value)) {
+            if (
+              pkMapping && parsed.value &&
+              !processedDuplicates.has(parsed.value)
+            ) {
               const specField = profile.normalizedFields?.[pkMapping.target];
               if (!specField) break;
 
@@ -1926,7 +2018,8 @@ function insertRowByRow(
             );
 
             if (notNullMapping) {
-              const specField = profile.normalizedFields?.[notNullMapping.target];
+              const specField = profile.normalizedFields
+                ?.[notNullMapping.target];
               if (!specField) break;
 
               violations.push(
@@ -1994,13 +2087,17 @@ function insertRowByRow(
 
           case "foreign-key": {
             // For FK violations, we need more context - log for now
-            console.warn(`Foreign key violation at row ${rowNum}: ${parsed.message}`);
+            console.warn(
+              `Foreign key violation at row ${rowNum}: ${parsed.message}`,
+            );
             break;
           }
 
           default: {
             // Unknown error type - log it
-            console.warn(`Unknown constraint violation at row ${rowNum}: ${parsed.message}`);
+            console.warn(
+              `Unknown constraint violation at row ${rowNum}: ${parsed.message}`,
+            );
             break;
           }
         }

@@ -1,13 +1,9 @@
 import * as duckdb from "@duckdb/node-api";
+import { stringify as stringifyCSV } from "@std/csv";
 import { dirname, join, resolve } from "@std/path";
-import * as Effect from "effect/Effect";
 import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
 
-import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
-import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
-import { ErrorCode, getValidationProfile } from "@dwkt/domain";
-import { json2csv } from "json-2-csv";
 import type {
   ConfigNotFoundError,
   ConfigParseError,
@@ -15,13 +11,17 @@ import type {
   DatasetFileNotFoundError,
   WorkspaceImportError,
 } from "@dwkt/core";
+import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
+import type { WorkspaceConfig } from "@dwkt/domain";
+import { getValidationProfile } from "@dwkt/domain";
+import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
+import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
 
 /**
  * Represents an error that occurs during the data transformation process.
  */
 export class TransformationError extends Data.TaggedError("TransformationError")<{
   readonly message: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }> {}
 
@@ -31,7 +31,6 @@ export class TransformationError extends Data.TaggedError("TransformationError")
 export class OutputError extends Data.TaggedError("OutputError")<{
   readonly message: string;
   readonly outputPath: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }> {}
 
@@ -114,7 +113,6 @@ function runPostImportTransformations(
           console.error(error);
           return new TransformationError({
             message: `Failed to execute post-import transform SQL`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           });
         },
@@ -169,8 +167,9 @@ export function populateSchemaFromDataTables( // Export for testing
         return yield* _(Effect.fail(
           new TransformationError({
             message: `No field definitions found in '${dataset?.name}'`,
-            code: ErrorCode.INVALID_CONFIG,
-            cause: new Error(String("field property missing from dataset definition")),
+            cause: new Error(
+              String("field property missing from dataset definition"),
+            ),
           }),
         ));
       }
@@ -185,24 +184,27 @@ export function populateSchemaFromDataTables( // Export for testing
         return yield* _(Effect.fail(
           new TransformationError({
             message: `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
-            code: ErrorCode.INVALID_CONFIG,
             cause: new Error(
-              String(`Validation profile ${dataset.profile} not found for '${dataset?.name}'`),
+              String(
+                `Validation profile ${dataset.profile} not found for '${dataset?.name}'`,
+              ),
             ),
           }),
         ));
       }
 
-      const targetColumnNames = Object.keys(dataset.fields).map((fieldName: string): string =>
-        `"${fieldName}"`
-      );
+      const targetColumnNames = Object.keys(dataset.fields).map((
+        fieldName: string,
+      ): string => `"${fieldName}"`);
       const tableName = transformProfile.name.toLowerCase();
-      const tableSources = Object.entries(dataset.source || {}).map(([tableName, joinSQL]) => {
-        // Simple table names don't contain spaces, just an identifier
-        // Only wrap subqueries in parentheses, not simple table names
-        const isSimpleTable = !joinSQL.trim().includes(" ");
-        return isSimpleTable ? `${joinSQL} AS ${tableName}` : `(${joinSQL}) AS ${tableName}`;
-      }).join(", ");
+      const tableSources = Object.entries(dataset.source || {}).map(
+        ([tableName, joinSQL]) => {
+          // Simple table names don't contain spaces, just an identifier
+          // Only wrap subqueries in parentheses, not simple table names
+          const isSimpleTable = !joinSQL.trim().includes(" ");
+          return isSimpleTable ? `${joinSQL} AS ${tableName}` : `(${joinSQL}) AS ${tableName}`;
+        },
+      ).join(", ");
 
       const insertSQL = `INSERT INTO ${tableName} (${targetColumnNames.join(", ")}) SELECT ${
         columnCalculations.join(", ")
@@ -215,7 +217,6 @@ export function populateSchemaFromDataTables( // Export for testing
           console.log(insertSQL);
           return new TransformationError({
             message: `Failed to populate table '${tableName}' from dataset '${dataset.name}'`,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           });
         },
@@ -225,27 +226,57 @@ export function populateSchemaFromDataTables( // Export for testing
 }
 
 /**
- * Exports the data from OBIS tables to CSV files.
- * @param connection - The active DuckDB connection.
- * @param config - The workspace configuration.
+ * Exports data from schema tables to CSV files.
+ *
+ * This function takes explicit dependencies rather than a workspace reference,
+ * making it easier to test and reuse in different contexts.
+ *
+ * @param connection - DuckDB connection to use for querying data
+ * @param config - Export configuration (output directory, timestamp, null column handling)
  * @returns An Effect that completes when all tables are exported, or fails with an OutputError.
+ *
+ * @example
+ * ```typescript
+ * const connection = yield* createConnection();
+ * const settings = {
+ *   datasets: [{ name: "events", profile: "Event", ... }],
+ *   output: { dir: "./output", outputFilesWithTimestamp: true, dropNullColumns: false }
+ * };
+ * yield* exportObisTablesToCSV(connection, settings);
+ * ```
  */
 export function exportObisTablesToCSV(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
 ): Effect.Effect<void, OutputError> {
-  // Type guard - ensure config has transform settings
-  if (!("transform" in config)) {
-    return Effect.succeed(void 0);
-  }
-
-  const withTimestamp = config.transform.output.outputFilesWithTimestamp ?? true;
-  const tables = [
-    ...new Set(config.transform.datasets.map((ds) => ds.profile.toLowerCase())),
-  ];
-  const outputPath = config.transform.output.outputDir;
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   return Effect.gen(function* (_) {
+    const transformSettings = hasTransformationConfig(config) ? config.transform : null;
+
+    if (!transformSettings) {
+      return yield* Effect.fail(
+        new OutputError({
+          message: "No transformation settings provided",
+          outputPath: "",
+        }),
+      );
+    }
+
+    const datasets = transformSettings.datasets;
+
+    // If no datasets provided, return early
+    if (!datasets || datasets.length === 0) {
+      return;
+    }
+
+    const output = transformSettings.output;
+    const outputFilesWithTimestamp = output.outputFilesWithTimestamp ?? true;
+
+    const withTimestamp = outputFilesWithTimestamp ?? true;
+    const tables = [
+      ...new Set(datasets.map((ds) => ds.profile.toLowerCase())),
+    ];
+    const outputPath = output.outputDir;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     // Create output directory, recursively if necessary
     yield* _(
       Effect.try(() => Deno.mkdirSync(outputPath, { recursive: true })).pipe(
@@ -255,7 +286,6 @@ export function exportObisTablesToCSV(
               error instanceof Error ? error.message : String(error)
             }`,
             outputPath: outputPath,
-            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         ),
@@ -263,26 +293,32 @@ export function exportObisTablesToCSV(
     );
 
     for (const tableName of tables) {
-      const selectColumns: string[] = [];
-      if (config.transform?.output?.dropNullColumns) {
-        // Get column names
-        const columnNamesResult = yield* _(
-          Effect.tryPromise({
-            try: () => connection.runAndReadAll(`PRAGMA table_info(${tableName});`),
-            catch: (error) =>
-              new OutputError({
-                message: `Failed to read table schema for ${tableName}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-                outputPath,
-                code: ErrorCode.DATABASE_ERROR,
-                cause: error instanceof Error ? error : new Error(String(error)),
-              }),
-          }),
-        );
-        const columnNames = columnNamesResult.getRowObjectsJson().map((row) => row.name);
+      // Get all column names from table schema
+      const columnNamesResult = yield* _(
+        Effect.tryPromise({
+          try: () => connection.runAndReadAll(`PRAGMA table_info(${tableName});`),
+          catch: (error) =>
+            new OutputError({
+              message: `Failed to read table schema for ${tableName}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+              outputPath,
+              cause: error instanceof Error ? error : new Error(String(error)),
+            }),
+        }),
+      );
+      const allColumnNames: string[] = columnNamesResult.getRowObjectsJson().map((row) =>
+        String(row.name)
+      );
 
-        for (const columnName of columnNames) {
+      // Determine which columns to include in export
+      let columnsToExport: string[] = allColumnNames;
+      const selectColumns: string[] = [];
+
+      if (output.dropNullColumns) {
+        // Filter out columns that are entirely NULL
+        const nonNullColumns: string[] = [];
+        for (const columnName of allColumnNames) {
           // Check if the column is entirely NULL
           const nullCountResult = yield* _(
             Effect.tryPromise({
@@ -296,16 +332,17 @@ export function exportObisTablesToCSV(
                     error instanceof Error ? error.message : String(error)
                   }`,
                   outputPath,
-                  code: ErrorCode.DATABASE_ERROR,
                   cause: error instanceof Error ? error : new Error(String(error)),
                 }),
             }),
           );
           const notNullCount = Number(nullCountResult.getRowObjectsJson()[0].null_count ?? 0);
           if (notNullCount > 0) {
+            nonNullColumns.push(columnName);
             selectColumns.push(`"${columnName}"`);
           }
         }
+        columnsToExport = nonNullColumns;
       } else {
         selectColumns.push("*");
       }
@@ -321,7 +358,6 @@ export function exportObisTablesToCSV(
                 error instanceof Error ? error.message : String(error)
               }`,
               outputPath,
-              code: ErrorCode.DATABASE_ERROR,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }),
@@ -332,14 +368,17 @@ export function exportObisTablesToCSV(
 
       // Write the data to the CSV file
       yield* _(Effect.tryPromise({
-        try: () => Deno.writeTextFile(fullPath, json2csv(result.getRowObjectsJson())),
+        try: () =>
+          Deno.writeTextFile(
+            fullPath,
+            stringifyCSV(result.getRowObjectsJson(), { columns: columnsToExport }),
+          ),
         catch: (error) =>
           new OutputError({
             message: `Failed to write results file: ${
               error instanceof Error ? error.message : String(error)
             }`,
             outputPath: fullPath,
-            code: ErrorCode.DATABASE_ERROR,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -364,7 +403,8 @@ export function exportToPersistentDB(
     return Effect.succeed(void 0);
   }
 
-  const withTimestamp = config.transform.output.outputFilesWithTimestamp ?? true;
+  const withTimestamp = config.transform.output.outputFilesWithTimestamp ??
+    true;
   const outputPath = config.transform.output.outputDir;
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dbName = "obis"; // Default database name for the exported file
@@ -384,7 +424,6 @@ export function exportToPersistentDB(
           new OutputError({
             message: `Failed to create output directory: ${error}`,
             outputPath,
-            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           })
         ),
@@ -398,7 +437,6 @@ export function exportToPersistentDB(
         new OutputError({
           message: `Failed get statistics for DB at ${fullPath}: ${error}`,
           outputPath,
-          code: ErrorCode.FILE_NOT_FOUND,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
     }));
@@ -411,7 +449,6 @@ export function exportToPersistentDB(
           new OutputError({
             message: `Failed to delete existing output file: ${error}`,
             outputPath: fullPath,
-            code: ErrorCode.FILE_NOT_FOUND,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
       }));
@@ -423,7 +460,9 @@ export function exportToPersistentDB(
       // Load validation profile if specified
       const transformProfile = getValidationProfile(dataset.profile);
       if (!transformProfile) {
-        console.warn(`No validation profile found for ${dataset.profile}, skipping table export.`);
+        console.warn(
+          `No validation profile found for ${dataset.profile}, skipping table export.`,
+        );
         continue;
       }
       const tableName = transformProfile.name.toLowerCase();
@@ -440,7 +479,6 @@ export function exportToPersistentDB(
             new OutputError({
               message: `Failed export DB to ${fullPath}: ${error}`,
               outputPath,
-              code: ErrorCode.FILE_NOT_FOUND,
               cause: error instanceof Error ? error : new Error(String(error)),
             }),
         }),
@@ -470,7 +508,9 @@ export function transformFile(
   never
 > {
   return Effect.acquireUseRelease(
-    Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(Effect.orDie),
+    Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(
+      Effect.orDie,
+    ),
     (connection) =>
       Effect.gen(function* (_) {
         const { config, configPath: resolvedConfigPath } = yield* _(

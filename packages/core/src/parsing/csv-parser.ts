@@ -4,10 +4,9 @@
 
 import { DuckDBConnection as DuckDB } from "@duckdb/node-api";
 import type { DatasetSchema, FieldSchema, PrimitiveType } from "@dwkt/domain";
-import { ErrorCode } from "@dwkt/domain";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { match } from "ts-pattern";
+import * as Match from "effect/Match";
 
 // Parse options for customizing CSV parsing behavior
 export interface ParseOptions {
@@ -34,7 +33,6 @@ export class ParsedFileResult extends Data.Class<{
 const ParseErrorBase = Data.TaggedClass("ParseError")<{
   readonly message: string;
   readonly filePath: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }>;
 
@@ -80,7 +78,6 @@ export function parseFileForWorkspace(
               new ParseError({
                 message: `Failed to parse CSV file: ${error}`,
                 filePath,
-                code: ErrorCode.PARSE_ERROR,
                 cause: error instanceof Error ? error : new Error(String(error)),
               }),
           }),
@@ -100,14 +97,18 @@ export function parseFileForWorkspace(
         `;
 
         const schemaResult = yield* _(
-          Effect.tryPromise(() => connection.runAndReadAll(schemaQuery)).pipe(Effect.orDie),
+          Effect.tryPromise(() => connection.runAndReadAll(schemaQuery)).pipe(
+            Effect.orDie,
+          ),
         );
         const schemaRows = schemaResult.getRowObjects();
 
         // Get row count - infrastructure query should always work (defect if it fails)
         const countResult = yield* _(
           Effect.tryPromise(() =>
-            connection.runAndReadAll(`SELECT COUNT(*) as count FROM ${tableName}`)
+            connection.runAndReadAll(
+              `SELECT COUNT(*) as count FROM ${tableName}`,
+            )
           ).pipe(Effect.orDie),
         );
         const rawCount = countResult.getRowObjects()[0].count;
@@ -134,10 +135,14 @@ export function parseFileForWorkspace(
           `;
 
           const sampleResult = yield* _(
-            Effect.tryPromise(() => connection.runAndReadAll(sampleQuery)).pipe(Effect.orDie),
+            Effect.tryPromise(() => connection.runAndReadAll(sampleQuery)).pipe(
+              Effect.orDie,
+            ),
           );
           const sampleRows = sampleResult.getRowObjects();
-          const samples = sampleRows.map((row) => String(row.value)).filter(Boolean);
+          const samples = sampleRows.map((row) => String(row.value)).filter(
+            Boolean,
+          );
 
           const fieldSchema: FieldSchema = {
             name: fieldName,
@@ -204,35 +209,37 @@ type DuckDbPrimitiveType =
   | "JSON";
 
 /**
+ * Helper to create a type predicate for matching multiple values
+ */
+const isOneOf = <T extends string>(...values: readonly T[]) => (value: string): value is T =>
+  values.includes(value as T);
+
+/**
  * Map DuckDB type to our primitive type system
  */
 function mapDuckDBToPrimitive(duckdbType: DuckDbPrimitiveType): PrimitiveType {
-  return match(duckdbType)
-    .with(
-      "VARCHAR",
-      "TEXT",
-      "STRING",
+  return Match.value(duckdbType).pipe(
+    Match.when(
+      isOneOf("VARCHAR", "TEXT", "STRING"),
       () => "string" as const,
-    )
-    .with(
-      "INTEGER",
-      "BIGINT",
-      "SMALLINT",
-      "DOUBLE",
-      "REAL",
-      "FLOAT",
-      "DECIMAL",
-      "NUMERIC",
+    ),
+    Match.when(
+      isOneOf("INTEGER", "BIGINT", "SMALLINT", "DOUBLE", "REAL", "FLOAT", "DECIMAL", "NUMERIC"),
       () => "number" as const,
-    )
-    .with("BOOLEAN", "BOOL", () => "boolean" as const)
-    .with(
-      "DATE",
-      "TIMESTAMP",
-      "TIME",
+    ),
+    Match.when(
+      isOneOf("BOOLEAN", "BOOL"),
+      () => "boolean" as const,
+    ),
+    Match.when(
+      isOneOf("DATE", "TIMESTAMP", "TIME"),
       () => "date" as const,
-    )
-    .with("BLOB", "BYTEA", () => "binary" as const)
-    .with("JSON", () => "object" as const)
-    .exhaustive();
+    ),
+    Match.when(
+      isOneOf("BLOB", "BYTEA"),
+      () => "binary" as const,
+    ),
+    Match.when("JSON", () => "object" as const),
+    Match.exhaustive,
+  );
 }

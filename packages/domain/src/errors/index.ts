@@ -20,7 +20,6 @@
  *
  * Re-exports from other error modules:
  */
-export { ErrorCode } from "./codes.ts";
 export { ErrorSeverity } from "./severity.ts";
 
 // Import violation classes to extract their tags

@@ -4,13 +4,12 @@
  * Tests for the file-based workspace management functionality.
  */
 
+import type { CreateWorkspaceOptions } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertGreater, assertRejects } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
-
-import type { CreateWorkspaceOptions } from "@dwkt/domain";
 import { CreateWorkspaceResult, WorkspaceService } from "../packages/core/src/workspace/service.ts";
-
+import { TEST_DATA_DIR } from "./helpers/paths.ts";
 import {
   assertFileAccessError,
   cleanupTempDir,
@@ -18,7 +17,7 @@ import {
 } from "./helpers/workspace-test-utils.ts";
 
 // Test configuration
-const TEST_CSV_FILE = join(Deno.cwd(), "test", "data", "FC2022_event.csv");
+const TEST_CSV_FILE = join(TEST_DATA_DIR, "FC2022_event.csv");
 
 Deno.test("Workspace Service - Create workspace from CSV", async () => {
   const tempDir = await createTempDir();

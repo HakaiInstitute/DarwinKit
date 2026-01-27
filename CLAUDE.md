@@ -427,7 +427,6 @@ yield* _(
     try: () => fs.access(userFilePath),
     catch: () => new ParseError({
       message: `File not found: ${userFilePath}`,
-      code: ErrorCode.FILE_NOT_FOUND,
     })
   })
 );

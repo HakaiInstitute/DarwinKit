@@ -16,7 +16,6 @@ import {
   WorkspaceValidator,
 } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
-import { ErrorCode } from '@dwkt/domain';
 import * as Match from 'effect/Match';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
@@ -25,7 +24,6 @@ import { ProgressSpinner } from '../../utils/spinner.ts';
 // Using Data.TaggedError for proper Error extension and stack traces
 export class CLIError extends Data.TaggedError('CLIError')<{
   readonly message: string;
-  readonly code: ErrorCode;
   readonly hint?: string;
   readonly exitCode: number;
 }> {}
@@ -109,7 +107,6 @@ function handleValidationResults(
         yield* _(Effect.fail(
           new CLIError({
             message: 'Validation failed',
-            code: ErrorCode.VALIDATION_FAILED,
             hint: 'Fix the errors above before proceeding.',
             exitCode: 1,
           }),
@@ -119,7 +116,6 @@ function handleValidationResults(
         yield* _(Effect.fail(
           new CLIError({
             message: 'Validation passed with warnings',
-            code: ErrorCode.VALIDATION_FAILED,
             hint: 'Consider reviewing the warnings above.',
             exitCode: 2,
           }),
@@ -132,7 +128,6 @@ function handleValidationResults(
         yield* _(Effect.fail(
           new CLIError({
             message: 'Unknown validation status',
-            code: ErrorCode.UNKNOWN_ERROR,
             exitCode: 3,
           }),
         ));
@@ -181,14 +176,17 @@ function handleCLIError(error: unknown): never {
           return 3;
         },
       ),
-      Match.tag('OutputError', (outputError: { message: string; outputPath?: string }) => {
-        Output.error('❌ Output failed:');
-        Output.error(outputError.message);
-        if (outputError.outputPath) {
-          Output.muted(`Path: ${outputError.outputPath}`);
-        }
-        return 3;
-      }),
+      Match.tag(
+        'OutputError',
+        (outputError: { message: string; outputPath?: string }) => {
+          Output.error('❌ Output failed:');
+          Output.error(outputError.message);
+          if (outputError.outputPath) {
+            Output.muted(`Path: ${outputError.outputPath}`);
+          }
+          return 3;
+        },
+      ),
       Match.tag(
         'WorkspaceValidationError',
         (validationError: { message: string }) => {
@@ -227,7 +225,9 @@ export async function validate(options: {
   const validFormat = (options.format === 'json') ? 'json' : 'table';
 
   // Create spinner for validation progress
-  const spinner = new ProgressSpinner({ message: 'Discovering configuration...' });
+  const spinner = new ProgressSpinner({
+    message: 'Discovering configuration...',
+  });
   spinner.start();
 
   // Validation pipeline using Effect
@@ -387,7 +387,9 @@ function outputTableResults(results: WorkspaceValidationResult) {
         }
 
         if (typeError.failureCount > 3) {
-          Output.muted(`    ... and ${typeError.failureCount - 3} more failures`);
+          Output.muted(
+            `    ... and ${typeError.failureCount - 3} more failures`,
+          );
         }
       }
 
@@ -407,7 +409,9 @@ function outputTableResults(results: WorkspaceValidationResult) {
         // Show first few violations as examples
         const examples = violations.slice(0, 3);
         for (const violation of examples) {
-          Output.muted(`    - Row ${violation.rowNumber}: ${violation.errorMessage}`);
+          Output.muted(
+            `    - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+          );
         }
 
         if (violations.length > 3) {
@@ -430,7 +434,9 @@ function outputTableResults(results: WorkspaceValidationResult) {
       }
 
       // NEW: Show partitioned warning violations
-      const warningsByField = groupViolationsByField(dataset.violations.warnings);
+      const warningsByField = groupViolationsByField(
+        dataset.violations.warnings,
+      );
       for (const [fieldName, violations] of warningsByField) {
         const firstViolation = violations[0];
         Output.warning(
@@ -439,7 +445,9 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
         const examples = violations.slice(0, 3);
         for (const violation of examples) {
-          Output.muted(`    - Row ${violation.rowNumber}: ${violation.errorMessage}`);
+          Output.muted(
+            `    - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+          );
         }
 
         if (violations.length > 3) {
@@ -452,7 +460,9 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     // ℹ️ INFO (optional violations)
     if (hasInfo) {
-      Output.info(`ℹ️  INFO (${dataset.violations.info.length + dataset.recommendations.length}):`);
+      Output.info(
+        `ℹ️  INFO (${dataset.violations.info.length + dataset.recommendations.length}):`,
+      );
 
       // Show recommendations (missing optional fields)
       for (const recommendation of dataset.recommendations) {
@@ -469,7 +479,9 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
         const examples = violations.slice(0, 3);
         for (const violation of examples) {
-          Output.muted(`    - Row ${violation.rowNumber}: ${violation.errorMessage}`);
+          Output.muted(
+            `    - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+          );
         }
 
         if (violations.length > 3) {
@@ -510,11 +522,15 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
         const sampleViolations = crossResult.violations.slice(0, 5);
         for (const violation of sampleViolations) {
-          Output.error(`  • Row ${violation.rowNumber}: ${violation.errorMessage}`);
+          Output.error(
+            `  • Row ${violation.rowNumber}: ${violation.errorMessage}`,
+          );
         }
 
         if (crossResult.violations.length > 5) {
-          Output.muted(`  ... and ${crossResult.violations.length - 5} more violations`);
+          Output.muted(
+            `  ... and ${crossResult.violations.length - 5} more violations`,
+          );
         }
         Output.blank();
       } else {
@@ -529,12 +545,20 @@ function outputTableResults(results: WorkspaceValidationResult) {
   // Overall summary
   Output.bold('📊 Summary:');
   Output.line(`  Datasets processed: ${results.summary.totalDatasets}`);
-  Output.line(`  ${colors.green('Passed')}: ${results.summary.datasetsPassedCount}`);
-  Output.line(`  ${colors.yellow('Warnings')}: ${results.summary.datasetsWithWarningsCount}`);
-  Output.line(`  ${colors.red('Failed')}: ${results.summary.datasetsFailedCount}`);
+  Output.line(
+    `  ${colors.green('Passed')}: ${results.summary.datasetsPassedCount}`,
+  );
+  Output.line(
+    `  ${colors.yellow('Warnings')}: ${results.summary.datasetsWithWarningsCount}`,
+  );
+  Output.line(
+    `  ${colors.red('Failed')}: ${results.summary.datasetsFailedCount}`,
+  );
   Output.blank();
   Output.line(`  ${colors.red('❌ Errors')}: ${results.summary.totalErrors}`);
-  Output.line(`  ${colors.yellow('⚠️  Warnings')}: ${results.summary.totalWarnings}`);
+  Output.line(
+    `  ${colors.yellow('⚠️  Warnings')}: ${results.summary.totalWarnings}`,
+  );
   Output.line(`  ${colors.blue('ℹ️  Info')}: ${results.summary.totalInfo}`);
   Output.blank();
   Output.line(`  Total rows processed: ${results.summary.totalRowsProcessed}`);
@@ -556,7 +580,9 @@ function getStatusIcon(status: string): string {
 }
 
 export const validateCommand = new Command()
-  .description('Validate datasets in workspace using darwinkit.json configuration')
+  .description(
+    'Validate datasets in workspace using darwinkit.json configuration',
+  )
   .option(
     '--config <path:string>',
     'Path to configuration directory (defaults to current directory)',
