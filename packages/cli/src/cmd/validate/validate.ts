@@ -1,7 +1,7 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { ValidationService, WorkspaceService, WorkspaceValidator } from '@dwkt/core';
+import { ValidationService, WorkspaceService } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';

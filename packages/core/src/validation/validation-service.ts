@@ -8,25 +8,15 @@
  * @module validation-service
  */
 
-import { dirname } from "@std/path";
 import * as Context from "effect/Context";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import type { DatasetConfig, ValidationSettings, WorkspaceValidationResult } from "@dwkt/domain";
-import {
-  WorkspaceValidationError as WorkspaceValError,
-  WorkspaceValidator,
-} from "./workspace-validator.ts";
+import { ValidationError } from "../errors/index.ts";
+import { WorkspaceValidator } from "./workspace-validator.ts";
 
-/**
- * Error classes for validation operations
- */
-export class ValidationError extends Data.TaggedError("ValidationError")<{
-  readonly message: string;
-  readonly cause?: Error;
-}> {}
+export { ValidationError } from "../errors/index.ts";
 
 /**
  * Validation Service - Effect service for dataset validation
@@ -49,7 +39,7 @@ export class ValidationError extends Data.TaggedError("ValidationError")<{
  *   const result = yield* validationService.validateDatasets(
  *     workspace.config.validation.datasets,
  *     workspace.config.validation,
- *     workspace.configPath
+ *     dirname(workspace.configPath)
  *   );
  *
  *   return result;
@@ -88,9 +78,8 @@ export class ValidationService extends Context.Tag("@dwkt/ValidationService")<
   /**
    * Default layer implementation for ValidationService
    *
-   * Provides a concrete implementation that uses the existing workspace
-   * validator logic. This delegates to the WorkspaceValidator class which
-   * contains all the validation logic.
+   * Provides a concrete implementation that delegates directly to
+   * WorkspaceValidator.validateDatasets()
    */
   static readonly layer = Layer.succeed(
     ValidationService,
@@ -99,95 +88,18 @@ export class ValidationService extends Context.Tag("@dwkt/ValidationService")<
         datasets: readonly DatasetConfig[],
         settings: ValidationSettings,
         basePath: string,
-      ): Effect.Effect<WorkspaceValidationResult, ValidationError> =>
-        Effect.gen(function* (_) {
-          // Create temporary config for WorkspaceValidator
-          // This is a bridge solution - eventually we'll extract validation logic
-          const tempConfigPath = yield* _(
-            createTempConfig(datasets, settings, basePath),
-          );
-
-          // Use WorkspaceValidator to perform validation
-          const validator = new WorkspaceValidator();
-          const result = yield* _(
-            validator.validateFromConfig(dirname(tempConfigPath)).pipe(
-              Effect.mapError((error: WorkspaceValError) =>
-                new ValidationError({
-                  message: error.message,
-                  cause: error.cause,
-                })
-              ),
-              // Clean up temp config file after validation (success or failure)
-              Effect.ensuring(
-                Effect.tryPromise(() => Deno.remove(tempConfigPath)).pipe(
-                  Effect.catchAll(() => Effect.void),
-                ),
-              ),
-            ),
-          );
-
-          return result;
-        }),
+      ): Effect.Effect<WorkspaceValidationResult, ValidationError> => {
+        // Create validator and call directly with in-memory config
+        const validator = new WorkspaceValidator();
+        return validator.validateDatasets(datasets, settings, basePath).pipe(
+          Effect.mapError((error) =>
+            new ValidationError({
+              message: error.message,
+              cause: error.cause,
+            })
+          ),
+        );
+      },
     }),
   );
-}
-
-/**
- * Create temporary config file for validation
- *
- * This is a bridge solution while we refactor validation logic.
- * Eventually we'll extract the validation logic from WorkspaceValidator
- * so we don't need temporary files.
- */
-function createTempConfig(
-  datasets: readonly DatasetConfig[],
-  settings: ValidationSettings,
-  basePath: string,
-): Effect.Effect<string, ValidationError> {
-  return Effect.gen(function* (_) {
-    // Create temp directory
-    const tempDir = yield* _(
-      Effect.tryPromise({
-        try: () => Deno.makeTempDir({ prefix: "darwinkit-validation-" }),
-        catch: (error) =>
-          new ValidationError({
-            message: "Failed to create temp directory",
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      }),
-    );
-
-    const configPath = `${tempDir}/darwinkit.json`;
-
-    // Create minimal config structure
-    const config = {
-      id: "temp-validation-" + Date.now(),
-      name: "Temporary Validation Config",
-      version: "1.0.0",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      validation: {
-        ...settings,
-        datasets: datasets.map((ds) => ({
-          ...ds,
-          // Resolve paths relative to original base path
-          path: `${basePath}/${ds.path}`,
-        })),
-      },
-    };
-
-    // Write config to file
-    yield* _(
-      Effect.tryPromise({
-        try: () => Deno.writeTextFile(configPath, JSON.stringify(config, null, 2)),
-        catch: (error) =>
-          new ValidationError({
-            message: "Failed to write temp config",
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      }),
-    );
-
-    return configPath;
-  });
 }

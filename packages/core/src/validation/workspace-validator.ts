@@ -328,6 +328,125 @@ export function WorkspaceImportSchema(
  */
 export class WorkspaceValidator {
   /**
+   * Validate datasets directly from in-memory configuration
+   *
+   * This is the preferred method for programmatic validation as it
+   * operates on already-loaded configuration without file I/O.
+   *
+   * @param datasets - Dataset configurations to validate
+   * @param settings - Validation settings (null values, fail-fast, etc.)
+   * @param basePath - Base directory for resolving relative dataset paths
+   * @param workspaceId - Optional workspace ID for result tracking
+   * @param crossDatasetRules - Optional cross-dataset validation rules
+   */
+  validateDatasets(
+    datasets: readonly DatasetConfig[],
+    settings: ValidationSettings,
+    basePath: string,
+    workspaceId?: string,
+    crossDatasetRules?: readonly {
+      ruleType: string;
+      sourceDataset: string;
+      sourceField: string;
+      targetDataset: string;
+      targetField: string;
+      enforcement?: string;
+      description?: string;
+    }[],
+  ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
+    return Effect.gen(function* (_) {
+      const startTime = Date.now();
+      const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
+
+      // Create workspace and load all datasets
+      const { workspaceId: wsId, connection, instance } = yield* _(
+        createWorkspaceFromConfig(
+          resolvedWorkspaceId,
+          datasets,
+          settings,
+          basePath,
+        ),
+      );
+
+      // Perform validation with guaranteed connection cleanup
+      return yield* _(
+        Effect.gen(function* (_) {
+          // Validate each dataset
+          const datasetResults: DatasetValidationResult[] = [];
+
+          for (const dataset of datasets) {
+            // Use dataset-level profile if specified, otherwise derive from spec field
+            let datasetProfile = dataset.profile
+              ? getValidationProfile(dataset.profile)
+              : undefined;
+
+            // If still no profile, try to derive from spec field
+            if (!datasetProfile && dataset.spec) {
+              const parsed = parseSpecIdentifier(dataset.spec);
+              if (parsed) {
+                const derivedProfileId = parsed.type.charAt(0).toUpperCase() +
+                  parsed.type.slice(1);
+                datasetProfile = getValidationProfile(derivedProfileId);
+              }
+            }
+
+            const result = yield* _(
+              validateDataset(connection, dataset, datasetProfile, settings),
+            );
+
+            datasetResults.push(result);
+
+            // Fail-fast if enabled and we have critical errors
+            if (settings.failFast && result.status === "fail") {
+              break;
+            }
+          }
+
+          // Validate cross-dataset rules if provided
+          const crossDatasetResults: CrossDatasetValidationResult[] = [];
+          if (crossDatasetRules && !settings.failFast) {
+            for (const rule of crossDatasetRules) {
+              const result = yield* _(
+                validateCrossDatasetRule(connection, rule, datasets),
+              );
+              crossDatasetResults.push(result);
+            }
+          }
+
+          // Calculate summary
+          const summary = calculateSummary(datasetResults);
+          const totalProcessingTimeMs = Date.now() - startTime;
+
+          const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0
+            ? "fail"
+            : summary.datasetsWithWarningsCount > 0
+            ? "warn"
+            : "pass";
+
+          return {
+            workspaceId: wsId,
+            configPath: basePath,
+            validatedAt: new Date(),
+            totalProcessingTimeMs,
+            overallStatus,
+            datasetResults,
+            crossDatasetResults,
+            summary,
+          };
+        }).pipe(
+          // Ensure connection and instance are closed even if validation fails
+          Effect.ensuring(
+            Effect.all([
+              Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
+              Effect.try(() => instance.closeSync()).pipe(Effect.ignore),
+            ]),
+          ),
+        ),
+      );
+    });
+  }
+
+  /**
    * Validate workspace from configuration file
    *
    * This is the main entry point for config-based validation.

@@ -2,7 +2,7 @@
  * Tests for WorkspaceService
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 

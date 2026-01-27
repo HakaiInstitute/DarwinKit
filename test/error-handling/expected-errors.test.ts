@@ -5,21 +5,57 @@
  * and represent recoverable domain errors rather than programming defects.
  */
 
-import { parseFileForWorkspace, WorkspaceService, WorkspaceValidator } from "@dwkt/core";
+import {
+  ParseError,
+  parseFileForWorkspace,
+  ValidationService,
+  WorkspaceService,
+  WorkspaceValidator,
+} from "@dwkt/core";
 import { assert, assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
+
+/**
+ * Helper to assert an Effect fails with a ParseError
+ */
+async function expectParseError(
+  effect: Effect.Effect<unknown, ParseError>,
+  messageContains?: string,
+): Promise<void> {
+  const exit = await Effect.runPromiseExit(effect);
+  Exit.match(exit, {
+    onSuccess: () => assert(false, "Expected ParseError but succeeded"),
+    onFailure: (cause) => {
+      const error = Cause.failureOption(cause);
+      assert(Option.isSome(error), "Expected failure, got defect");
+      assertEquals(error.value._tag, "ParseError");
+      if (messageContains) {
+        assertStringIncludes(error.value.message, messageContains);
+      }
+    },
+  });
+}
 
 Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "expected_errors_test_" });
 
   await t.step("Workspace not found", async () => {
-    const service = new WorkspaceService({ workspacesDir: tempDir });
+    const program = Effect.gen(function* () {
+      const workspaceService = yield* WorkspaceService;
+      // Try to load non-existent config
+      return yield* workspaceService.load(join(tempDir, "nonexistent", "darwinkit.json"));
+    });
 
     let errorCaught = false;
 
     await Effect.runPromise(
-      service.load("nonexistent").pipe(
+      program.pipe(
+        Effect.provide(WorkspaceService.layer),
+        Effect.provide(ValidationService.layer),
         Effect.catchAll((_error) => {
           errorCaught = true;
           return Effect.succeed<null>(null);
@@ -32,19 +68,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
   await t.step("File not found (user-provided path)", async () => {
     const nonExistentPath = join(tempDir, "does-not-exist.csv");
-
-    let errorCaught = false;
-
-    await Effect.runPromise(
-      parseFileForWorkspace(nonExistentPath).pipe(
-        Effect.catchAll((_error) => {
-          errorCaught = true;
-          return Effect.succeed<null>(null);
-        }),
-      ),
-    );
-
-    assert(errorCaught, "Should catch with Effect.catchAll");
+    await expectParseError(parseFileForWorkspace(nonExistentPath), "does-not-exist.csv");
   });
 
   await t.step("Invalid CSV data", async () => {
@@ -114,17 +138,22 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 Deno.test("Expected errors - provide helpful error messages", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "error_messages_test_" });
 
-  await t.step("Error messages include context", async () => {
-    const service = new WorkspaceService({ workspacesDir: tempDir });
+  await t.step("Error messages include context (config not found)", async () => {
+    const program = Effect.gen(function* () {
+      const workspaceService = yield* WorkspaceService;
+      return yield* workspaceService.load(join(tempDir, "test-workspace", "darwinkit.json"));
+    });
 
     const result = await Effect.runPromise(
-      service.load("test-id").pipe(
+      program.pipe(
+        Effect.provide(WorkspaceService.layer),
+        Effect.provide(ValidationService.layer),
         Effect.catchAll((error) => Effect.succeed(error.message as string)),
       ),
     );
 
-    // Message should include the workspace ID
-    assertStringIncludes(result as string, "test-id");
+    // Message should indicate config file issue
+    assertMatch(result as string, /configuration|config|not found|darwinkit/i);
   });
 
   await t.step("Error messages include file paths", async () => {
@@ -148,29 +177,33 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
 Deno.test("Expected errors - can be recovered from", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "error_recovery_test_" });
 
-  await t.step("Fallback to default workspace", async () => {
-    const service = new WorkspaceService({ workspacesDir: tempDir });
-
+  await t.step("Fallback to default workspace on error", async () => {
     const defaultWorkspace = {
       id: "default",
       name: "Default Workspace",
       description: "Fallback workspace",
-      filePath: "",
-      format: "csv" as const,
-      schema: {
-        fields: new Map(),
-        rowCount: 0,
-        tableName: "default",
-        inferredAt: new Date(),
+      configPath: "",
+      config: {
+        id: "default",
+        name: "Default",
+        version: "1.0.0",
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       createdAt: new Date(),
       updatedAt: new Date(),
-      workspaceDir: "",
-      dataTableName: "",
+      validationState: { status: "not-validated" as const },
     };
 
+    const program = Effect.gen(function* () {
+      const workspaceService = yield* WorkspaceService;
+      return yield* workspaceService.load(join(tempDir, "nonexistent", "darwinkit.json"));
+    });
+
     const result = await Effect.runPromise(
-      service.load("nonexistent").pipe(
+      program.pipe(
+        Effect.provide(WorkspaceService.layer),
+        Effect.provide(ValidationService.layer),
         Effect.catchAll(() => Effect.succeed(defaultWorkspace)),
       ),
     );
@@ -209,7 +242,8 @@ Deno.test("Expected errors - summary", () => {
   // Summary of all expected errors in DarwinKit:
   //
   // 1. Workspace operations:
-  //    - WORKSPACE_NOT_FOUND - User requested non-existent workspace
+  //    - WorkspaceError - Config not found, parse error, missing datasets
+  //    - ValidationError - Validation operation failures
   //
   // 2. File operations:
   //    - FILE_NOT_FOUND - User-provided path doesn't exist

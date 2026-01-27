@@ -11,7 +11,6 @@
 import { dirname, join, resolve } from "@std/path";
 import { parse as parseYAML } from "@std/yaml";
 import * as Context from "effect/Context";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -22,10 +21,8 @@ import type {
   WorkspaceValidationResult,
 } from "@dwkt/domain";
 import { isValidationOnlyConfig, workspaceConfigSchema } from "@dwkt/domain";
-import {
-  ValidationError as ValError,
-  ValidationService,
-} from "../validation/validation-service.ts";
+import { ValidationError, WorkspaceError } from "../errors/index.ts";
+import { ValidationService } from "../validation/validation-service.ts";
 
 // Configuration file constants
 const DEFAULT_CONFIG_FILENAME = "darwinkit.json";
@@ -56,18 +53,8 @@ export type ValidationState =
     readonly result: WorkspaceValidationResult;
   };
 
-/**
- * Error classes for workspace operations
- */
-export class WorkspaceError extends Data.TaggedError("WorkspaceError")<{
-  readonly message: string;
-  readonly cause?: Error;
-}> {}
-
-export class ValidationError extends Data.TaggedError("ValidationError")<{
-  readonly message: string;
-  readonly cause?: Error;
-}> {}
+// Re-export error types for consumers who import from this module
+export { ValidationError, WorkspaceError } from "../errors/index.ts";
 
 /**
  * Workspace Service
@@ -125,7 +112,7 @@ export class WorkspaceService extends Context.Tag("@dwkt/WorkspaceService")<
 
             const result = yield* _(
               validationService.validateDatasets(datasets, settings, basePath).pipe(
-                Effect.mapError((error: ValError) =>
+                Effect.mapError((error) =>
                   new ValidationError({
                     message: error.message,
                     cause: error.cause,
@@ -148,6 +135,28 @@ export class WorkspaceService extends Context.Tag("@dwkt/WorkspaceService")<
 }
 
 /**
+ * Check if a path exists and is a file
+ */
+const isFile = (path: string): Effect.Effect<boolean> =>
+  Effect.tryPromise(() => Deno.stat(path)).pipe(
+    Effect.match({
+      onFailure: () => false,
+      onSuccess: (stat) => stat.isFile,
+    }),
+  );
+
+/**
+ * Check if a path exists
+ */
+const pathExists = (path: string): Effect.Effect<boolean> =>
+  Effect.tryPromise(() => Deno.stat(path)).pipe(
+    Effect.match({
+      onFailure: () => false,
+      onSuccess: () => true,
+    }),
+  );
+
+/**
  * Discover darwinkit.json configuration file
  */
 function discoverConfig(
@@ -158,27 +167,19 @@ function discoverConfig(
     let depth = 0;
     const searchedPaths: string[] = [];
 
-    // Check if searchDir is a file
-    const statResult = yield* _(
-      Effect.tryPromise(() => Deno.stat(currentDir)).pipe(Effect.option),
-    );
-
-    if (statResult._tag === "Some" && statResult.value.isFile) {
+    // Check if searchDir is a file (direct config path provided)
+    const isDirectFile = yield* _(isFile(currentDir));
+    if (isDirectFile) {
       return currentDir;
     }
 
+    // Search up the directory tree
     while (depth < MAX_SEARCH_DEPTH) {
       const configPath = join(currentDir, DEFAULT_CONFIG_FILENAME);
       searchedPaths.push(configPath);
 
-      const checkResult = yield* _(
-        Effect.tryPromise(() => Deno.stat(configPath)).pipe(
-          Effect.map(() => true),
-          Effect.catchAll(() => Effect.succeed(false)),
-        ),
-      );
-
-      if (checkResult) {
+      const exists = yield* _(pathExists(configPath));
+      if (exists) {
         return configPath;
       }
 
@@ -275,50 +276,57 @@ function loadConfig(
 }
 
 /**
- * Validate dataset file paths exist
+ * Validate that a file path exists
+ */
+const validatePath = (
+  filePath: string,
+  errorMessage: string,
+): Effect.Effect<void, WorkspaceError> =>
+  Effect.tryPromise({
+    try: () => Deno.stat(filePath),
+    catch: () => new WorkspaceError({ message: errorMessage }),
+  }).pipe(Effect.asVoid);
+
+/**
+ * Validate dataset file paths exist (parallel validation)
  */
 function validateDatasetPaths(
   config: WorkspaceConfig,
   base: string,
 ): Effect.Effect<void, WorkspaceError> {
-  return Effect.gen(function* (_) {
-    if ("validation" in config && config.validation) {
-      for (const dataset of config.validation.datasets) {
-        const filePath = resolve(base, dataset.path);
+  const validations: Effect.Effect<void, WorkspaceError>[] = [];
 
-        yield* _(
-          Effect.tryPromise({
-            try: () => Deno.stat(filePath),
-            catch: () =>
-              new WorkspaceError({
-                message:
-                  `Dataset file not found:\n  Dataset: ${dataset.name}\n  Path: ${filePath}\n\nCheck that the path in darwinkit.json is correct.`,
-              }),
-          }),
-        );
-      }
+  // Collect validation dataset paths
+  if ("validation" in config && config.validation) {
+    for (const dataset of config.validation.datasets) {
+      const filePath = resolve(base, dataset.path);
+      validations.push(
+        validatePath(
+          filePath,
+          `Dataset file not found:\n  Dataset: ${dataset.name}\n  Path: ${filePath}\n\nCheck that the path in darwinkit.json is correct.`,
+        ),
+      );
     }
+  }
 
-    if ("transform" in config && config.transform) {
-      for (
-        const [inputName, path] of Object.entries(config.transform.inputs)
-      ) {
-        if (typeof path !== "string") continue;
-
-        const filePath = resolve(base, path);
-
-        yield* _(
-          Effect.tryPromise({
-            try: () => Deno.stat(filePath),
-            catch: () =>
-              new WorkspaceError({
-                message: `Transform input file not found: ${filePath} (input: ${inputName})`,
-              }),
-          }),
-        );
-      }
+  // Collect transform input paths
+  if ("transform" in config && config.transform) {
+    for (const [inputName, path] of Object.entries(config.transform.inputs)) {
+      if (typeof path !== "string") continue;
+      const filePath = resolve(base, path);
+      validations.push(
+        validatePath(
+          filePath,
+          `Transform input file not found: ${filePath} (input: ${inputName})`,
+        ),
+      );
     }
-  });
+  }
+
+  // Run all validations in parallel - fail on first error
+  return validations.length > 0
+    ? Effect.all(validations, { concurrency: "unbounded" }).pipe(Effect.asVoid)
+    : Effect.void;
 }
 
 /**
