@@ -36,8 +36,16 @@ export const TransformationFunctions = {
   splitCoordinates: {
     description: "Split combined latitude/longitude field into separate values",
     parameters: {
-      latFirst: { type: "boolean", default: true, description: "Whether latitude comes first" },
-      separator: { type: "string", default: ",", description: "Character separating coordinates" },
+      latFirst: {
+        type: "boolean",
+        default: true,
+        description: "Whether latitude comes first",
+      },
+      separator: {
+        type: "string",
+        default: ",",
+        description: "Character separating coordinates",
+      },
       coordinateSystem: {
         type: "string",
         default: "WGS84",
@@ -56,24 +64,46 @@ export const TransformationFunctions = {
         description: "Taxonomic authority to validate against",
         options: ["WoRMS", "GBIF", "ITIS"],
       },
-      removeAuthors: { type: "boolean", default: false, description: "Remove author citations" },
+      removeAuthors: {
+        type: "boolean",
+        default: false,
+        description: "Remove author citations",
+      },
     },
   },
 
   convertDateFormat: {
     description: "Convert date from one format to another",
     parameters: {
-      inputFormat: { type: "string", description: "Input date format (e.g., 'DD/MM/YYYY')" },
-      outputFormat: { type: "string", default: "YYYY-MM-DD", description: "Output date format" },
+      inputFormat: {
+        type: "string",
+        description: "Input date format (e.g., 'DD/MM/YYYY')",
+      },
+      outputFormat: {
+        type: "string",
+        default: "YYYY-MM-DD",
+        description: "Output date format",
+      },
     },
   },
 
   combineFields: {
     description: "Combine multiple fields into one",
     parameters: {
-      sourceFields: { type: "array", description: "Array of field names to combine" },
-      separator: { type: "string", default: " ", description: "Separator between values" },
-      skipEmpty: { type: "boolean", default: true, description: "Skip empty values" },
+      sourceFields: {
+        type: "array",
+        description: "Array of field names to combine",
+      },
+      separator: {
+        type: "string",
+        default: " ",
+        description: "Separator between values",
+      },
+      skipEmpty: {
+        type: "boolean",
+        default: true,
+        description: "Skip empty values",
+      },
     },
   },
 
@@ -81,7 +111,11 @@ export const TransformationFunctions = {
     description: "Extract value using a regular expression pattern",
     parameters: {
       pattern: { type: "string", description: "Regular expression pattern" },
-      captureGroup: { type: "number", default: 1, description: "Capture group to extract" },
+      captureGroup: {
+        type: "number",
+        default: 1,
+        description: "Capture group to extract",
+      },
     },
   },
 
@@ -247,5 +281,4 @@ export interface TransformationAwareViolation {
   readonly fieldName: string;
   readonly chain: TransformationChain;
   readonly errorMessage: string;
-  readonly errorCode?: string;
 }

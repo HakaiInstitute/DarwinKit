@@ -106,25 +106,29 @@ export const repositoryValidationResultsSchema = S.Struct({
 });
 
 // Export TypeScript types from schemas
-export type FileValidationContext = S.Schema.Type<typeof fileValidationContextSchema>;
-export type RepositoryValidationResults = S.Schema.Type<typeof repositoryValidationResultsSchema>;
+export type FileValidationContext = S.Schema.Type<
+  typeof fileValidationContextSchema
+>;
+export type RepositoryValidationResults = S.Schema.Type<
+  typeof repositoryValidationResultsSchema
+>;
 
 // Export validation result component types
 export type ValidationSummary = S.Schema.Type<typeof validationSummarySchema>;
 export type NullConversion = S.Schema.Type<typeof nullConversionSchema>;
 export type TypeFailure = S.Schema.Type<typeof typeFailureSchema>;
-export type ParseValidationResult = S.Schema.Type<typeof parseValidationResultSchema>;
+export type ParseValidationResult = S.Schema.Type<
+  typeof parseValidationResultSchema
+>;
 export type FieldError = S.Schema.Type<typeof fieldErrorSchema>;
 export type CoordinateWarning = S.Schema.Type<typeof coordinateWarningSchema>;
 export type DateError = S.Schema.Type<typeof dateErrorSchema>;
 export type VocabularyError = S.Schema.Type<typeof vocabularyErrorSchema>;
-export type DarwinCoreValidationResult = S.Schema.Type<typeof darwinCoreValidationResultSchema>;
-
-// Additional types for Effect integration (not requiring schemas)
-import type { ErrorCode } from "../errors/codes.ts";
+export type DarwinCoreValidationResult = S.Schema.Type<
+  typeof darwinCoreValidationResultSchema
+>;
 
 export interface ValidationError {
-  readonly code: ErrorCode;
   readonly message: string;
   readonly filePath?: string;
   readonly details?: Record<string, unknown>;

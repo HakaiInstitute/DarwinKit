@@ -4,26 +4,19 @@
  * Helper functions for testing the workspace service.
  */
 
+import type { CreateWorkspaceOptions, Workspace } from "@dwkt/domain";
 import { join } from "@std/path";
-import { v4 as uuidv4 } from "uuid";
 import * as Effect from "effect/Effect";
-// Simple logger for tests
-const logger = {
-  warn: (message: string) => console.warn(`[WARN] ${message}`),
-  error: (message: string) => console.error(`[ERROR] ${message}`),
-};
-
 import {
   CreateWorkspaceResult,
   WorkspaceService,
 } from "../../packages/core/src/workspace/service.ts";
-import type { CreateWorkspaceOptions, Workspace } from "@dwkt/domain";
 
 /**
  * Creates a temporary directory for test isolation
  */
 export async function createTempDir(): Promise<string> {
-  const tempDir = join(Deno.cwd(), "test", "tmp", `test-${uuidv4().slice(0, 8)}`);
+  const tempDir = join(Deno.cwd(), "test", "tmp", `test-${crypto.randomUUID().slice(0, 8)}`);
   await Deno.mkdir(tempDir, { recursive: true });
   return tempDir;
 }
@@ -35,7 +28,7 @@ export async function cleanupTempDir(tempDir: string): Promise<void> {
   try {
     await Deno.remove(tempDir, { recursive: true });
   } catch (error) {
-    logger.warn(`Failed to clean up temp directory ${tempDir}: ${error}`);
+    Effect.logError(`Failed to clean up temp directory ${tempDir}: ${error}`);
   }
 }
 
@@ -68,7 +61,7 @@ export async function createTestWorkspace(
 ): Promise<Workspace> {
   // Default test options
   const defaultOptions = {
-    name: `Test Workspace ${uuidv4().slice(0, 4)}`,
+    name: `Test Workspace ${crypto.randomUUID().slice(0, 4)}`,
     description: "Created for testing",
     filePath: join(Deno.cwd(), "test", "data", "FC2022_event.csv"),
     parseOptions: {
@@ -98,6 +91,7 @@ export async function createTestWorkspace(
 
 /**
  * Verifies a workspace directory structure
+ * TODO: This should be able to be done with a schema
  */
 export async function verifyWorkspaceStructure(
   workspacesDir: string,
@@ -131,7 +125,7 @@ export async function verifyWorkspaceStructure(
 
     return true;
   } catch (error) {
-    logger.error(`Failed to verify workspace structure: ${error}`);
+    Effect.logError(`Failed to verify workspace structure: ${error}`);
     return false;
   }
 }

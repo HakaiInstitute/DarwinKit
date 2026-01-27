@@ -55,13 +55,14 @@ jobs:
 
       - name: Test Report
         uses: dorny/test-reporter@v2
-        if: steps.domain.outcome == 'success' || steps.domain.outcome == 'failure'
+        if:
+          steps.domain.outcome == 'success' || steps.domain.outcome == 'failure'
           || steps.core.outcome == 'success' || steps.core.outcome == 'failure'
           || steps.integration.outcome == 'success' || steps.integration.outcome == 'failure'
         with:
-          name: JEST Tests            # Name of the check run which will be created
-          path: ./reports/*.xml    # Path to test results
-          reporter: jest-junit        # Format of test results
+          name: Deno Tests
+          path: ./reports/*.xml
+          reporter: jest-junit
 
       - name: Test summary
         if: always()

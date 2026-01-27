@@ -12,13 +12,8 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import type { WorkspaceConfig } from "@dwkt/domain";
-import {
-  createTaggedFormatter,
-  ErrorCode,
-  prettyPrintCause,
-  workspaceConfigSchema,
-} from "@dwkt/domain";
-import * as YAML from "js-yaml";
+import { createTaggedFormatter, prettyPrintCause, workspaceConfigSchema } from "@dwkt/domain";
+import { parse as parseYAML } from "@std/yaml";
 import { isValidationOnlyConfig } from "../../../domain/src/schemas/workspace-config.ts";
 
 // Configuration file constants
@@ -35,33 +30,25 @@ export class ConfigNotFoundError extends Data.TaggedError("ConfigNotFoundError")
   readonly message: string;
   readonly searchDir: string;
   readonly searchedPaths: readonly string[];
-}> {
-  readonly code = ErrorCode.FILE_NOT_FOUND;
-}
+}> {}
 
 export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
   readonly message: string;
   readonly configPath: string;
   readonly cause?: Error;
-}> {
-  readonly code = ErrorCode.PARSE_ERROR;
-}
+}> {}
 
 export class ConfigValidationError extends Data.TaggedError("ConfigValidationError")<{
   readonly message: string;
   readonly configPath: string;
   readonly validationErrors: readonly string[];
-}> {
-  readonly code = ErrorCode.VALIDATION_FAILED;
-}
+}> {}
 
 export class DatasetFileNotFoundError extends Data.TaggedError("DatasetFileNotFoundError")<{
   readonly message: string;
   readonly datasetName: string;
   readonly filePath: string;
-}> {
-  readonly code = ErrorCode.FILE_NOT_FOUND;
-}
+}> {}
 
 /**
  * Union type of all configuration errors
@@ -94,7 +81,8 @@ export class WorkspaceConfigService {
 
       /* check if config paramiter is a file. No need to search if pull config file path is provided.
         this also allows config files named something other than "darwinkit.json" */
-      const statResult = yield* Effect.tryPromise(() => Deno.stat(currentDir)).pipe(Effect.option);
+      const statResult = yield* Effect.tryPromise(() => Deno.stat(currentDir))
+        .pipe(Effect.option);
 
       if (statResult._tag === "Some" && statResult.value.isFile) {
         return currentDir;
@@ -172,7 +160,7 @@ export class WorkspaceConfigService {
         configJson = yield* _(
           Effect.try({
             try: () => {
-              return YAML.load(configContent);
+              return parseYAML(configContent);
             },
             catch: (error) =>
               new ConfigParseError({
@@ -257,7 +245,9 @@ export class WorkspaceConfigService {
 
       // Check transform inputs if present
       if ("transform" in config && config.transform) {
-        for (const [inputName, path] of Object.entries(config.transform.inputs)) {
+        for (
+          const [inputName, path] of Object.entries(config.transform.inputs)
+        ) {
           if (typeof path !== "string") continue;
 
           const filePath = resolve(base, path);
@@ -287,11 +277,16 @@ export class WorkspaceConfigService {
     searchDir?: string,
   ): Effect.Effect<
     { config: WorkspaceConfig; configPath: string },
-    ConfigNotFoundError | ConfigParseError | ConfigValidationError | DatasetFileNotFoundError
+    | ConfigNotFoundError
+    | ConfigParseError
+    | ConfigValidationError
+    | DatasetFileNotFoundError
   > {
     return Effect.gen(function* (_) {
       // Discover config file
-      const configPath = yield* _(WorkspaceConfigService.discoverConfig(searchDir));
+      const configPath = yield* _(
+        WorkspaceConfigService.discoverConfig(searchDir),
+      );
 
       // Load and validate config
       const config = yield* _(WorkspaceConfigService.loadConfig(configPath));

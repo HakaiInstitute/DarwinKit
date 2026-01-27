@@ -5,11 +5,11 @@
  * Provides cleaner, more idiomatic patterns than manual Exit checking and instanceof.
  */
 
+import type { CoreErrorTag } from "@dwkt/core";
+import type { ValidationViolationTag } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import * as Either from "effect/Either";
-import type { CoreErrorTag } from "@dwkt/core";
-import type { ValidationViolationTag } from "@dwkt/domain";
 
 /**
  * Union type of all known error tags for autocomplete support

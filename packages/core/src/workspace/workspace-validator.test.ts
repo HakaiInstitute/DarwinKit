@@ -1,6 +1,5 @@
 import {
   type DatasetConfig,
-  ErrorCode,
   isEnumViolation,
   isPrimaryKeyViolation,
   isRangeViolation,
@@ -102,9 +101,21 @@ const TEST_DATA = {
 
   // Vocabulary violation scenarios
   OCCURRENCES_WITH_INVALID_BASIS: [
-    { occurrenceID: "O1", basisOfRecord: "HumanObservation", scientificName: "Ursus arctos" },
-    { occurrenceID: "O2", basisOfRecord: "InvalidBasis", scientificName: "Canis lupus" },
-    { occurrenceID: "O3", basisOfRecord: "PreservedSpecimen", scientificName: "Panthera tigris" },
+    {
+      occurrenceID: "O1",
+      basisOfRecord: "HumanObservation",
+      scientificName: "Ursus arctos",
+    },
+    {
+      occurrenceID: "O2",
+      basisOfRecord: "InvalidBasis",
+      scientificName: "Canis lupus",
+    },
+    {
+      occurrenceID: "O3",
+      basisOfRecord: "PreservedSpecimen",
+      scientificName: "Panthera tigris",
+    },
   ],
 
   // Duplicate identifier scenarios
@@ -163,7 +174,9 @@ async function createTempDir(prefix: string) {
 }
 
 async function removeTempDirs() {
-  await Promise.all(tempDirs.map((dir) => Deno.remove(dir, { recursive: true })));
+  await Promise.all(
+    tempDirs.map((dir) => Deno.remove(dir, { recursive: true })),
+  );
 }
 
 // Write a workspace configuration file to the temp directory
@@ -175,8 +188,15 @@ async function writeConfig(tempDir: string, config: WorkspaceConfig) {
 }
 
 // Write a CSV file to the temp directory from structured data
-async function writeCSV(tempDir: string, fileName: string, data: Array<Record<string, unknown>>) {
-  return await Deno.writeTextFile(join(tempDir, `${fileName}.csv`), toCSV(data));
+async function writeCSV(
+  tempDir: string,
+  fileName: string,
+  data: Array<Record<string, unknown>>,
+) {
+  return await Deno.writeTextFile(
+    join(tempDir, `${fileName}.csv`),
+    toCSV(data),
+  );
 }
 
 // Create a multi-dataset workspace with events and occurrences
@@ -201,7 +221,11 @@ async function createMultiDatasetWorkspace(
       fieldMappings: [
         { originName: "eventID", targetName: "eventID", isRequired: true },
         { originName: "country", targetName: "country", isRequired: true },
-        { originName: "countryCode", targetName: "countryCode", isRequired: true },
+        {
+          originName: "countryCode",
+          targetName: "countryCode",
+          isRequired: true,
+        },
         { originName: "decimalLatitude", targetName: "decimalLatitude" },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
@@ -212,9 +236,21 @@ async function createMultiDatasetWorkspace(
       path: "./occurrences.csv",
       fieldMappings: [
         { originName: "eventID", targetName: "eventID", isRequired: true },
-        { originName: "occurrenceID", targetName: "occurrenceID", isRequired: true },
-        { originName: "basisOfRecord", targetName: "basisOfRecord", isRequired: true },
-        { originName: "scientificName", targetName: "scientificName", isRequired: true },
+        {
+          originName: "occurrenceID",
+          targetName: "occurrenceID",
+          isRequired: true,
+        },
+        {
+          originName: "basisOfRecord",
+          targetName: "basisOfRecord",
+          isRequired: true,
+        },
+        {
+          originName: "scientificName",
+          targetName: "scientificName",
+          isRequired: true,
+        },
       ],
     },
   ];
@@ -289,7 +325,9 @@ async function createSingleDatasetWorkspace(
 }
 
 // Validate the workspace in the temp directory
-async function validateWorkspace(tempDir: string): Promise<WorkspaceValidationResult> {
+async function validateWorkspace(
+  tempDir: string,
+): Promise<WorkspaceValidationResult> {
   const validator = new WorkspaceValidator();
   return await Effect.runPromise(
     validator.validateFromConfig(tempDir),
@@ -330,7 +368,11 @@ function assertRowNumbers(
 
   if (options?.checkOrdering) {
     const sorted = [...rowNumbers].sort((a, b) => a - b);
-    assertEquals(rowNumbers, sorted, "Row numbers should be in ascending order");
+    assertEquals(
+      rowNumbers,
+      sorted,
+      "Row numbers should be in ascending order",
+    );
   }
 
   assertEquals([...rowNumbers].sort((a, b) => a - b), expectedRows);
@@ -408,7 +450,11 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     const tempDir = await createTempDir("detect_cross_dataset_violations");
 
     await writeCSV(tempDir, "events", TEST_DATA.EVENTS_WITH_ONLY_E1);
-    await writeCSV(tempDir, "occurrences", TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF);
+    await writeCSV(
+      tempDir,
+      "occurrences",
+      TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF,
+    );
 
     // Create minimal config
     const config: WorkspaceConfig = {
@@ -481,8 +527,16 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
             path: "./events.csv",
             profile: "Event",
             fieldMappings: [
-              { originName: "eventID", targetName: "eventID", isRequired: true },
-              { originName: "countryCode", targetName: "countryCode", isRequired: true }, // Missing!
+              {
+                originName: "eventID",
+                targetName: "eventID",
+                isRequired: true,
+              },
+              {
+                originName: "countryCode",
+                targetName: "countryCode",
+                isRequired: true,
+              }, // Missing!
             ],
           },
         ],
@@ -508,7 +562,6 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       error instanceof WorkspaceValidationError,
       "Expected WorkspaceValidationError",
     );
-    assertEquals(error.code, ErrorCode.INVALID_CONFIG);
     assertStringIncludes(
       error.message,
       "does not contain the mapped fields",

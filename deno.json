@@ -2,9 +2,7 @@
   "workspace": [
     "./packages/domain",
     "./packages/core",
-    "./packages/cli",
-    "./packages/api",
-    "./packages/gui"
+    "./packages/cli"
   ],
   "nodeModulesDir": "auto",
   "compilerOptions": {
@@ -20,80 +18,21 @@
     "@dwkt/domain": "./packages/domain/mod.ts",
     "@dwkt/core": "./packages/core/mod.ts",
     "@dwkt/api": "./packages/api/mod.ts",
-    "@duckdb/node-api": "npm:@duckdb/node-api@^1.3.2-alpha.26",
-    "@std/csv": "jsr:@std/csv@^1.0.6",
-    "@tanstack/query-core": "npm:@tanstack/query-core@^5.85.3",
-    "@tanstack/query-devtools": "npm:@tanstack/query-devtools@^5.84.0",
-    "@tanstack/router-cli": "npm:@tanstack/router-cli@^1.131.7",
-    "csvtojson": "npm:csvtojson@^2.0.14",
-    "drizzle-kit": "npm:drizzle-kit@^0.31.4",
-    "effect": "npm:effect@^3.17.8",
-    "js-yaml": "npm:js-yaml@^4.1.1",
-    "json-2-csv": "npm:json-2-csv@^5.5.10",
-    "node-fetch": "npm:node-fetch@^3.3.2",
-    "txml": "npm:txml@^5.2.1",
-    "uuid": "npm:uuid@^11.1.0",
-    "vitest": "npm:vitest@^4.0.13",
-    "xstate": "npm:xstate@^5.20.2",
     "@std/assert": "jsr:@std/assert@^1.0.6",
+    "@std/csv": "jsr:@std/csv@^1.0.6",
     "@std/path": "jsr:@std/path@^1.0.8",
-    "@t3-oss/env-core": "npm:@t3-oss/env-core@^0.13.8",
-    "@tanstack/react-router-devtools": "npm:@tanstack/react-router-devtools@^1.131.5",
-    "@tanstack/router-plugin": "npm:@tanstack/router-plugin@^1.131.5",
-    "pg": "npm:pg@^8.16.3",
-    "react": "npm:react@^18.3.1",
-    "react-dom": "npm:react-dom@^18.3.1",
-    "react-dom/client": "npm:react-dom@^18.3.1/client",
-    "@tanstack/react-router": "npm:@tanstack/react-router@^1.130.12",
-    "@tanstack/react-query": "npm:@tanstack/react-query@^5.64.3",
-    "@headlessui/react": "npm:@headlessui/react@^2.2.7",
-    "drizzle-orm": "npm:drizzle-orm@^0.39.3",
-    "postgres": "npm:postgres@^3.4.5",
-    "zod": "npm:zod@^4.0.0",
-    "tailwindcss": "npm:tailwindcss@^4.0.0",
-    "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.0.0",
-    "vite": "npm:vite@^6.3.5",
-    "vite-tsconfig-paths": "npm:vite-tsconfig-paths@^5.1.4",
-    "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^4.3.4",
-    "@tanstack/react-form": "npm:@tanstack/react-form@^1.19.1",
-    "ts-pattern": "npm:ts-pattern@^5.5.1",
-    "dotenv/config": "npm:dotenv@^16.4.7/config",
-    "clsx": "npm:clsx@^2.1.1",
-    "@types/react": "npm:@types/react@^18.3.1",
-    "@types/react-dom": "npm:@types/react-dom@^18.3.1",
-    "@types/node": "npm:@types/node@^22.10.9",
-    "hono": "npm:hono@^4.6.9",
-    "hono/client": "npm:hono@^4.6.9/client",
-    "hono/cors": "npm:hono@^4.6.9/cors",
-    "hono/logger": "npm:hono@^4.6.9/logger",
-    "@hono/node-server": "npm:@hono/node-server@^1.13.8",
-    "playwright": "npm:playwright@^1.48.0",
-    "@playwright/test": "npm:@playwright/test@^1.48.0"
+    "@duckdb/node-api": "npm:@duckdb/node-api@^1.3.2-alpha.26",
+    "effect": "npm:effect@^3.19.15"
   },
   "tasks": {
-    "dev": {
-      "dependencies": [
-        "dev:api",
-        "dev:gui"
-      ]
-    },
-    "dev:api": "cd packages/api && deno task dev",
-    "dev:gui": "cd packages/gui && deno task dev",
     "dev:cli": "cd packages/cli && deno task dev",
-    "build": "cd packages/gui && deno task build",
-    "preview": "cd packages/gui && deno task preview",
     "test": "deno test --allow-all --parallel",
     "test:domain": "deno test packages/domain/",
     "test:core": "deno test packages/core/",
     "test:cli": "deno test packages/cli/",
-    "test:api": "deno test packages/api/",
-    "test:gui": "deno test packages/gui/",
     "test:integration": "deno test packages/cli/src/integration.test.ts --allow-all"
   },
   "exclude": [
-    "dist",
-    ".vinxi",
-    ".vite",
     "build",
     "coverage",
     ".context"
@@ -106,22 +45,19 @@
     "singleQuote": false,
     "proseWrap": "preserve",
     "include": [
-      "src/",
-      "test/",
-      "demo/"
+      "packages/",
+      "test/"
     ]
   },
   "lint": {
     "rules": {
       "exclude": [
-        "jsx-no-children-prop",
         "no-slow-types"
       ]
     },
     "include": [
-      "src/",
-      "test/",
-      "demo/"
+      "packages/",
+      "test/"
     ]
   }
 }

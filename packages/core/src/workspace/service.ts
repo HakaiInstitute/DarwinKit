@@ -5,10 +5,9 @@
  * Uses Effect for type-safe operations and error handling.
  */
 
-import * as Effect from "effect/Effect";
-import * as Data from "effect/Data";
 import { join } from "@std/path";
-import { v4 as uuidv4 } from "uuid";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
 import { ensureDir, readFile, toError, writeFile } from "../utils/effect-utils.ts";
 
 import type {
@@ -19,13 +18,11 @@ import type {
   Workspace,
   WorkspaceInfo,
 } from "@dwkt/domain";
-import { ErrorCode } from "@dwkt/domain";
 import { type ParsedFileResult, parseFileForWorkspace } from "../parsing/csv-parser.ts";
 
 // Error classes for workspace operations
 const WorkspaceErrorBase = Data.TaggedClass("WorkspaceError")<{
   readonly message: string;
-  readonly code: ErrorCode;
   readonly cause?: Error;
 }>;
 
@@ -34,8 +31,8 @@ export class WorkspaceError extends WorkspaceErrorBase {}
 export class WorkspaceIOError extends WorkspaceError {
   readonly path: string;
 
-  constructor(props: { message: string; path: string; code: ErrorCode; cause?: Error }) {
-    super({ message: props.message, code: props.code, cause: props.cause });
+  constructor(props: { message: string; path: string; cause?: Error }) {
+    super({ message: props.message, cause: props.cause });
     this.path = props.path;
   }
 }
@@ -47,7 +44,6 @@ function toWorkspaceIOError(filePath: string, error: Error): WorkspaceIOError {
   return new WorkspaceIOError({
     message: `File operation failed: ${error.message}`,
     path: filePath,
-    code: ErrorCode.WORKSPACE_IO_ERROR,
     cause: error,
   });
 }
@@ -89,7 +85,6 @@ export class WorkspaceService {
           Effect.mapError((error) =>
             new WorkspaceError({
               message: `Failed to parse file: ${error.message}`,
-              code: ErrorCode.PARSE_ERROR,
               cause: error.cause,
             })
           ),
@@ -97,7 +92,7 @@ export class WorkspaceService {
       );
 
       // Create workspace metadata
-      const id = uuidv4();
+      const id = crypto.randomUUID();
       const workspaceDir = join(workspacesDir, `workspace-${id}`);
       const dataTableName = `${id.replace(/-/g, "_")}_data`;
 
@@ -142,7 +137,6 @@ export class WorkspaceService {
           catch: () =>
             new WorkspaceError({
               message: `Workspace not found: ${id}`,
-              code: ErrorCode.WORKSPACE_NOT_FOUND,
             }),
         }),
       );
@@ -219,7 +213,9 @@ export class WorkspaceService {
   /**
    * Load just the workspace info (for listing)
    */
-  private loadWorkspaceInfo(id: string): Effect.Effect<WorkspaceInfo, WorkspaceError> {
+  private loadWorkspaceInfo(
+    id: string,
+  ): Effect.Effect<WorkspaceInfo, WorkspaceError> {
     const load = this.load.bind(this);
 
     return Effect.gen(function* (_) {
@@ -293,7 +289,9 @@ export class WorkspaceService {
 function parseWorkspace(data: unknown): Effect.Effect<Workspace, never> {
   if (typeof data !== "object" || data === null) {
     return Effect.die(
-      new Error("Invalid workspace data structure: expected object, got " + typeof data),
+      new Error(
+        "Invalid workspace data structure: expected object, got " + typeof data,
+      ),
     );
   }
 
@@ -316,11 +314,16 @@ function parseWorkspace(data: unknown): Effect.Effect<Workspace, never> {
   });
 }
 
-function parseDatasetSchema(schemaData: unknown): Effect.Effect<DatasetSchema, never> {
+function parseDatasetSchema(
+  schemaData: unknown,
+): Effect.Effect<DatasetSchema, never> {
   // TODO: Can this be accomplished via parsing with Effect Schema instead?
   if (typeof schemaData !== "object" || schemaData === null) {
     return Effect.die(
-      new Error("Invalid schema data structure: expected object, got " + typeof schemaData),
+      new Error(
+        "Invalid schema data structure: expected object, got " +
+          typeof schemaData,
+      ),
     );
   }
 
@@ -360,7 +363,9 @@ function parseDatasetSchema(schemaData: unknown): Effect.Effect<DatasetSchema, n
     } else if (obj.fields !== undefined) {
       // Invalid fields format is a defect - our workspace files should be valid
       return Effect.die(
-        new Error(`Invalid fields format in workspace data: ${typeof obj.fields}`),
+        new Error(
+          `Invalid fields format in workspace data: ${typeof obj.fields}`,
+        ),
       ) as never; // Type assertion needed for return in lambda
     }
 

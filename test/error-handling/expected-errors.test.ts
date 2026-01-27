@@ -6,13 +6,7 @@
  */
 
 import { parseFileForWorkspace, WorkspaceService, WorkspaceValidator } from "@dwkt/core";
-import {
-  assert,
-  assertArrayIncludes,
-  assertEquals,
-  assertMatch,
-  assertStringIncludes,
-} from "@std/assert";
+import { assert, assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 
@@ -23,20 +17,17 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
     const service = new WorkspaceService({ workspacesDir: tempDir });
 
     let errorCaught = false;
-    let errorCode = "";
 
     await Effect.runPromise(
       service.load("nonexistent").pipe(
-        Effect.catchAll((error) => {
+        Effect.catchAll((_error) => {
           errorCaught = true;
-          errorCode = error.code;
           return Effect.succeed<null>(null);
         }),
       ),
     );
 
     assert(errorCaught, "Should catch with Effect.catchAll");
-    assertEquals(errorCode, "WORKSPACE_NOT_FOUND");
   });
 
   await t.step("File not found (user-provided path)", async () => {
@@ -120,38 +111,6 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   await Deno.remove(tempDir, { recursive: true });
 });
 
-Deno.test("Expected errors - have correct error codes", async (t) => {
-  const tempDir = await Deno.makeTempDir({ prefix: "error_codes_test_" });
-
-  await t.step("WORKSPACE_NOT_FOUND code", async () => {
-    const service = new WorkspaceService({ workspacesDir: tempDir });
-
-    const result = await Effect.runPromise(
-      service.load("nonexistent").pipe(
-        Effect.catchAll((error) => Effect.succeed(error.code as string)),
-      ),
-    );
-
-    assertEquals(result, "WORKSPACE_NOT_FOUND");
-  });
-
-  await t.step("FILE_NOT_FOUND or PARSE_ERROR code", async () => {
-    const nonExistentPath = join(tempDir, "missing.csv");
-
-    const result = await Effect.runPromise(
-      parseFileForWorkspace(nonExistentPath).pipe(
-        Effect.catchAll((error) => Effect.succeed(error.code as string)),
-      ),
-    );
-
-    // Could be either depending on how the error manifests
-    assertArrayIncludes(["PARSE_ERROR", "FILE_NOT_FOUND"], [result as string]);
-  });
-
-  // Cleanup
-  await Deno.remove(tempDir, { recursive: true });
-});
-
 Deno.test("Expected errors - provide helpful error messages", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "error_messages_test_" });
 
@@ -226,7 +185,10 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
     const operation = Effect.gen(function* () {
       attempts++;
       if (attempts < 2) {
-        return yield* Effect.fail({ code: "TEMPORARY_ERROR", message: "Try again" });
+        return yield* Effect.fail({
+          code: "TEMPORARY_ERROR",
+          message: "Try again",
+        });
       }
       return "success";
     });

@@ -56,13 +56,13 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
     const eventCsvContent = await Deno.readTextFile(eventCsvPath);
     assertExists(eventCsvContent, "event.csv should be created");
     // json-2-csv default format (unquoted headers and text values)
-    assertEquals(eventCsvContent.trim(), `eventID,year\nevt1,2023`);
+    assertEquals(eventCsvContent.trim(), `eventID,year\r\nevt1,2023`);
 
     // Check occurrence.csv
     const occurrenceCsvPath = `${outputDir}/occurrence.csv`;
     const occurrenceCsvContent = await Deno.readTextFile(occurrenceCsvPath);
     assertExists(occurrenceCsvContent, "occurrence.csv should be created");
-    assertEquals(occurrenceCsvContent.trim(), `occurrenceID,eventID\nocc1,evt1`);
+    assertEquals(occurrenceCsvContent.trim(), `occurrenceID,eventID\r\nocc1,evt1`);
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
@@ -125,7 +125,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
     assertFalse(header.includes("remarks"), "Header should NOT contain the null column 'remarks'");
 
     assertEquals(rows.length, 2, "CSV should contain 2 data rows");
-    assertEquals(rows[0], `evt1,2023,1`);
+    assertEquals(rows[0], `evt1,2023,1\r`);
     assertEquals(rows[1], `evt2,2024,2`);
   } finally {
     // 5. Teardown

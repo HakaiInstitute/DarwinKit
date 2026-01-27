@@ -149,30 +149,33 @@ Deno.test("Generic Cause Formatter - Works with any error types", async (t) => {
     }
   });
 
-  await t.step("Simple formatter without createMultiErrorFormatter", async () => {
-    // You can also use prettyPrintCause with a simple inline formatter
-    const simpleError = Effect.fail(
-      new NetworkError({
-        message: "Server error",
-        statusCode: 500,
-        endpoint: "/api/data",
-      }),
-    );
+  await t.step(
+    "Simple formatter without createMultiErrorFormatter",
+    async () => {
+      // You can also use prettyPrintCause with a simple inline formatter
+      const simpleError = Effect.fail(
+        new NetworkError({
+          message: "Server error",
+          statusCode: 500,
+          endpoint: "/api/data",
+        }),
+      );
 
-    const result = await Effect.runPromiseExit(simpleError);
+      const result = await Effect.runPromiseExit(simpleError);
 
-    if (Exit.isFailure(result)) {
-      // Just pass a function directly
-      const formatted = prettyPrintCause(result.cause, (error) => {
-        if (error instanceof NetworkError) {
-          return `API Error ${error.statusCode}: ${error.message}`;
-        }
-        return String(error);
-      });
+      if (Exit.isFailure(result)) {
+        // Just pass a function directly
+        const formatted = prettyPrintCause(result.cause, (error) => {
+          if (error instanceof NetworkError) {
+            return `API Error ${error.statusCode}: ${error.message}`;
+          }
+          return String(error);
+        });
 
-      assertStringIncludes(formatted, "API Error 500");
-    }
-  });
+        assertStringIncludes(formatted, "API Error 500");
+      }
+    },
+  );
 });
 
 Deno.test("Generic Cause Formatter - Reusability across domains", async (t) => {
@@ -185,7 +188,6 @@ Deno.test("Generic Cause Formatter - Reusability across domains", async (t) => {
 
     class QueryError extends Data.TaggedError("QueryError")<{
       readonly query: string;
-      readonly errorCode: string;
     }> {}
 
     const formatDbError = createMultiErrorFormatter<
@@ -197,7 +199,7 @@ Deno.test("Generic Cause Formatter - Reusability across domains", async (t) => {
       ],
       [
         QueryError,
-        (e: QueryError) => `Query failed [${e.errorCode}]:\n  ${e.query}`,
+        (e: QueryError) => `Query failed [${e._tag}]:\n  ${e.query}`,
       ],
     ]);
 

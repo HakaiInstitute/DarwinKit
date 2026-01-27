@@ -50,13 +50,12 @@ export {
 } from "./src/schemas/validation.ts";
 
 // Error handling
-export * from "./src/errors/codes.ts";
 export * from "./src/errors/presenter.ts";
 export * from "./src/errors/severity.ts";
 export * from "./src/errors/types.ts";
 
 // Utilities
-export * from "./src/utils/cause-formatter.ts";
+export * from "./src/errors/cause-formatter.ts";
 
 // Constants
 export * from "./src/constants/darwin-core.ts";

@@ -7,7 +7,7 @@
  * DESIGN DECISION: Kept as pure TypeScript interfaces rather than Effect Schemas because:
  * 1. OUTPUT-ONLY types - Never parsed from external input
  * 2. Internal contracts - These define the internal API contract for validation results
- *    between core, cli, and api packages
+ *    between core and cli packages
  * 3. Constructed internally - Built by the validation system, not from external data
  * 4. Complex nested structures - Creating schemas would add complexity without benefit
  *
