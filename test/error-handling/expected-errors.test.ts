@@ -5,41 +5,10 @@
  * and represent recoverable domain errors rather than programming defects.
  */
 
-import {
-  ParseError,
-  parseFileForWorkspace,
-  SilentLogLevel,
-  Workspace,
-  WorkspaceValidator,
-} from "@dwkt/core";
-import { assert, assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
+import { parseFileForWorkspace, Workspace, WorkspaceValidator } from "@dwkt/core";
+import { assert, assertEquals, assertMatch } from "@std/assert";
 import { join } from "@std/path";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
-import * as Option from "effect/Option";
-import { runPromise } from "../helpers/effect-test-utils.ts";
-
-/**
- * Helper to assert an Effect fails with a ParseError
- */
-async function expectParseError(
-  effect: Effect.Effect<unknown, ParseError>,
-  messageContains?: string,
-): Promise<void> {
-  const exit = await Effect.runPromiseExit(effect.pipe(Effect.provide(SilentLogLevel)));
-  Exit.match(exit, {
-    onSuccess: () => assert(false, "Expected ParseError but succeeded"),
-    onFailure: (cause) => {
-      const error = Cause.failureOption(cause);
-      assert(Option.isSome(error), "Expected failure, got defect");
-      assertEquals(error.value._tag, "ParseError");
-      if (messageContains) {
-        assertStringIncludes(error.value.message, messageContains);
-      }
-    },
-  });
-}
 
 Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "expected_errors_test_" });
@@ -54,7 +23,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
     let errorCaught = false;
 
-    await runPromise(
+    await Effect.runPromise(
       program.pipe(
         Effect.catchAll((_error) => {
           errorCaught = true;
@@ -68,7 +37,19 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
   await t.step("File not found (user-provided path)", async () => {
     const nonExistentPath = join(tempDir, "does-not-exist.csv");
-    await expectParseError(parseFileForWorkspace(nonExistentPath), "does-not-exist.csv");
+
+    let errorCaught = false;
+
+    await Effect.runPromise(
+      parseFileForWorkspace(nonExistentPath).pipe(
+        Effect.catchAll((_error) => {
+          errorCaught = true;
+          return Effect.succeed<null>(null);
+        }),
+      ),
+    );
+
+    assert(errorCaught, "Should catch with Effect.catchAll");
   });
 
   await t.step("Invalid CSV data", async () => {
@@ -77,7 +58,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
     await Deno.writeTextFile(csvPath, "col1,col2\nval1,val2");
 
     // Parse should succeed, but in cases where it fails, it should be catchable
-    await runPromise(
+    await Effect.runPromise(
       parseFileForWorkspace(csvPath).pipe(
         Effect.catchAll(() => Effect.succeed<null>(null)),
       ),
@@ -100,7 +81,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
     let errorCaught = false;
 
-    await runPromise(
+    await Effect.runPromise(
       validator.validateFromConfig(configPath).pipe(
         Effect.catchAll((_error) => {
           errorCaught = true;
@@ -119,7 +100,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
     let errorCaught = false;
 
-    await runPromise(
+    await Effect.runPromise(
       validator.validateFromConfig(nonExistentConfig).pipe(
         Effect.catchAll((_error) => {
           errorCaught = true;
@@ -145,7 +126,7 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
       }),
     );
 
-    const result = await runPromise(
+    const result = await Effect.runPromise(
       program.pipe(
         Effect.catchAll((error) => Effect.succeed(error.message as string)),
       ),
@@ -158,7 +139,7 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
   await t.step("Error messages include file paths", async () => {
     const nonExistentPath = join(tempDir, "missing.csv");
 
-    const result = await runPromise(
+    const result = await Effect.runPromise(
       parseFileForWorkspace(nonExistentPath).pipe(
         Effect.catchAll((error) => Effect.succeed(error.message as string)),
       ),
@@ -204,7 +185,7 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
       }),
     );
 
-    const result = await runPromise(
+    const result = await Effect.runPromise(
       program.pipe(
         Effect.catchAll(() => Effect.succeed(defaultWorkspace)),
       ),
@@ -228,7 +209,7 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
       return "success";
     });
 
-    const result = await runPromise(
+    const result = await Effect.runPromise(
       operation.pipe(Effect.retry({ times: 2 })),
     );
 

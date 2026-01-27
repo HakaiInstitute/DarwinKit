@@ -12,7 +12,7 @@ import { assert, assertEquals, assertExists } from "@std/assert";
 import { stringify } from "@std/csv";
 import { join } from "@std/path";
 import { Array } from "effect";
-import { runPromise } from "../../../../test/helpers/effect-test-utils.ts";
+import * as Effect from "effect/Effect";
 import type { ValidationOnlyConfig } from "../../../domain/src/types/workspace-config.ts";
 import type { WorkspaceValidationResult } from "../../../domain/src/types/workspace-validation.ts";
 import { WorkspaceValidator } from "./workspace-validator.ts";
@@ -329,7 +329,7 @@ async function validateWorkspace(
   tempDir: string,
 ): Promise<WorkspaceValidationResult> {
   const validator = new WorkspaceValidator();
-  return await runPromise(
+  return await Effect.runPromise(
     validator.validateFromConfig(tempDir),
   );
 }
@@ -549,18 +549,31 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
     const validator = new WorkspaceValidator();
 
-    // Validation should succeed - missing mapped fields are skipped with a warning
-    // (logged via Effect.logWarning), not treated as a hard error
-    const result = await runPromise(
+    // Validation should complete with warnings - missing mapped fields are skipped, not treated as a hard error
+    const result = await Effect.runPromise(
       validator.validateFromConfig(tempDir),
     );
 
-    // Validation should complete successfully with only the valid mapping (eventID)
+    // Validation should complete with warnings (not fail)
     assert(result.datasetResults.length > 0, "Expected dataset results");
+    const datasetResult = result.datasetResults[0];
     assertEquals(
-      result.datasetResults[0].status,
-      "pass",
-      "Expected validation to pass when missing source fields are skipped",
+      datasetResult.status,
+      "warn",
+      "Expected validation to warn when missing source fields are skipped",
+    );
+
+    // Verify warning was generated for the missing field
+    const missingFieldWarning = datasetResult.warnings.find(
+      (w) => w.fieldName === "countryCode",
+    );
+    assertExists(
+      missingFieldWarning,
+      "Expected warning for missing 'countryCode' field",
+    );
+    assert(
+      missingFieldWarning.message.includes("not found in source CSV"),
+      "Warning message should indicate field not found in source",
     );
   });
 

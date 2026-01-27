@@ -9,8 +9,8 @@
 
 import { assert, assertEquals, assertMatch } from "@std/assert";
 import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
-import { runPromise } from "./helpers/effect-test-utils.ts";
 import { TEST_CONFIG_DIR } from "./helpers/paths.ts";
 
 Deno.test("Example config - validates FC2022 dataset", async () => {
@@ -26,7 +26,7 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
   //
   // taxonRank uses "recommended" enforcement in Darwin Core, so violations are
   // collected as warnings rather than errors.
-  const result = await runPromise(
+  const result = await Effect.runPromise(
     validator.validateFromConfig(join(TEST_CONFIG_DIR, "example-config")),
   );
 

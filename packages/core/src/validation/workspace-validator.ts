@@ -137,21 +137,17 @@ export function WorkspaceImportSchema(
     }
 
     if (!profileId) {
-      yield* _(
-        Effect.logWarning(
-          `No profile or spec specified for dataset '${dataset.name}', skipping table creation`,
-        ),
-      );
+      // No profile or spec specified - skip table creation
+      // TODO: When implementing issue #63 (https://github.com/HakaiInstitute/DarwinKit/issues/63):
+      // See about surfacing this state as some form of a recoverable schema violation (warning)
       return;
     }
 
     const spec = getValidationProfile(profileId);
     if (!spec) {
-      yield* _(
-        Effect.logWarning(
-          `No validation profile found for '${profileId}', skipping table creation`,
-        ),
-      );
+      // No validation profile found - skip table creation
+      // TODO: When implementing issue #63 (https://github.com/HakaiInstitute/DarwinKit/issues/63):
+      // See about surfacing this state as some form of a recoverable schema violation (warning)
       return;
     }
     // Convert profile name to valid SQL table name using sanitizeTableName
@@ -716,46 +712,19 @@ function validateDataset(
       ? sanitizeTableName(profileName).toLowerCase()
       : dataset.name.toLowerCase();
 
-    // Find mappings that reference missing source fields
-    const originFileColumns = dataset.fieldMappings.map((field) => field.originName);
-    const missingSourceFields = originFileColumns.filter((f: string) =>
-      !originTableColumns.includes(f)
+    // Detect field mapping issues
+    const mappedOriginFields = dataset.fieldMappings.map((m) => m.originName);
+    const missingSourceFields = mappedOriginFields.filter(
+      (f) => !originTableColumns.includes(f),
     );
-    const missingMappedFields = originTableColumns.filter((f: string) =>
-      !originFileColumns.includes(f)
+    const unmappedSourceColumns = originTableColumns.filter(
+      (f) => !mappedOriginFields.includes(f),
     );
 
     // Filter out mappings that reference missing source fields
     const validMappings = dataset.fieldMappings.filter(
       (mapping) => originTableColumns.includes(mapping.originName),
     );
-
-    // Log unmapped fields (informational - these are acceptable but might indicate config issues)
-    if (missingMappedFields.length > 0) {
-      yield* _(Effect.logInfo(
-        `Dataset '${dataset.name}' has ${missingMappedFields.length} unmapped source columns: [${
-          missingMappedFields.join(", ")
-        }]`,
-      ));
-    }
-
-    // Warn about missing source fields but continue with valid mappings
-    if (missingSourceFields.length) {
-      yield* _(Effect.logWarning(
-        `Dataset '${dataset.name}' has ${missingSourceFields.length} mapped fields not found in source: ['${
-          missingSourceFields.join("','")
-        }']. These mappings will be skipped.`,
-      ));
-    }
-
-    if (missingMappedFields.length) {
-      // Log warning but don't fail - unmapped columns are acceptable
-      yield* _(Effect.logWarning(
-        `The dataset '${dataset.name}' has unmapped source columns: ['${
-          missingMappedFields.join("','")
-        }']. These columns will be ignored during validation.`,
-      ));
-    }
 
     // Build column lists from valid mappings only
     const targetColumnNames = validMappings.map((field) => `"${field.targetName}"`);
@@ -786,16 +755,8 @@ function validateDataset(
 
     if (bulkInsertResult._tag === "Left") {
       // Bulk INSERT failed - fall back to row-by-row insertion to collect detailed violations
-      const error = bulkInsertResult.left;
-      yield* _(
-        Effect.logDebug(
-          `Bulk INSERT failed for dataset '${dataset.name}' - falling back to row-by-row insertion`,
-        ),
-      );
-      if (error instanceof Error) {
-        yield* _(Effect.logDebug(`Bulk INSERT error: ${error.message}`));
-      }
-
+      // TODO: When implementing issue #64 (https://github.com/HakaiInstitute/DarwinKit/issues/64):
+      // Use Effect.log to allow surfacing warnings in cases like this if developers choose
       if (profile) {
         const constraintViolations = yield* _(
           insertRowByRow(
@@ -809,13 +770,6 @@ function validateDataset(
         );
         allViolations.push(...constraintViolations);
       }
-    } else {
-      // Bulk INSERT succeeded - no constraint violations to collect
-      yield* _(
-        Effect.logDebug(
-          `Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`,
-        ),
-      );
     }
 
     // Validate field mappings based on spec
@@ -829,6 +783,28 @@ function validateDataset(
     const recommendations: Array<
       DatasetValidationResult["recommendations"][number]
     > = [];
+
+    // Add warnings for field mapping issues
+    for (const fieldName of missingSourceFields) {
+      warnings.push({
+        fieldName,
+        targetName: fieldName,
+        requirementLevel: "configuration",
+        message:
+          `Field '${fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.`,
+      });
+    }
+
+    // Add recommendations for unmapped source columns (informational)
+    for (const columnName of unmappedSourceColumns) {
+      recommendations.push({
+        fieldName: columnName,
+        targetName: columnName,
+        requirementLevel: "optional",
+        message:
+          `Source column '${columnName}' is not mapped to any Darwin Core field and will be ignored.`,
+      });
+    }
 
     // Check profile field requirements based on requirement levels
     if (profile && profile.fieldOverrides && dataset.fieldMappings) {

@@ -3,26 +3,13 @@
  *
  * Reusable helpers for testing Effect-based code with tagged errors.
  * Provides cleaner, more idiomatic patterns than manual Exit checking and instanceof.
- *
- * Logging is suppressed in tests by default.
  */
 
 import type { CoreErrorTag } from "@dwkt/core";
-import { SilentLogLevel } from "@dwkt/core";
 import type { ValidationViolationTag } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import * as Either from "effect/Either";
-
-/**
- * Run an Effect with silent logging (suppresses all log output in tests).
- *
- * Use this instead of Effect.runPromise to keep test output clean.
- * The test helpers (expectError, expectSuccess, expectAnyError) use this automatically.
- */
-export function runPromise<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
-  return Effect.runPromise(effect.pipe(Effect.provide(SilentLogLevel)));
-}
 
 /**
  * Union type of all known error tags for autocomplete support
@@ -71,7 +58,7 @@ export async function expectError<E extends { _tag: string }, A>(
   tag: E["_tag"],
   assertions: (error: E) => void,
 ): Promise<void> {
-  const result = await runPromise(Effect.either(effect));
+  const result = await Effect.runPromise(Effect.either(effect));
 
   assertEquals(
     Either.isLeft(result),
@@ -113,7 +100,7 @@ export async function expectSuccess<E, A>(
   effect: Effect.Effect<A, E>,
   assertions: (value: A) => void,
 ): Promise<void> {
-  const value = await runPromise(effect);
+  const value = await Effect.runPromise(effect);
   assertions(value);
 }
 
@@ -139,7 +126,7 @@ export async function expectAnyError<E, A>(
   effect: Effect.Effect<A, E>,
   assertions?: (error: E) => void,
 ): Promise<void> {
-  const result = await runPromise(Effect.either(effect));
+  const result = await Effect.runPromise(Effect.either(effect));
 
   assertEquals(
     Either.isLeft(result),

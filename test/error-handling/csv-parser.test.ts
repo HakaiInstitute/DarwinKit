@@ -9,7 +9,6 @@ import { parseFileForWorkspace } from "@dwkt/core";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
-import { runPromise } from "../helpers/effect-test-utils.ts";
 
 Deno.test("CSV Parser - expected errors (user data issues)", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "csv_parser_test_" });
@@ -36,7 +35,7 @@ Deno.test("CSV Parser - expected errors (user data issues)", async (t) => {
 
     let errorCaught = false;
 
-    await runPromise(
+    await Effect.runPromise(
       parseFileForWorkspace(nonExistentPath).pipe(
         Effect.catchAll((_error) => {
           errorCaught = true;
@@ -56,7 +55,7 @@ Deno.test("CSV Parser - expected errors (user data issues)", async (t) => {
       "name,age,city\nAlice,30,New York\nBob,25,London",
     );
 
-    const result = await runPromise(parseFileForWorkspace(validCsvPath));
+    const result = await Effect.runPromise(parseFileForWorkspace(validCsvPath));
 
     assertExists(result);
     assertExists(result.schema);
@@ -182,7 +181,7 @@ Deno.test("CSV Parser - integration with workspace service", async (t) => {
     );
 
     // This should work without errors
-    const result = await runPromise(parseFileForWorkspace(validCsvPath));
+    const result = await Effect.runPromise(parseFileForWorkspace(validCsvPath));
     assertExists(result);
   });
 

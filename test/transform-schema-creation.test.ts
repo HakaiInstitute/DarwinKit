@@ -9,7 +9,7 @@ import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import { createTableFromSchema } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertFalse } from "@std/assert";
-import { runPromise } from "./helpers/effect-test-utils.ts";
+import * as Effect from "effect/Effect";
 
 /**
  * Helper function to verify foreign key constraints in DuckDB
@@ -142,7 +142,7 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
   try {
     // 2. Execute the function
     const effect = createTableFromSchema(connection, config);
-    await runPromise(effect);
+    await Effect.runPromise(effect);
 
     // 3. Verify the results
     // Verify that ENUMs are created for controlled vocabulary fields
@@ -271,7 +271,7 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
   };
 
   try {
-    await runPromise(createTableFromSchema(connection, config));
+    await Effect.runPromise(createTableFromSchema(connection, config));
 
     // Verify Event table
     const eventInfo = await connection.runAndReadAll("PRAGMA table_info(event);");
@@ -370,7 +370,7 @@ Deno.test("createTableFromSchema - comprehensive FK verification", async () => {
   };
 
   try {
-    await runPromise(createTableFromSchema(connection, config));
+    await Effect.runPromise(createTableFromSchema(connection, config));
 
     // Test 1: Verify specific FK exists
     const hasFK = await verifyForeignKey(

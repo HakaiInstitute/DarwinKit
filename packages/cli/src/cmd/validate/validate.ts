@@ -1,7 +1,7 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { DefaultLogLevel, VerboseLogLevel, Workspace } from '@dwkt/core';
+import { Workspace } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
@@ -174,7 +174,6 @@ export async function validate(options: {
   format?: string;
   outputDir?: string;
   failFast?: boolean;
-  verbose?: boolean;
 }) {
   // Ensure format is valid
   const validFormat = (options.format === 'json') ? 'json' : 'table';
@@ -184,9 +183,6 @@ export async function validate(options: {
     message: 'Discovering configuration...',
   });
   spinner.start();
-
-  // Configure log level based on verbose flag
-  const logLevel = options.verbose ? VerboseLogLevel : DefaultLogLevel;
 
   const runValidation = Effect.scoped(
     Effect.gen(function* (_) {
@@ -209,7 +205,7 @@ export async function validate(options: {
       // Handle exit codes based on results
       yield* _(handleValidationResults(results));
     }),
-  ).pipe(Effect.provide(logLevel));
+  );
 
   const result = await Effect.runPromiseExit(runValidation);
 
@@ -547,11 +543,6 @@ export const validateCommand = new Command()
   .option(
     '--fail-fast',
     'Stop validation on first dataset with errors (only validates required violations)',
-    { default: false },
-  )
-  .option(
-    '-v, --verbose',
-    'Enable verbose logging (shows debug information)',
     { default: false },
   )
   .action(validate);

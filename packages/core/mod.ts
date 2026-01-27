@@ -29,6 +29,3 @@ export * from "./src/errors.ts";
 
 // CSV import utilities
 export * from "./src/utils/csv-import.ts";
-
-// Logging configuration
-export * from "./src/logging/index.ts";

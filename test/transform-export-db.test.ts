@@ -9,7 +9,7 @@ import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import { exportToPersistentDB } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
-import { runPromise } from "./helpers/effect-test-utils.ts";
+import * as Effect from "effect/Effect";
 
 Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
   // 1. Setup: In-memory DB, temp output dir, and config
@@ -50,7 +50,7 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1');");
 
     // 3. Act: Execute the export function
-    await runPromise(exportToPersistentDB(connection, config));
+    await Effect.runPromise(exportToPersistentDB(connection, config));
 
     // 4. Assert: Verify the contents of the created DB file
     // Connect to the newly created persistent DB file
@@ -99,7 +99,7 @@ Deno.test("exportToPersistentDB - does nothing if exportDB is false", async () =
     },
   };
 
-  await runPromise(exportToPersistentDB(connection, config));
+  await Effect.runPromise(exportToPersistentDB(connection, config));
 
   // Assert that no files were created in the output directory
   const files = Array.from(Deno.readDirSync(outputDir));
