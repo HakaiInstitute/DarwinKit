@@ -1,14 +1,7 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import {
-  ConfigNotFoundError,
-  ConfigParseError,
-  ConfigValidationError,
-  DatasetFileNotFoundError,
-  prettyPrintWorkspaceError,
-  Workspace,
-} from '@dwkt/core';
+import { ValidationError, Workspace, type WorkspaceConfigError } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
@@ -18,6 +11,16 @@ import * as Match from 'effect/Match';
 import { CLIError, OutputError } from '../../errors.ts';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
+
+/**
+ * Union of all errors that can occur during the validate command.
+ * Used with Match.exhaustive to ensure all error cases are handled.
+ */
+type ValidateCommandError =
+  | WorkspaceConfigError
+  | ValidationError
+  | OutputError
+  | CLIError;
 
 // Structured output function
 function outputResults(
@@ -120,81 +123,98 @@ function handleValidationResults(
   });
 }
 
-// Error handler using Effect.Match for exhaustive pattern matching
-function handleCLIError(error: unknown): never {
-  // Check if error has _tag property for pattern matching
-  if (typeof error === 'object' && error !== null && '_tag' in error) {
-    const exitCode = Match.value(error).pipe(
-      Match.tag('CLIError', (cliError: CLIError) => {
-        if (cliError.exitCode === 1) {
-          Output.error('❌ Overall status: FAILED');
-        } else if (cliError.exitCode === 2) {
-          Output.warning('⚠️  Overall status: PASSED with warnings');
-        }
+/**
+ * Exhaustive error handler for validate command errors.
+ * Uses Match.exhaustive to ensure all error types are handled.
+ * TypeScript will error if a new error type is added but not handled here.
+ */
+function handleValidateError(error: ValidateCommandError): never {
+  Output.blank();
 
-        if (cliError.hint) {
-          Output.muted(`   ${cliError.hint}`);
-        }
-        return cliError.exitCode;
-      }),
-      Match.tag('ConfigNotFoundError', (configError: { message: string }) => {
-        Output.error('❌ Validation failed:');
-        Output.error(configError.message);
+  const exitCode = Match.value(error).pipe(
+    // CLI-specific errors (validation status)
+    Match.tag('CLIError', (e) => {
+      if (e.exitCode === 1) {
+        Output.error('❌ Overall status: FAILED');
+      } else if (e.exitCode === 2) {
+        Output.warning('⚠️  Overall status: PASSED with warnings');
+      }
+      if (e.hint) {
+        Output.muted(`   ${e.hint}`);
+      }
+      return e.exitCode;
+    }),
+    // Output/file writing errors
+    Match.tag('OutputError', (e) => {
+      Output.error('❌ Output failed:');
+      Output.error(e.message);
+      Output.muted(`Path: ${e.outputPath}`);
+      return 3;
+    }),
+    // Validation logic errors
+    Match.tag('ValidationError', (e) => {
+      Output.error('❌ Validation error:');
+      Output.error(e.message);
+      return 1;
+    }),
+    // Workspace configuration errors
+    Match.tag('ConfigNotFoundError', (e) => {
+      Output.error('❌ Configuration not found:');
+      Output.error(e.message);
+      Output.blank();
+      Output.muted(`Searched from: ${e.startDirectory}`);
+      Output.muted(`Paths checked:\n${e.searchDescription}`);
+      Output.blank();
+      Output.warning('💡 Hint: Create a darwinkit.json configuration file.');
+      return 3;
+    }),
+    Match.tag('ConfigParseError', (e) => {
+      Output.error('❌ Configuration parse error:');
+      Output.error(e.message);
+      Output.muted(`File: ${e.configPath}`);
+      Output.muted(`Format: ${e.format.toUpperCase()}`);
+      return 3;
+    }),
+    Match.tag('ConfigValidationError', (e) => {
+      Output.error('❌ Configuration validation failed:');
+      Output.error(e.message);
+      Output.muted(`File: ${e.configPath}`);
+      if (e.validationErrors.length > 0) {
         Output.blank();
-        Output.warning(
-          '💡 Hint: Create a darwinkit.json configuration file in your repository root.',
-        );
-        Output.warning('   See documentation for configuration format.');
-        return 3;
-      }),
-      Match.tag(
-        'ConfigValidationError',
-        (configError: { message: string; validationErrors?: string[] }) => {
-          Output.error('❌ Configuration validation failed:');
-          Output.error(configError.message);
-          if (configError.validationErrors) {
-            Output.error('Validation errors:');
-            for (const validationError of configError.validationErrors) {
-              Output.error(`  • ${validationError}`);
-            }
-          }
-          return 3;
-        },
-      ),
-      Match.tag(
-        'OutputError',
-        (outputError: { message: string; outputPath?: string }) => {
-          Output.error('❌ Output failed:');
-          Output.error(outputError.message);
-          if (outputError.outputPath) {
-            Output.muted(`Path: ${outputError.outputPath}`);
-          }
-          return 3;
-        },
-      ),
-      Match.tag(
-        'WorkspaceValidationError',
-        (validationError: { message: string }) => {
-          Output.error('❌ Validation failed:');
-          Output.error(validationError.message);
-          return 1;
-        },
-      ),
-      // Fallback for other tagged errors
-      Match.orElse(() => {
-        Output.error('❌ Unexpected error:');
-        Output.error(String(error));
-        return 3;
-      }),
-    );
+        Output.error('Validation errors:');
+        Output.error(e.errorList);
+      }
+      return 3;
+    }),
+    Match.tag('DatasetFileNotFoundError', (e) => {
+      Output.error('❌ Dataset file not found:');
+      Output.error(e.message);
+      Output.muted(`Dataset: ${e.datasetName}`);
+      Output.muted(`Path: ${e.filePath}`);
+      Output.muted(`Config: ${e.configPath}`);
+      return 3;
+    }),
+    Match.tag('TransformInputNotFoundError', (e) => {
+      Output.error('❌ Transform input not found:');
+      Output.error(e.message);
+      Output.muted(`Input: ${e.inputName}`);
+      Output.muted(`Path: ${e.filePath}`);
+      Output.muted(`Config: ${e.configPath}`);
+      return 3;
+    }),
+    Match.tag('ValidationConfigMissingError', (e) => {
+      Output.error('❌ Validation configuration missing:');
+      Output.error(e.message);
+      Output.muted(`Workspace: ${e.workspaceName}`);
+      Output.blank();
+      Output.warning('💡 Hint: Add a "validation" section to darwinkit.json.');
+      return 3;
+    }),
+    // Ensure all possible errors are handled
+    Match.exhaustive,
+  );
 
-    Deno.exit(exitCode);
-  } else {
-    // Fallback for non-tagged errors
-    Output.error('❌ Validation failed:');
-    Output.error(String(error));
-    Deno.exit(3);
-  }
+  Deno.exit(exitCode);
 }
 
 // Main validate function
@@ -244,48 +264,21 @@ export async function validate(options: {
     // Stop spinner on error
     spinner.stop();
 
-    // Error case - use Cause-aware error handling
-    handleCLIErrorWithCause(result.cause);
+    // Extract the error from the Cause and handle it exhaustively
+    const failureOption = Cause.failureOption(result.cause);
+    if (failureOption._tag === 'Some') {
+      handleValidateError(failureOption.value);
+    } else {
+      // Defect or interruption - show raw cause
+      Output.blank();
+      Output.error('❌ Unexpected error occurred');
+      Output.line(Cause.pretty(result.cause));
+      Deno.exit(3);
+    }
   } else {
     // Success case - validation passed without warnings
     Output.success('✅ Overall status: PASSED');
     Deno.exit(0);
-  }
-}
-
-/**
- * Handle CLI errors using Effect's Cause for better error messages
- */
-function handleCLIErrorWithCause(
-  cause: Cause.Cause<unknown>,
-): never {
-  Output.blank();
-
-  // First, try using our custom pretty printer for config errors
-  try {
-    const prettyMessage = prettyPrintWorkspaceError(
-      cause as Cause.Cause<
-        | ConfigNotFoundError
-        | ConfigParseError
-        | ConfigValidationError
-        | DatasetFileNotFoundError
-      >,
-    );
-    Output.error('❌ Configuration Error:\n');
-    Output.line(prettyMessage);
-    Output.blank();
-    Deno.exit(1);
-  } catch {
-    // Fallback to original error handler
-    const failures = Cause.failures(cause);
-    if (failures.length > 0) {
-      const error = Array.from(failures)[0];
-      handleCLIError(error);
-    } else {
-      Output.error('❌ Unexpected error occurred');
-      Output.line(Cause.pretty(cause));
-      Deno.exit(3);
-    }
   }
 }
 

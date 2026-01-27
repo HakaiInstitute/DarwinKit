@@ -23,22 +23,24 @@
 
 import * as Data from "effect/Data";
 
-// Re-export error classes from their source modules for backward compatibility
-import type { ParseError } from "../parsing/csv-parser.ts";
+// Re-export error classes from their source modules
 export { ParseError } from "../parsing/csv-parser.ts";
 export {
   WorkspaceImportError,
   WorkspaceValidationError,
 } from "../validation/workspace-validator.ts";
-
-import type {
-  WorkspaceImportError,
-  WorkspaceValidationError,
-} from "../validation/workspace-validator.ts";
-
-// TransformationError and OutputError are defined inline in transform/transform.ts
-// Import them here for type reference in CoreErrorTag
-import type { OutputError, TransformationError } from "../transform/transform.ts";
+export {
+  ConfigNotFoundError,
+  ConfigParseError,
+  ConfigValidationError,
+  DatasetFileNotFoundError,
+  formatWorkspaceConfigError,
+  prettyPrintWorkspaceError,
+  TransformInputNotFoundError,
+  ValidationConfigMissingError,
+  type WorkspaceConfigError,
+} from "../workspace/errors.ts";
+export type { OutputError, TransformationError } from "../transform/transform.ts";
 
 /**
  * Validation operation errors
@@ -50,31 +52,3 @@ export class ValidationError extends Data.TaggedError("ValidationError")<{
   readonly message: string;
   readonly cause?: Error;
 }> {}
-
-/**
- * Extract the _tag literal type from a tagged error class.
- *
- * Works with any class that has instances with a readonly _tag property,
- * which includes all Data.TaggedError subclasses.
- */
-type ErrorTag<T extends abstract new (...args: never[]) => { readonly _tag: string }> =
-  InstanceType<T>["_tag"];
-
-/**
- * Union type of all core package error tags
- *
- * Tags are extracted directly from error class _tag properties using
- * InstanceType<typeof ErrorClass>["_tag"]. This ensures the types stay
- * in sync with the actual error definitions automatically.
- */
-export type CoreErrorTag =
-  // Validation Operations
-  | ErrorTag<typeof ValidationError>
-  // CSV Parsing & Reading (re-exported)
-  | ErrorTag<typeof ParseError>
-  // Validation & Import (re-exported)
-  | ErrorTag<typeof WorkspaceImportError>
-  | ErrorTag<typeof WorkspaceValidationError>
-  // Transformation & Output (re-exported)
-  | ErrorTag<typeof TransformationError>
-  | ErrorTag<typeof OutputError>;

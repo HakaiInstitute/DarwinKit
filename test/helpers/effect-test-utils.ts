@@ -5,24 +5,9 @@
  * Provides cleaner, more idiomatic patterns than manual Exit checking and instanceof.
  */
 
-import type { CoreErrorTag } from "@dwkt/core";
-import type { ValidationViolationTag } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import * as Either from "effect/Either";
-
-/**
- * Union type of all known error tags for autocomplete support
- *
- * Import this type and use it with type annotations to get IDE autocomplete:
- * ```typescript
- * import type { KnownErrorTag } from "test/helpers/effect-test-utils.ts";
- *
- * const tag: KnownErrorTag = "CsvReadError";  // ← Autocomplete works!
- * await expectError(effect, tag, (error) => { ... });
- * ```
- */
-export type KnownErrorTag = CoreErrorTag | ValidationViolationTag;
 
 /**
  * Assert that an Effect fails with a specific tagged error
