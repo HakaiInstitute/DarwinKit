@@ -8,7 +8,6 @@ async function importSchema() {
   Output.section('🚀', 'Starting schema import from gbif...');
 
   // Get external directory from project root (dev-only command)
-  // TODO: Make it so this doesn't break when the cli is compiled
   const externalDir = join(Deno.cwd(), 'external');
 
   await Effect.runPromise(
