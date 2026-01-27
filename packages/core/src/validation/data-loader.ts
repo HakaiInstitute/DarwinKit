@@ -18,7 +18,7 @@ import {
   PrimaryKeyViolation,
 } from "@dwkt/domain";
 
-import { getCsvValue } from "../database/index.ts";
+import { getCsvValue } from "../utils/csv-import.ts";
 import { findSuggestedValue, parseDuckDBError } from "./utils.ts";
 
 /**

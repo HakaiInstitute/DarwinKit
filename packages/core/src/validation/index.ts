@@ -32,7 +32,6 @@ export {
 export {
   type CrossDatasetRule,
   findCrossDatasetViolations,
-  resolveSchemaTableName,
   validateCrossDatasetRule,
 } from "./constraint-validator.ts";
 

@@ -30,7 +30,7 @@ import {
   getValidationProfile,
   parseSpecIdentifier,
 } from "@dwkt/domain";
-import { importCsv, sanitizeTableName } from "../database/index.ts";
+import { importCsv, sanitizeTableName } from "../utils/csv-import.ts";
 import { Workspace } from "../workspace/workspace.ts";
 
 // Import from modular validation files

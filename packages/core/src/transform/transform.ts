@@ -12,7 +12,7 @@ import {
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { getValidationProfile } from "@dwkt/domain";
 import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
-import { importCsv } from "../database/index.ts";
+import { importCsv } from "../utils/csv-import.ts";
 import { OutputError, TransformationError } from "../errors/index.ts";
 
 // Re-export errors for backwards compatibility

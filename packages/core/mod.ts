@@ -27,8 +27,8 @@ export * from "./src/import/get_dwc_schema.ts";
 // Error types (all core errors consolidated)
 export * from "./src/errors.ts";
 
-// Database utilities
-export * from "./src/database/index.ts";
+// CSV import utilities
+export * from "./src/utils/csv-import.ts";
 
 // Logging configuration
 export * from "./src/logging/index.ts";

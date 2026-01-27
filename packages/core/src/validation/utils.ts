@@ -15,7 +15,7 @@ import type {
 } from "@dwkt/domain";
 import { parseSpecIdentifier } from "@dwkt/domain";
 
-import { sanitizeTableName } from "../database/utils.ts";
+import { sanitizeTableName } from "../utils/csv-import.ts";
 import { levenshteinDistance } from "../utils/string-utils.ts";
 
 /**
