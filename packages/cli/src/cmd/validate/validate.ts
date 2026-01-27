@@ -1,12 +1,6 @@
+import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { colors } from '@cliffy/ansi/colors';
-import * as Effect from 'effect/Effect';
-import * as Exit from 'effect/Exit';
-import * as Cause from 'effect/Cause';
-import * as Data from 'effect/Data';
-import { join } from '@std/path';
-
 import {
   ConfigNotFoundError,
   ConfigParseError,
@@ -16,6 +10,11 @@ import {
   WorkspaceValidator,
 } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
+import { join } from '@std/path';
+import * as Cause from 'effect/Cause';
+import * as Data from 'effect/Data';
+import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
 import * as Match from 'effect/Match';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';

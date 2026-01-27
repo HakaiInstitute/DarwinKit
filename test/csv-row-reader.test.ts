@@ -17,7 +17,7 @@ import {
   readCsvRow,
 } from "../packages/core/src/validation/csv-row-reader.ts";
 import { expectError, expectSuccess } from "./helpers/effect-test-utils.ts";
-import { TEST_CONFIG_DIR, TEST_DATA_DIR } from "./helpers/paths.ts";
+import { TEST_DATA_DIR } from "./helpers/paths.ts";
 
 const TEST_CSV_PATH = join(TEST_DATA_DIR, "row-reader-test.csv");
 
@@ -162,7 +162,7 @@ Deno.test("CSV row reader - batch reads", async (t) => {
 });
 
 Deno.test("CSV row reader - real data integration", async (t) => {
-  const realCsvPath = join(TEST_CONFIG_DIR, "FC2022_event.csv");
+  const realCsvPath = join(TEST_DATA_DIR, "FC2022_event.csv");
 
   await t.step("Reads from real FC2022 event data", async () => {
     // This tests against the actual FC2022 data used in example-config
