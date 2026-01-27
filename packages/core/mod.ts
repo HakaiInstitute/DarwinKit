@@ -12,6 +12,19 @@ export {
   type WorkspaceServiceApi,
 } from "./src/workspace/workspace-service.ts";
 
+// Workspace errors
+export {
+  ConfigNotFoundError,
+  ConfigParseError,
+  ConfigValidationError,
+  DatasetFileNotFoundError,
+  formatWorkspaceConfigError,
+  prettyPrintWorkspaceError,
+  TransformInputNotFoundError,
+  ValidationConfigMissingError,
+  type WorkspaceConfigError,
+} from "./src/workspace/errors.ts";
+
 // Workspace validation
 export * from "./src/validation/workspace-validator.ts";
 

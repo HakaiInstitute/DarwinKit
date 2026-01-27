@@ -1,7 +1,14 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { Workspace } from '@dwkt/core';
+import {
+  ConfigNotFoundError,
+  ConfigParseError,
+  ConfigValidationError,
+  DatasetFileNotFoundError,
+  prettyPrintWorkspaceError,
+  Workspace,
+} from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
@@ -130,6 +137,30 @@ function handleCLIError(error: unknown): never {
         }
         return cliError.exitCode;
       }),
+      Match.tag('ConfigNotFoundError', (configError: { message: string }) => {
+        Output.error('❌ Validation failed:');
+        Output.error(configError.message);
+        Output.blank();
+        Output.warning(
+          '💡 Hint: Create a darwinkit.json configuration file in your repository root.',
+        );
+        Output.warning('   See documentation for configuration format.');
+        return 3;
+      }),
+      Match.tag(
+        'ConfigValidationError',
+        (configError: { message: string; validationErrors?: string[] }) => {
+          Output.error('❌ Configuration validation failed:');
+          Output.error(configError.message);
+          if (configError.validationErrors) {
+            Output.error('Validation errors:');
+            for (const validationError of configError.validationErrors) {
+              Output.error(`  • ${validationError}`);
+            }
+          }
+          return 3;
+        },
+      ),
       Match.tag(
         'OutputError',
         (outputError: { message: string; outputPath?: string }) => {
@@ -230,14 +261,31 @@ function handleCLIErrorWithCause(
 ): never {
   Output.blank();
 
-  const failures = Cause.failures(cause);
-  if (failures.length > 0) {
-    const error = Array.from(failures)[0];
-    handleCLIError(error);
-  } else {
-    Output.error('❌ Unexpected error occurred');
-    Output.line(Cause.pretty(cause));
-    Deno.exit(3);
+  // First, try using our custom pretty printer for config errors
+  try {
+    const prettyMessage = prettyPrintWorkspaceError(
+      cause as Cause.Cause<
+        | ConfigNotFoundError
+        | ConfigParseError
+        | ConfigValidationError
+        | DatasetFileNotFoundError
+      >,
+    );
+    Output.error('❌ Configuration Error:\n');
+    Output.line(prettyMessage);
+    Output.blank();
+    Deno.exit(1);
+  } catch {
+    // Fallback to original error handler
+    const failures = Cause.failures(cause);
+    if (failures.length > 0) {
+      const error = Array.from(failures)[0];
+      handleCLIError(error);
+    } else {
+      Output.error('❌ Unexpected error occurred');
+      Output.line(Cause.pretty(cause));
+      Deno.exit(3);
+    }
   }
 }
 
