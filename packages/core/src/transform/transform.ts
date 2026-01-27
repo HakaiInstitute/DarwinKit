@@ -1,7 +1,6 @@
 import * as duckdb from "@duckdb/node-api";
 import { stringify as stringifyCSV } from "@std/csv";
 import { join, resolve } from "@std/path";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
 import {
@@ -14,23 +13,10 @@ import type { WorkspaceConfig } from "@dwkt/domain";
 import { getValidationProfile } from "@dwkt/domain";
 import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
 import { importCsv } from "../database/index.ts";
+import { OutputError, TransformationError } from "../errors/index.ts";
 
-/**
- * Represents an error that occurs during the data transformation process.
- */
-export class TransformationError extends Data.TaggedError("TransformationError")<{
-  readonly message: string;
-  readonly cause?: Error;
-}> {}
-
-/**
- * Represents an error that occurs during the output process.
- */
-export class OutputError extends Data.TaggedError("OutputError")<{
-  readonly message: string;
-  readonly outputPath: string;
-  readonly cause?: Error;
-}> {}
+// Re-export errors for backwards compatibility
+export { OutputError, TransformationError };
 
 /**
  * Creates tables in the DuckDB database from the CSV files specified in the workspace configuration.

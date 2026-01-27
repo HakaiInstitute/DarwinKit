@@ -26,18 +26,32 @@ import * as Data from "effect/Data";
 // Re-export error classes from their source modules for backward compatibility
 import type { ParseError } from "../parsing/csv-parser.ts";
 export { ParseError } from "../parsing/csv-parser.ts";
-export { OutputError, TransformationError } from "../transform/transform.ts";
 export {
   WorkspaceImportError,
   WorkspaceValidationError,
 } from "../validation/workspace-validator.ts";
 
-import type { OutputError, TransformationError } from "../transform/transform.ts";
-
 import type {
   WorkspaceImportError,
   WorkspaceValidationError,
 } from "../validation/workspace-validator.ts";
+
+/**
+ * Represents an error that occurs during the data transformation process.
+ */
+export class TransformationError extends Data.TaggedError("TransformationError")<{
+  readonly message: string;
+  readonly cause?: Error;
+}> {}
+
+/**
+ * Represents an error that occurs during the output process.
+ */
+export class OutputError extends Data.TaggedError("OutputError")<{
+  readonly message: string;
+  readonly outputPath: string;
+  readonly cause?: Error;
+}> {}
 
 /**
  * Validation operation errors

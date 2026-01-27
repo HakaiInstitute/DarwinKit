@@ -12,63 +12,38 @@ import * as Logger from "effect/Logger";
 import * as LogLevel from "effect/LogLevel";
 
 /**
- * Log level type for external configuration
- */
-export type LogLevelConfig = "debug" | "info" | "warning" | "error" | "silent";
-
-/**
- * Convert string log level to Effect LogLevel
- */
-export function toEffectLogLevel(level: LogLevelConfig): LogLevel.LogLevel {
-  switch (level) {
-    case "debug":
-      return LogLevel.Debug;
-    case "info":
-      return LogLevel.Info;
-    case "warning":
-      return LogLevel.Warning;
-    case "error":
-      return LogLevel.Error;
-    case "silent":
-      return LogLevel.None;
-    default:
-      return LogLevel.Warning;
-  }
-}
-
-/**
  * Create a layer that sets the minimum log level
  *
  * @example
  * ```typescript
  * // Verbose mode - show all logs including debug
  * const program = myEffect.pipe(
- *   Effect.provide(LogLevelLayer("debug"))
+ *   Effect.provide( LogLevelLayer(LogLevel.Debug))
  * );
  *
  * // Normal mode - only warnings and errors
  * const program = myEffect.pipe(
- *   Effect.provide(LogLevelLayer("warning"))
+ *   Effect.provide( LogLevelLayer(LogLevel.Warning))
  * );
  * ```
  */
-export function LogLevelLayer(
-  level: LogLevelConfig,
+function LogLevelLayer(
+  level: LogLevel.LogLevel,
 ): Layer.Layer<never, never, never> {
-  return Logger.minimumLogLevel(toEffectLogLevel(level));
+  return Logger.minimumLogLevel(level);
 }
 
 /**
  * Default log level layer (warning and above)
  */
-export const DefaultLogLevel = LogLevelLayer("warning");
+export const DefaultLogLevel = LogLevelLayer(LogLevel.Warning);
 
 /**
  * Verbose log level layer (debug and above)
  */
-export const VerboseLogLevel = LogLevelLayer("debug");
+export const VerboseLogLevel = LogLevelLayer(LogLevel.Debug);
 
 /**
  * Silent log level layer (no logs)
  */
-export const SilentLogLevel = LogLevelLayer("silent");
+export const SilentLogLevel = LogLevelLayer(LogLevel.None);
