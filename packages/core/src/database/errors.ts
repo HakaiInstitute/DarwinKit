@@ -39,9 +39,19 @@ export class TableNotFoundError extends Data.TaggedError("TableNotFoundError")<{
 }> {}
 
 /**
+ * Error when executing arbitrary SQL fails
+ */
+export class QueryError extends Data.TaggedError("QueryError")<{
+  readonly sql: string;
+  readonly message: string;
+  readonly cause?: Error;
+}> {}
+
+/**
  * Union of all database errors for pattern matching
  */
 export type DatabaseError =
   | DatasetImportError
   | SchemaCreationError
-  | TableNotFoundError;
+  | TableNotFoundError
+  | QueryError;

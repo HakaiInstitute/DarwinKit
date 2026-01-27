@@ -95,8 +95,7 @@ export function normalizeField(jsonField: field): FieldDefinition {
             enforcement: "optional" as const,
           };
         default:
-          // Unknown validator string - skip with warning
-          console.warn(`Unknown validator string: ${v}`);
+          // Unknown validator string - use a no-op validator
           return {
             type: "required" as const,
             enforcement: "optional" as const,

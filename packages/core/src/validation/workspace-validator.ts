@@ -7,8 +7,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import { dirname, resolve } from "@std/path";
-import * as Data from "effect/Data";
+import { resolve } from "@std/path";
 import * as Effect from "effect/Effect";
 
 import type {
@@ -21,46 +20,34 @@ import type {
   ValidationSettings,
   ValidationViolation,
   ValidatorConfig,
-  VocabularyEnforcement,
-  VocabularyKey,
   WorkspaceFieldMapping,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
 import {
   CrossDatasetViolation,
   enforcementToSeverity,
-  EnumViolation,
   FieldRequirementLevel,
   getValidationProfile,
-  getVocabularyValues,
   hasControlledVocabulary,
-  isValidVocabularyValue,
-  NotNullViolation,
   parseSpecIdentifier,
-  PrimaryKeyViolation,
-  RangeViolation,
-  UniquenessViolation,
-  VocabularyViolation,
 } from "@dwkt/domain";
-import { levenshteinDistance } from "../utils/string-utils.ts";
+import { sanitizeTableName } from "../database/utils.ts";
 import { ManagedWorkspace } from "../workspace/workspace.ts";
 
-/**
- * Error classes for workspace validation
- */
-const WorkspaceValidationErrorBase = Data.TaggedClass(
-  "WorkspaceValidationError",
-)<{
-  readonly message: string;
-  readonly cause?: Error;
-}>;
+// Import from modular validation files
+import { insertRowByRow } from "./data-loader.ts";
+import {
+  validateRangeConstraints,
+  validateUniqueness,
+  validateVocabulary,
+} from "./field-validators.ts";
+import { calculateSummary, partitionViolations } from "./utils.ts";
 
-/**
- * Represents an error that occurs during the data importing process.
- */
-export class WorkspaceImportError extends WorkspaceValidationErrorBase {}
+// Re-export error classes from validation-errors.ts
+export { WorkspaceImportError, WorkspaceValidationError } from "./validation-errors.ts";
 
-export class WorkspaceValidationError extends WorkspaceValidationErrorBase {}
+// Import error class for internal use
+import { WorkspaceImportError, WorkspaceValidationError } from "./validation-errors.ts";
 
 /**
  * Imports a CSV file into a DuckDB table with a _row_number column.
@@ -101,13 +88,11 @@ export function WorkspaceImportCSV(
            FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`,
         );
       },
-      catch: (error) => {
-        console.error(error);
-        return new WorkspaceImportError({
+      catch: (error) =>
+        new WorkspaceImportError({
           message: `Failed to create table '${tableName}' from CSV ${fullPath}`,
           cause: error instanceof Error ? error : new Error(String(error)),
-        });
-      },
+        }),
     }));
   });
 }
@@ -161,8 +146,7 @@ type DatasetWithProfile = {
  *
  * Side effects:
  * - Mutates the target database by creating types and tables.
- * - Logs a warning (console.warn) if the dataset has no validation profile.
- * - Logs the failing SQL to console.error if table creation fails.
+ * - Silently skips table creation if the dataset has no validation profile.
  *
  * Parameters:
  * - connection: DuckDBConnection used to execute DDL statements.
@@ -197,16 +181,20 @@ export function WorkspaceImportSchema(
     }
 
     if (!profileId) {
-      console.warn(
-        `No profile or spec specified for dataset ${dataset.name}, skipping table creation.`,
+      yield* _(
+        Effect.logWarning(
+          `No profile or spec specified for dataset '${dataset.name}', skipping table creation`,
+        ),
       );
       return;
     }
 
     const spec = getValidationProfile(profileId);
     if (!spec) {
-      console.warn(
-        `No validation profile found for ${profileId}, skipping table creation.`,
+      yield* _(
+        Effect.logWarning(
+          `No validation profile found for '${profileId}', skipping table creation`,
+        ),
       );
       return;
     }
@@ -309,14 +297,11 @@ export function WorkspaceImportSchema(
     const tableSql = `CREATE TABLE ${tableName} (${columns.join(", ")})`;
     yield* _(Effect.tryPromise({
       try: () => connection.run(tableSql),
-      catch: (error) => {
-        console.error(error);
-        console.error(`Failing SQL: ${tableSql}`);
-        return new WorkspaceImportError({
-          message: `Failed to create table '${tableName}'`,
+      catch: (error) =>
+        new WorkspaceImportError({
+          message: `Failed to create table '${tableName}': ${tableSql}`,
           cause: error instanceof Error ? error : new Error(String(error)),
-        });
-      },
+        }),
     }));
   });
 }
@@ -736,13 +721,11 @@ function validateDataset(
           connection.runAndReadAll(
             `SELECT column_name FROM (DESCRIBE '${tableName}')`,
           ),
-        catch: (error) => {
-          console.error(error);
-          return new WorkspaceValidationError({
-            message: `Failed to Describe table: ${error}`,
+        catch: (error) =>
+          new WorkspaceValidationError({
+            message: `Failed to describe table '${tableName}'`,
             cause: error instanceof Error ? error : new Error(String(error)),
-          });
-        },
+          }),
       }),
     );
 
@@ -784,6 +767,15 @@ function validateDataset(
       !originFileColumns.includes(f)
     );
 
+    // Log unmapped fields (informational - these are acceptable but might indicate config issues)
+    if (missingMappedFields.length > 0) {
+      yield* _(Effect.logInfo(
+        `Dataset '${dataset.name}' has ${missingMappedFields.length} unmapped source columns: [${
+          missingMappedFields.join(", ")
+        }]`,
+      ));
+    }
+
     // TODO: this check should generate a warning not an error
     if (missingSourceFields.length) {
       return yield* _(
@@ -801,14 +793,13 @@ function validateDataset(
       );
     }
 
-    // TODO: this check should generate a warning not an error
     if (missingMappedFields.length) {
       // Log warning but don't fail - unmapped columns are acceptable
-      console.warn(
-        `Warning: The dataset '${dataset.name}' has unmapped source columns: ['${
+      yield* _(Effect.logWarning(
+        `The dataset '${dataset.name}' has unmapped source columns: ['${
           missingMappedFields.join("','")
         }']. These columns will be ignored during validation.`,
-      );
+      ));
     }
 
     // Collect all violations as ValidationViolation[] for partitioning
@@ -835,16 +826,17 @@ function validateDataset(
     );
 
     if (bulkInsertResult._tag === "Left") {
-      // Bulk INSERT failed - fall back to row-by-row insertion
+      // Bulk INSERT failed - fall back to row-by-row insertion to collect detailed violations
       const error = bulkInsertResult.left;
-      console.log(
-        `Bulk INSERT failed for dataset '${dataset.name}' - falling back to row-by-row insertion to collect detailed violations`,
+      yield* _(
+        Effect.logDebug(
+          `Bulk INSERT failed for dataset '${dataset.name}' - falling back to row-by-row insertion`,
+        ),
       );
       if (error instanceof Error) {
-        console.log(`Bulk INSERT error: ${error.message}`);
+        yield* _(Effect.logDebug(`Bulk INSERT error: ${error.message}`));
       }
 
-      // Insert rows one-by-one and collect violations
       if (profile) {
         const constraintViolations = yield* _(
           insertRowByRow(
@@ -859,9 +851,11 @@ function validateDataset(
         allViolations.push(...constraintViolations);
       }
     } else {
-      // Bulk INSERT succeeded - no constraint violations
-      console.log(
-        `Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`,
+      // Bulk INSERT succeeded - no constraint violations to collect
+      yield* _(
+        Effect.logDebug(
+          `Bulk INSERT succeeded for dataset '${dataset.name}' - no constraint violations`,
+        ),
       );
     }
 
@@ -1253,930 +1247,5 @@ function validateCrossDatasetRule(
       targetField: rule.targetField,
       violations,
     };
-  });
-}
-
-/**
- * Partition violations by enforcement level
- *
- * Separates ValidationViolation[] into errors, warnings, and info
- * based on enforcement level. This is the core routing logic that
- * enables fail-fast and severity-aware output.
- *
- * @param violations - Array of enriched violations
- * @returns Partitioned violations by enforcement level
- *
- * @example
- * ```typescript
- * const allViolations: ValidationViolation[] = [
- *   { enforcement: "required", ... },
- *   { enforcement: "recommended", ... },
- *   { enforcement: "optional", ... },
- * ];
- *
- * const partitioned = partitionViolations(allViolations);
- * // => {
- * //   errors: [...],     // required violations
- * //   warnings: [...],   // recommended violations
- * //   info: [...],       // optional violations
- * // }
- * ```
- */
-function partitionViolations(
-  violations: ReadonlyArray<ValidationViolation>,
-): {
-  readonly errors: ValidationViolation[];
-  readonly warnings: ValidationViolation[];
-  readonly info: ValidationViolation[];
-} {
-  const errors: ValidationViolation[] = [];
-  const warnings: ValidationViolation[] = [];
-  const info: ValidationViolation[] = [];
-
-  for (const violation of violations) {
-    switch (violation.enforcement) {
-      case "required":
-        errors.push(violation);
-        break;
-      case "recommended":
-        warnings.push(violation);
-        break;
-      case "optional":
-        info.push(violation);
-        break;
-    }
-  }
-
-  return { errors, warnings, info };
-}
-
-/**
- * Calculate summary statistics across all dataset results
- */
-function calculateSummary(datasetResults: readonly DatasetValidationResult[]): {
-  readonly totalDatasets: number;
-  readonly datasetsPassedCount: number;
-  readonly datasetsWithWarningsCount: number;
-  readonly datasetsFailedCount: number;
-  readonly totalErrors: number;
-  readonly totalWarnings: number;
-  readonly totalInfo: number;
-  readonly totalRowsProcessed: number;
-} {
-  let datasetsPassedCount = 0;
-  let datasetsWithWarningsCount = 0;
-  let datasetsFailedCount = 0;
-  let totalErrors = 0;
-  let totalWarnings = 0;
-  let totalInfo = 0;
-  let totalRowsProcessed = 0;
-
-  for (const result of datasetResults) {
-    totalRowsProcessed += result.rowsProcessed;
-
-    // NEW: Count violations by severity from partitioned structure
-    totalErrors += result.violations.errors.length;
-    totalWarnings += result.violations.warnings.length;
-    totalInfo += result.violations.info.length;
-
-    // Also count old-style errors for backward compatibility
-    totalErrors += result.typeErrors.length + result.requiredFieldErrors.length;
-    totalWarnings += result.warnings.length;
-
-    if (result.status === "pass") {
-      datasetsPassedCount++;
-    } else if (result.status === "warn") {
-      datasetsWithWarningsCount++;
-    } else {
-      datasetsFailedCount++;
-    }
-  }
-
-  return {
-    totalDatasets: datasetResults.length,
-    datasetsPassedCount,
-    datasetsWithWarningsCount,
-    datasetsFailedCount,
-    totalErrors,
-    totalWarnings,
-    totalInfo,
-    totalRowsProcessed,
-  };
-}
-
-/**
- * Validate range constraints for a field
- */
-/**
- * Find range violations for a single validator
- *
- * Returns fully-formed RangeViolation objects with all metadata.
- */
-function findRangeViolations(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  validator: ValidatorConfig,
-  specField: FieldDefinition,
-): Effect.Effect<RangeViolation[], never> {
-  return Effect.gen(function* (_) {
-    const { min, max, inclusive = true } = validator.params || {};
-
-    if (min === undefined && max === undefined) return [];
-
-    // Build range condition
-    const conditions: string[] = [];
-    if (min !== undefined) {
-      conditions.push(
-        inclusive ? `"${fieldName}" < ${min}` : `"${fieldName}" <= ${min}`,
-      );
-    }
-    if (max !== undefined) {
-      conditions.push(
-        inclusive ? `"${fieldName}" > ${max}` : `"${fieldName}" >= ${max}`,
-      );
-    }
-
-    const rangeCondition = conditions.join(" OR ");
-
-    const query = `
-      SELECT
-        _row_number,
-        "${fieldName}" as value
-      FROM ${tableName}
-      WHERE "${fieldName}" IS NOT NULL
-        AND (${rangeCondition})
-      LIMIT 100
-    `;
-
-    // SQL query execution should work - query failure is a defect
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const rows = result.getRowObjects();
-
-    // Return fully-formed RangeViolation objects
-    return rows.map((row) =>
-      new RangeViolation({
-        enforcement: validator.enforcement,
-        severity: enforcementToSeverity(validator.enforcement),
-        fieldName,
-        targetName: specField.name,
-        rowNumber: Number(row._row_number),
-        value: String(row.value),
-        errorMessage: validator.message || `Value out of range`,
-        validatorType: validator.type,
-        params: validator.params,
-      })
-    );
-  });
-}
-
-/**
- * Validate range constraints for a field
- *
- * Calls findRangeViolations() for each range validator.
- */
-function validateRangeConstraints(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  specField: FieldDefinition,
-): Effect.Effect<ValidationViolation[], WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    const violations: ValidationViolation[] = [];
-
-    if (!specField.validators || !Array.isArray(specField.validators)) {
-      return violations;
-    }
-
-    // Get range validators (now always ValidatorConfig[] after normalization)
-    // TODO: Add parsing here; we need to ensure the range validator is valid before trying to apply it
-    // Also ensures type sagety within the loop below
-    const rangeValidators = specField.validators.filter((v) => v.type === "range");
-
-    for (const validator of rangeValidators) {
-      // Normalize validator format: JSON schema may have min/max at top level,
-      // but ValidatorConfig expects them under params
-      // Treat validator as unknown to safely check for legacy top-level properties
-      const validatorUnknown = validator as unknown as Record<string, unknown>;
-      const normalizedValidator = {
-        type: validator.type,
-        enforcement: validator.enforcement || "required",
-        message: validator.message,
-        params: validator.params || {
-          min: typeof validatorUnknown.min === "number" ? validatorUnknown.min : undefined,
-          max: typeof validatorUnknown.max === "number" ? validatorUnknown.max : undefined,
-          inclusive: typeof validatorUnknown.inclusive === "boolean"
-            ? validatorUnknown.inclusive
-            : true,
-        },
-      };
-
-      const rangeViolations = yield* _(
-        findRangeViolations(
-          connection,
-          tableName,
-          fieldName,
-          normalizedValidator,
-          specField,
-        ),
-      );
-
-      violations.push(...rangeViolations);
-    }
-
-    return violations;
-  });
-}
-
-/**
- * Validate controlled vocabulary for a field
- */
-/**
- * Map VocabularyEnforcement to EnforcementLevel
- *
- * Converts vocabulary-specific enforcement to standard enforcement levels:
- * - strict → required (ERROR)
- * - recommended → recommended (WARNING)
- * - loose → (no violations generated - any value accepted)
- *
- * Note: This mapping is only used for strict/recommended enforcement.
- * Loose enforcement is handled separately by skipping validation entirely.
- */
-function vocabularyEnforcementToStandard(
-  vocabEnforcement: VocabularyEnforcement,
-): EnforcementLevel {
-  switch (vocabEnforcement) {
-    case "strict":
-      return "required";
-    case "recommended":
-      return "recommended";
-    case "loose":
-      return "optional"; // Not actually used - loose enforcement skips validation
-  }
-}
-
-/**
- * Find vocabulary violations using vocabulary key
- *
- * Returns fully-formed VocabularyViolation objects with all metadata.
- */
-function findVocabularyViolations(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  vocabularyKey: VocabularyKey,
-  specField: FieldDefinition,
-  enforcement: EnforcementLevel,
-  caseSensitive = false,
-): Effect.Effect<VocabularyViolation[], WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    // Get distinct values from the field with ordered row numbers
-    const query = `
-      SELECT
-        "${fieldName}" as value,
-        list(_row_number ORDER BY _row_number) as row_numbers
-      FROM ${tableName}
-      WHERE "${fieldName}" IS NOT NULL
-      GROUP BY "${fieldName}"
-    `;
-
-    // SQL query execution should work - query failure is a defect
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const rows = result.getRowObjects();
-    const violations: VocabularyViolation[] = [];
-
-    for (const row of rows) {
-      const value = String(row.value);
-      const rawRowNumbers = row.row_numbers;
-
-      let rowNumbers: number[] = [];
-      if (Array.isArray(rawRowNumbers)) {
-        rowNumbers = rawRowNumbers.map((n) => Number(n));
-      } else if (
-        rawRowNumbers && typeof rawRowNumbers === "object" &&
-        "items" in rawRowNumbers
-      ) {
-        rowNumbers = rawRowNumbers.items.map((n) => Number(n));
-      }
-
-      // Check if value is valid in vocabulary
-      let isValid = false;
-      if (caseSensitive) {
-        isValid = isValidVocabularyValue(vocabularyKey, value);
-      } else {
-        const vocabValues = yield* _(
-          getVocabularyValues(vocabularyKey).pipe(
-            Effect.catchAll(() => Effect.succeed([] as readonly string[])),
-          ),
-        );
-        const lowerValue = value.toLowerCase();
-        isValid = (vocabValues as readonly string[]).some((v) => v.toLowerCase() === lowerValue);
-      }
-
-      if (!isValid) {
-        // Add violation for each row with this invalid value
-        for (const rowNum of rowNumbers) {
-          violations.push(
-            new VocabularyViolation({
-              enforcement,
-              severity: enforcementToSeverity(enforcement),
-              fieldName,
-              targetName: specField.name,
-              rowNumber: Number(rowNum),
-              value,
-              errorMessage: `Invalid vocabulary value: "${value}"`,
-              validatorType: "vocabulary",
-              // TODO: Add fuzzy matching for suggestions
-            }),
-          );
-        }
-      }
-    }
-
-    return violations;
-  });
-}
-
-/**
- * Validate controlled vocabulary for a field
- *
- * Returns ValidationViolation[] for new enforcement-aware infrastructure.
- * Also returns old format for backward compatibility.
- */
-function validateVocabulary(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  specField: FieldDefinition,
-): Effect.Effect<
-  {
-    enriched: ValidationViolation[];
-    legacy: Array<
-      { rowNumber: number; value: string; suggestedValues?: string[] }
-    >;
-  },
-  WorkspaceValidationError
-> {
-  return Effect.gen(function* (_) {
-    // After normalization, vocabulary config is always present if field has controlled vocabulary
-    if (!specField.vocabulary) {
-      return { enriched: [], legacy: [] };
-    }
-
-    const { vocabularyKey, caseSensitive = false, enforcement = "strict" } = specField.vocabulary;
-
-    // Skip validation for loose enforcement - any value is accepted
-    if (enforcement === "loose") {
-      return { enriched: [], legacy: [] };
-    }
-
-    // Map vocabulary enforcement to standard enforcement level
-    const standardEnforcement = vocabularyEnforcementToStandard(enforcement);
-
-    // Get fully-formed violations
-    const enriched = yield* _(
-      findVocabularyViolations(
-        connection,
-        tableName,
-        fieldName,
-        vocabularyKey as VocabularyKey,
-        specField,
-        standardEnforcement,
-        caseSensitive,
-      ),
-    );
-
-    // Also return legacy format for backward compatibility
-    const legacy = enriched.map((v) => ({
-      rowNumber: v.rowNumber,
-      value: v.value,
-      suggestedValues: v.suggestedValues ? [...v.suggestedValues] : undefined,
-    }));
-
-    return { enriched, legacy };
-  });
-}
-
-/**
- * Find uniqueness violations
- *
- * Returns fully-formed UniquenessViolation objects with all metadata.
- *
- * Note: This "explodes" duplicate values into individual violations,
- * so a value duplicated 3 times creates 3 UniquenessViolations.
- */
-function findUniquenessViolations(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  specField: FieldDefinition,
-  enforcement: EnforcementLevel,
-): Effect.Effect<UniquenessViolation[], WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    // Query to find duplicate values with ordered row numbers
-    const query = `
-      SELECT
-        "${fieldName}" as duplicate_value,
-        COUNT(*) as occurrence_count,
-        list(_row_number ORDER BY _row_number) as affected_rows
-      FROM ${tableName}
-      WHERE "${fieldName}" IS NOT NULL
-      GROUP BY "${fieldName}"
-      HAVING COUNT(*) > 1
-      ORDER BY COUNT(*) DESC
-      LIMIT 100
-    `;
-
-    // SQL query execution should work - query failure is a defect
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const rows = result.getRowObjects();
-    const violations: UniquenessViolation[] = [];
-
-    // Explode each duplicate value into individual violations (one per row)
-    for (const row of rows) {
-      const value = String(row.duplicate_value);
-
-      // Handle DuckDB LIST type for affected_rows
-      let affectedRows: number[] = [];
-      const raw = row.affected_rows;
-      if (Array.isArray(raw)) {
-        affectedRows = raw.map((n) => Number(n));
-      } else if (raw && typeof raw === "object" && "items" in raw) {
-        affectedRows = raw.items.map((n) => Number(n));
-      }
-
-      // Create one violation per affected row
-      for (const rowNum of affectedRows) {
-        violations.push(
-          new UniquenessViolation({
-            enforcement,
-            severity: enforcementToSeverity(enforcement),
-            fieldName,
-            targetName: specField.name,
-            rowNumber: Number(rowNum),
-            value,
-            errorMessage: `Duplicate value: "${value}"`,
-            validatorType: "unique",
-          }),
-        );
-      }
-    }
-
-    return violations;
-  });
-}
-
-/**
- * Validate uniqueness for a field
- *
- * Returns ValidationViolation[] for new enforcement-aware infrastructure.
- * Also returns old format for backward compatibility.
- */
-function validateUniqueness(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  specField: FieldDefinition,
-): Effect.Effect<
-  {
-    enriched: ValidationViolation[];
-    legacy: Array<{
-      duplicateValue: string;
-      occurrenceCount: number;
-      affectedRows: number[];
-    }>;
-  },
-  WorkspaceValidationError
-> {
-  return Effect.gen(function* (_) {
-    // Check if field has explicit uniqueness validator (already normalized)
-    const uniqueValidator = specField.validators?.find((v) => v.type === "unique");
-    const enforcement = uniqueValidator?.enforcement ?? "required";
-
-    // Get fully-formed violations
-    const enriched = yield* _(
-      findUniquenessViolations(
-        connection,
-        tableName,
-        fieldName,
-        specField,
-        enforcement,
-      ),
-    );
-
-    // Also return legacy format for backward compatibility
-    // Group violations by duplicate value for old structure
-    const duplicateGroups = new Map<
-      string,
-      { count: number; rows: number[] }
-    >();
-
-    for (const violation of enriched) {
-      const value = violation.value;
-      if (!duplicateGroups.has(value)) {
-        duplicateGroups.set(value, { count: 0, rows: [] });
-      }
-      const group = duplicateGroups.get(value)!;
-      group.count++;
-      group.rows.push(violation.rowNumber);
-    }
-
-    const legacy = Array.from(duplicateGroups.entries()).map((
-      [value, group],
-    ) => ({
-      duplicateValue: value,
-      occurrenceCount: group.count,
-      affectedRows: group.rows.sort((a, b) => a - b),
-    }));
-
-    return { enriched, legacy };
-  });
-}
-
-/**
- * Sanitize dataset name for use as SQL table name
- */
-function sanitizeTableName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_]/g, "_");
-}
-
-/**
- * Parse DuckDB error into structured violation information
- */
-interface ParsedErrorInfo {
-  readonly type:
-    | "primary-key"
-    | "not-null"
-    | "enum"
-    | "foreign-key"
-    | "check"
-    | "unknown";
-  readonly fieldName?: string;
-  readonly value?: string;
-  readonly message: string;
-}
-
-function parseDuckDBError(error: Error): ParsedErrorInfo {
-  const message = error.message;
-
-  // PRIMARY KEY or UNIQUE constraint violation
-  // Example 1: "Constraint Error: PRIMARY KEY or UNIQUE constraint violation: duplicate key "E1""
-  // Example 2: "Constraint Error: Duplicate key "eventID: E1" violates primary key constraint."
-  let pkMatch = message.match(
-    /PRIMARY KEY or UNIQUE constraint violation: duplicate key "([^"]+)"/,
-  );
-  if (pkMatch) {
-    return {
-      type: "primary-key",
-      value: pkMatch[1],
-      message,
-    };
-  }
-
-  // Alternative format for duplicate keys
-  pkMatch = message.match(
-    /Duplicate key "(?:\w+:\s*)?([^"]+)" violates primary key constraint/,
-  );
-  if (pkMatch) {
-    return {
-      type: "primary-key",
-      value: pkMatch[1],
-      message,
-    };
-  }
-
-  // NOT NULL constraint violation
-  // Example: "Constraint Error: NOT NULL constraint failed: column_name"
-  const notNullMatch = message.match(/NOT NULL constraint failed:?\s*(.+)?/i);
-  if (notNullMatch) {
-    return {
-      type: "not-null",
-      fieldName: notNullMatch[1]?.trim(),
-      message,
-    };
-  }
-
-  // ENUM/Type conversion error
-  // Example: "Conversion Error: Could not convert string 'InvalidBasis' to UINT8 when casting from source column basisOfRecord"
-  const enumMatch = message.match(
-    /Could not convert string '([^']+)'.+from source column (\w+)/,
-  );
-  if (enumMatch) {
-    return {
-      type: "enum",
-      value: enumMatch[1],
-      fieldName: enumMatch[2],
-      message,
-    };
-  }
-
-  // FOREIGN KEY constraint violation
-  const fkMatch = message.match(/FOREIGN KEY constraint/i);
-  if (fkMatch) {
-    return {
-      type: "foreign-key",
-      message,
-    };
-  }
-
-  // CHECK constraint violation
-  const checkMatch = message.match(/CHECK constraint/i);
-  if (checkMatch) {
-    return {
-      type: "check",
-      message,
-    };
-  }
-
-  return {
-    type: "unknown",
-    message,
-  };
-}
-
-/**
- * Get original CSV value for a specific row and field
- */
-function getOriginalCsvValue(
-  connection: DuckDBConnection,
-  rawTableName: string,
-  fieldName: string,
-  rowNumber: number,
-): Effect.Effect<string, WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    const query = `
-      SELECT "${fieldName}" as value
-      FROM ${rawTableName}
-      WHERE _row_number = ${rowNumber}
-    `;
-
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const rows = result.getRowObjects();
-    if (rows.length === 0) {
-      return "";
-    }
-
-    return String(rows[0].value ?? "");
-  });
-}
-
-/**
- * Find suggested value using fuzzy matching (Levenshtein distance)
- */
-function findSuggestedValue(
-  invalidValue: string,
-  allowedValues: ReadonlyArray<string>,
-  threshold: number = 3,
-): string | undefined {
-  let bestMatch: string | undefined;
-  let bestDistance = threshold;
-
-  for (const allowed of allowedValues) {
-    const distance = levenshteinDistance(invalidValue, allowed);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestMatch = allowed;
-    }
-  }
-
-  return bestMatch;
-}
-
-/**
- * Insert rows one-by-one, collecting violations for any that fail
- */
-function insertRowByRow(
-  connection: DuckDBConnection,
-  rawTableName: string,
-  schemaTableName: string,
-  columnMappings: { origin: string; target: string }[],
-  profile: ValidationProfile,
-  validationSettings?: ValidationSettings,
-): Effect.Effect<ValidationViolation[], WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    const violations: ValidationViolation[] = [];
-    const enableSuggestions = validationSettings?.enableSuggestions ?? true;
-    const processedDuplicates = new Set<string>(); // Track duplicate PKs we've already processed
-
-    // Get maximum _row_number to determine iteration range
-    const maxRowResult = yield* _(
-      Effect.tryPromise(() =>
-        connection.runAndReadAll(
-          `SELECT MAX(_row_number) as max_row FROM ${rawTableName}`,
-        )
-      ).pipe(Effect.orDie),
-    );
-    const maxRow = Number(maxRowResult.getRowObjects()[0]?.max_row ?? 0);
-
-    // Build column lists for INSERT
-    const targetColumns = columnMappings.map((m) => `"${m.target}"`).join(", ");
-    const originColumns = columnMappings.map((m) => `"${m.origin}"`).join(", ");
-
-    // Insert each row individually by _row_number
-    for (let rowNum = 1; rowNum <= maxRow; rowNum++) {
-      const insertSQL = `
-        INSERT INTO ${schemaTableName} (${targetColumns}, _row_number)
-        SELECT ${originColumns}, _row_number
-        FROM ${rawTableName}
-        WHERE _row_number = ${rowNum}
-      `;
-
-      const result = yield* _(
-        Effect.tryPromise({
-          try: () => connection.run(insertSQL),
-          catch: (error) => error,
-        }).pipe(Effect.either),
-      );
-
-      if (result._tag === "Left") {
-        const error = result.left;
-        if (!(error instanceof Error)) continue;
-
-        // Parse the error to determine violation type
-        const parsed = parseDuckDBError(error);
-
-        // Create structured violation based on error type
-        switch (parsed.type) {
-          case "primary-key": {
-            // Find the PK field from mappings
-            const pkMapping = columnMappings.find((m) =>
-              m.target === schemaTableName + "ID" ||
-              (m.target.endsWith("ID") &&
-                profile.fields?.[m.target]?.unique === "true")
-            );
-
-            if (
-              pkMapping && parsed.value &&
-              !processedDuplicates.has(parsed.value)
-            ) {
-              const specField = profile.normalizedFields?.[pkMapping.target];
-              if (!specField) break;
-
-              // Mark this duplicate value as processed
-              processedDuplicates.add(parsed.value);
-
-              // Query the raw table to find ALL rows with this duplicate value
-              // This gives us complete information about all instances of the duplicate
-              const duplicateQuery = `
-                SELECT _row_number
-                FROM ${rawTableName}
-                WHERE "${pkMapping.origin}" = '${parsed.value}'
-              `;
-
-              const duplicateResult = yield* _(
-                Effect.tryPromise(() => connection.runAndReadAll(duplicateQuery)).pipe(
-                  Effect.orDie,
-                ),
-              );
-
-              const duplicateRows = duplicateResult.getRowObjects();
-              const duplicateCount = duplicateRows.length;
-
-              // Create a violation for each row that has the duplicate value
-              for (const dupRow of duplicateRows) {
-                const dupRowNum = Number(dupRow._row_number);
-                const csvValue = yield* _(
-                  getOriginalCsvValue(
-                    connection,
-                    rawTableName,
-                    pkMapping.origin,
-                    dupRowNum,
-                  ),
-                );
-
-                violations.push(
-                  new PrimaryKeyViolation({
-                    enforcement: "required",
-                    severity: enforcementToSeverity("required"),
-                    fieldName: pkMapping.origin,
-                    targetName: pkMapping.target,
-                    rowNumber: dupRowNum,
-                    value: parsed.value,
-                    csvValue,
-                    constraintType: "duplicate",
-                    duplicateCount,
-                    errorMessage: `Duplicate primary key: "${parsed.value}"`,
-                    validatorType: "primary-key",
-                  }),
-                );
-              }
-            }
-            break;
-          }
-
-          case "not-null": {
-            // Find the field that caused the NOT NULL violation
-            const notNullMapping = columnMappings.find((m) =>
-              parsed.fieldName ? m.target === parsed.fieldName : false
-            );
-
-            if (notNullMapping) {
-              const specField = profile.normalizedFields
-                ?.[notNullMapping.target];
-              if (!specField) break;
-
-              violations.push(
-                new NotNullViolation({
-                  enforcement: "required",
-                  severity: enforcementToSeverity("required"),
-                  fieldName: notNullMapping.origin,
-                  targetName: notNullMapping.target,
-                  rowNumber: rowNum,
-                  value: "",
-                  csvValue: "",
-                  errorMessage: `Required field "${notNullMapping.origin}" cannot be NULL`,
-                  validatorType: "not-null",
-                }),
-              );
-            }
-            break;
-          }
-
-          case "enum": {
-            // Find the field that caused the ENUM violation
-            const enumMapping = columnMappings.find((m) =>
-              m.origin === parsed.fieldName || m.target === parsed.fieldName
-            );
-
-            if (enumMapping && parsed.value) {
-              const specField = profile.normalizedFields?.[enumMapping.target];
-              const rawField = profile.fields?.[enumMapping.target];
-
-              if (!specField || !rawField?.values) break;
-
-              const allowedValues = Object.keys(rawField.values);
-              const suggestedValue = enableSuggestions
-                ? findSuggestedValue(parsed.value, allowedValues)
-                : undefined;
-
-              const vocabValidator = specField.validators?.find((v) =>
-                v.type === "unique" || v.type === "required"
-              );
-              const enforcement = vocabValidator?.enforcement ?? "required";
-
-              violations.push(
-                new EnumViolation({
-                  enforcement,
-                  severity: enforcementToSeverity(enforcement),
-                  fieldName: enumMapping.origin,
-                  targetName: enumMapping.target,
-                  rowNumber: rowNum,
-                  value: parsed.value,
-                  csvValue: parsed.value,
-                  enumType: `${schemaTableName}_${enumMapping.target.toLowerCase()}_enum`,
-                  allowedValues,
-                  suggestedValue,
-                  errorMessage: suggestedValue
-                    ? `Invalid value "${parsed.value}" (did you mean "${suggestedValue}"?)`
-                    : `Invalid value "${parsed.value}" (must be one of: ${
-                      allowedValues.join(", ")
-                    })`,
-                  validatorType: "enum",
-                }),
-              );
-            }
-            break;
-          }
-
-          case "foreign-key": {
-            // For FK violations, we need more context - log for now
-            console.warn(
-              `Foreign key violation at row ${rowNum}: ${parsed.message}`,
-            );
-            break;
-          }
-
-          default: {
-            // Unknown error type - log it
-            console.warn(
-              `Unknown constraint violation at row ${rowNum}: ${parsed.message}`,
-            );
-            break;
-          }
-        }
-      }
-    }
-
-    return violations;
   });
 }

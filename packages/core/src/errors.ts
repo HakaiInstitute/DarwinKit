@@ -7,7 +7,7 @@
  * @module errors
  */
 
-// Main error types (WorkspaceError, ValidationError, ConfigError, etc.)
+// Main error types (ValidationError, etc.)
 export * from "./errors/index.ts";
 
 // Workspace configuration errors
@@ -17,6 +17,7 @@ export * from "./workspace/errors.ts";
 export {
   type DatabaseError,
   DatasetImportError,
+  QueryError,
   SchemaCreationError,
   TableNotFoundError,
 } from "./database/errors.ts";

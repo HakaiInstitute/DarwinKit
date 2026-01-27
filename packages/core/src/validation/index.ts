@@ -40,4 +40,7 @@ export {
 export { type ColumnMapping, getOriginalCsvValue, insertRowByRow } from "./data-loader.ts";
 
 // Workspace validation (main entry point)
-export { WorkspaceValidationError, WorkspaceValidator } from "./workspace-validator.ts";
+export { WorkspaceValidator } from "./workspace-validator.ts";
+
+// Validation error classes
+export { WorkspaceImportError, WorkspaceValidationError } from "./validation-errors.ts";

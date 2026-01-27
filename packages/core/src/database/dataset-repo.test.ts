@@ -16,48 +16,6 @@ const testDir = dirname(fromFileUrl(import.meta.url));
 const testDataDir = join(testDir, "../../../../test/data");
 
 /**
- * Unit tests using testLayer (no real database)
- */
-Deno.test("DatasetRepo.testLayer - import returns void", async () => {
-  const program = Effect.gen(function* () {
-    const repo = yield* DatasetRepo;
-    yield* repo.import("test", "./test.csv", ["NA"]);
-  });
-
-  await Effect.runPromise(program.pipe(Effect.provide(DatasetRepo.testLayer)));
-});
-
-Deno.test("DatasetRepo.testLayer - exists returns true", async () => {
-  const program = Effect.gen(function* () {
-    const repo = yield* DatasetRepo;
-    const exists = yield* repo.exists("test");
-    assertEquals(exists, true);
-  });
-
-  await Effect.runPromise(program.pipe(Effect.provide(DatasetRepo.testLayer)));
-});
-
-Deno.test("DatasetRepo.testLayer - rowCount returns 100", async () => {
-  const program = Effect.gen(function* () {
-    const repo = yield* DatasetRepo;
-    const count = yield* repo.rowCount("test");
-    assertEquals(count, 100);
-  });
-
-  await Effect.runPromise(program.pipe(Effect.provide(DatasetRepo.testLayer)));
-});
-
-Deno.test("DatasetRepo.testLayer - columns returns stub columns", async () => {
-  const program = Effect.gen(function* () {
-    const repo = yield* DatasetRepo;
-    const cols = yield* repo.columns("test");
-    assertEquals(cols, ["id", "name", "_row_number"]);
-  });
-
-  await Effect.runPromise(program.pipe(Effect.provide(DatasetRepo.testLayer)));
-});
-
-/**
  * Integration tests using real DuckDB connection
  */
 Deno.test("DatasetRepo.layer - import creates table with _row_number", async () => {

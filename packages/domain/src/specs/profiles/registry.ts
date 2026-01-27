@@ -99,8 +99,7 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
     for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
       try {
         normalizedFields[fieldName] = normalizeField(fieldValue as field);
-      } catch (error) {
-        console.warn(`Failed to normalize field '${fieldName}':`, error);
+      } catch {
         // Skip invalid fields rather than failing the entire profile
       }
     }

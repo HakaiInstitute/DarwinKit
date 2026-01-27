@@ -15,10 +15,14 @@ export { DbConnection } from "./connection.ts";
 export { DatasetRepo } from "./dataset-repo.ts";
 export { type ColumnDef, type ColumnInfo, SchemaRepo, type TableSchema } from "./schema-repo.ts";
 
+// Query Runner (escape hatch for arbitrary SQL)
+export { type QueryRow, QueryRunner } from "./query-runner.ts";
+
 // Errors
 export {
   type DatabaseError,
   DatasetImportError,
+  QueryError,
   SchemaCreationError,
   TableNotFoundError,
 } from "./errors.ts";

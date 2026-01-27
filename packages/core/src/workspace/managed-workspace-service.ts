@@ -18,10 +18,9 @@ import type {
   WorkspaceConfig,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
-import { ValidationError } from "../errors/index.ts";
+import type { ValidationError } from "../errors/index.ts";
 
-import type { WorkspaceConfigError } from "./errors.ts";
-import { ValidationConfigMissingError } from "./errors.ts";
+import type { ValidationConfigMissingError, WorkspaceConfigError } from "./errors.ts";
 import { ManagedWorkspace, type ValidationOptions } from "./workspace.ts";
 
 /**

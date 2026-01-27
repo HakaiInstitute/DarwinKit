@@ -1,17 +1,22 @@
 /**
  * Core Error Types
  *
- * Centralized error definitions for the core package. All error types are defined
- * here to ensure consistency and avoid duplicate definitions across services.
+ * Centralized error definitions for the core package. Re-exports specialized
+ * error types from their source modules for convenient imports.
  *
  * Usage:
  * ```typescript
- * import { WorkspaceError, ValidationError } from "@dwkt/core/errors";
+ * import { ValidationError, WorkspaceValidationError } from "@dwkt/core/errors";
  *
- * // In service code
- * return Effect.fail(new WorkspaceError({
- *   message: "Configuration not found",
+ * // For workspace validation operations
+ * return Effect.fail(new WorkspaceValidationError({
+ *   message: "Validation failed",
  *   cause: originalError,
+ * }));
+ *
+ * // For simplified validation interface
+ * return Effect.fail(new ValidationError({
+ *   message: "Validation failed",
  * }));
  * ```
  */
@@ -38,34 +43,13 @@ import type {
 } from "../validation/workspace-validator.ts";
 
 /**
- * Workspace operation errors
- *
- * Used for configuration loading, file discovery, and workspace management.
- */
-export class WorkspaceError extends Data.TaggedError("WorkspaceError")<{
-  readonly message: string;
-  readonly cause?: Error;
-}> {}
-
-/**
  * Validation operation errors
  *
- * Used for dataset validation failures including field mapping errors,
- * constraint violations, and validation service errors.
+ * Used as a simplified error interface for validation operations.
+ * Wraps WorkspaceValidationError with a consistent interface.
  */
 export class ValidationError extends Data.TaggedError("ValidationError")<{
   readonly message: string;
-  readonly cause?: Error;
-}> {}
-
-/**
- * Configuration error
- *
- * Used for configuration parsing and schema validation errors.
- */
-export class ConfigError extends Data.TaggedError("ConfigError")<{
-  readonly message: string;
-  readonly path?: string;
   readonly cause?: Error;
 }> {}
 
@@ -86,10 +70,8 @@ type ErrorTag<T extends abstract new (...args: never[]) => { readonly _tag: stri
  * in sync with the actual error definitions automatically.
  */
 export type CoreErrorTag =
-  // Workspace & Config Operations
-  | ErrorTag<typeof WorkspaceError>
+  // Validation Operations
   | ErrorTag<typeof ValidationError>
-  | ErrorTag<typeof ConfigError>
   // CSV Parsing & Reading (re-exported)
   | ErrorTag<typeof ParseError>
   | ErrorTag<typeof CsvReadError>

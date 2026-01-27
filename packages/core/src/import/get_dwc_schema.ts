@@ -84,74 +84,83 @@ function getArray<T>(value: T | T[] | undefined): T[] {
  *
  * Maps thesaurus URLs to local files, parses XML, and extracts controlled vocabulary values.
  */
-function xmlThesaurusToJson(inputID: string, externalDir: string): Thesaurus {
-  const thesaurusPath = inputID
-    .replace("http://rs.gbif.org/", `${externalDir}/rs_gbif/`)
-    .replace("https://rs.gbif.org/", `${externalDir}/rs_gbif/`);
+function xmlThesaurusToJson(
+  inputID: string,
+  externalDir: string,
+): Effect.Effect<Thesaurus, Error> {
+  return Effect.gen(function* () {
+    const thesaurusPath = inputID
+      .replace("http://rs.gbif.org/", `${externalDir}/rs_gbif/`)
+      .replace("https://rs.gbif.org/", `${externalDir}/rs_gbif/`);
 
-  Effect.logInfo(`    Getting vocabulary from ${thesaurusPath}`);
+    yield* Effect.logDebug(`    Getting vocabulary from ${thesaurusPath}`);
 
-  const thesaurusXml = Deno.readTextFileSync(thesaurusPath);
-  // Remove voc: namespace prefix for easier parsing
-  const cleanedXml = thesaurusXml
-    .replaceAll("<voc:", "<")
-    .replaceAll("</voc:", "</");
-
-  const parsed = parseXml(cleanedXml);
-  // deno-lint-ignore no-explicit-any
-  const simplified = simplifyLostLess(parsed as any) as any;
-
-  // Extract concepts from simplified XML
-  const thesaurusData = simplified.thesaurus[0];
-  const concepts: Record<string, ThesaurusConcept> = {};
-
-  // deno-lint-ignore no-explicit-any
-  getArray(thesaurusData.concept).forEach((concept: any) => {
-    const identifier = concept._attributes["dc:identifier"];
-    if (!identifier) return;
-
-    // Extract English terms from preferred and alternative labels
-    const altRepresentations: string[] = [];
-
-    // Process preferred terms
-    // deno-lint-ignore no-explicit-any
-    getArray(concept.preferred).forEach((pref: any) => {
-      // deno-lint-ignore no-explicit-any
-      getArray(pref.term).forEach((term: any) => {
-        const attrs = term._attributes;
-        if (attrs && attrs["xml:lang"] === "en" && attrs["dc:title"]) {
-          altRepresentations.push(attrs["dc:title"]);
-        }
-      });
+    const thesaurusXml = yield* Effect.try({
+      try: () => Deno.readTextFileSync(thesaurusPath),
+      catch: (error) => new Error(`Failed to read thesaurus file ${thesaurusPath}: ${error}`),
     });
 
-    // Process alternative terms
+    // Remove voc: namespace prefix for easier parsing
+    const cleanedXml = thesaurusXml
+      .replaceAll("<voc:", "<")
+      .replaceAll("</voc:", "</");
+
+    const parsed = parseXml(cleanedXml);
     // deno-lint-ignore no-explicit-any
-    getArray(concept.alternative).forEach((alt: any) => {
+    const simplified = simplifyLostLess(parsed as any) as any;
+
+    // Extract concepts from simplified XML
+    const thesaurusData = simplified.thesaurus[0];
+    const concepts: Record<string, ThesaurusConcept> = {};
+
+    // deno-lint-ignore no-explicit-any
+    getArray(thesaurusData.concept).forEach((concept: any) => {
+      const identifier = concept._attributes["dc:identifier"];
+      if (!identifier) return;
+
+      // Extract English terms from preferred and alternative labels
+      const altRepresentations: string[] = [];
+
+      // Process preferred terms
       // deno-lint-ignore no-explicit-any
-      getArray(alt.term).forEach((term: any) => {
-        const attrs = term._attributes;
-        if (attrs && attrs["xml:lang"] === "en" && attrs["dc:title"]) {
-          altRepresentations.push(attrs["dc:title"]);
-        }
+      getArray(concept.preferred).forEach((pref: any) => {
+        // deno-lint-ignore no-explicit-any
+        getArray(pref.term).forEach((term: any) => {
+          const attrs = term._attributes;
+          if (attrs && attrs["xml:lang"] === "en" && attrs["dc:title"]) {
+            altRepresentations.push(attrs["dc:title"]);
+          }
+        });
       });
+
+      // Process alternative terms
+      // deno-lint-ignore no-explicit-any
+      getArray(concept.alternative).forEach((alt: any) => {
+        // deno-lint-ignore no-explicit-any
+        getArray(alt.term).forEach((term: any) => {
+          const attrs = term._attributes;
+          if (attrs && attrs["xml:lang"] === "en" && attrs["dc:title"]) {
+            altRepresentations.push(attrs["dc:title"]);
+          }
+        });
+      });
+
+      // Copy attributes except identifier
+      const { "dc:identifier": _, ...restAttrs } = concept._attributes;
+      concepts[identifier] = {
+        ...restAttrs,
+        names: altRepresentations.filter(Boolean),
+      };
     });
 
-    // Copy attributes except identifier
-    const { "dc:identifier": _, ...restAttrs } = concept._attributes;
-    concepts[identifier] = {
-      ...restAttrs,
-      names: altRepresentations.filter(Boolean),
+    // Extract thesaurus-level attributes (skip the concept array)
+    const { concept: _concepts, ...thesaurusAttrs } = thesaurusData._attributes || {};
+
+    return {
+      ...thesaurusAttrs,
+      concept: concepts,
     };
   });
-
-  // Extract thesaurus-level attributes (skip the concept array)
-  const { concept: _concepts, ...thesaurusAttrs } = thesaurusData._attributes || {};
-
-  return {
-    ...thesaurusAttrs,
-    concept: concepts,
-  };
 }
 
 /**
@@ -159,86 +168,98 @@ function xmlThesaurusToJson(inputID: string, externalDir: string): Thesaurus {
  *
  * Parses XML extension/core definitions and extracts field properties.
  */
-function xmlSchemaToJson(filePath: string, options: Options, externalDir: string): SchemaJson {
-  const { group, idFieldName } = options;
-  Effect.logInfo(`Reading Schema file ${filePath}`);
+function xmlSchemaToJson(
+  filePath: string,
+  options: Options,
+  externalDir: string,
+): Effect.Effect<SchemaJson, Error> {
+  return Effect.gen(function* () {
+    const { group, idFieldName } = options;
+    yield* Effect.logInfo(`Reading Schema file ${filePath}`);
 
-  const inputXML = Deno.readTextFileSync(filePath);
-  const parsed = parseXml(inputXML);
-  // deno-lint-ignore no-explicit-any
-  const simplified = simplifyLostLess(parsed as any) as any;
+    const inputXML = yield* Effect.try({
+      try: () => Deno.readTextFileSync(filePath),
+      catch: (error) => new Error(`Failed to read schema file ${filePath}: ${error}`),
+    });
 
-  // Get extension or core element (they're wrapped in arrays)
-  const extension = simplified.extension?.[0] || simplified.core?.[0];
-  if (!extension) {
-    throw new Error(`No extension or core element found in ${filePath}`);
-  }
-
-  const extensionName = extension._attributes?.name || "Unknown";
-
-  // Extract field properties from property elements
-  const fields: Record<string, FieldDefinition> = {};
-  // deno-lint-ignore no-explicit-any
-  getArray(extension.property).forEach((prop: any) => {
-    const attrs = prop._attributes;
-    if (!attrs) return;
-
-    const name = attrs.name;
-    if (!name) return;
-
-    // Generate human-readable label from camelCase name
-    let label = name.split(/(?<![A-Z])(?=[A-Z])/).join(" ");
-    label = label[0].toUpperCase() + label.slice(1);
-
-    // Build field definition with all attributes
-    const field: FieldDefinition = {
-      group: group || attrs.group || undefined,
-      name,
-      label,
-      gbif_required: attrs.required || undefined,
-      ...attrs, // Spread all other attributes
-    };
-
-    // Remove the properties we've already handled
-    delete field.required;
-    delete field.group; // Already handled above
-
-    const thesaurus = attrs.thesaurus;
+    const parsed = parseXml(inputXML);
     // deno-lint-ignore no-explicit-any
-    delete (field as any).thesaurus; // Will add back if needed
+    const simplified = simplifyLostLess(parsed as any) as any;
 
-    // Add thesaurus vocabulary if present
-    if (thesaurus) {
-      const thesaurusJson = xmlThesaurusToJson(thesaurus, externalDir);
-      field.thesaurus = thesaurus;
-      field.values = thesaurusJson.concept;
-      if (!field.type) {
-        field.type = "controlled-vocabulary";
+    // Get extension or core element (they're wrapped in arrays)
+    const extension = simplified.extension?.[0] || simplified.core?.[0];
+    if (!extension) {
+      return yield* Effect.fail(
+        new Error(`No extension or core element found in ${filePath}`),
+      );
+    }
+
+    const extensionName = extension._attributes?.name || "Unknown";
+
+    // Extract field properties from property elements
+    const fields: Record<string, FieldDefinition> = {};
+    // deno-lint-ignore no-explicit-any
+    for (const prop of getArray(extension.property) as any[]) {
+      const attrs = prop._attributes;
+      if (!attrs) continue;
+
+      const name = attrs.name;
+      if (!name) continue;
+
+      // Generate human-readable label from camelCase name
+      let label = name.split(/(?<![A-Z])(?=[A-Z])/).join(" ");
+      label = label[0].toUpperCase() + label.slice(1);
+
+      // Build field definition with all attributes
+      const field: FieldDefinition = {
+        group: group || attrs.group || undefined,
+        name,
+        label,
+        gbif_required: attrs.required || undefined,
+        ...attrs, // Spread all other attributes
+      };
+
+      // Remove the properties we've already handled
+      delete field.required;
+      delete field.group; // Already handled above
+
+      const thesaurus = attrs.thesaurus;
+      // deno-lint-ignore no-explicit-any
+      delete (field as any).thesaurus; // Will add back if needed
+
+      // Add thesaurus vocabulary if present
+      if (thesaurus) {
+        const thesaurusJson = yield* xmlThesaurusToJson(thesaurus, externalDir);
+        field.thesaurus = thesaurus;
+        field.values = thesaurusJson.concept;
+        if (!field.type) {
+          field.type = "controlled-vocabulary";
+        }
       }
+
+      // Set identifier type for ID fields
+      if (name === idFieldName) {
+        field.unique = "true";
+        field.type = "identifier";
+      } else if (!field.type && name.endsWith("ID")) {
+        field.type = "identifier";
+      }
+
+      fields[name] = field;
     }
 
-    // Set identifier type for ID fields
-    if (name === idFieldName) {
-      field.unique = "true";
-      field.type = "identifier";
-    } else if (!field.type && name.endsWith("ID")) {
-      field.type = "identifier";
-    }
+    // Extract extension/core metadata (skip name and property array)
+    const { name: _name, ...extensionAttrs } = extension._attributes || {};
 
-    fields[name] = field;
+    return {
+      [extensionName]: {
+        ...extensionAttrs,
+        name: extensionName,
+        fieldOverrides: {},
+        fields,
+      },
+    };
   });
-
-  // Extract extension/core metadata (skip name and property array)
-  const { name: _name, ...extensionAttrs } = extension._attributes || {};
-
-  return {
-    [extensionName]: {
-      ...extensionAttrs,
-      name: extensionName,
-      fieldOverrides: {},
-      fields,
-    },
-  };
 }
 
 // ============================================================================
@@ -248,25 +269,39 @@ function xmlSchemaToJson(filePath: string, options: Options, externalDir: string
 /**
  * Fetch and parse OBIS checklist CSV.
  */
-async function fetchObisChecklist(): Promise<OBISChecklistRow[]> {
-  Effect.logInfo("Fetching OBIS checklist...");
+function fetchObisChecklist(): Effect.Effect<OBISChecklistRow[], Error> {
+  return Effect.gen(function* () {
+    yield* Effect.logInfo("Fetching OBIS checklist...");
 
-  const response = await fetch(obisChecklistUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${obisChecklistUrl}: ${response.statusText}`);
-  }
+    const response = yield* Effect.tryPromise({
+      try: () => fetch(obisChecklistUrl),
+      catch: (error) => new Error(`Failed to fetch OBIS checklist: ${error}`),
+    });
 
-  const csvText = await response.text();
-  // Remove non-ASCII characters (intentional control characters in regex)
-  // deno-lint-ignore no-control-regex
-  const cleanedCsv = csvText.replace(/[^\x00-\x7F]/g, "");
+    if (!response.ok) {
+      return yield* Effect.fail(
+        new Error(
+          `Failed to fetch ${obisChecklistUrl}: ${response.statusText}`,
+        ),
+      );
+    }
 
-  // Parse CSV using Deno standard library
-  const records = parseCsv(cleanedCsv, {
-    skipFirstRow: true,
-  }) as OBISChecklistRow[];
+    const csvText = yield* Effect.tryPromise({
+      try: () => response.text(),
+      catch: (error) => new Error(`Failed to read OBIS checklist response: ${error}`),
+    });
 
-  return records;
+    // Remove non-ASCII characters (intentional control characters in regex)
+    // deno-lint-ignore no-control-regex
+    const cleanedCsv = csvText.replace(/[^\x00-\x7F]/g, "");
+
+    // Parse CSV using Deno standard library
+    const records = parseCsv(cleanedCsv, {
+      skipFirstRow: true,
+    }) as OBISChecklistRow[];
+
+    return records;
+  });
 }
 
 /**
@@ -275,29 +310,31 @@ async function fetchObisChecklist(): Promise<OBISChecklistRow[]> {
 function joinObisRequirements(
   schemaJson: SchemaJson,
   obisChecklist: OBISChecklistRow[],
-): void {
-  Effect.logInfo("    Joining OBIS checklist with schema");
+): Effect.Effect<void> {
+  return Effect.gen(function* () {
+    yield* Effect.logInfo("    Joining OBIS checklist with schema");
 
-  obisChecklist.forEach((item) => {
-    const term = item.Term;
+    obisChecklist.forEach((item) => {
+      const term = item.Term;
 
-    // Determine which tables this term applies to
-    const affectedTables: string[] = [];
-    if (item["Event Table"]) affectedTables.push("Event");
-    if (item["Occurrence Extension"]) affectedTables.push("Occurrence");
-    if (item["eMoF Table"]) affectedTables.push("ExtendedMeasurementOrFact");
-    if (item["eMoF DNA Table"]) affectedTables.push("dnaDerivedData");
+      // Determine which tables this term applies to
+      const affectedTables: string[] = [];
+      if (item["Event Table"]) affectedTables.push("Event");
+      if (item["Occurrence Extension"]) affectedTables.push("Occurrence");
+      if (item["eMoF Table"]) affectedTables.push("ExtendedMeasurementOrFact");
+      if (item["eMoF DNA Table"]) affectedTables.push("dnaDerivedData");
 
-    // Apply OBIS requirements to matching fields
-    Object.keys(schemaJson).forEach((tableName) => {
-      const table = schemaJson[tableName];
-      const field = table.fields[term];
+      // Apply OBIS requirements to matching fields
+      Object.keys(schemaJson).forEach((tableName) => {
+        const table = schemaJson[tableName];
+        const field = table.fields[term];
 
-      if (field) {
-        field.obis_required = affectedTables.includes(tableName)
-          ? item["OBIS Required"]
-          : "optional";
-      }
+        if (field) {
+          field.obis_required = affectedTables.includes(tableName)
+            ? item["OBIS Required"]
+            : "optional";
+        }
+      });
     });
   });
 }
@@ -309,40 +346,42 @@ function joinObisRequirements(
 /**
  * Assign validators to fields based on field attributes and naming patterns.
  */
-function assignValidators(schemaJson: SchemaJson): void {
-  Effect.logInfo("Assign Validators");
+function assignValidators(schemaJson: SchemaJson): Effect.Effect<void> {
+  return Effect.gen(function* () {
+    yield* Effect.logInfo("Assigning validators");
 
-  Object.values(schemaJson).forEach((table) => {
-    Object.values(table.fields).forEach((field) => {
-      const validators: string[] = [];
+    Object.values(schemaJson).forEach((table) => {
+      Object.values(table.fields).forEach((field) => {
+        const validators: string[] = [];
 
-      // Required validators
-      if (
-        field.obis_required === "required" ||
-        field.obis_required === "required (if exists)"
-      ) {
-        validators.push("required");
-      }
+        // Required validators
+        if (
+          field.obis_required === "required" ||
+          field.obis_required === "required (if exists)"
+        ) {
+          validators.push("required");
+        }
 
-      // Recommended validators
-      if (
-        field.obis_required === "recommended" ||
-        field.obis_required === "strongly recommended"
-      ) {
-        validators.push("recommended");
-      }
+        // Recommended validators
+        if (
+          field.obis_required === "recommended" ||
+          field.obis_required === "strongly recommended"
+        ) {
+          validators.push("recommended");
+        }
 
-      // Type-based validators
-      if (field.unique === "true") validators.push("uniqueIdentifier");
-      if (field.type === "integer") validators.push("integer");
-      if (field.type === "date") validators.push("iso8601Date");
-      if (field.type === "uri") validators.push("url");
+        // Type-based validators
+        if (field.unique === "true") validators.push("uniqueIdentifier");
+        if (field.type === "integer") validators.push("integer");
+        if (field.type === "date") validators.push("iso8601Date");
+        if (field.type === "uri") validators.push("url");
 
-      // Name-based validators
-      if (field.name.includes("latitude")) validators.push("latitude");
-      if (field.name.includes("longitude")) validators.push("longitude");
+        // Name-based validators
+        if (field.name.includes("latitude")) validators.push("latitude");
+        if (field.name.includes("longitude")) validators.push("longitude");
 
-      field.validators = validators;
+        field.validators = validators;
+      });
     });
   });
 }
@@ -370,7 +409,10 @@ export function import_schema(externalDir: string): Effect.Effect<void, Error> {
       "rs_gbif/extension/obis/extended_measurement_or_fact_2023-08-28.xml",
     );
     const eventXml = join(externalDir, "rs_gbif/core/dwc_event_2025-07-10.xml");
-    const occurrenceXml = join(externalDir, "rs_gbif/core/dwc_occurrence_2025-07-10.xml");
+    const occurrenceXml = join(
+      externalDir,
+      "rs_gbif/core/dwc_occurrence_2025-07-10.xml",
+    );
     const taxonXml = join(externalDir, "rs_gbif/core/dwc_taxon_2025-07-10.xml");
     const DNAXml = join(
       externalDir,
@@ -378,7 +420,7 @@ export function import_schema(externalDir: string): Effect.Effect<void, Error> {
     );
 
     // Parse all XML schemas
-    const exMoFjson = xmlSchemaToJson(
+    const exMoFjson = yield* xmlSchemaToJson(
       exMoFxml,
       {
         group: "ExtendedMeasurementOrFact",
@@ -386,14 +428,22 @@ export function import_schema(externalDir: string): Effect.Effect<void, Error> {
       },
       externalDir,
     );
-    const eventJson = xmlSchemaToJson(eventXml, { idFieldName: "eventID" }, externalDir);
-    const occurrenceJson = xmlSchemaToJson(
+    const eventJson = yield* xmlSchemaToJson(
+      eventXml,
+      { idFieldName: "eventID" },
+      externalDir,
+    );
+    const occurrenceJson = yield* xmlSchemaToJson(
       occurrenceXml,
       { idFieldName: "occurrenceID" },
       externalDir,
     );
-    const taxonJson = xmlSchemaToJson(taxonXml, { idFieldName: "taxonID" }, externalDir);
-    const DNAJson = xmlSchemaToJson(
+    const taxonJson = yield* xmlSchemaToJson(
+      taxonXml,
+      { idFieldName: "taxonID" },
+      externalDir,
+    );
+    const DNAJson = yield* xmlSchemaToJson(
       DNAXml,
       {
         group: "dnaDerivedData",
@@ -412,27 +462,30 @@ export function import_schema(externalDir: string): Effect.Effect<void, Error> {
     };
 
     // Fetch and apply OBIS requirements
-    const obisChecklist = yield* Effect.promise(() => fetchObisChecklist());
+    const obisChecklist = yield* fetchObisChecklist();
 
-    Effect.logInfo("    Writing OBIS checklist to file");
+    yield* Effect.logInfo("    Writing OBIS checklist to file");
     const obisChecklistPath = join(externalDir, "obisChecklist.json");
-    yield* Effect.promise(() =>
-      Deno.writeTextFile(
-        obisChecklistPath,
-        JSON.stringify(obisChecklist, null, 2),
-      )
-    );
+    yield* Effect.tryPromise({
+      try: () =>
+        Deno.writeTextFile(
+          obisChecklistPath,
+          JSON.stringify(obisChecklist, null, 2),
+        ),
+      catch: (error) => new Error(`Failed to write OBIS checklist: ${error}`),
+    });
 
     // Apply OBIS requirements and assign validators
-    joinObisRequirements(schemaJson, obisChecklist);
-    assignValidators(schemaJson);
+    yield* joinObisRequirements(schemaJson, obisChecklist);
+    yield* assignValidators(schemaJson);
 
     // Write final schema
     const schemaPath = join(externalDir, "dwcSchema.json");
-    yield* Effect.promise(() =>
-      Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2))
-    );
+    yield* Effect.tryPromise({
+      try: () => Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2)),
+      catch: (error) => new Error(`Failed to write schema file: ${error}`),
+    });
 
-    Effect.logInfo(`Schema with OBIS checklist written to ${schemaPath}`);
+    yield* Effect.logInfo(`Schema with OBIS checklist written to ${schemaPath}`);
   });
 }

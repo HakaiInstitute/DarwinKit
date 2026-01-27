@@ -399,7 +399,6 @@ function loadConfig(
     });
 
     const isYaml = configPath.endsWith(".yaml") || configPath.endsWith(".yml");
-    const format = isYaml ? ("yaml" as const) : ("json" as const);
 
     let configJson: unknown;
     if (isYaml) {

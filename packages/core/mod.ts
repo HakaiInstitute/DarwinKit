@@ -26,3 +26,6 @@ export * from "./src/import/get_dwc_schema.ts";
 
 // Error types (all core errors consolidated)
 export * from "./src/errors.ts";
+
+// Logging configuration
+export * from "./src/logging/index.ts";

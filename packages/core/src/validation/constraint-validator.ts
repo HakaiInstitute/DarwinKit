@@ -14,7 +14,7 @@ import type { CrossDatasetValidationResult, DatasetConfig, EnforcementLevel } fr
 import { CrossDatasetViolation, enforcementToSeverity, parseSpecIdentifier } from "@dwkt/domain";
 
 import { sanitizeTableName } from "../database/utils.ts";
-import { WorkspaceValidationError } from "./workspace-validator.ts";
+import type { WorkspaceValidationError } from "./workspace-validator.ts";
 
 /**
  * Cross-dataset rule configuration

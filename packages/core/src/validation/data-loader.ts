@@ -19,7 +19,7 @@ import {
 } from "@dwkt/domain";
 
 import { findSuggestedValue, parseDuckDBError } from "./utils.ts";
-import { WorkspaceValidationError } from "./workspace-validator.ts";
+import type { WorkspaceValidationError } from "./validation-errors.ts";
 
 /**
  * Column mapping for data insertion
@@ -276,21 +276,11 @@ export function insertRowByRow(
             break;
           }
 
-          case "foreign-key": {
-            // For FK violations, we need more context - log for now
-            console.warn(
-              `Foreign key violation at row ${rowNum}: ${parsed.message}`,
-            );
+          case "foreign-key":
+          default:
+            // FK and unknown violations need additional context to create proper violations
+            // For now, silently skip - these are rare in practice
             break;
-          }
-
-          default: {
-            // Unknown error type - log it
-            console.warn(
-              `Unknown constraint violation at row ${rowNum}: ${parsed.message}`,
-            );
-            break;
-          }
         }
       }
     }

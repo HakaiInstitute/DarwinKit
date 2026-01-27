@@ -11,52 +11,6 @@ import { SchemaRepo } from "./schema-repo.ts";
 import { DbConnection } from "./connection.ts";
 
 /**
- * Unit tests using testLayer (no real database)
- */
-Deno.test("SchemaRepo.testLayer - createEnum returns void", async () => {
-  const program = Effect.gen(function* () {
-    const repo = yield* SchemaRepo;
-    yield* repo.createEnum("status_enum", ["active", "inactive"]);
-  });
-
-  await Effect.runPromise(program.pipe(Effect.provide(SchemaRepo.testLayer)));
-});
-
-Deno.test("SchemaRepo.testLayer - createTable returns void", async () => {
-  const program = Effect.gen(function* () {
-    const repo = yield* SchemaRepo;
-    yield* repo.createTable("test", [
-      { name: "id", type: "INTEGER", primaryKey: true },
-      { name: "name", type: "TEXT" },
-    ]);
-  });
-
-  await Effect.runPromise(program.pipe(Effect.provide(SchemaRepo.testLayer)));
-});
-
-Deno.test("SchemaRepo.testLayer - getTableSchema returns stub schema", async () => {
-  const program = Effect.gen(function* () {
-    const repo = yield* SchemaRepo;
-    const schema = yield* repo.getTableSchema("test");
-    assertEquals(schema.tableName, "test");
-    assertEquals(schema.columns.length, 2);
-    assertEquals(schema.columns[0].name, "id");
-  });
-
-  await Effect.runPromise(program.pipe(Effect.provide(SchemaRepo.testLayer)));
-});
-
-Deno.test("SchemaRepo.testLayer - tableExists returns true", async () => {
-  const program = Effect.gen(function* () {
-    const repo = yield* SchemaRepo;
-    const exists = yield* repo.tableExists("test");
-    assertEquals(exists, true);
-  });
-
-  await Effect.runPromise(program.pipe(Effect.provide(SchemaRepo.testLayer)));
-});
-
-/**
  * Integration tests using real DuckDB connection
  */
 Deno.test("SchemaRepo.layer - createTable creates table with columns", async () => {
