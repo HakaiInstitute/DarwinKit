@@ -23,13 +23,7 @@
 // Import error classes to extract their tags
 import type { ParseError } from "../parsing/csv-parser.ts";
 import type { CsvReadError } from "../validation/csv-row-reader.ts";
-import type { WorkspaceError, WorkspaceIOError } from "../workspace/service.ts";
-import type {
-  ConfigNotFoundError,
-  ConfigParseError,
-  ConfigValidationError,
-  DatasetFileNotFoundError,
-} from "../workspace/workspace-config-service.ts";
+import type { ValidationError, WorkspaceError } from "../workspace/workspace-service.ts";
 import type { WorkspaceImportError } from "../validation/workspace-validator.ts";
 import type { OutputError, TransformationError } from "../transform/transform.ts";
 
@@ -46,12 +40,7 @@ export type CoreErrorTag =
   | InstanceType<typeof CsvReadError>["_tag"]
   // Workspace Operations
   | InstanceType<typeof WorkspaceError>["_tag"]
-  | InstanceType<typeof WorkspaceIOError>["_tag"]
-  // Configuration Management
-  | InstanceType<typeof ConfigNotFoundError>["_tag"]
-  | InstanceType<typeof ConfigParseError>["_tag"]
-  | InstanceType<typeof ConfigValidationError>["_tag"]
-  | InstanceType<typeof DatasetFileNotFoundError>["_tag"]
+  | InstanceType<typeof ValidationError>["_tag"]
   // Validation & Import
   | InstanceType<typeof WorkspaceImportError>["_tag"]
   // Transformation & Output

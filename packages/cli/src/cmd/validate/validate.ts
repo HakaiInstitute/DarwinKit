@@ -1,14 +1,7 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import {
-  ConfigNotFoundError,
-  ConfigParseError,
-  ConfigValidationError,
-  DatasetFileNotFoundError,
-  prettyPrintConfigError,
-  WorkspaceValidator,
-} from '@dwkt/core';
+import { ValidationService, WorkspaceService, WorkspaceValidator } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
@@ -151,30 +144,11 @@ function handleCLIError(error: unknown): never {
         }
         return cliError.exitCode;
       }),
-      Match.tag('ConfigNotFoundError', (configError: { message: string }) => {
-        Output.error('❌ Validation failed:');
-        Output.error(configError.message);
-        Output.blank();
-        Output.warning(
-          '💡 Hint: Create a darwinkit.json configuration file in your repository root.',
-        );
-        Output.warning('   See documentation for configuration format.');
+      Match.tag('WorkspaceError', (error: { message: string }) => {
+        Output.error('❌ Workspace error:');
+        Output.error(error.message);
         return 3;
       }),
-      Match.tag(
-        'ConfigValidationError',
-        (configError: { message: string; validationErrors?: string[] }) => {
-          Output.error('❌ Configuration validation failed:');
-          Output.error(configError.message);
-          if (configError.validationErrors) {
-            Output.error('Validation errors:');
-            for (const validationError of configError.validationErrors) {
-              Output.error(`  • ${validationError}`);
-            }
-          }
-          return 3;
-        },
-      ),
       Match.tag(
         'OutputError',
         (outputError: { message: string; outputPath?: string }) => {
@@ -229,19 +203,34 @@ export async function validate(options: {
   });
   spinner.start();
 
-  // Validation pipeline using Effect
   const runValidation = Effect.gen(function* (_) {
-    // Initialize validation service
-    const validator = new WorkspaceValidator();
+    const workspaceService = yield* _(WorkspaceService);
+
+    spinner.update('Loading workspace configuration...');
+
+    // Load workspace (handles discovery, config loading, and path validation)
+    const workspace = yield* _(
+      workspaceService.loadFromDirectory(options.config),
+    );
 
     spinner.update('Validating datasets...');
 
-    // Run validation - this returns Effect<WorkspaceValidationResult, WorkspaceValidationError>
-    const results = yield* _(
-      validator.validateFromConfig(options.config, {
-        failFast: options.failFast,
-      }),
+    // Run validation - updates workspace state with results
+    const validatedWorkspace = yield* _(
+      workspaceService.validate(workspace),
     );
+
+    // Extract results from workspace state
+    const results = validatedWorkspace.validationState.status === 'validated'
+      ? validatedWorkspace.validationState.result
+      : yield* _(
+        Effect.fail(
+          new CLIError({
+            message: 'Validation failed to produce results',
+            exitCode: 3,
+          }),
+        ),
+      );
 
     // Stop spinner before output
     spinner.stop();
@@ -253,9 +242,12 @@ export async function validate(options: {
     yield* _(handleValidationResults(results));
   });
 
-  // Run the Effect pipeline with Exit to preserve Cause information
-  const result = await Effect.runPromiseExit(runValidation);
-  //const result = await Effect.runPromise(runValidation).catch(console.error);
+  const result = await Effect.runPromiseExit(
+    runValidation.pipe(
+      Effect.provide(WorkspaceService.layer),
+      Effect.provide(ValidationService.layer),
+    ),
+  );
 
   if (Exit.isFailure(result)) {
     // Stop spinner on error
@@ -278,31 +270,14 @@ function handleCLIErrorWithCause(
 ): never {
   Output.blank();
 
-  // First, try using our custom pretty printer for config errors
-  try {
-    const prettyMessage = prettyPrintConfigError(
-      cause as Cause.Cause<
-        | ConfigNotFoundError
-        | ConfigParseError
-        | ConfigValidationError
-        | DatasetFileNotFoundError
-      >,
-    );
-    Output.error('❌ Configuration Error:\n');
-    Output.line(prettyMessage);
-    Output.blank();
-    Deno.exit(1);
-  } catch {
-    // Fallback to original error handler
-    const failures = Cause.failures(cause);
-    if (failures.length > 0) {
-      const error = Array.from(failures)[0];
-      handleCLIError(error);
-    } else {
-      Output.error('❌ Unexpected error occurred');
-      Output.line(Cause.pretty(cause));
-      Deno.exit(3);
-    }
+  const failures = Cause.failures(cause);
+  if (failures.length > 0) {
+    const error = Array.from(failures)[0];
+    handleCLIError(error);
+  } else {
+    Output.error('❌ Unexpected error occurred');
+    Output.line(Cause.pretty(cause));
+    Deno.exit(3);
   }
 }
 

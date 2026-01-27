@@ -10,6 +10,7 @@ import { DuckDBInstance } from "@duckdb/node-api";
 import { dirname, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
 import type {
   CrossDatasetValidationResult,
@@ -43,7 +44,8 @@ import {
   VocabularyViolation,
 } from "@dwkt/domain";
 import { levenshteinDistance } from "../utils/string-utils.ts";
-import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
+import { ValidationService } from "./validation-service.ts";
+import { WorkspaceService } from "../workspace/workspace-service.ts";
 
 /**
  * Error classes for workspace validation
@@ -342,9 +344,25 @@ export class WorkspaceValidator {
     return Effect.gen(function* (_) {
       const startTime = Date.now();
 
-      // Discover and load configuration (schema already validates structure)
-      const { config: loadedConfig, configPath: resolvedConfigPath } = yield* _(
-        WorkspaceConfigService.discoverAndLoad(configPath).pipe(
+      // Load workspace using WorkspaceService
+      // Note: This requires ValidationService but we don't use it here
+      // We only use the config loading, not the validation
+      const workspace = yield* _(
+        Effect.gen(function* (_) {
+          const service = yield* _(WorkspaceService);
+          return yield* _(service.loadFromDirectory(configPath));
+        }).pipe(
+          Effect.provide(WorkspaceService.layer),
+          // Provide a no-op ValidationService since we don't use it
+          Effect.provide(
+            Layer.succeed(
+              ValidationService,
+              ValidationService.of({
+                validateDatasets: () =>
+                  Effect.die("ValidationService should not be called during config loading"),
+              }),
+            ),
+          ),
           Effect.mapError((error) => {
             return new WorkspaceValidationError({
               message: `Failed to load workspace config: ${error.message}`,
@@ -353,6 +371,9 @@ export class WorkspaceValidator {
           }),
         ),
       );
+
+      const loadedConfig = workspace.config;
+      const resolvedConfigPath = workspace.configPath;
 
       // Narrow the config type to ensure it has validation settings and datasets
       if (!("validation" in loadedConfig)) {
