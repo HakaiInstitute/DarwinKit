@@ -18,8 +18,8 @@ import {
   PrimaryKeyViolation,
 } from "@dwkt/domain";
 
+import { getCsvValue } from "../database/index.ts";
 import { findSuggestedValue, parseDuckDBError } from "./utils.ts";
-import type { WorkspaceValidationError } from "./validation-errors.ts";
 
 /**
  * Column mapping for data insertion
@@ -30,53 +30,13 @@ export interface ColumnMapping {
 }
 
 /**
- * Get original CSV value for a specific row and field
- *
- * Used to retrieve the actual value from the raw CSV table
- * when creating violation records.
- *
- * @param connection - DuckDB connection
- * @param rawTableName - Name of the raw CSV table
- * @param fieldName - Name of the field to retrieve
- * @param rowNumber - Row number to retrieve
- * @returns The value as a string
- */
-export function getOriginalCsvValue(
-  connection: DuckDBConnection,
-  rawTableName: string,
-  fieldName: string,
-  rowNumber: number,
-): Effect.Effect<string, WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    const query = `
-      SELECT "${fieldName}" as value
-      FROM ${rawTableName}
-      WHERE _row_number = ${rowNumber}
-    `;
-
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const rows = result.getRowObjects();
-    if (rows.length === 0) {
-      return "";
-    }
-
-    return String(rows[0].value ?? "");
-  });
-}
-
-/**
  * Insert rows one-by-one, collecting violations for any that fail
  *
  * This function is used as a fallback when bulk insertion fails due to
  * constraint violations. It inserts each row individually, capturing
  * detailed information about any violations that occur.
  *
- * @param connection - DuckDB connection
+ * @param connection - DuckDB connection for write operations
  * @param rawTableName - Name of the raw CSV table
  * @param schemaTableName - Name of the schema table to insert into
  * @param columnMappings - Mapping of origin columns to target columns
@@ -91,7 +51,7 @@ export function insertRowByRow(
   columnMappings: ColumnMapping[],
   profile: ValidationProfile,
   validationSettings?: ValidationSettings,
-): Effect.Effect<ValidationViolation[], WorkspaceValidationError> {
+): Effect.Effect<ValidationViolation[]> {
   return Effect.gen(function* (_) {
     const violations: ValidationViolation[] = [];
     const enableSuggestions = validationSettings?.enableSuggestions ?? true;
@@ -174,12 +134,7 @@ export function insertRowByRow(
               for (const dupRow of duplicateRows) {
                 const dupRowNum = Number(dupRow._row_number);
                 const csvValue = yield* _(
-                  getOriginalCsvValue(
-                    connection,
-                    rawTableName,
-                    pkMapping.origin,
-                    dupRowNum,
-                  ),
+                  getCsvValue(connection, rawTableName, pkMapping.origin, dupRowNum),
                 );
 
                 violations.push(

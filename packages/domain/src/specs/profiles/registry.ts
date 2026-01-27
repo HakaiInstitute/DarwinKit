@@ -5,6 +5,7 @@
  * for profile inheritance and composition.
  */
 
+import { Effect } from "effect";
 import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
 import type {
   field,
@@ -101,6 +102,7 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
         normalizedFields[fieldName] = normalizeField(fieldValue as field);
       } catch {
         // Skip invalid fields rather than failing the entire profile
+        Effect.logWarning(`Invalid field "${fieldName}" in profile "${profile.id}"`);
       }
     }
   }

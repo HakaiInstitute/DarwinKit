@@ -27,13 +27,10 @@ import * as Data from "effect/Data";
 import type { ParseError } from "../parsing/csv-parser.ts";
 export { ParseError } from "../parsing/csv-parser.ts";
 export { OutputError, TransformationError } from "../transform/transform.ts";
-export { CsvReadError } from "../validation/csv-row-reader.ts";
 export {
   WorkspaceImportError,
   WorkspaceValidationError,
 } from "../validation/workspace-validator.ts";
-
-import type { CsvReadError } from "../validation/csv-row-reader.ts";
 
 import type { OutputError, TransformationError } from "../transform/transform.ts";
 
@@ -74,7 +71,6 @@ export type CoreErrorTag =
   | ErrorTag<typeof ValidationError>
   // CSV Parsing & Reading (re-exported)
   | ErrorTag<typeof ParseError>
-  | ErrorTag<typeof CsvReadError>
   // Validation & Import (re-exported)
   | ErrorTag<typeof WorkspaceImportError>
   | ErrorTag<typeof WorkspaceValidationError>

@@ -12,6 +12,7 @@ import type { WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
+import { runPromise } from "./helpers/effect-test-utils.ts";
 
 Deno.test("transformFile - runs the full end-to-end transformation process", async () => {
   // 1. Setup: Create a temporary workspace with config and source data
@@ -73,7 +74,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     );
 
     // 3. Act: Run the entire transformation process
-    await Effect.runPromise(transformFile(configPath));
+    await runPromise(transformFile(configPath));
 
     // 4. Assert: Verify the output files
     // Assert CSV output (json-2-csv default format is unquoted)
@@ -117,7 +118,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 Deno.test("transformFile - returns ConfigError for non-existent config", async () => {
   const nonExistentConfigPath = "/path/to/nothing/workspace.dwc.json";
 
-  const result = await Effect.runPromise(Effect.flip(transformFile(nonExistentConfigPath)));
+  const result = await runPromise(Effect.flip(transformFile(nonExistentConfigPath)));
 
   assertExists(result, "Effect should fail");
   // assertEquals(result._tag, "ConfigError", "Error should be a ConfigError");

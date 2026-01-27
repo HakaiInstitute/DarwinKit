@@ -7,7 +7,15 @@
  * @module validation/utils
  */
 
-import type { DatasetValidationResult, ValidationViolation } from "@dwkt/domain";
+import type {
+  DatasetConfig,
+  DatasetValidationResult,
+  FieldDefinition,
+  ValidationViolation,
+} from "@dwkt/domain";
+import { parseSpecIdentifier } from "@dwkt/domain";
+
+import { sanitizeTableName } from "../database/utils.ts";
 import { levenshteinDistance } from "../utils/string-utils.ts";
 
 /**
@@ -144,6 +152,40 @@ export function findSuggestedValue(
 }
 
 /**
+ * Resolve dataset name to its schema table name
+ *
+ * Schema tables are named after profiles, not dataset names.
+ * For example, dataset "occurrences" with spec "dwc-occurrence" → table "occurrence"
+ *
+ * @param datasetName - Name of the dataset
+ * @param datasets - Array of dataset configurations
+ * @returns The schema table name
+ */
+export function resolveSchemaTableName(
+  datasetName: string,
+  datasets: readonly DatasetConfig[],
+): string {
+  const dataset = datasets.find((ds) => ds.name === datasetName);
+  if (!dataset) {
+    // Fallback to sanitized dataset name if not found
+    return sanitizeTableName(datasetName).toLowerCase();
+  }
+
+  // Derive profile name - same logic as in validateDataset
+  let profileName = dataset.profile;
+  if (!profileName && dataset.spec) {
+    const parsed = parseSpecIdentifier(dataset.spec);
+    if (parsed) {
+      profileName = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+    }
+  }
+
+  return profileName
+    ? sanitizeTableName(profileName).toLowerCase()
+    : sanitizeTableName(dataset.name).toLowerCase();
+}
+
+/**
  * Partition violations by severity level
  *
  * Groups violations into errors (required), warnings (recommended),
@@ -260,4 +302,11 @@ export function determineOverallStatus(
     return "warn";
   }
   return "pass";
+}
+
+/**
+ * Check if a field definition has a controlled vocabulary configured
+ */
+export function hasControlledVocabulary(fieldDef: FieldDefinition): boolean {
+  return fieldDef.vocabulary !== undefined;
 }

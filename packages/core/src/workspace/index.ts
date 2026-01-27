@@ -19,12 +19,12 @@ export {
   type WorkspaceConfigError,
 } from "./errors.ts";
 
-// Effect-managed workspace
-export { ManagedWorkspace, type ValidationOptions } from "./workspace.ts";
+// Workspace
+export { type ValidationOptions, Workspace } from "./workspace.ts";
 
-// Managed workspace service for dependency injection
+// Workspace service for dependency injection
 export {
   makeWorkspaceLayer,
-  ManagedWorkspaceService,
-  type ManagedWorkspaceServiceApi,
-} from "./managed-workspace-service.ts";
+  WorkspaceService,
+  type WorkspaceServiceApi,
+} from "./workspace-service.ts";

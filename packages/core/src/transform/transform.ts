@@ -4,16 +4,16 @@ import { join, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import type { WorkspaceImportError } from "@dwkt/core";
 import {
-  ManagedWorkspace,
+  Workspace,
   type WorkspaceConfigError,
-  WorkspaceImportCSV,
+  WorkspaceImportError,
   WorkspaceImportSchema,
 } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { getValidationProfile } from "@dwkt/domain";
 import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
+import { importCsv } from "../database/index.ts";
 
 /**
  * Represents an error that occurs during the data transformation process.
@@ -62,15 +62,17 @@ export function createTablesFromCSV( // Export for testing
       return;
     }
 
-    // Build a string of null values from the configuration to be used in the DuckDB query.
-    const nullStr = config.transform.nullValues.map((v: string) => `'${v}'`).join(", ");
-
     for (const [tableName, csvPath] of Object.entries(config.transform.inputs)) {
       if (typeof csvPath !== "string") continue;
 
       const fullPath = resolve(basePath, csvPath);
 
-      yield* _(WorkspaceImportCSV(connection, tableName, fullPath, nullStr));
+      // Import CSV with row numbers
+      yield* _(
+        importCsv(connection, tableName, fullPath, config.transform.nullValues).pipe(
+          Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
+        ),
+      );
     }
   });
 }
@@ -487,12 +489,12 @@ export function transformFile(
   never
 > {
   return Effect.gen(function* (_) {
-    // Load config using ManagedWorkspace (handles discovery and validation)
+    // Load config using Workspace (handles discovery and validation)
     // We use a scoped block to load config, then create our own connection for transform
     const { config, resolvedConfigPath: _resolvedConfigPath, basePath } = yield* _(
       Effect.scoped(
         Effect.gen(function* (_) {
-          const workspace = yield* _(ManagedWorkspace.open(configPath));
+          const workspace = yield* _(Workspace.open(configPath));
           return {
             config: workspace.config,
             resolvedConfigPath: workspace.configPath,

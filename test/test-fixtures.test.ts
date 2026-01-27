@@ -6,11 +6,12 @@
  * validation scenarios.
  */
 
+import { Workspace } from "@dwkt/core";
 import { type WorkspaceConfig, workspaceConfigSchema } from "@dwkt/domain";
 import { assert, assertExists } from "@std/assert";
-import { ManagedWorkspace } from "@dwkt/core";
 import { Schema } from "effect";
 import * as Effect from "effect/Effect";
+import { runPromise } from "./helpers/effect-test-utils.ts";
 
 /**
  * Load and validate a workspace config from a JSON file
@@ -18,7 +19,7 @@ import * as Effect from "effect/Effect";
 async function loadExpectedConfig(configPath: string): Promise<WorkspaceConfig> {
   const configFile = `${configPath}/darwinkit.json`;
 
-  return await Effect.runPromise(
+  return await runPromise(
     Effect.gen(function* (_) {
       const fileContents = yield* _(
         Effect.tryPromise(() => Deno.readTextFile(configFile)),
@@ -36,10 +37,10 @@ Deno.test("Test fixtures - fc2022-complete config loads successfully", async () 
   const configPath = "./packages/cli/test-fixtures/valid-datasets/fc2022-complete";
 
   const expectedConfig = await loadExpectedConfig(configPath);
-  const result = await Effect.runPromise(
+  const result = await runPromise(
     Effect.scoped(
       Effect.gen(function* (_) {
-        const workspace = yield* _(ManagedWorkspace.open(configPath));
+        const workspace = yield* _(Workspace.open(configPath));
         return { config: workspace.config, configPath: workspace.configPath };
       }),
     ),
@@ -59,10 +60,10 @@ Deno.test("Test fixtures - mixed-validity config loads successfully", async () =
   const configPath = "./packages/cli/test-fixtures/invalid-datasets/mixed-validity";
 
   const expectedConfig = await loadExpectedConfig(configPath);
-  const result = await Effect.runPromise(
+  const result = await runPromise(
     Effect.scoped(
       Effect.gen(function* (_) {
-        const workspace = yield* _(ManagedWorkspace.open(configPath));
+        const workspace = yield* _(Workspace.open(configPath));
         return { config: workspace.config, configPath: workspace.configPath };
       }),
     ),
@@ -81,10 +82,10 @@ Deno.test("Test fixtures - na-type-failures config loads successfully", async ()
   const configPath = "./packages/cli/test-fixtures/invalid-datasets/na-type-failures";
 
   const expectedConfig = await loadExpectedConfig(configPath);
-  const result = await Effect.runPromise(
+  const result = await runPromise(
     Effect.scoped(
       Effect.gen(function* (_) {
-        const workspace = yield* _(ManagedWorkspace.open(configPath));
+        const workspace = yield* _(Workspace.open(configPath));
         return { config: workspace.config, configPath: workspace.configPath };
       }),
     ),
@@ -108,10 +109,10 @@ Deno.test("Test fixtures - all configs use datasets array format", async () => {
 
   for (const configPath of configs) {
     const expectedConfig = await loadExpectedConfig(configPath);
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(
         Effect.gen(function* (_) {
-          const workspace = yield* _(ManagedWorkspace.open(configPath));
+          const workspace = yield* _(Workspace.open(configPath));
           return { config: workspace.config, configPath: workspace.configPath };
         }),
       ),

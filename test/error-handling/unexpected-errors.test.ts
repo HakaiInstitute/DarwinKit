@@ -7,6 +7,7 @@
 
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import * as Effect from "effect/Effect";
+import { runPromise } from "../helpers/effect-test-utils.ts";
 
 Deno.test("Unexpected errors - require Effect.catchAllDefect", async (t) => {
   await t.step("Defects cannot be caught with Effect.catchAll", async () => {
@@ -16,7 +17,7 @@ Deno.test("Unexpected errors - require Effect.catchAllDefect", async (t) => {
     let expectedErrorCaught = false;
     let defectCaught = false;
 
-    await Effect.runPromise(
+    await runPromise(
       defectEffect.pipe(
         Effect.catchAll(() => {
           expectedErrorCaught = true;
@@ -40,7 +41,7 @@ Deno.test("Unexpected errors - require Effect.catchAllDefect", async (t) => {
 
     let defectCaught = false;
 
-    await Effect.runPromise(
+    await runPromise(
       failingEffect.pipe(
         Effect.catchAllDefect(() => {
           defectCaught = true;
@@ -139,7 +140,7 @@ Deno.test("Unexpected errors - type signatures prevent catching", async (t) => {
     //
     // Because there are no errors to catch
 
-    const result = await Effect.runPromise(neverFailEffect);
+    const result = await runPromise(neverFailEffect);
     assertEquals(result, "ok");
   });
 });
@@ -161,7 +162,7 @@ Deno.test("Unexpected errors - should not be retried", async (t) => {
 
     let defectCaught = false;
 
-    await Effect.runPromise(
+    await runPromise(
       defectEffect.pipe(
         // Retry won't help with defects
         Effect.retry({ times: 3 }),

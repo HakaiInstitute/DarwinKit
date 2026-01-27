@@ -1,11 +1,11 @@
 /**
- * Managed Workspace Service
+ * Workspace Service
  *
- * Provides a service layer for workspace operations using the Effect-managed
- * ManagedWorkspace pattern. Uses `Layer.scoped` to ensure the workspace's
- * DuckDB connection is properly managed throughout the service lifecycle.
+ * Provides a service layer for workspace operations. Uses `Layer.scoped`
+ * to ensure the workspace's DuckDB connection is properly managed throughout
+ * the service lifecycle.
  *
- * @module workspace/managed-workspace-service
+ * @module workspace/workspace-service
  */
 
 import * as Context from "effect/Context";
@@ -21,7 +21,7 @@ import type {
 import type { ValidationError } from "../errors/index.ts";
 
 import type { ValidationConfigMissingError, WorkspaceConfigError } from "./errors.ts";
-import { ManagedWorkspace, type ValidationOptions } from "./workspace.ts";
+import { type ValidationOptions, Workspace } from "./workspace.ts";
 
 /**
  * Service API for workspace operations
@@ -29,7 +29,7 @@ import { ManagedWorkspace, type ValidationOptions } from "./workspace.ts";
  * This interface defines the operations available when using the workspace
  * as a service via dependency injection.
  */
-export interface ManagedWorkspaceServiceApi {
+export interface WorkspaceServiceApi {
   /**
    * Validate datasets according to workspace configuration
    *
@@ -89,7 +89,7 @@ export interface ManagedWorkspaceServiceApi {
 }
 
 /**
- * Managed Workspace Service Tag
+ * Workspace Service Tag
  *
  * Use this service for dependency injection scenarios where you need
  * workspace operations available through the Effect context.
@@ -101,7 +101,7 @@ export interface ManagedWorkspaceServiceApi {
  *
  * // Use service in Effect programs
  * const program = Effect.gen(function* () {
- *   const workspace = yield* ManagedWorkspaceService;
+ *   const workspace = yield* WorkspaceService;
  *
  *   // All operations reuse the same DuckDB connection
  *   const results = yield* workspace.validate();
@@ -114,19 +114,19 @@ export interface ManagedWorkspaceServiceApi {
  * );
  * ```
  */
-export class ManagedWorkspaceService extends Context.Tag(
-  "@dwkt/ManagedWorkspaceService",
-)<ManagedWorkspaceService, ManagedWorkspaceServiceApi>() {}
+export class WorkspaceService extends Context.Tag(
+  "@dwkt/WorkspaceService",
+)<WorkspaceService, WorkspaceServiceApi>() {}
 
 /**
  * Create a workspace service layer for a specific configuration path
  *
- * Uses `Layer.scoped` to ensure the underlying ManagedWorkspace's DuckDB
+ * Uses `Layer.scoped` to ensure the underlying Workspace's DuckDB
  * connection is properly acquired when the layer is built and released
  * when the layer is disposed.
  *
  * @param configPath - Optional path to config file or directory containing it
- * @returns Layer that provides ManagedWorkspaceService
+ * @returns Layer that provides WorkspaceService
  *
  * @example
  * ```typescript
@@ -138,7 +138,7 @@ export class ManagedWorkspaceService extends Context.Tag(
  *
  * // Use in Effect programs
  * const program = Effect.gen(function* () {
- *   const workspace = yield* ManagedWorkspaceService;
+ *   const workspace = yield* WorkspaceService;
  *   return yield* workspace.validate();
  * }).pipe(
  *   Effect.provide(WorkspaceLive)
@@ -147,11 +147,11 @@ export class ManagedWorkspaceService extends Context.Tag(
  */
 export const makeWorkspaceLayer = (
   configPath?: string,
-): Layer.Layer<ManagedWorkspaceService, WorkspaceConfigError, never> =>
+): Layer.Layer<WorkspaceService, WorkspaceConfigError, never> =>
   Layer.scoped(
-    ManagedWorkspaceService,
-    Effect.map(ManagedWorkspace.open(configPath), (ws) =>
-      ManagedWorkspaceService.of({
+    WorkspaceService,
+    Effect.map(Workspace.open(configPath), (ws) =>
+      WorkspaceService.of({
         validate: (opts) => ws.validate(opts),
         getValidationDatasets: () => ws.getValidationDatasets(),
         getValidationSettings: () => ws.getValidationSettings(),

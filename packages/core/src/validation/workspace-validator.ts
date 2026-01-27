@@ -28,11 +28,10 @@ import {
   enforcementToSeverity,
   FieldRequirementLevel,
   getValidationProfile,
-  hasControlledVocabulary,
   parseSpecIdentifier,
 } from "@dwkt/domain";
-import { sanitizeTableName } from "../database/utils.ts";
-import { ManagedWorkspace } from "../workspace/workspace.ts";
+import { importCsv, sanitizeTableName } from "../database/index.ts";
+import { Workspace } from "../workspace/workspace.ts";
 
 // Import from modular validation files
 import { insertRowByRow } from "./data-loader.ts";
@@ -41,61 +40,18 @@ import {
   validateUniqueness,
   validateVocabulary,
 } from "./field-validators.ts";
-import { calculateSummary, partitionViolations } from "./utils.ts";
+import {
+  calculateSummary,
+  hasControlledVocabulary,
+  partitionViolations,
+  resolveSchemaTableName,
+} from "./utils.ts";
 
 // Re-export error classes from validation-errors.ts
 export { WorkspaceImportError, WorkspaceValidationError } from "./validation-errors.ts";
 
-// Import error class for internal use
+// Import error classes for internal use
 import { WorkspaceImportError, WorkspaceValidationError } from "./validation-errors.ts";
-
-/**
- * Imports a CSV file into a DuckDB table with a _row_number column.
- *
- * @param connection - The DuckDB connection to use for the import
- * @param tableName - The name of the table to create or import into
- * @param fullPath - The full file path to the CSV file to import
- * @param nullStr - The string value(s) to treat as NULL in the CSV
- * @param dropTable - If true, drops the table if it exists before creating it. Defaults to false
- * @returns An Effect that completes when the CSV has been successfully imported, or fails with a WorkspaceImportError
- * @throws WorkspaceImportError - If the table creation or CSV import fails
- */
-export function WorkspaceImportCSV(
-  connection: DuckDBConnection,
-  tableName: string,
-  fullPath: string,
-  nullStr: string,
-  dropTable: boolean = false,
-): Effect.Effect<void, WorkspaceImportError> {
-  return Effect.gen(function* (_) {
-    yield* _(Effect.tryPromise({
-      try: async () => {
-        const sequenceName = `${tableName}_seq`;
-
-        if (dropTable) {
-          connection.run(`DROP TABLE IF EXISTS ${tableName}`);
-          connection.run(`DROP SEQUENCE IF EXISTS ${sequenceName}`);
-        }
-
-        // Create sequence for deterministic row numbering
-        await connection.run(
-          `CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1`,
-        );
-
-        await connection.run(
-          `CREATE TABLE IF NOT EXISTS ${tableName} AS
-           SELECT *, nextval('${sequenceName}') as _row_number
-           FROM read_csv_auto('${fullPath}', nullstr=[${nullStr}])`,
-        );
-      },
-      catch: (error) =>
-        new WorkspaceImportError({
-          message: `Failed to create table '${tableName}' from CSV ${fullPath}`,
-          cause: error instanceof Error ? error : new Error(String(error)),
-        }),
-    }));
-  });
-}
 
 /**
  * Minimal dataset interface for schema import
@@ -468,10 +424,14 @@ export class WorkspaceValidator {
         const filePath = resolve(basePath, dataset.path);
         const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
-        // Build null values string for DuckDB
-        const nullStr = settings.nullValues.map((v: string) => `'${v}'`).join(", ");
-        const dropTable = true;
-        yield* _(WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable));
+        // Import CSV with row numbers
+        yield* _(
+          importCsv(connection, tableName, filePath, settings.nullValues).pipe(
+            Effect.mapError((e) =>
+              new WorkspaceImportError({ message: e.message, cause: e.cause })
+            ),
+          ),
+        );
         yield* _(WorkspaceImportSchema(connection, dataset, datasets));
       }
 
@@ -554,9 +514,9 @@ export class WorkspaceValidator {
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
     return Effect.scoped(
       Effect.gen(function* (_) {
-        // Open workspace using ManagedWorkspace (handles config loading, validation, and cleanup)
+        // Open workspace (handles config loading, validation, and cleanup)
         const workspace = yield* _(
-          ManagedWorkspace.open(configPath).pipe(
+          Workspace.open(configPath).pipe(
             Effect.mapError((error) =>
               new WorkspaceValidationError({
                 message: `Failed to load workspace config: ${error.message}`,
@@ -567,7 +527,7 @@ export class WorkspaceValidator {
         );
 
         // Run validation using the workspace's managed connection
-        // ManagedWorkspace.validate() handles failFast option merging
+        // Workspace.validate() handles failFast option merging
         return yield* _(
           workspace.validate(options).pipe(
             Effect.mapError((error) =>
@@ -616,15 +576,14 @@ function createWorkspaceFromConfig(
     // Load each dataset into DuckDB
     for (const dataset of datasets) {
       const filePath = resolve(basePath, dataset.path);
-      // prepend'raw_' to table name becouse dataset.name and spec/profile can not be the same name otherwise the tables conflict
+      // prepend'raw_' to table name because dataset.name and spec/profile can not be the same name otherwise the tables conflict
       const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
-      // Build null values string for DuckDB
-      const nullStr = validationSettings.nullValues.map((v: string) => `'${v}'`)
-        .join(", ");
-      const dropTable = true;
+      // Import CSV with row numbers
       yield* _(
-        WorkspaceImportCSV(connection, tableName, filePath, nullStr, dropTable),
+        importCsv(connection, tableName, filePath, validationSettings.nullValues).pipe(
+          Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
+        ),
       );
       yield* _(WorkspaceImportSchema(connection, dataset, datasets));
     }
@@ -756,15 +715,19 @@ function validateDataset(
     const schemaTableName = profileName
       ? sanitizeTableName(profileName).toLowerCase()
       : dataset.name.toLowerCase();
-    const originFileColumns = dataset.fieldMappings.map((field) => `${field.originName}`);
-    const targetColumnNames = dataset.fieldMappings.map((field) => `"${field.targetName}"`);
-    const originColumnNames = dataset.fieldMappings.map((field) => `"${field.originName}"`);
 
+    // Find mappings that reference missing source fields
+    const originFileColumns = dataset.fieldMappings.map((field) => field.originName);
     const missingSourceFields = originFileColumns.filter((f: string) =>
       !originTableColumns.includes(f)
     );
     const missingMappedFields = originTableColumns.filter((f: string) =>
       !originFileColumns.includes(f)
+    );
+
+    // Filter out mappings that reference missing source fields
+    const validMappings = dataset.fieldMappings.filter(
+      (mapping) => originTableColumns.includes(mapping.originName),
     );
 
     // Log unmapped fields (informational - these are acceptable but might indicate config issues)
@@ -776,21 +739,13 @@ function validateDataset(
       ));
     }
 
-    // TODO: this check should generate a warning not an error
+    // Warn about missing source fields but continue with valid mappings
     if (missingSourceFields.length) {
-      return yield* _(
-        Effect.fail(
-          new WorkspaceValidationError({
-            message:
-              `The data source for dataset '${dataset.name}' does not contain the mapped fields ['${
-                missingSourceFields.join("','")
-              }']. Please check the dataset config.`,
-            cause: Error(
-              String("Dataset mapped field missing from source database table"),
-            ),
-          }),
-        ),
-      );
+      yield* _(Effect.logWarning(
+        `Dataset '${dataset.name}' has ${missingSourceFields.length} mapped fields not found in source: ['${
+          missingSourceFields.join("','")
+        }']. These mappings will be skipped.`,
+      ));
     }
 
     if (missingMappedFields.length) {
@@ -802,11 +757,15 @@ function validateDataset(
       ));
     }
 
+    // Build column lists from valid mappings only
+    const targetColumnNames = validMappings.map((field) => `"${field.targetName}"`);
+    const originColumnNames = validMappings.map((field) => `"${field.originName}"`);
+
     // Collect all violations as ValidationViolation[] for partitioning
     const allViolations: ValidationViolation[] = [];
 
-    // Build column mappings for INSERT
-    const columnMappings = dataset.fieldMappings.map((m) => ({
+    // Build column mappings for INSERT (using valid mappings only)
+    const columnMappings = validMappings.map((m) => ({
       origin: m.originName,
       target: m.targetName,
     }));
@@ -922,8 +881,8 @@ function validateDataset(
       }
     }
 
-    // Validate each field mapping
-    for (const mapping of dataset?.fieldMappings || []) {
+    // Validate each field mapping (only valid mappings with source fields that exist)
+    for (const mapping of validMappings) {
       // Require profile for validation - normalized fields are the source of truth
       if (!profile?.normalizedFields) {
         requiredFieldErrors.push({
@@ -1102,36 +1061,6 @@ function validateDataset(
  * Validate cross-dataset rule
  */
 /**
- * Resolve dataset name to its schema table name
- *
- * Schema tables are named after profiles, not dataset names.
- * For example, dataset "occurrences" with spec "dwc-occurrence" → table "occurrence"
- */
-function resolveSchemaTableName(
-  datasetName: string,
-  datasets: readonly DatasetConfig[],
-): string {
-  const dataset = datasets.find((ds) => ds.name === datasetName);
-  if (!dataset) {
-    // Fallback to sanitized dataset name if not found
-    return sanitizeTableName(datasetName).toLowerCase();
-  }
-
-  // Derive profile name - same logic as in validateDataset
-  let profileName = dataset.profile;
-  if (!profileName && dataset.spec) {
-    const parsed = parseSpecIdentifier(dataset.spec);
-    if (parsed) {
-      profileName = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-    }
-  }
-
-  return profileName
-    ? sanitizeTableName(profileName).toLowerCase()
-    : sanitizeTableName(dataset.name).toLowerCase();
-}
-
-/**
  * Find cross-dataset foreign key violations
  *
  * Returns fully-formed CrossDatasetViolation objects with all metadata.
@@ -1222,22 +1151,14 @@ function validateCrossDatasetRule(
       ? "optional"
       : "required";
 
-    // Get fully-formed violations
-    const crossDatasetViolations = yield* _(
+    // Get fully-formed CrossDatasetViolation objects
+    const violations = yield* _(
       findCrossDatasetViolations(
         connection,
         { ...rule, enforcement },
         datasets,
       ),
     );
-
-    // Convert to old format for compatibility
-    // TODO: Update CrossDatasetValidationResult to use ValidationViolation[]
-    const violations = crossDatasetViolations.map((v) => ({
-      rowNumber: v.rowNumber,
-      sourceValue: v.value,
-      errorMessage: v.errorMessage,
-    }));
 
     return {
       ruleType: rule.ruleType as "foreignKey" | "referentialIntegrity",

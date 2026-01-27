@@ -1,8 +1,8 @@
 /**
- * Effect-Managed Workspace
+ * Workspace
  *
- * Provides an Effect-managed stateful Workspace pattern that owns a DuckDB connection
- * via Effect's `acquireRelease` and `Scope`. This enables automatic resource cleanup
+ * Provides a stateful Workspace that owns a DuckDB connection via Effect's
+ * `acquireRelease` and `Scope`. This enables automatic resource cleanup
  * while supporting connection reuse across multiple operations.
  *
  * @module workspace/workspace
@@ -13,7 +13,6 @@ import { DuckDBInstance } from "@duckdb/node-api";
 import { dirname, join, resolve } from "@std/path";
 import { parse as parseYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 
@@ -26,7 +25,6 @@ import type {
 } from "@dwkt/domain";
 import { isValidationOnlyConfig, workspaceConfigSchema } from "@dwkt/domain";
 
-import { DatasetRepo, DbConnection, SchemaRepo } from "../database/index.ts";
 import { ValidationError } from "../errors/index.ts";
 import { WorkspaceValidator } from "../validation/workspace-validator.ts";
 
@@ -52,7 +50,7 @@ export interface ValidationOptions {
 }
 
 /**
- * Effect-Managed Workspace
+ * Workspace
  *
  * A workspace that owns its DuckDB connection and provides it to all operations.
  * Resources are automatically cleaned up via Effect's Scope when the workspace
@@ -63,7 +61,7 @@ export interface ValidationOptions {
  * // Short-lived (CLI) - connection auto-closes when scope ends
  * const program = Effect.scoped(
  *   Effect.gen(function* () {
- *     const workspace = yield* ManagedWorkspace.open("./darwinkit.json");
+ *     const workspace = yield* Workspace.open("./darwinkit.json");
  *     return yield* workspace.validate();
  *   })
  * );
@@ -71,12 +69,12 @@ export interface ValidationOptions {
  * // Long-lived (interactive) - connection stays open until layer disposed
  * const WorkspaceLive = makeWorkspaceLayer("./darwinkit.json");
  * const program = Effect.gen(function* () {
- *   const workspace = yield* ManagedWorkspaceService;
+ *   const workspace = yield* WorkspaceService;
  *   return yield* workspace.validate();
  * }).pipe(Effect.provide(WorkspaceLive));
  * ```
  */
-export class ManagedWorkspace {
+export class Workspace {
   private constructor(
     /**
      * The workspace configuration
@@ -122,20 +120,6 @@ export class ManagedWorkspace {
   }
 
   /**
-   * Internal layer providing DbConnection to repos
-   *
-   * This is the key integration point with the repository layer.
-   * All repo operations receive the workspace's shared connection.
-   */
-  private get repoLayer(): Layer.Layer<DatasetRepo | SchemaRepo, never, never> {
-    const connectionLayer = Layer.succeed(DbConnection, this.connection);
-    return Layer.mergeAll(
-      DatasetRepo.layer.pipe(Layer.provide(connectionLayer)),
-      SchemaRepo.layer.pipe(Layer.provide(connectionLayer)),
-    );
-  }
-
-  /**
    * Validate datasets according to configuration
    *
    * Runs validation on all datasets defined in the workspace configuration,
@@ -146,7 +130,7 @@ export class ManagedWorkspace {
    *
    * @example
    * ```typescript
-   * const workspace = yield* Workspace.open();
+   * const workspace = yield* Workspace.open("./darwinkit.json");
    * const results = yield* workspace.validate({ failFast: false });
    *
    * if (results.status === "error") {
@@ -243,7 +227,7 @@ export class ManagedWorkspace {
    * @example
    * ```typescript
    * // With explicit config path
-   * const workspace = yield* ManagedWorkspace.open("./my-project/darwinkit.json");
+   * const workspace = yield* Workspace.open("./my-project/darwinkit.json");
    *
    * // Auto-discover config in current/parent directories
    * const workspace = yield* Workspace.open();
@@ -253,7 +237,7 @@ export class ManagedWorkspace {
    */
   static open(
     configPath?: string,
-  ): Effect.Effect<ManagedWorkspace, WorkspaceConfigError, Scope.Scope> {
+  ): Effect.Effect<Workspace, WorkspaceConfigError, Scope.Scope> {
     return Effect.acquireRelease(
       // Acquire: load config, create DuckDB instance and connection
       Effect.gen(function* () {
@@ -286,7 +270,7 @@ export class ManagedWorkspace {
             }),
         });
 
-        return new ManagedWorkspace(config, resolvedPath, basePath, connection, instance);
+        return new Workspace(config, resolvedPath, basePath, connection, instance);
       }),
       // Release: close connection and instance (always runs, even on error)
       (workspace) =>

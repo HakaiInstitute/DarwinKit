@@ -1,7 +1,7 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { DefaultLogLevel, ManagedWorkspace, VerboseLogLevel } from '@dwkt/core';
+import { DefaultLogLevel, VerboseLogLevel, Workspace } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
@@ -193,7 +193,7 @@ export async function validate(options: {
       spinner.update('Loading workspace configuration...');
 
       // Open workspace (handles discovery, config loading, path validation, and DuckDB connection)
-      const workspace = yield* _(ManagedWorkspace.open(options.config));
+      const workspace = yield* _(Workspace.open(options.config));
 
       spinner.update('Validating datasets...');
 

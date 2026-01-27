@@ -6,11 +6,11 @@
  * in the workspace configuration.
  */
 
-import { assertEquals } from "@std/assert";
-import * as Effect from "effect/Effect";
 import { DuckDBConnection } from "@duckdb/node-api";
 import { createTableFromSchema, populateSchemaFromDataTables } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
+import { assertEquals } from "@std/assert";
+import { runPromise } from "./helpers/effect-test-utils.ts";
 
 Deno.test("populateSchemaFromDataTables - populates schema from source tables", async () => {
   // 1. Setup: In-memory DuckDB and test configuration
@@ -77,11 +77,11 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
     );
 
     // Create the target schema tables (they will be empty)
-    await Effect.runPromise(createTableFromSchema(connection, config));
+    await runPromise(createTableFromSchema(connection, config));
 
     // 3. Act: Execute the data population function
     const effect = populateSchemaFromDataTables(connection, config);
-    await Effect.runPromise(effect);
+    await runPromise(effect);
 
     // 4. Assert: Verify the data was populated and transformed correctly
     // Check Event table data

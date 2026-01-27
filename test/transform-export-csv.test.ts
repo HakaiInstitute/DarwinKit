@@ -10,6 +10,7 @@ import { exportObisTablesToCSV } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals, assertExists, assertFalse, assertStringIncludes } from "@std/assert";
 import * as Effect from "effect/Effect";
+import { runPromise } from "./helpers/effect-test-utils.ts";
 
 Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", async () => {
   // 1. Setup
@@ -48,7 +49,7 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
 
     // 3. Act: Execute the export function
     const effect = exportObisTablesToCSV(connection, config);
-    await Effect.runPromise(effect);
+    await runPromise(effect);
 
     // 4. Assert: Verify the CSV files and their contents
     // Check event.csv
@@ -108,7 +109,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 
     // 3. Act
     const effect = exportObisTablesToCSV(connection, config);
-    await Effect.runPromise(effect);
+    await runPromise(effect);
 
     // 4. Assert
     const csvPath = `${outputDir}/event.csv`;
@@ -156,7 +157,7 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
   };
 
   const effect = exportObisTablesToCSV(connection, config);
-  const result = await Effect.runPromise(Effect.flip(effect));
+  const result = await runPromise(Effect.flip(effect));
 
   assertEquals(result._tag, "OutputError", "Should fail with OutputError");
   assertEquals(result.outputPath, invalidOutputDir);

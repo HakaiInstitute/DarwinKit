@@ -8,8 +8,8 @@
 import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
-import * as Effect from "effect/Effect";
 import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
+import { runPromise } from "./helpers/effect-test-utils.ts";
 
 Deno.test({
   name: "WorkspaceValidator - validates date ranges",
@@ -60,7 +60,7 @@ E4,2022,6,32,2022-06-32`;
       );
 
       const validator = new WorkspaceValidator();
-      const result = await Effect.runPromise(
+      const result = await runPromise(
         validator.validateFromConfig(tempDir),
       );
 

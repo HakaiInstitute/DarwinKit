@@ -37,7 +37,7 @@ export {
 } from "./constraint-validator.ts";
 
 // Row-by-row data loading with violation collection
-export { type ColumnMapping, getOriginalCsvValue, insertRowByRow } from "./data-loader.ts";
+export { type ColumnMapping, insertRowByRow } from "./data-loader.ts";
 
 // Workspace validation (main entry point)
 export { WorkspaceValidator } from "./workspace-validator.ts";

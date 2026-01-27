@@ -6,9 +6,10 @@
  */
 
 import {
-  ManagedWorkspace,
   ParseError,
   parseFileForWorkspace,
+  SilentLogLevel,
+  Workspace,
   WorkspaceValidator,
 } from "@dwkt/core";
 import { assert, assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
@@ -17,6 +18,7 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
+import { runPromise } from "../helpers/effect-test-utils.ts";
 
 /**
  * Helper to assert an Effect fails with a ParseError
@@ -25,7 +27,7 @@ async function expectParseError(
   effect: Effect.Effect<unknown, ParseError>,
   messageContains?: string,
 ): Promise<void> {
-  const exit = await Effect.runPromiseExit(effect);
+  const exit = await Effect.runPromiseExit(effect.pipe(Effect.provide(SilentLogLevel)));
   Exit.match(exit, {
     onSuccess: () => assert(false, "Expected ParseError but succeeded"),
     onFailure: (cause) => {
@@ -46,13 +48,13 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
     const program = Effect.scoped(
       Effect.gen(function* () {
         // Try to load non-existent config
-        return yield* ManagedWorkspace.open(join(tempDir, "nonexistent", "darwinkit.json"));
+        return yield* Workspace.open(join(tempDir, "nonexistent", "darwinkit.json"));
       }),
     );
 
     let errorCaught = false;
 
-    await Effect.runPromise(
+    await runPromise(
       program.pipe(
         Effect.catchAll((_error) => {
           errorCaught = true;
@@ -75,7 +77,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
     await Deno.writeTextFile(csvPath, "col1,col2\nval1,val2");
 
     // Parse should succeed, but in cases where it fails, it should be catchable
-    await Effect.runPromise(
+    await runPromise(
       parseFileForWorkspace(csvPath).pipe(
         Effect.catchAll(() => Effect.succeed<null>(null)),
       ),
@@ -98,7 +100,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
     let errorCaught = false;
 
-    await Effect.runPromise(
+    await runPromise(
       validator.validateFromConfig(configPath).pipe(
         Effect.catchAll((_error) => {
           errorCaught = true;
@@ -117,7 +119,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
     let errorCaught = false;
 
-    await Effect.runPromise(
+    await runPromise(
       validator.validateFromConfig(nonExistentConfig).pipe(
         Effect.catchAll((_error) => {
           errorCaught = true;
@@ -139,11 +141,11 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
   await t.step("Error messages include context (config not found)", async () => {
     const program = Effect.scoped(
       Effect.gen(function* () {
-        return yield* ManagedWorkspace.open(join(tempDir, "test-workspace", "darwinkit.json"));
+        return yield* Workspace.open(join(tempDir, "test-workspace", "darwinkit.json"));
       }),
     );
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       program.pipe(
         Effect.catchAll((error) => Effect.succeed(error.message as string)),
       ),
@@ -156,7 +158,7 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
   await t.step("Error messages include file paths", async () => {
     const nonExistentPath = join(tempDir, "missing.csv");
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       parseFileForWorkspace(nonExistentPath).pipe(
         Effect.catchAll((error) => Effect.succeed(error.message as string)),
       ),
@@ -194,7 +196,7 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
 
     const program = Effect.scoped(
       Effect.gen(function* () {
-        const workspace = yield* ManagedWorkspace.open(
+        const workspace = yield* Workspace.open(
           join(tempDir, "nonexistent", "darwinkit.json"),
         );
         // Return a compatible structure (this branch won't execute due to error)
@@ -202,7 +204,7 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
       }),
     );
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       program.pipe(
         Effect.catchAll(() => Effect.succeed(defaultWorkspace)),
       ),
@@ -226,7 +228,7 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
       return "success";
     });
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       operation.pipe(Effect.retry({ times: 2 })),
     );
 

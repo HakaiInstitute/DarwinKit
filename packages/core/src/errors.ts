@@ -12,12 +12,3 @@ export * from "./errors/index.ts";
 
 // Workspace configuration errors
 export * from "./workspace/errors.ts";
-
-// Database errors
-export {
-  type DatabaseError,
-  DatasetImportError,
-  QueryError,
-  SchemaCreationError,
-  TableNotFoundError,
-} from "./database/errors.ts";
