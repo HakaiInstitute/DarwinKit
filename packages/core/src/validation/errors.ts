@@ -4,7 +4,7 @@
  * Error classes for validation operations. Extracted to avoid circular
  * dependencies between workspace-validator.ts and the modular validation files.
  *
- * @module validation/validation-errors
+ * @module validation/errors
  */
 
 import * as Data from "effect/Data";

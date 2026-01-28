@@ -42,4 +42,4 @@ export { type ColumnMapping, insertRowByRow } from "./data-loader.ts";
 export { WorkspaceValidator } from "./workspace-validator.ts";
 
 // Validation error classes
-export { WorkspaceImportError, WorkspaceValidationError } from "./validation-errors.ts";
+export { WorkspaceImportError, WorkspaceValidationError } from "./errors.ts";

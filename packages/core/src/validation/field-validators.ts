@@ -27,7 +27,7 @@ import {
   VocabularyViolation,
 } from "@dwkt/domain";
 
-import type { WorkspaceValidationError } from "./validation-errors.ts";
+import type { WorkspaceValidationError } from "./errors.ts";
 
 /**
  * Map VocabularyEnforcement to EnforcementLevel

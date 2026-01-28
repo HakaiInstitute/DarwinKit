@@ -47,11 +47,11 @@ import {
   resolveSchemaTableName,
 } from "./utils.ts";
 
-// Re-export error classes from validation-errors.ts
-export { WorkspaceImportError, WorkspaceValidationError } from "./validation-errors.ts";
+// Re-export error classes from errors.ts
+export { WorkspaceImportError, WorkspaceValidationError } from "./errors.ts";
 
 // Import error classes for internal use
-import { WorkspaceImportError, WorkspaceValidationError } from "./validation-errors.ts";
+import { WorkspaceImportError, WorkspaceValidationError } from "./errors.ts";
 
 /**
  * Minimal dataset interface for schema import
