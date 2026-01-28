@@ -25,6 +25,7 @@ import * as Data from "effect/Data";
 
 // Re-export error classes from their source modules
 export { ParseError } from "../parsing/csv-parser.ts";
+export type { OutputError, TransformationError } from "../transform/transform.ts";
 export {
   WorkspaceImportError,
   WorkspaceValidationError,
@@ -40,7 +41,6 @@ export {
   ValidationConfigMissingError,
   type WorkspaceConfigError,
 } from "../workspace/errors.ts";
-export type { OutputError, TransformationError } from "../transform/transform.ts";
 
 /**
  * Validation operation errors
@@ -52,3 +52,14 @@ export class ValidationError extends Data.TaggedError("ValidationError")<{
   readonly message: string;
   readonly cause?: Error;
 }> {}
+
+export class CsvImportError extends Data.TaggedClass("CsvImportError")<{
+  readonly message: string;
+  readonly tableName: string;
+  readonly csvPath: string;
+  readonly cause?: Error;
+}> {
+  constructor(message: string, tableName: string, csvPath: string, cause?: Error) {
+    super({ message, tableName, csvPath, cause });
+  }
+}

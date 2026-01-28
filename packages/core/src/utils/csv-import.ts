@@ -9,28 +9,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
-
-/**
- * Error when importing a CSV file fails
- */
-export class CsvImportError extends Error {
-  public readonly tableName: string;
-  public readonly csvPath: string;
-  public override readonly cause?: Error;
-
-  constructor(
-    message: string,
-    tableName: string,
-    csvPath: string,
-    cause?: Error,
-  ) {
-    super(message);
-    this.name = "CsvImportError";
-    this.tableName = tableName;
-    this.csvPath = csvPath;
-    this.cause = cause;
-  }
-}
+import { CsvImportError } from "../errors/index.ts";
 
 /**
  * Sanitize a string for use as a SQL table name
