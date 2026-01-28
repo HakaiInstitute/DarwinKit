@@ -1,7 +1,7 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { ValidationError, Workspace, type WorkspaceConfigError } from '@dwkt/core';
+import { Workspace } from '@dwkt/core';
 import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
@@ -11,16 +11,6 @@ import * as Match from 'effect/Match';
 import { CLIError, OutputError } from '../../errors.ts';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
-
-/**
- * Union of all errors that can occur during the validate command.
- * Used with Match.exhaustive to ensure all error cases are handled.
- */
-type ValidateCommandError =
-  | WorkspaceConfigError
-  | ValidationError
-  | OutputError
-  | CLIError;
 
 // Structured output function
 function outputResults(
@@ -128,7 +118,9 @@ function handleValidationResults(
  * Uses Match.exhaustive to ensure all error types are handled.
  * TypeScript will error if a new error type is added but not handled here.
  */
-function handleValidateError(error: ValidateCommandError): never {
+function handleValidateError(
+  error: Effect.Effect.Error<ReturnType<typeof buildValidationEffect>>,
+): never {
   Output.blank();
 
   const exitCode = Match.value(error).pipe(
@@ -217,6 +209,38 @@ function handleValidateError(error: ValidateCommandError): never {
   Deno.exit(exitCode);
 }
 
+/**
+ * Builds a validation pipeline.
+ * Separated to allow extracting the error type via Effect.Error<T>.
+ */
+function buildValidationEffect(
+  configPath: string | undefined,
+  format: 'table' | 'json',
+  outputDir: string | undefined,
+  spinner: ProgressSpinner,
+) {
+  return Effect.gen(function* (_) {
+    spinner.update('Loading workspace configuration...');
+
+    // Open workspace (handles discovery, config loading, path validation, and DuckDB connection)
+    const workspace = yield* _(Workspace.open(configPath));
+
+    spinner.update('Validating datasets...');
+
+    // Run validation using the workspace's managed connection
+    const results = yield* _(workspace.validate());
+
+    // Stop spinner before output
+    spinner.stop();
+
+    // Output results with structured error handling
+    yield* _(outputResults(results, format, outputDir));
+
+    // Handle exit codes based on results
+    yield* _(handleValidationResults(results));
+  });
+}
+
 // Main validate function
 export async function validate(options: {
   config?: string;
@@ -236,26 +260,7 @@ export async function validate(options: {
   spinner.start();
 
   const runValidation = Effect.scoped(
-    Effect.gen(function* (_) {
-      spinner.update('Loading workspace configuration...');
-
-      // Open workspace (handles discovery, config loading, path validation, and DuckDB connection)
-      const workspace = yield* _(Workspace.open(options.config));
-
-      spinner.update('Validating datasets...');
-
-      // Run validation using the workspace's managed connection
-      const results = yield* _(workspace.validate());
-
-      // Stop spinner before output
-      spinner.stop();
-
-      // Output results with structured error handling
-      yield* _(outputResults(results, validFormat, options.outputDir));
-
-      // Handle exit codes based on results
-      yield* _(handleValidationResults(results));
-    }),
+    buildValidationEffect(options.config, validFormat, options.outputDir, spinner),
   );
 
   const result = await Effect.runPromiseExit(runValidation);
