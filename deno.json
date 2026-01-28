@@ -25,12 +25,19 @@
     "effect": "npm:effect@^3.19.15"
   },
   "tasks": {
-    "dev:cli": "cd packages/cli && deno task dev",
-    "test": "deno test --allow-all --parallel",
-    "test:domain": "deno test packages/domain/",
-    "test:core": "deno test packages/core/",
-    "test:cli": "deno test packages/cli/",
-    "test:integration": "deno test packages/cli/src/integration.test.ts --allow-all"
+    "cli": "deno task --cwd packages/cli dev",
+    "test": {
+      "dependencies": [
+        "test:domain",
+        "test:core",
+        "test:cli",
+        "test:integration"
+      ]
+    },
+    "test:domain": "deno task --cwd packages/domain test",
+    "test:core": "deno task --cwd packages/core test",
+    "test:cli": "deno task --cwd packages/cli test",
+    "test:integration": "deno test test --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM"
   },
   "exclude": [
     "build",
