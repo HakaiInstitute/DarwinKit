@@ -7,6 +7,8 @@
  */
 
 import * as S from "effect/Schema";
+import type { field } from "../types/validation-profile.ts";
+import type { FieldDefinition } from "./field-definition.ts";
 
 /**
  * Available validator types
@@ -206,3 +208,26 @@ export const DARWIN_CORE_VALIDATORS = {
  * Type for pre-configured validator names
  */
 export type DarwinCoreValidatorName = keyof typeof DARWIN_CORE_VALIDATORS;
+
+/**
+ * Check if a field uses controlled vocabulary
+ *
+ * Supports multiple field formats:
+ * - NormalizedField: has 'vocabulary' property
+ * - Raw JSON schema: has 'values' object (used before normalization)
+ */
+export function hasControlledVocabulary(
+  field: FieldDefinition | field,
+): boolean {
+  // NormalizedField format (has 'vocabulary' property)
+  if ("vocabulary" in field && field.vocabulary) {
+    return true;
+  }
+
+  // JSON schema format (has 'values' object - used before normalization)
+  if ("values" in field && field.values) {
+    return typeof field.values === "object" && Object.keys(field.values).length > 0;
+  }
+
+  return false;
+}
