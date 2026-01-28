@@ -6,11 +6,11 @@
  * validation scenarios.
  */
 
+import { Workspace } from "@dwkt/core";
 import { type WorkspaceConfig, workspaceConfigSchema } from "@dwkt/domain";
 import { assert, assertExists } from "@std/assert";
 import { Schema } from "effect";
 import * as Effect from "effect/Effect";
-import { WorkspaceConfigService } from "../packages/core/src/workspace/workspace-config-service.ts";
 
 /**
  * Load and validate a workspace config from a JSON file
@@ -37,7 +37,12 @@ Deno.test("Test fixtures - fc2022-complete config loads successfully", async () 
 
   const expectedConfig = await loadExpectedConfig(configPath);
   const result = await Effect.runPromise(
-    WorkspaceConfigService.discoverAndLoad(configPath),
+    Effect.scoped(
+      Effect.gen(function* (_) {
+        const workspace = yield* _(Workspace.open(configPath));
+        return { config: workspace.config, configPath: workspace.configPath };
+      }),
+    ),
   );
 
   assertExists(result.config);
@@ -55,7 +60,12 @@ Deno.test("Test fixtures - mixed-validity config loads successfully", async () =
 
   const expectedConfig = await loadExpectedConfig(configPath);
   const result = await Effect.runPromise(
-    WorkspaceConfigService.discoverAndLoad(configPath),
+    Effect.scoped(
+      Effect.gen(function* (_) {
+        const workspace = yield* _(Workspace.open(configPath));
+        return { config: workspace.config, configPath: workspace.configPath };
+      }),
+    ),
   );
 
   assertExists(result.config);
@@ -72,7 +82,12 @@ Deno.test("Test fixtures - na-type-failures config loads successfully", async ()
 
   const expectedConfig = await loadExpectedConfig(configPath);
   const result = await Effect.runPromise(
-    WorkspaceConfigService.discoverAndLoad(configPath),
+    Effect.scoped(
+      Effect.gen(function* (_) {
+        const workspace = yield* _(Workspace.open(configPath));
+        return { config: workspace.config, configPath: workspace.configPath };
+      }),
+    ),
   );
 
   assertExists(result.config);
@@ -94,7 +109,12 @@ Deno.test("Test fixtures - all configs use datasets array format", async () => {
   for (const configPath of configs) {
     const expectedConfig = await loadExpectedConfig(configPath);
     const result = await Effect.runPromise(
-      WorkspaceConfigService.discoverAndLoad(configPath),
+      Effect.scoped(
+        Effect.gen(function* (_) {
+          const workspace = yield* _(Workspace.open(configPath));
+          return { config: workspace.config, configPath: workspace.configPath };
+        }),
+      ),
     );
 
     // Verify the config loading mechanism works correctly for all fixtures

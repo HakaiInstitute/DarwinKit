@@ -51,7 +51,6 @@ jobs:
         run: |
           deno test test/example-config.test.ts --allow-all --junit-path=./reports/report3.xml
           deno test test/obis-profile.test.ts --allow-all --junit-path=./reports/report4.xml
-          deno test test/workspace-service.test.ts --allow-all --junit-path=./reports/report5.xml
 
       - name: Test Report
         uses: dorny/test-reporter@v2

@@ -8,14 +8,14 @@ import {
   type WorkspaceCrossDatasetRule,
   type WorkspaceFieldMapping,
 } from "@dwkt/domain";
-import { assert, assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { stringify } from "@std/csv";
 import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
 import type { ValidationOnlyConfig } from "../../../domain/src/types/workspace-config.ts";
 import type { WorkspaceValidationResult } from "../../../domain/src/types/workspace-validation.ts";
-import { WorkspaceValidationError, WorkspaceValidator } from "./workspace-validator.ts";
+import { WorkspaceValidator } from "./workspace-validator.ts";
 
 // Helper type for workspace creation
 type TestWorkspaceOptions = {
@@ -505,10 +505,10 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     // Should detect violation for E2
     assertEquals(result.crossDatasetResults.length, 1);
     assertEquals(result.crossDatasetResults[0].violations.length, 1);
-    assertEquals(result.crossDatasetResults[0].violations[0].sourceValue, "E2");
+    assertEquals(result.crossDatasetResults[0].violations[0].value, "E2");
   });
 
-  await t.step("detects missing required fields", async () => {
+  await t.step("handles missing source fields with warning", async () => {
     const tempDir = await createTempDir("detect_missing_required_fields");
     await writeCSV(tempDir, "events", TEST_DATA.EVENTS_MISSING_COUNTRY_CODE);
 
@@ -536,7 +536,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
                 originName: "countryCode",
                 targetName: "countryCode",
                 isRequired: true,
-              }, // Missing!
+              }, // Missing from CSV - will be skipped with warning
             ],
           },
         ],
@@ -549,28 +549,31 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
     const validator = new WorkspaceValidator();
 
-    // NOTE: This test has a config that maps to a field ('countryCode') that doesn't
-    // exist in the CSV. The validation currently fails early with an INVALID_CONFIG error
-    // before validation can run. This is expected behavior.
-    // TODO: Consider making this a warning instead of an error (see line 641 in workspace-validator.ts)
-    const error = await Effect.runPromise(
-      Effect.flip(validator.validateFromConfig(tempDir)),
+    // Validation should complete with warnings - missing mapped fields are skipped, not treated as a hard error
+    const result = await Effect.runPromise(
+      validator.validateFromConfig(tempDir),
     );
 
-    // Verify we get an invalid config error about missing field
+    // Validation should complete with warnings (not fail)
+    assert(result.datasetResults.length > 0, "Expected dataset results");
+    const datasetResult = result.datasetResults[0];
+    assertEquals(
+      datasetResult.status,
+      "warn",
+      "Expected validation to warn when missing source fields are skipped",
+    );
+
+    // Verify warning was generated for the missing field
+    const missingFieldWarning = datasetResult.warnings.find(
+      (w) => w.fieldName === "countryCode",
+    );
+    assertExists(
+      missingFieldWarning,
+      "Expected warning for missing 'countryCode' field",
+    );
     assert(
-      error instanceof WorkspaceValidationError,
-      "Expected WorkspaceValidationError",
-    );
-    assertStringIncludes(
-      error.message,
-      "does not contain the mapped fields",
-      `Expected missing field error, got: ${error.message}`,
-    );
-    assertStringIncludes(
-      error.message,
-      "countryCode",
-      `Expected error to mention missing field 'countryCode', got: ${error.message}`,
+      missingFieldWarning.message.includes("not found in source CSV"),
+      "Warning message should indicate field not found in source",
     );
   });
 

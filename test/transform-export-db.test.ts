@@ -5,11 +5,11 @@
  * to a persistent DuckDB file.
  */
 
-import { assertEquals } from "@std/assert";
-import * as Effect from "effect/Effect";
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import { exportToPersistentDB } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
+import { assertEquals } from "@std/assert";
+import * as Effect from "effect/Effect";
 
 Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
   // 1. Setup: In-memory DB, temp output dir, and config

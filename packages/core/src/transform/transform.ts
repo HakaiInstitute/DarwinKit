@@ -1,21 +1,14 @@
 import * as duckdb from "@duckdb/node-api";
 import { stringify as stringifyCSV } from "@std/csv";
-import { dirname, join, resolve } from "@std/path";
+import { join, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import type {
-  ConfigNotFoundError,
-  ConfigParseError,
-  ConfigValidationError,
-  DatasetFileNotFoundError,
-  WorkspaceImportError,
-} from "@dwkt/core";
-import { WorkspaceImportCSV, WorkspaceImportSchema } from "@dwkt/core";
+import { Workspace, type WorkspaceConfigError, WorkspaceImportError } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { getValidationProfile } from "@dwkt/domain";
-import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
-import { WorkspaceConfigService } from "../workspace/workspace-config-service.ts";
+import { getValidationProfile, hasTransformationConfig } from "@dwkt/domain";
+import { importCsv } from "../loading/csv-import.ts";
+import { importSchema } from "../loading/schema.ts";
 
 /**
  * Represents an error that occurs during the data transformation process.
@@ -64,15 +57,17 @@ export function createTablesFromCSV( // Export for testing
       return;
     }
 
-    // Build a string of null values from the configuration to be used in the DuckDB query.
-    const nullStr = config.transform.nullValues.map((v: string) => `'${v}'`).join(", ");
-
     for (const [tableName, csvPath] of Object.entries(config.transform.inputs)) {
       if (typeof csvPath !== "string") continue;
 
       const fullPath = resolve(basePath, csvPath);
 
-      yield* _(WorkspaceImportCSV(connection, tableName, fullPath, nullStr));
+      // Import CSV with row numbers
+      yield* _(
+        importCsv(connection, tableName, fullPath, config.transform.nullValues).pipe(
+          Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
+        ),
+      );
     }
   });
 }
@@ -139,7 +134,7 @@ export function createTableFromSchema(
     }
 
     for (const dataset of config.transform.datasets) {
-      yield* _(WorkspaceImportSchema(connection, dataset, config.transform.datasets));
+      yield* _(importSchema(connection, dataset, config.transform.datasets));
     }
   });
 }
@@ -501,41 +496,52 @@ export function transformFile(
   | TransformationError
   | OutputError
   | WorkspaceImportError
-  | ConfigNotFoundError
-  | ConfigParseError
-  | ConfigValidationError
-  | DatasetFileNotFoundError,
+  | WorkspaceConfigError,
   never
 > {
-  return Effect.acquireUseRelease(
-    Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(
-      Effect.orDie,
-    ),
-    (connection) =>
-      Effect.gen(function* (_) {
-        const { config, configPath: resolvedConfigPath } = yield* _(
-          WorkspaceConfigService.discoverAndLoad(configPath),
-        );
-        const basePath = dirname(resolvedConfigPath);
+  return Effect.gen(function* (_) {
+    // Load config using Workspace (handles discovery and validation)
+    // We use a scoped block to load config, then create our own connection for transform
+    const { config, basePath } = yield* _(
+      Effect.scoped(
+        Effect.gen(function* (_) {
+          const workspace = yield* _(Workspace.open(configPath));
+          return {
+            config: workspace.config,
+            basePath: workspace.basePath,
+          };
+        }),
+      ),
+    );
 
-        console.log("Creating tables from CSV files...");
-        yield* _(createTablesFromCSV(connection, config, basePath));
-        // Execute any post-import SQL transformations defined in the configuration.
-        yield* _(runPostImportTransformations(config, connection));
+    // Create a separate DuckDB connection for transform operations
+    yield* _(
+      Effect.acquireUseRelease(
+        Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(
+          Effect.orDie,
+        ),
+        (connection) =>
+          Effect.gen(function* (_) {
+            console.log("Creating tables from CSV files...");
+            yield* _(createTablesFromCSV(connection, config, basePath));
+            // Execute any post-import SQL transformations defined in the configuration.
+            yield* _(runPostImportTransformations(config, connection));
 
-        console.log("Creating OBIS tables from schema...");
-        yield* _(createTableFromSchema(connection, config));
+            console.log("Creating OBIS tables from schema...");
+            yield* _(createTableFromSchema(connection, config));
 
-        console.log("Populating OBIS tables from data tables...");
-        yield* _(populateSchemaFromDataTables(connection, config));
+            console.log("Populating OBIS tables from data tables...");
+            yield* _(populateSchemaFromDataTables(connection, config));
 
-        console.log("Exporting OBIS tables to CSV...");
-        yield* _(exportObisTablesToCSV(connection, config));
+            console.log("Exporting OBIS tables to CSV...");
+            yield* _(exportObisTablesToCSV(connection, config));
 
-        console.log("Exporting DuckDB database to persistent file...");
-        yield* _(exportToPersistentDB(connection, config));
-      }),
-    // Release: close DuckDB connection (ignore any cleanup errors)
-    (connection) => Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
-  );
+            console.log("Exporting DuckDB database to persistent file...");
+            yield* _(exportToPersistentDB(connection, config));
+          }),
+        // Release: close DuckDB connection (ignore any cleanup errors)
+        (connection) => Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
+      ),
+    );
+  });
 }

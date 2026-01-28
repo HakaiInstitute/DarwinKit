@@ -17,7 +17,7 @@
  */
 
 import type { TransformationChain } from "./transformation.ts";
-import type { ValidationViolation } from "./validation-violation.ts";
+import type { CrossDatasetViolation, ValidationViolation } from "./validation-violation.ts";
 
 /**
  * Validation result for a single dataset within a workspace
@@ -78,6 +78,11 @@ export interface DatasetValidationResult {
 
 /**
  * Cross-dataset validation result
+ *
+ * Uses CrossDatasetViolation[] directly for violations, which includes:
+ * - rowNumber, value, errorMessage (from ViolationBase)
+ * - params.sourceDataset, params.targetDataset, params.targetField
+ * - enforcement and severity for consistent handling with other violations
  */
 export interface CrossDatasetValidationResult {
   readonly ruleType: "foreignKey" | "referentialIntegrity";
@@ -85,14 +90,7 @@ export interface CrossDatasetValidationResult {
   readonly sourceField: string;
   readonly targetDataset: string;
   readonly targetField: string;
-  readonly violations: ReadonlyArray<{
-    readonly rowNumber: number;
-    readonly sourceValue: string; // Deprecated: use csvValue for source value
-    readonly csvValue?: string; // Original value in CSV file
-    readonly transformedValue?: unknown; // Value after transformations
-    readonly transformationChain?: TransformationChain; // Full transformation history
-    readonly errorMessage: string;
-  }>;
+  readonly violations: ReadonlyArray<CrossDatasetViolation>;
 }
 
 /**

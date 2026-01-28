@@ -2,13 +2,32 @@
  * @dwkt/core - Core business logic and Node.js-specific implementations
  */
 
-// Workspace management
-export * from "./src/workspace/service.ts";
-export * from "./src/workspace/workspace-config-service.ts";
-export * from "./src/workspace/workspace-validator.ts";
+// Workspace
+export { type ValidationOptions, Workspace } from "./src/workspace/workspace.ts";
 
-// CSV parsing
-export * from "./src/parsing/csv-parser.ts";
+// Workspace errors
+export {
+  ConfigNotFoundError,
+  ConfigParseError,
+  ConfigValidationError,
+  DatasetFileNotFoundError,
+  formatWorkspaceConfigError,
+  prettyPrintWorkspaceError,
+  TransformInputNotFoundError,
+  ValidationConfigMissingError,
+  type WorkspaceConfigError,
+} from "./src/workspace/errors.ts";
+
+// Workspace validation
+export * from "./src/validation/workspace-validator.ts";
+
+// CSV parsing (ParseError is re-exported via ./src/errors.ts)
+export {
+  ParsedFileResult,
+  parseFileForWorkspace,
+  ParseMetadata,
+  type ParseOptions,
+} from "./src/loading/csv-parser.ts";
 
 // Transformation
 export * from "./src/transform/transform.ts";
@@ -16,5 +35,8 @@ export * from "./src/transform/transform.ts";
 // Schema Import
 export * from "./src/import/get_dwc_schema.ts";
 
-// Error tag types (for test autocomplete)
-export type { CoreErrorTag } from "./src/errors/index.ts";
+// Error types (all core errors consolidated)
+export * from "./src/errors.ts";
+
+// CSV import utilities
+export * from "./src/loading/csv-import.ts";

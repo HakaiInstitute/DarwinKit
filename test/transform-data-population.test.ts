@@ -6,11 +6,11 @@
  * in the workspace configuration.
  */
 
-import { assertEquals } from "@std/assert";
-import * as Effect from "effect/Effect";
 import { DuckDBConnection } from "@duckdb/node-api";
 import { createTableFromSchema, populateSchemaFromDataTables } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
+import { assertEquals } from "@std/assert";
+import * as Effect from "effect/Effect";
 
 Deno.test("populateSchemaFromDataTables - populates schema from source tables", async () => {
   // 1. Setup: In-memory DuckDB and test configuration

@@ -1,59 +1,65 @@
 /**
- * Core Error Tag Types
+ * Core Error Types
  *
- * Type-only exports for error tags to enable IDE autocomplete and type safety
- * when writing tests. These tags are derived directly from the error classes
- * using TypeScript's type system, ensuring they stay in sync automatically.
+ * Centralized error definitions for the core package. Re-exports specialized
+ * error types from their source modules for convenient imports.
  *
- * Usage in tests:
+ * Usage:
  * ```typescript
- * import type { CoreErrorTag } from "@dwkt/core/errors";
+ * import { ValidationError, WorkspaceValidationError } from "@dwkt/core/errors";
  *
- * await expectError(
- *   someEffect,
- *   "CsvReadError" as CoreErrorTag,  // ← IDE autocomplete!
- *   (error) => {
- *     // error is automatically typed
- *     assertEquals(error.csvPath, "./test.csv");
- *   }
- * );
+ * // For workspace validation operations
+ * return Effect.fail(new WorkspaceValidationError({
+ *   message: "Validation failed",
+ *   cause: originalError,
+ * }));
+ *
+ * // For simplified validation interface
+ * return Effect.fail(new ValidationError({
+ *   message: "Validation failed",
+ * }));
  * ```
  */
 
-// Import error classes to extract their tags
-import type { ParseError } from "../parsing/csv-parser.ts";
-import type { CsvReadError } from "../validation/csv-row-reader.ts";
-import type { WorkspaceError, WorkspaceIOError } from "../workspace/service.ts";
-import type {
+import * as Data from "effect/Data";
+
+// Re-export error classes from their source modules
+export { ParseError } from "../loading/csv-parser.ts";
+export type { OutputError, TransformationError } from "../transform/transform.ts";
+export {
+  WorkspaceImportError,
+  WorkspaceValidationError,
+} from "../validation/workspace-validator.ts";
+export {
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
-} from "../workspace/workspace-config-service.ts";
-import type { WorkspaceImportError } from "../workspace/workspace-validator.ts";
-import type { OutputError, TransformationError } from "../transform/transform.ts";
+  formatWorkspaceConfigError,
+  prettyPrintWorkspaceError,
+  TransformInputNotFoundError,
+  ValidationConfigMissingError,
+  type WorkspaceConfigError,
+} from "../workspace/errors.ts";
 
 /**
- * Union type of all core package error tags
+ * Validation operation errors
  *
- * Tags are extracted directly from error class _tag properties using
- * InstanceType<typeof ErrorClass>["_tag"]. This ensures the types stay
- * in sync with the actual error definitions automatically.
+ * Used as a simplified error interface for validation operations.
+ * Wraps WorkspaceValidationError with a consistent interface.
  */
-export type CoreErrorTag =
-  // CSV Parsing & Reading
-  | InstanceType<typeof ParseError>["_tag"]
-  | InstanceType<typeof CsvReadError>["_tag"]
-  // Workspace Operations
-  | InstanceType<typeof WorkspaceError>["_tag"]
-  | InstanceType<typeof WorkspaceIOError>["_tag"]
-  // Configuration Management
-  | InstanceType<typeof ConfigNotFoundError>["_tag"]
-  | InstanceType<typeof ConfigParseError>["_tag"]
-  | InstanceType<typeof ConfigValidationError>["_tag"]
-  | InstanceType<typeof DatasetFileNotFoundError>["_tag"]
-  // Validation & Import
-  | InstanceType<typeof WorkspaceImportError>["_tag"]
-  // Transformation & Output
-  | InstanceType<typeof TransformationError>["_tag"]
-  | InstanceType<typeof OutputError>["_tag"];
+export class ValidationError extends Data.TaggedError("ValidationError")<{
+  readonly message: string;
+  readonly cause?: Error;
+}> {}
+
+export class CsvImportError extends Data.TaggedClass("CsvImportError")<{
+  readonly message: string;
+  readonly tableName: string;
+  readonly csvPath: string;
+  readonly cause?: Error;
+}> {
+  constructor(message: string, tableName: string, csvPath: string, cause?: Error) {
+    super({ message, tableName, csvPath, cause });
+  }
+}

@@ -1,0 +1,174 @@
+/**
+ * Validation Summary Utilities
+ *
+ * Utilities for calculating and aggregating validation results.
+ */
+
+import type {
+  DatasetConfig,
+  DatasetValidationResult,
+  FieldDefinition,
+  ValidationViolation,
+} from "@dwkt/domain";
+import { parseSpecIdentifier } from "@dwkt/domain";
+import { sanitizeTableName } from "../loading/sql.ts";
+
+/**
+ * Resolve dataset name to its schema table name
+ *
+ * Schema tables are named after profiles, not dataset names.
+ * For example, dataset "occurrences" with spec "dwc-occurrence" → table "occurrence"
+ *
+ * @param datasetName - Name of the dataset
+ * @param datasets - Array of dataset configurations
+ * @returns The schema table name
+ */
+export function resolveSchemaTableName(
+  datasetName: string,
+  datasets: readonly DatasetConfig[],
+): string {
+  const dataset = datasets.find((ds) => ds.name === datasetName);
+  if (!dataset) {
+    // Fallback to sanitized dataset name if not found
+    return sanitizeTableName(datasetName).toLowerCase();
+  }
+
+  // Derive profile name - same logic as in validateDataset
+  let profileName = dataset.profile;
+  if (!profileName && dataset.spec) {
+    const parsed = parseSpecIdentifier(dataset.spec);
+    if (parsed) {
+      profileName = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+    }
+  }
+
+  return profileName
+    ? sanitizeTableName(profileName).toLowerCase()
+    : sanitizeTableName(dataset.name).toLowerCase();
+}
+
+/**
+ * Partition violations by severity level
+ *
+ * Groups violations into errors (required), warnings (recommended),
+ * and info (optional) based on their enforcement level.
+ *
+ * @param violations - Array of violations to partition
+ * @returns Object with errors, warnings, and info arrays
+ */
+export function partitionViolations(
+  violations: ReadonlyArray<ValidationViolation>,
+): {
+  readonly errors: ValidationViolation[];
+  readonly warnings: ValidationViolation[];
+  readonly info: ValidationViolation[];
+} {
+  const errors: ValidationViolation[] = [];
+  const warnings: ValidationViolation[] = [];
+  const info: ValidationViolation[] = [];
+
+  for (const violation of violations) {
+    switch (violation.enforcement) {
+      case "required":
+        errors.push(violation);
+        break;
+      case "recommended":
+        warnings.push(violation);
+        break;
+      case "optional":
+        info.push(violation);
+        break;
+    }
+  }
+
+  return { errors, warnings, info };
+}
+
+/**
+ * Summary statistics for validation results
+ */
+export interface ValidationSummary {
+  readonly totalDatasets: number;
+  readonly datasetsPassedCount: number;
+  readonly datasetsWithWarningsCount: number;
+  readonly datasetsFailedCount: number;
+  readonly totalErrors: number;
+  readonly totalWarnings: number;
+  readonly totalInfo: number;
+  readonly totalRowsProcessed: number;
+}
+
+/**
+ * Calculate summary statistics across all dataset results
+ *
+ * @param datasetResults - Array of dataset validation results
+ * @returns Summary statistics
+ */
+export function calculateSummary(
+  datasetResults: readonly DatasetValidationResult[],
+): ValidationSummary {
+  let datasetsPassedCount = 0;
+  let datasetsWithWarningsCount = 0;
+  let datasetsFailedCount = 0;
+  let totalErrors = 0;
+  let totalWarnings = 0;
+  let totalInfo = 0;
+  let totalRowsProcessed = 0;
+
+  for (const result of datasetResults) {
+    totalRowsProcessed += result.rowsProcessed;
+
+    // Count violations by severity from partitioned structure
+    totalErrors += result.violations.errors.length;
+    totalWarnings += result.violations.warnings.length;
+    totalInfo += result.violations.info.length;
+
+    // Also count old-style errors for backward compatibility
+    totalErrors += result.typeErrors.length + result.requiredFieldErrors.length;
+    totalWarnings += result.warnings.length;
+
+    if (result.status === "pass") {
+      datasetsPassedCount++;
+    } else if (result.status === "warn") {
+      datasetsWithWarningsCount++;
+    } else {
+      datasetsFailedCount++;
+    }
+  }
+
+  return {
+    totalDatasets: datasetResults.length,
+    datasetsPassedCount,
+    datasetsWithWarningsCount,
+    datasetsFailedCount,
+    totalErrors,
+    totalWarnings,
+    totalInfo,
+    totalRowsProcessed,
+  };
+}
+
+/**
+ * Determine overall validation status from summary
+ *
+ * @param summary - Validation summary
+ * @returns "pass", "warn", or "fail"
+ */
+export function determineOverallStatus(
+  summary: ValidationSummary,
+): "pass" | "warn" | "fail" {
+  if (summary.datasetsFailedCount > 0 || summary.totalErrors > 0) {
+    return "fail";
+  }
+  if (summary.datasetsWithWarningsCount > 0 || summary.totalWarnings > 0) {
+    return "warn";
+  }
+  return "pass";
+}
+
+/**
+ * Check if a field definition has a controlled vocabulary configured
+ */
+export function hasControlledVocabulary(fieldDef: FieldDefinition): boolean {
+  return fieldDef.vocabulary !== undefined;
+}

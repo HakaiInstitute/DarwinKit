@@ -5,10 +5,10 @@
  * (invalid user CSV data) and defects (system failures).
  */
 
-import { assert, assertEquals, assertExists } from "@std/assert";
-import * as Effect from "effect/Effect";
 import { parseFileForWorkspace } from "@dwkt/core";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
+import * as Effect from "effect/Effect";
 
 Deno.test("CSV Parser - expected errors (user data issues)", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "csv_parser_test_" });

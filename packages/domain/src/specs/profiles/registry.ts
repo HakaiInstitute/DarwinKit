@@ -99,9 +99,11 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
     for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
       try {
         normalizedFields[fieldName] = normalizeField(fieldValue as field);
-      } catch (error) {
-        console.warn(`Failed to normalize field '${fieldName}':`, error);
+      } catch {
         // Skip invalid fields rather than failing the entire profile
+        // TODO: When imlementing issue #64 (https://github.com/HakaiInstitute/DarwinKit/issues/64):
+        // Surface logs here
+        // Effect.logWarning(`Invalid field "${fieldName}" in profile "${profile.id}"`);
       }
     }
   }
