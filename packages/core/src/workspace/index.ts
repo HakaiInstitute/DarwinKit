@@ -21,10 +21,3 @@ export {
 
 // Workspace
 export { type ValidationOptions, Workspace } from "./workspace.ts";
-
-// Workspace service for dependency injection
-export {
-  makeWorkspaceLayer,
-  WorkspaceService,
-  type WorkspaceServiceApi,
-} from "./workspace-service.ts";

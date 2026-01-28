@@ -23,7 +23,7 @@ import type {
   WorkspaceConfig,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
-import { isValidationOnlyConfig, workspaceConfigSchema } from "@dwkt/domain";
+import { hasValidationConfig, workspaceConfigSchema } from "@dwkt/domain";
 
 import { ValidationError } from "../errors/index.ts";
 import { WorkspaceValidator } from "../validation/workspace-validator.ts";
@@ -58,20 +58,12 @@ export interface ValidationOptions {
  *
  * @example
  * ```typescript
- * // Short-lived (CLI) - connection auto-closes when scope ends
  * const program = Effect.scoped(
  *   Effect.gen(function* () {
  *     const workspace = yield* Workspace.open("./darwinkit.json");
  *     return yield* workspace.validate();
  *   })
  * );
- *
- * // Long-lived (interactive) - connection stays open until layer disposed
- * const WorkspaceLive = makeWorkspaceLayer("./darwinkit.json");
- * const program = Effect.gen(function* () {
- *   const workspace = yield* WorkspaceService;
- *   return yield* workspace.validate();
- * }).pipe(Effect.provide(WorkspaceLive));
  * ```
  */
 export class Workspace {
@@ -116,7 +108,7 @@ export class Workspace {
    * Whether this workspace has validation configuration
    */
   get hasValidation(): boolean {
-    return isValidationOnlyConfig(this.config);
+    return hasValidationConfig(this.config);
   }
 
   /**

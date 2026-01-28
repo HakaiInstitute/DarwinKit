@@ -5,13 +5,6 @@
 // Workspace
 export { type ValidationOptions, Workspace } from "./src/workspace/workspace.ts";
 
-// Workspace service for dependency injection
-export {
-  makeWorkspaceLayer,
-  WorkspaceService,
-  type WorkspaceServiceApi,
-} from "./src/workspace/workspace-service.ts";
-
 // Workspace errors
 export {
   ConfigNotFoundError,
