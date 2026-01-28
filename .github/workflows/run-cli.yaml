@@ -16,8 +16,8 @@ jobs:
           deno-version: v2.x # Run with latest stable Deno.
 
       # import isn't stricktly required as the schema file is already part of the repo but we test it works anyway
-      - run: deno task dev:cli import
+      - run: deno task cli import
       # Transform project files into a darwin core archive
-      - run: deno task dev:cli transform --config ../../external/rocky-subtidal-fish-invertebrate_config_transform.yaml
+      - run: deno task cli transform --config ../../external/rocky-subtidal-fish-invertebrate_config_transform.yaml
       # Validate the darwin core archive
-      - run: deno task dev:cli validate --config ../../external/rocky-subtidal-fish-invertebrate_config_validate.yaml
+      - run: deno task cli validate --config ../../external/rocky-subtidal-fish-invertebrate_config_validate.yaml

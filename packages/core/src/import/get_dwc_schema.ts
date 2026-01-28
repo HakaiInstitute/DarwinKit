@@ -1,7 +1,7 @@
 // Convert Darwin Core XML schemas to JSON
 //
 // Run via CLI:
-//  deno task dev:cli import
+//  deno task cli import
 //
 
 import { parse as parseCsv } from "@std/csv";

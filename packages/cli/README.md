@@ -1,19 +1,17 @@
-# DarwinKit CLI
+# @dwkt/cli
 
-A CLI for DarwinKit validation and data processing operations.
+Command-line interface for DarwinKit validation and transformation operations.
 
 ## Overview
 
 This package provides a terminal-based interface to DarwinKit's core functionality using [Cliffy](https://cliffy.io/) for command parsing and formatted output.
-
-**Current Status**: Early development - only the validation command is implemented.
 
 ## Dependencies
 
 - `@dwkt/domain` - Domain types and schemas
 - `@dwkt/core` - Core validation and workspace operations
 - `@cliffy/command` - CLI framework
-- `effect` - Composable data processing and error handling
+- `@cliffy/table` - Table formatting
 
 ## Usage
 

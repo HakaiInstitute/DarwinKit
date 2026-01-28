@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-- **CLI**: `deno task dev:cli` - Run CLI commands interactively
+- **CLI**: `deno task cli` - Run CLI commands interactively
 - **Testing**: `deno test` - Runs comprehensive test suite
 - **Package Testing**:
   - `deno task test:domain` - Test domain package
@@ -251,13 +251,13 @@ DarwinKit supports configuration-driven validation for multi-dataset projects us
 
 ```bash
 # Auto-discover darwinkit.json in current or parent directories
-deno task dev:cli validate
+deno task cli validate
 
 # Specify config directory
-deno task dev:cli validate --config /path/to/workspace
+deno task cli validate --config /path/to/workspace
 
 # Output results as JSON
-deno task dev:cli validate --format json
+deno task cli validate --format json
 ```
 
 ### Validation Features
