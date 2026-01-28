@@ -3,7 +3,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { escapeString, formatNullValues, sanitizeTableName } from "./csv-import.ts";
+import { formatNullValues, sanitizeTableName } from "./database.ts";
 
 Deno.test("sanitizeTableName - replaces special characters with underscores", () => {
   assertEquals(sanitizeTableName("my-dataset"), "my_dataset");
@@ -16,13 +16,6 @@ Deno.test("sanitizeTableName - preserves valid characters", () => {
   assertEquals(sanitizeTableName("valid_name"), "valid_name");
   assertEquals(sanitizeTableName("Table123"), "Table123");
   assertEquals(sanitizeTableName("_underscore"), "_underscore");
-});
-
-Deno.test("escapeString - escapes single quotes", () => {
-  assertEquals(escapeString("it's fine"), "it''s fine");
-  assertEquals(escapeString("don't won't"), "don''t won''t");
-  assertEquals(escapeString("normal"), "normal");
-  assertEquals(escapeString(""), "");
 });
 
 Deno.test("formatNullValues - formats array for DuckDB nullstr", () => {
