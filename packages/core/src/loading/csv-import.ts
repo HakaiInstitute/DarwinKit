@@ -4,13 +4,13 @@
  * Shared functions for importing CSV files into DuckDB tables.
  * Functions take a connection as a parameter for easy reuse and testing.
  *
- * @module utils/csv-import
+ * @module loading/csv-import
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 import { CsvImportError } from "../errors/index.ts";
-import { formatNullValues, sanitizeTableName } from "./database.ts";
+import { formatNullValues, sanitizeTableName } from "./sql.ts";
 
 /**
  * Import a CSV file into a DuckDB table with row numbers

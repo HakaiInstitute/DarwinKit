@@ -21,8 +21,13 @@ export {
 // Workspace validation
 export * from "./src/validation/workspace-validator.ts";
 
-// CSV parsing
-export * from "./src/parsing/csv-parser.ts";
+// CSV parsing (ParseError is re-exported via ./src/errors.ts)
+export {
+  ParsedFileResult,
+  parseFileForWorkspace,
+  ParseMetadata,
+  type ParseOptions,
+} from "./src/loading/csv-parser.ts";
 
 // Transformation
 export * from "./src/transform/transform.ts";
@@ -34,4 +39,4 @@ export * from "./src/import/get_dwc_schema.ts";
 export * from "./src/errors.ts";
 
 // CSV import utilities
-export * from "./src/utils/csv-import.ts";
+export * from "./src/loading/csv-import.ts";

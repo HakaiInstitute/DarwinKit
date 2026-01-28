@@ -24,7 +24,7 @@
 import * as Data from "effect/Data";
 
 // Re-export error classes from their source modules
-export { ParseError } from "../parsing/csv-parser.ts";
+export { ParseError } from "../loading/csv-parser.ts";
 export type { OutputError, TransformationError } from "../transform/transform.ts";
 export {
   WorkspaceImportError,

@@ -1,9 +1,9 @@
 /**
- * Tests for CSV import utilities
+ * Tests for SQL utilities
  */
 
 import { assertEquals } from "@std/assert";
-import { formatNullValues, sanitizeTableName } from "./database.ts";
+import { formatNullValues, sanitizeTableName } from "./sql.ts";
 
 Deno.test("sanitizeTableName - replaces special characters with underscores", () => {
   assertEquals(sanitizeTableName("my-dataset"), "my_dataset");

@@ -17,7 +17,7 @@ import {
   findSuggestions,
   hasCloseMatch,
   levenshteinDistance,
-} from "./string-utils.ts";
+} from "./string-matching.ts";
 
 // Test data: real Darwin Core field names from example config
 const DARWIN_CORE_FIELDS = [

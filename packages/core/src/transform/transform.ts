@@ -4,16 +4,11 @@ import { join, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import {
-  Workspace,
-  type WorkspaceConfigError,
-  WorkspaceImportError,
-  WorkspaceImportSchema,
-} from "@dwkt/core";
+import { Workspace, type WorkspaceConfigError, WorkspaceImportError } from "@dwkt/core";
 import type { WorkspaceConfig } from "@dwkt/domain";
-import { getValidationProfile } from "@dwkt/domain";
-import { hasTransformationConfig } from "../../../domain/src/schemas/workspace-config.ts";
-import { importCsv } from "../utils/csv-import.ts";
+import { getValidationProfile, hasTransformationConfig } from "@dwkt/domain";
+import { importCsv } from "../loading/csv-import.ts";
+import { importSchema } from "../loading/schema.ts";
 
 /**
  * Represents an error that occurs during the data transformation process.
@@ -139,7 +134,7 @@ export function createTableFromSchema(
     }
 
     for (const dataset of config.transform.datasets) {
-      yield* _(WorkspaceImportSchema(connection, dataset, config.transform.datasets));
+      yield* _(importSchema(connection, dataset, config.transform.datasets));
     }
   });
 }

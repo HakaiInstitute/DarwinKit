@@ -244,3 +244,33 @@ export function hasCloseMatch(
     return levenshteinDistance(normalizedInput, normalizedOption) <= opts.maxDistance;
   });
 }
+
+/**
+ * Find suggested value using fuzzy matching (Levenshtein distance)
+ *
+ * Useful for providing helpful suggestions when a user enters
+ * an invalid vocabulary value.
+ *
+ * @param invalidValue - The invalid value entered by the user
+ * @param allowedValues - Array of valid values to match against
+ * @param threshold - Maximum edit distance to consider (default: 3)
+ * @returns The closest matching value, or undefined if none within threshold
+ */
+export function findSuggestedValue(
+  invalidValue: string,
+  allowedValues: ReadonlyArray<string>,
+  threshold: number = 3,
+): string | undefined {
+  let bestMatch: string | undefined;
+  let bestDistance = threshold;
+
+  for (const allowed of allowedValues) {
+    const distance = levenshteinDistance(invalidValue, allowed);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestMatch = allowed;
+    }
+  }
+
+  return bestMatch;
+}

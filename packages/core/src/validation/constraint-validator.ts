@@ -13,8 +13,8 @@ import * as Effect from "effect/Effect";
 import type { CrossDatasetValidationResult, DatasetConfig, EnforcementLevel } from "@dwkt/domain";
 import { CrossDatasetViolation, enforcementToSeverity } from "@dwkt/domain";
 
+import { resolveSchemaTableName } from "./summary.ts";
 import type { WorkspaceValidationError } from "./workspace-validator.ts";
-import { resolveSchemaTableName } from "./utils.ts";
 
 /**
  * Cross-dataset rule configuration

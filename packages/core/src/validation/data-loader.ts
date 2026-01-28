@@ -18,8 +18,9 @@ import {
   PrimaryKeyViolation,
 } from "@dwkt/domain";
 
-import { getCsvValue } from "../utils/csv-import.ts";
-import { findSuggestedValue, parseDuckDBError } from "./utils.ts";
+import { getCsvValue } from "../loading/csv-import.ts";
+import { parseDuckDBError } from "../loading/sql.ts";
+import { findSuggestedValue } from "./string-matching.ts";
 
 /**
  * Column mapping for data insertion

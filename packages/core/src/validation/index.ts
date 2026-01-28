@@ -6,16 +6,18 @@
  * @module validation
  */
 
-// Core validation utilities
+// String matching utilities
+export { findSuggestedValue } from "./string-matching.ts";
+
+// Summary utilities
 export {
   calculateSummary,
   determineOverallStatus,
-  findSuggestedValue,
-  type ParsedErrorInfo,
-  parseDuckDBError,
+  hasControlledVocabulary,
   partitionViolations,
+  resolveSchemaTableName,
   type ValidationSummary,
-} from "./utils.ts";
+} from "./summary.ts";
 
 // Field-level validators
 export {
