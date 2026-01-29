@@ -7,11 +7,11 @@
 
 import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
 import type {
-  field,
+  Field,
   FieldOverride,
   ValidationProfile,
   ValidationProfileRegistry,
-} from "../../types/validation-profile.ts";
+} from "../../schemas/validation-profile.ts";
 import { type FieldDefinition, normalizeField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
@@ -21,10 +21,6 @@ import { OBIS_BASE_PROFILE } from "./obis.ts";
 export const VALIDATION_PROFILES: ValidationProfileRegistry = {
   "obis": OBIS_BASE_PROFILE,
   "obis-event": OBIS_EVENT_PROFILE,
-  // Add more profiles here:
-  // "obis-occurrence": OBIS_OCCURRENCE_PROFILE,
-  // "gbif-event": GBIF_EVENT_PROFILE,
-  // "gbif-occurrence": GBIF_OCCURRENCE_PROFILE,
 } as const;
 
 /**
@@ -98,7 +94,7 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
   ) {
     for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
       try {
-        normalizedFields[fieldName] = normalizeField(fieldValue as field);
+        normalizedFields[fieldName] = normalizeField(fieldValue as Field);
       } catch {
         // Skip invalid fields rather than failing the entire profile
         // TODO: When imlementing issue #64 (https://github.com/HakaiInstitute/DarwinKit/issues/64):
@@ -157,18 +153,4 @@ export function getValidationProfile(profileId: string): ValidationProfile | und
   }
 
   return jsonProfile;
-}
-
-/**
- * List all available profile IDs
- */
-export function listValidationProfiles(): string[] {
-  return Object.keys(VALIDATION_PROFILES);
-}
-
-/**
- * Check if a profile ID is valid
- */
-export function isValidProfileId(profileId: string): boolean {
-  return profileId in VALIDATION_PROFILES;
 }

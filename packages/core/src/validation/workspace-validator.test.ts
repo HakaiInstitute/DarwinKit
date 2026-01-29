@@ -13,7 +13,6 @@ import { stringify } from "@std/csv";
 import { join } from "@std/path";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
-import type { ValidationOnlyConfig } from "../../../domain/src/types/workspace-config.ts";
 import type { WorkspaceValidationResult } from "../../../domain/src/types/workspace-validation.ts";
 import { WorkspaceValidator } from "./workspace-validator.ts";
 
@@ -276,7 +275,7 @@ async function createMultiDatasetWorkspace(
   };
 
   // Create config
-  const config: ValidationOnlyConfig = {
+  const config: WorkspaceConfig = {
     id: "test-workspace",
     name: "Test Workspace",
     version: "1.0.0",

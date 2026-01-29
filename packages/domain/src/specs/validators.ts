@@ -7,7 +7,7 @@
  */
 
 import * as S from "effect/Schema";
-import type { field } from "../types/validation-profile.ts";
+import type { Field } from "../schemas/validation-profile.ts";
 import type { FieldDefinition } from "./field-definition.ts";
 
 /**
@@ -100,116 +100,6 @@ export const ValidatorConfigSchema = S.Struct({
 });
 
 /**
- * Pre-configured validators following Darwin Core recommendations
- */
-export const DARWIN_CORE_VALIDATORS = {
-  // Standard required field
-  required: (): ValidatorConfig => ({
-    type: "required",
-    enforcement: "required",
-    params: { allowEmpty: false, allowWhitespace: false },
-  }),
-
-  // Recommended field (generates warnings if missing)
-  recommended: (): ValidatorConfig => ({
-    type: "required",
-    enforcement: "recommended",
-    params: { allowEmpty: false, allowWhitespace: false },
-  }),
-
-  // Unique identifier (required and unique)
-  uniqueIdentifier: (): ValidatorConfig => ({
-    type: "unique",
-    enforcement: "required",
-    message: "Identifier must be unique within the dataset",
-  }),
-
-  // Decimal degree coordinates (-90 to +90 for latitude, -180 to +180 for longitude)
-  latitude: (): ValidatorConfig => ({
-    type: "range",
-    enforcement: "required",
-    params: { min: -90, max: 90, inclusive: true },
-    message: "Latitude must be between -90 and +90 degrees",
-  }),
-
-  longitude: (): ValidatorConfig => ({
-    type: "range",
-    enforcement: "required",
-    params: { min: -180, max: 180, inclusive: true },
-    message: "Longitude must be between -180 and +180 degrees",
-  }),
-
-  // Depth measurements (positive values)
-  depth: (): ValidatorConfig => ({
-    type: "range",
-    enforcement: "recommended",
-    params: { min: 0, inclusive: true },
-    message: "Depth should be a positive value in meters",
-  }),
-
-  // Year validation (reasonable range for biological specimens)
-  year: (): ValidatorConfig => ({
-    type: "range",
-    enforcement: "recommended",
-    params: { min: 1600, max: new Date().getFullYear(), inclusive: true },
-    message: "Year should be within a reasonable historical range",
-  }),
-
-  // Month validation (1-12)
-  month: (): ValidatorConfig => ({
-    type: "range",
-    enforcement: "required",
-    params: { min: 1, max: 12, inclusive: true },
-    message: "Month must be between 1 and 12",
-  }),
-
-  // Day validation (1-31, actual validation depends on month/year)
-  day: (): ValidatorConfig => ({
-    type: "range",
-    enforcement: "required",
-    params: { min: 1, max: 31, inclusive: true },
-    message: "Day must be between 1 and 31",
-  }),
-
-  // ISO 8601 date format
-  iso8601Date: (): ValidatorConfig => ({
-    type: "format",
-    enforcement: "recommended",
-    params: { format: "iso8601" },
-    message: "Date should follow ISO 8601 format (YYYY-MM-DD)",
-  }),
-
-  // UUID format for identifiers
-  uuid: (): ValidatorConfig => ({
-    type: "format",
-    enforcement: "optional",
-    params: { format: "uuid" },
-    message: "Identifier should follow UUID format if using UUIDs",
-  }),
-
-  // URL format for web identifiers
-  url: (): ValidatorConfig => ({
-    type: "format",
-    enforcement: "recommended",
-    params: { format: "url" },
-    message: "Web identifier should be a valid URL",
-  }),
-
-  // URL format for web identifiers
-  integer: (): ValidatorConfig => ({
-    type: "format",
-    enforcement: "required",
-    params: { format: "integer" },
-    message: "Value must be whole numbers (integers)",
-  }),
-} as const;
-
-/**
- * Type for pre-configured validator names
- */
-export type DarwinCoreValidatorName = keyof typeof DARWIN_CORE_VALIDATORS;
-
-/**
  * Check if a field uses controlled vocabulary
  *
  * Supports multiple field formats:
@@ -217,7 +107,7 @@ export type DarwinCoreValidatorName = keyof typeof DARWIN_CORE_VALIDATORS;
  * - Raw JSON schema: has 'values' object (used before normalization)
  */
 export function hasControlledVocabulary(
-  field: FieldDefinition | field,
+  field: FieldDefinition | Field,
 ): boolean {
   // NormalizedField format (has 'vocabulary' property)
   if ("vocabulary" in field && field.vocabulary) {

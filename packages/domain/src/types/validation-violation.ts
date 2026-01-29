@@ -22,9 +22,8 @@
  */
 
 import { Data } from "effect";
-import type { EnforcementLevel } from "../specs/validators.ts";
-import type { TransformationChain } from "./transformation.ts";
 import { ErrorSeverity } from "../errors/severity.ts";
+import type { EnforcementLevel } from "../specs/validators.ts";
 
 /**
  * Common fields shared by all validation violations
@@ -44,7 +43,6 @@ interface ViolationBase {
   readonly value: string;
   readonly csvValue?: string;
   readonly transformedValue?: unknown;
-  readonly transformationChain?: TransformationChain;
   readonly errorMessage: string;
   readonly validatorType: string;
 }
@@ -181,32 +179,6 @@ export function isRangeViolation(v: ValidationViolation): v is RangeViolation {
 }
 
 /**
- * Type guard helper for VocabularyViolation
- *
- * @example
- * ```typescript
- * const vocabErrors = violations.filter(isVocabularyViolation);
- * // TypeScript knows vocabErrors is VocabularyViolation[]
- * ```
- */
-export function isVocabularyViolation(v: ValidationViolation): v is VocabularyViolation {
-  return v._tag === "VocabularyViolation";
-}
-
-/**
- * Type guard helper for UniquenessViolation
- *
- * @example
- * ```typescript
- * const uniquenessErrors = violations.filter(isUniquenessViolation);
- * // TypeScript knows uniqueErrors is UniquenessViolation[]
- * ```
- */
-export function isUniquenessViolation(v: ValidationViolation): v is UniquenessViolation {
-  return v._tag === "UniquenessViolation";
-}
-
-/**
  * Type guard helper for TemporalViolation
  *
  * @example
@@ -217,19 +189,6 @@ export function isUniquenessViolation(v: ValidationViolation): v is UniquenessVi
  */
 export function isTemporalViolation(v: ValidationViolation): v is TemporalViolation {
   return v._tag === "TemporalViolation";
-}
-
-/**
- * Type guard helper for CrossDatasetViolation
- *
- * @example
- * ```typescript
- * const crossErrors = violations.filter(isCrossDatasetViolation);
- * // TypeScript knows crossErrors is CrossDatasetViolation[]
- * ```
- */
-export function isCrossDatasetViolation(v: ValidationViolation): v is CrossDatasetViolation {
-  return v._tag === "CrossDatasetViolation";
 }
 
 /**
@@ -246,19 +205,6 @@ export function isPrimaryKeyViolation(v: ValidationViolation): v is PrimaryKeyVi
 }
 
 /**
- * Type guard helper for NotNullViolation
- *
- * @example
- * ```typescript
- * const notNullErrors = violations.filter(isNotNullViolation);
- * // TypeScript knows notNullErrors is NotNullViolation[]
- * ```
- */
-export function isNotNullViolation(v: ValidationViolation): v is NotNullViolation {
-  return v._tag === "NotNullViolation";
-}
-
-/**
  * Type guard helper for EnumViolation
  *
  * @example
@@ -269,19 +215,6 @@ export function isNotNullViolation(v: ValidationViolation): v is NotNullViolatio
  */
 export function isEnumViolation(v: ValidationViolation): v is EnumViolation {
   return v._tag === "EnumViolation";
-}
-
-/**
- * Type guard helper for ForeignKeyViolation
- *
- * @example
- * ```typescript
- * const fkErrors = violations.filter(isForeignKeyViolation);
- * // TypeScript knows fkErrors is ForeignKeyViolation[]
- * ```
- */
-export function isForeignKeyViolation(v: ValidationViolation): v is ForeignKeyViolation {
-  return v._tag === "ForeignKeyViolation";
 }
 
 /**
@@ -310,45 +243,3 @@ export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSever
       return ErrorSeverity.INFO;
   }
 }
-
-/**
- * Enrich a cross-dataset RawViolation with metadata
- *
- * Similar to enrichViolation but for cross-dataset relationships.
- * Since cross-dataset rules don't have field definitions, we use
- * rule metadata directly.
- *
- * @param raw - Minimal violation data
- * @param rule - Cross-dataset rule configuration
- * @returns Enriched violation with cross-dataset metadata
- *
- * @example
- * ```typescript
- * const raw: RawViolation = {
- *   rowNumber: 5,
- *   value: "E2",
- * };
- *
- * const rule = {
- *   ruleType: "foreignKey",
- *   sourceDataset: "occurrences",
- *   sourceField: "eventID",
- *   targetDataset: "events",
- *   targetField: "eventID",
- *   enforcement: "required",
- * };
- *
- * const enriched = enrichCrossDatasetViolation(raw, rule);
- * // => {
- * //   enforcement: "required",
- * //   severity: ErrorSeverity.ERROR,
- * //   fieldName: "eventID",
- * //   targetName: "eventID",
- * //   rowNumber: 5,
- * //   violationType: "cross-dataset",
- * //   value: "E2",
- * //   errorMessage: "Value 'E2' in occurrences.eventID does not exist in events.eventID",
- * //   ...
- * // }
- * ```
- */

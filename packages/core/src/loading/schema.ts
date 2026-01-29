@@ -1,7 +1,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
+import { parseSpecIdentifier } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
 import { getValidationProfile } from "../../../domain/src/specs/profiles/registry.ts";
-import { parseSpecIdentifier } from "../../../domain/src/types/workspace-config.ts";
 import { WorkspaceImportError } from "../validation/index.ts";
 import { sanitizeTableName } from "./index.ts";
 

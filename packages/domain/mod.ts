@@ -3,57 +3,19 @@
  */
 
 // Types
-export * from "./src/types/common.ts";
-export * from "./src/types/field-mapping.ts";
-export * from "./src/types/schema.ts";
-export * from "./src/types/transformation.ts";
-export * from "./src/types/validation-profile.ts";
-export { FieldRequirementLevel } from "./src/types/validation-profile.ts";
 export * from "./src/types/validation-violation.ts";
-export * from "./src/types/workspace-config.ts";
 export * from "./src/types/workspace-validation.ts";
-export * from "./src/types/workspace.ts";
 
 // Note: enrichCrossDatasetViolation is exported via validation-violation.ts wildcard export above
 
 // Schemas
-export * from "./src/schemas/field-mapping.ts";
+export * from "./src/schemas/primitives.ts";
 export * from "./src/schemas/schema.ts";
 export * from "./src/schemas/validation-profile.ts";
 export * from "./src/schemas/workspace-config.ts";
-export * from "./src/schemas/workspace.ts";
-// Export validation schemas with renamed ValidationError to avoid conflict
-export {
-  type CoordinateWarning,
-  coordinateWarningSchema,
-  type DarwinCoreValidationResult,
-  darwinCoreValidationResultSchema,
-  type DateError,
-  dateErrorSchema,
-  type FieldError,
-  fieldErrorSchema,
-  type FileValidationContext,
-  fileValidationContextSchema,
-  type NullConversion,
-  nullConversionSchema,
-  type ParseValidationResult,
-  parseValidationResultSchema,
-  type RepositoryValidationResults,
-  repositoryValidationResultsSchema,
-  type TypeFailure,
-  typeFailureSchema,
-  type ValidationError as SchemaValidationError,
-  type ValidationSummary,
-  validationSummarySchema,
-  type VocabularyError,
-  vocabularyErrorSchema,
-} from "./src/schemas/validation.ts";
 
 // Error handling and utilities
-export * from "./src/errors.ts";
-
-// Constants
-export * from "./src/constants/darwin-core.ts";
+export * from "./src/errors/index.ts";
 
 // Darwin Core Specifications
 export * from "./src/specs/dwc/index.ts";

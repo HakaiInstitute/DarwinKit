@@ -480,13 +480,6 @@ export type VocabularyValues<K extends VocabularyKey> = typeof VOCABULARIES[K][n
 export type VocabularyArray<K extends VocabularyKey> = (typeof VOCABULARIES)[K];
 
 /**
- * Get all available vocabulary keys
- */
-export function getVocabularyKeys(): VocabularyKey[] {
-  return Object.keys(VOCABULARIES) as VocabularyKey[];
-}
-
-/**
  * Get values for a specific vocabulary
  */
 export function getVocabularyValues<K extends VocabularyKey>(

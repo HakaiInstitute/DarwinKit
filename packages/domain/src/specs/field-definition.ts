@@ -20,7 +20,7 @@
  */
 
 import * as S from "effect/Schema";
-import type { field } from "../types/validation-profile.ts";
+import type { Field } from "../schemas/validation-profile.ts";
 import type { ValidatorConfig } from "./validators.ts";
 import { ValidatorConfigSchema } from "./validators.ts";
 import type { VocabularyConfig } from "./vocabularies/config.ts";
@@ -49,7 +49,7 @@ export type FieldDefinition = S.Schema.Type<typeof FieldDefinitionSchema>;
  * - validators: string[] → ValidatorConfig[]
  * - values: Record<string, unknown> → vocabulary: VocabularyConfig
  */
-export function normalizeField(jsonField: field): FieldDefinition {
+export function normalizeField(jsonField: Field): FieldDefinition {
   // Convert validators to ValidatorConfig objects
   // JSON schema validators can be either strings or objects
   const validators: ValidatorConfig[] = jsonField.validators?.map((v) => {
@@ -134,7 +134,7 @@ export function normalizeField(jsonField: field): FieldDefinition {
  * Maps Darwin Core field names to their vocabulary keys.
  * Returns the mapped key or the field name as a fallback (cast to any valid key).
  */
-function deriveVocabularyKey(field: field): VocabularyKey {
+function deriveVocabularyKey(field: Field): VocabularyKey {
   // Common Darwin Core vocabulary mappings
   const vocabularyMap: Record<string, string> = {
     "type": "dctype",
@@ -171,7 +171,7 @@ function deriveVocabularyKey(field: field): VocabularyKey {
  * - recommended: warnings for recommended fields
  * - loose: info messages for optional fields
  */
-function deriveVocabularyEnforcement(field: field): "strict" | "recommended" | "loose" {
+function deriveVocabularyEnforcement(field: Field): "strict" | "recommended" | "loose" {
   const obisRequired = field.obis_required;
   const gbifRequired = field.gbif_required;
 

@@ -21,7 +21,7 @@ export class ParseMetadata extends Data.Class<{
 }> {}
 
 // Result from CSV parsing
-export class ParsedFileResult extends Data.Class<{
+class ParsedFileResult extends Data.Class<{
   readonly schema: DatasetSchema;
   readonly samples: ReadonlyMap<string, ReadonlyArray<string>>;
   readonly parseMetadata: ParseMetadata;
@@ -163,6 +163,7 @@ export function parseFileForWorkspace(
           ),
         );
 
+        // TODO: Create this with datasetSchemaSchema.make()
         const schema: DatasetSchema = {
           fields: fieldsMap,
           rowCount,

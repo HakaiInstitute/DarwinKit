@@ -10,8 +10,7 @@
  * Version: 2024
  */
 
-import type { ValidationProfile } from "../../types/validation-profile.ts";
-import { FieldRequirementLevel } from "../../types/validation-profile.ts";
+import { FieldRequirementLevel, type ValidationProfile } from "../../schemas/validation-profile.ts";
 
 /**
  * OBIS Event Core Profile
