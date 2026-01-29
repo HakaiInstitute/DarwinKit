@@ -16,7 +16,6 @@ import type {
   FieldViolation,
   ValidatorConfig,
   ValidField,
-  VocabularyEnforcement,
   VocabularyKey,
 } from "@dwkt/domain";
 import {
@@ -25,29 +24,9 @@ import {
   isValidVocabularyValue,
   RangeViolation,
   UniquenessViolation,
+  vocabularyEnforcementToStandard,
   VocabularyViolation,
 } from "@dwkt/domain";
-
-/**
- * Map VocabularyEnforcement to EnforcementLevel
- *
- * Converts vocabulary-specific enforcement to standard enforcement levels:
- * - strict → required (ERROR)
- * - recommended → recommended (WARNING)
- * - loose → optional (no violations generated - any value accepted)
- */
-export function vocabularyEnforcementToStandard(
-  vocabEnforcement: VocabularyEnforcement,
-): EnforcementLevel {
-  switch (vocabEnforcement) {
-    case "strict":
-      return "required";
-    case "recommended":
-      return "recommended";
-    case "loose":
-      return "optional";
-  }
-}
 
 /**
  * Create a ValidField result for a field that passed validation

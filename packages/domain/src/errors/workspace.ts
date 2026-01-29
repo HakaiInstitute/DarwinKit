@@ -4,12 +4,12 @@
  * Specialized error types for workspace operations with rich context.
  * Uses Effect's Data.TaggedError for pattern matching support.
  *
- * @module workspace/errors
+ * @module errors/workspace
  */
 
 import * as Data from "effect/Data";
-import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
 import type * as Cause from "effect/Cause";
+import { createTaggedFormatter, prettyPrintCause } from "./cause-formatter.ts";
 
 /**
  * Error when configuration file is not found after searching
@@ -80,6 +80,29 @@ export class ValidationConfigMissingError extends Data.TaggedError("ValidationCo
   readonly message: string;
   readonly workspaceName: string;
 }> {}
+
+/**
+ * Error that occurs during workspace validation
+ */
+export class WorkspaceValidationError extends Data.TaggedClass("WorkspaceValidationError")<{
+  readonly message: string;
+  readonly cause?: Error;
+}> {}
+
+/**
+ * Error that occurs during the data importing process
+ */
+export class WorkspaceImportError extends Data.TaggedClass("WorkspaceImportError")<{
+  readonly message: string;
+  readonly cause?: Error;
+}> {}
+
+/**
+ * Union type of workspace operation errors (validation and import)
+ *
+ * Use this for functions that may fail with either validation or import errors.
+ */
+export type WorkspaceOperationError = WorkspaceValidationError | WorkspaceImportError;
 
 /**
  * Union type of all workspace configuration errors for pattern matching

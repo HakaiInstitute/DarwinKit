@@ -25,18 +25,24 @@ import type {
   WorkspaceValidationResult,
 } from "@dwkt/domain";
 import {
+  calculateSummary,
   CrossDatasetViolation,
   enforcementToSeverity,
   FieldRequirementLevel,
   getValidationProfile,
+  hasControlledVocabulary,
   MissingFieldViolation,
   MissingMappingViolation,
   parseSpecIdentifier,
+  partitionFieldViolations,
   partitionSchemaViolations,
   UnknownFieldViolation,
   UnknownProfileViolation,
   UnmappedColumnViolation,
+  WorkspaceImportError,
+  WorkspaceValidationError,
 } from "@dwkt/domain";
+import type { WorkspaceOperationError } from "@dwkt/domain";
 import { importCsv } from "../loading/csv-import.ts";
 import { sanitizeTableName } from "../loading/sql.ts";
 import { Workspace } from "../workspace/workspace.ts";
@@ -44,19 +50,8 @@ import { Workspace } from "../workspace/workspace.ts";
 // Import from modular validation files
 import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
-import {
-  calculateSummary,
-  hasControlledVocabulary,
-  partitionViolations,
-  resolveSchemaTableName,
-} from "./summary.ts";
-
-// Re-export error classes from errors.ts
-export { WorkspaceImportError, WorkspaceValidationError } from "./errors.ts";
-
-// Import error classes for internal use
+import { resolveSchemaTableName } from "./summary.ts";
 import { importSchema } from "../loading/schema.ts";
-import { WorkspaceImportError, WorkspaceValidationError } from "./errors.ts";
 
 /**
  * Workspace validator for config-based validation
@@ -88,7 +83,7 @@ export class WorkspaceValidator {
       enforcement?: string;
       description?: string;
     }[],
-  ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
+  ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
       const startTime = Date.now();
       const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
@@ -211,7 +206,7 @@ export class WorkspaceValidator {
       enforcement?: string;
       description?: string;
     }[],
-  ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
+  ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
       const startTime = Date.now();
       const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
@@ -309,7 +304,7 @@ export class WorkspaceValidator {
     options?: {
       failFast?: boolean;
     },
-  ): Effect.Effect<WorkspaceValidationResult, WorkspaceValidationError> {
+  ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.scoped(
       Effect.gen(function* (_) {
         // Open workspace (handles config loading, validation, and cleanup)
@@ -355,7 +350,7 @@ function createWorkspaceFromConfig(
     connection: DuckDBConnection;
     instance: DuckDBInstance;
   },
-  WorkspaceValidationError
+  WorkspaceOperationError
 > {
   return Effect.gen(function* (_) {
     // Create isolated DuckDB instance - each workspace gets its own in-memory database
@@ -808,7 +803,7 @@ function validateDataset(
 
     // Partition violations by enforcement level
     const partitionedSchemaViolations = partitionSchemaViolations(schemaViolations);
-    const partitionedFieldViolations = partitionViolations(allFieldViolations);
+    const partitionedFieldViolations = partitionFieldViolations(allFieldViolations);
 
     // Determine status based on errors (required violations) only
     const hasErrors = partitionedSchemaViolations.errors.length > 0 ||

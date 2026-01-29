@@ -1,14 +1,10 @@
 /**
  * Core Error Types
  *
- * Re-exports all error-related types from the errors directory and specialized modules.
- * This provides a single import point for all core error types.
+ * Re-exports all error-related types from the errors directory.
+ * Workspace error types should be imported from @dwkt/domain.
  *
  * @module errors
  */
 
-// Main error types (ValidationError, etc.)
 export * from "./errors/index.ts";
-
-// Workspace configuration errors
-export * from "./workspace/errors.ts";

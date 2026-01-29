@@ -6,6 +6,7 @@
 export * from "./src/types/validation-violation.ts";
 export * from "./src/types/schema-violation.ts";
 export * from "./src/types/workspace-validation.ts";
+export * from "./src/types/validation-summary.ts";
 
 // Schemas
 export * from "./src/schemas/primitives.ts";
