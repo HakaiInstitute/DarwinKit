@@ -71,7 +71,7 @@ E4,2022,6,32,2022-06-32`;
       const datasetResult = result.datasetResults[0];
 
       // Check for specific date range violations
-      const rangeErrors = datasetResult.violations.errors
+      const rangeErrors = datasetResult.fieldViolations.errors
         .filter(isRangeViolation);
 
       // Should have violations for:
