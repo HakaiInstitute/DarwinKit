@@ -5,13 +5,16 @@
  */
 
 import type {
+  CrossDatasetValidationResult,
   DatasetConfig,
   DatasetValidationResult,
   FieldDefinition,
-  ValidationViolation,
 } from "@dwkt/domain";
-import { parseSpecIdentifier } from "@dwkt/domain";
+import { parseSpecIdentifier, partitionFieldViolations } from "@dwkt/domain";
 import { sanitizeTableName } from "../loading/sql.ts";
+
+// Re-export partitionFieldViolations as partitionViolations for backward compatibility
+export { partitionFieldViolations as partitionViolations };
 
 /**
  * Resolve dataset name to its schema table name
@@ -48,43 +51,6 @@ export function resolveSchemaTableName(
 }
 
 /**
- * Partition violations by severity level
- *
- * Groups violations into errors (required), warnings (recommended),
- * and info (optional) based on their enforcement level.
- *
- * @param violations - Array of violations to partition
- * @returns Object with errors, warnings, and info arrays
- */
-export function partitionViolations(
-  violations: ReadonlyArray<ValidationViolation>,
-): {
-  readonly errors: ValidationViolation[];
-  readonly warnings: ValidationViolation[];
-  readonly info: ValidationViolation[];
-} {
-  const errors: ValidationViolation[] = [];
-  const warnings: ValidationViolation[] = [];
-  const info: ValidationViolation[] = [];
-
-  for (const violation of violations) {
-    switch (violation.enforcement) {
-      case "required":
-        errors.push(violation);
-        break;
-      case "recommended":
-        warnings.push(violation);
-        break;
-      case "optional":
-        info.push(violation);
-        break;
-    }
-  }
-
-  return { errors, warnings, info };
-}
-
-/**
  * Summary statistics for validation results
  */
 export interface ValidationSummary {
@@ -102,10 +68,12 @@ export interface ValidationSummary {
  * Calculate summary statistics across all dataset results
  *
  * @param datasetResults - Array of dataset validation results
+ * @param crossDatasetResults - Optional array of cross-dataset validation results
  * @returns Summary statistics
  */
 export function calculateSummary(
   datasetResults: readonly DatasetValidationResult[],
+  crossDatasetResults?: readonly CrossDatasetValidationResult[],
 ): ValidationSummary {
   let datasetsPassedCount = 0;
   let datasetsWithWarningsCount = 0;
@@ -118,14 +86,11 @@ export function calculateSummary(
   for (const result of datasetResults) {
     totalRowsProcessed += result.rowsProcessed;
 
-    // Count violations by severity from partitioned structure
-    totalErrors += result.violations.errors.length;
-    totalWarnings += result.violations.warnings.length;
-    totalInfo += result.violations.info.length;
-
-    // Also count old-style errors for backward compatibility
-    totalErrors += result.typeErrors.length + result.requiredFieldErrors.length;
-    totalWarnings += result.warnings.length;
+    // Count violations by severity from both schema and field violations
+    totalErrors += result.schemaViolations.errors.length + result.fieldViolations.errors.length;
+    totalWarnings += result.schemaViolations.warnings.length +
+      result.fieldViolations.warnings.length;
+    totalInfo += result.schemaViolations.info.length + result.fieldViolations.info.length;
 
     if (result.status === "pass") {
       datasetsPassedCount++;
@@ -133,6 +98,25 @@ export function calculateSummary(
       datasetsWithWarningsCount++;
     } else {
       datasetsFailedCount++;
+    }
+  }
+
+  // Count cross-dataset violations by enforcement level
+  if (crossDatasetResults) {
+    for (const result of crossDatasetResults) {
+      for (const violation of result.violations) {
+        switch (violation.enforcement) {
+          case "required":
+            totalErrors++;
+            break;
+          case "recommended":
+            totalWarnings++;
+            break;
+          case "optional":
+            totalInfo++;
+            break;
+        }
+      }
     }
   }
 

@@ -2,7 +2,7 @@ import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
 import { Workspace } from '@dwkt/core';
-import type { ValidationViolation, WorkspaceValidationResult } from '@dwkt/domain';
+import type { FieldViolation, WorkspaceValidationResult } from '@dwkt/domain';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
@@ -302,16 +302,15 @@ function outputTableResults(results: WorkspaceValidationResult) {
     const statusIcon = getStatusIcon(dataset.status);
     const statusText = `${statusIcon} ${dataset.status.toUpperCase()}`;
 
-    // NEW: Count violations from partitioned structure
-    const errorCount = dataset.typeErrors.length +
-      dataset.requiredFieldErrors.length +
-      dataset.violations.errors.length;
+    // Count violations from schema + field violations
+    const errorCount = dataset.schemaViolations.errors.length +
+      dataset.fieldViolations.errors.length;
 
-    const warningCount = dataset.warnings.length +
-      dataset.violations.warnings.length;
+    const warningCount = dataset.schemaViolations.warnings.length +
+      dataset.fieldViolations.warnings.length;
 
-    const infoCount = dataset.recommendations.length +
-      dataset.violations.info.length;
+    const infoCount = dataset.schemaViolations.info.length +
+      dataset.fieldViolations.info.length;
 
     table.push([
       dataset.datasetName,
@@ -328,15 +327,14 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
   // Show detailed errors, warnings, and info by severity
   for (const dataset of results.datasetResults) {
-    const hasErrors = dataset.typeErrors.length > 0 ||
-      dataset.requiredFieldErrors.length > 0 ||
-      dataset.violations.errors.length > 0;
+    const hasErrors = dataset.schemaViolations.errors.length > 0 ||
+      dataset.fieldViolations.errors.length > 0;
 
-    const hasWarnings = dataset.warnings.length > 0 ||
-      dataset.violations.warnings.length > 0;
+    const hasWarnings = dataset.schemaViolations.warnings.length > 0 ||
+      dataset.fieldViolations.warnings.length > 0;
 
-    const hasInfo = dataset.recommendations.length > 0 ||
-      dataset.violations.info.length > 0;
+    const hasInfo = dataset.schemaViolations.info.length > 0 ||
+      dataset.fieldViolations.info.length > 0;
 
     if (hasErrors || hasWarnings || hasInfo) {
       Output.blank();
@@ -346,56 +344,39 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     // ❌ ERRORS (required violations)
     if (hasErrors) {
-      Output.error(
-        `❌ ERRORS (${
-          dataset.violations.errors.length + dataset.typeErrors.length +
-          dataset.requiredFieldErrors.length
-        }):`,
-      );
+      const totalErrors = dataset.schemaViolations.errors.length +
+        dataset.fieldViolations.errors.length;
+      Output.error(`❌ ERRORS (${totalErrors}):`);
 
-      // Show type errors
-      for (const typeError of dataset.typeErrors) {
-        Output.error(
-          `  • ${typeError.fieldName} (${typeError.expectedType}): ${typeError.failureCount} conversion failures`,
-        );
-
-        const exampleFailures = typeError.sampleFailures.slice(0, 3);
-        for (const failure of exampleFailures) {
-          Output.muted(
-            `    - Row ${failure.rowNumber}: "${failure.originalValue}" → ${failure.errorMessage}`,
-          );
-        }
-
-        if (typeError.failureCount > 3) {
-          Output.muted(
-            `    ... and ${typeError.failureCount - 3} more failures`,
-          );
+      // Show schema errors first
+      if (dataset.schemaViolations.errors.length > 0) {
+        Output.error('  Schema Issues:');
+        for (const violation of dataset.schemaViolations.errors) {
+          Output.error(`    • ${violation.fieldName}: ${violation.errorMessage}`);
         }
       }
 
-      // Show required field errors
-      for (const fieldError of dataset.requiredFieldErrors) {
-        Output.error(`  • ${fieldError.message}`);
-      }
-
-      // NEW: Show partitioned error violations
-      const errorsByField = groupViolationsByField(dataset.violations.errors);
-      for (const [fieldName, violations] of errorsByField) {
-        const firstViolation = violations[0];
-        Output.error(
-          `  • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
-        );
-
-        // Show first few violations as examples
-        const examples = violations.slice(0, 3);
-        for (const violation of examples) {
-          Output.muted(
-            `    - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+      // Show field violations
+      if (dataset.fieldViolations.errors.length > 0) {
+        Output.error('  Data Validation Errors:');
+        const errorsByField = groupViolationsByField(dataset.fieldViolations.errors);
+        for (const [fieldName, violations] of errorsByField) {
+          const firstViolation = violations[0];
+          Output.error(
+            `    • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
           );
-        }
 
-        if (violations.length > 3) {
-          Output.muted(`    ... and ${violations.length - 3} more violations`);
+          // Show first few violations as examples
+          const examples = violations.slice(0, 3);
+          for (const violation of examples) {
+            Output.muted(
+              `      - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+            );
+          }
+
+          if (violations.length > 3) {
+            Output.muted(`      ... and ${violations.length - 3} more violations`);
+          }
         }
       }
 
@@ -404,34 +385,38 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     // ⚠️ WARNINGS (recommended violations)
     if (hasWarnings) {
-      Output.warning(
-        `⚠️  WARNINGS (${dataset.violations.warnings.length + dataset.warnings.length}):`,
-      );
+      const totalWarnings = dataset.schemaViolations.warnings.length +
+        dataset.fieldViolations.warnings.length;
+      Output.warning(`⚠️  WARNINGS (${totalWarnings}):`);
 
-      // Show field warnings (missing recommended fields)
-      for (const warning of dataset.warnings) {
-        Output.warning(`  • ${warning.message}`);
+      // Show schema warnings first
+      if (dataset.schemaViolations.warnings.length > 0) {
+        Output.warning('  Schema Issues:');
+        for (const violation of dataset.schemaViolations.warnings) {
+          Output.warning(`    • ${violation.fieldName}: ${violation.errorMessage}`);
+        }
       }
 
-      // NEW: Show partitioned warning violations
-      const warningsByField = groupViolationsByField(
-        dataset.violations.warnings,
-      );
-      for (const [fieldName, violations] of warningsByField) {
-        const firstViolation = violations[0];
-        Output.warning(
-          `  • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
-        );
-
-        const examples = violations.slice(0, 3);
-        for (const violation of examples) {
-          Output.muted(
-            `    - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+      // Show field violations
+      if (dataset.fieldViolations.warnings.length > 0) {
+        Output.warning('  Data Validation Warnings:');
+        const warningsByField = groupViolationsByField(dataset.fieldViolations.warnings);
+        for (const [fieldName, violations] of warningsByField) {
+          const firstViolation = violations[0];
+          Output.warning(
+            `    • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
           );
-        }
 
-        if (violations.length > 3) {
-          Output.muted(`    ... and ${violations.length - 3} more violations`);
+          const examples = violations.slice(0, 3);
+          for (const violation of examples) {
+            Output.muted(
+              `      - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+            );
+          }
+
+          if (violations.length > 3) {
+            Output.muted(`      ... and ${violations.length - 3} more violations`);
+          }
         }
       }
 
@@ -440,32 +425,38 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     // ℹ️ INFO (optional violations)
     if (hasInfo) {
-      Output.info(
-        `ℹ️  INFO (${dataset.violations.info.length + dataset.recommendations.length}):`,
-      );
+      const totalInfo = dataset.schemaViolations.info.length +
+        dataset.fieldViolations.info.length;
+      Output.info(`ℹ️  INFO (${totalInfo}):`);
 
-      // Show recommendations (missing optional fields)
-      for (const recommendation of dataset.recommendations) {
-        Output.info(`  • ${recommendation.message}`);
+      // Show schema info first
+      if (dataset.schemaViolations.info.length > 0) {
+        Output.info('  Schema Issues:');
+        for (const violation of dataset.schemaViolations.info) {
+          Output.info(`    • ${violation.fieldName}: ${violation.errorMessage}`);
+        }
       }
 
-      // NEW: Show partitioned info violations
-      const infoByField = groupViolationsByField(dataset.violations.info);
-      for (const [fieldName, violations] of infoByField) {
-        const firstViolation = violations[0];
-        Output.info(
-          `  • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
-        );
-
-        const examples = violations.slice(0, 3);
-        for (const violation of examples) {
-          Output.muted(
-            `    - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+      // Show field violations
+      if (dataset.fieldViolations.info.length > 0) {
+        Output.info('  Data Validation Info:');
+        const infoByField = groupViolationsByField(dataset.fieldViolations.info);
+        for (const [fieldName, violations] of infoByField) {
+          const firstViolation = violations[0];
+          Output.info(
+            `    • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
           );
-        }
 
-        if (violations.length > 3) {
-          Output.muted(`    ... and ${violations.length - 3} more violations`);
+          const examples = violations.slice(0, 3);
+          for (const violation of examples) {
+            Output.muted(
+              `      - Row ${violation.rowNumber}: ${violation.errorMessage}`,
+            );
+          }
+
+          if (violations.length > 3) {
+            Output.muted(`      ... and ${violations.length - 3} more violations`);
+          }
         }
       }
 
@@ -475,9 +466,9 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
   // Helper function to group violations by field
   function groupViolationsByField(
-    violations: ReadonlyArray<ValidationViolation>,
-  ): Map<string, ValidationViolation[]> {
-    const grouped = new Map<string, ValidationViolation[]>();
+    violations: ReadonlyArray<FieldViolation>,
+  ): Map<string, FieldViolation[]> {
+    const grouped = new Map<string, FieldViolation[]>();
 
     for (const violation of violations) {
       if (!grouped.has(violation.fieldName)) {

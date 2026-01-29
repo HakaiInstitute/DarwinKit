@@ -16,9 +16,10 @@ import type {
   DatasetValidationResult,
   EnforcementLevel,
   FieldDefinition,
+  FieldViolation,
+  SchemaViolation,
   ValidationProfile,
   ValidationSettings,
-  ValidationViolation,
   ValidatorConfig,
   WorkspaceFieldMapping,
   WorkspaceValidationResult,
@@ -28,7 +29,13 @@ import {
   enforcementToSeverity,
   FieldRequirementLevel,
   getValidationProfile,
+  MissingFieldViolation,
+  MissingMappingViolation,
   parseSpecIdentifier,
+  partitionSchemaViolations,
+  UnknownFieldViolation,
+  UnknownProfileViolation,
+  UnmappedColumnViolation,
 } from "@dwkt/domain";
 import { importCsv } from "../loading/csv-import.ts";
 import { sanitizeTableName } from "../loading/sql.ts";
@@ -36,11 +43,7 @@ import { Workspace } from "../workspace/workspace.ts";
 
 // Import from modular validation files
 import { insertRowByRow } from "./data-loader.ts";
-import {
-  validateRangeConstraints,
-  validateUniqueness,
-  validateVocabulary,
-} from "./field-validators.ts";
+import { validateField } from "./field-validators.ts";
 import {
   calculateSummary,
   hasControlledVocabulary,
@@ -145,13 +148,14 @@ export class WorkspaceValidator {
             }
           }
 
-          // Calculate summary
-          const summary = calculateSummary(datasetResults);
+          // Calculate summary (including cross-dataset violations)
+          const summary = calculateSummary(datasetResults, crossDatasetResults);
           const totalProcessingTimeMs = Date.now() - startTime;
 
-          const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0
+          const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0 ||
+              summary.totalErrors > 0
             ? "fail"
-            : summary.datasetsWithWarningsCount > 0
+            : summary.datasetsWithWarningsCount > 0 || summary.totalWarnings > 0
             ? "warn"
             : "pass";
 
@@ -268,13 +272,14 @@ export class WorkspaceValidator {
         }
       }
 
-      // Calculate summary
-      const summary = calculateSummary(datasetResults);
+      // Calculate summary (including cross-dataset violations)
+      const summary = calculateSummary(datasetResults, crossDatasetResults);
       const totalProcessingTimeMs = Date.now() - startTime;
 
-      const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0
+      const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0 ||
+          summary.totalErrors > 0
         ? "fail"
-        : summary.datasetsWithWarningsCount > 0
+        : summary.datasetsWithWarningsCount > 0 || summary.totalWarnings > 0
         ? "warn"
         : "pass";
 
@@ -527,8 +532,11 @@ function validateDataset(
     const targetColumnNames = validMappings.map((field) => `"${field.targetName}"`);
     const originColumnNames = validMappings.map((field) => `"${field.originName}"`);
 
-    // Collect all violations as ValidationViolation[] for partitioning
-    const allViolations: ValidationViolation[] = [];
+    // Collect all field violations as FieldViolation[]
+    const allFieldViolations: FieldViolation[] = [];
+
+    // Collect all schema violations as SchemaViolation[]
+    const schemaViolations: SchemaViolation[] = [];
 
     // Build column mappings for INSERT (using valid mappings only)
     const columnMappings = validMappings.map((m) => ({
@@ -552,10 +560,9 @@ function validateDataset(
 
     if (bulkInsertResult._tag === "Left") {
       // Bulk INSERT failed - fall back to row-by-row insertion to collect detailed violations
-      // TODO: When implementing issue #64 (https://github.com/HakaiInstitute/DarwinKit/issues/64):
-      // Use Effect.log to allow surfacing warnings in cases like this if developers choose
       if (profile) {
-        const constraintViolations = yield* _(
+        // insertRowByRow uses error channel for violations - catch and collect them
+        yield* _(
           insertRowByRow(
             connection,
             tableName,
@@ -563,44 +570,49 @@ function validateDataset(
             columnMappings,
             profile,
             validationSettings,
+          ).pipe(
+            Effect.catchAll((violations) => {
+              allFieldViolations.push(...violations);
+              return Effect.succeed(undefined);
+            }),
           ),
         );
-        allViolations.push(...constraintViolations);
       }
     }
 
-    // Validate field mappings based on spec
-
-    // OLD: Keep old structure for backward compatibility (will be deprecated)
-    const typeErrors: Array<DatasetValidationResult["typeErrors"][number]> = [];
-    const requiredFieldErrors: Array<
-      DatasetValidationResult["requiredFieldErrors"][number]
-    > = [];
-    const warnings: Array<DatasetValidationResult["warnings"][number]> = [];
-    const recommendations: Array<
-      DatasetValidationResult["recommendations"][number]
-    > = [];
-
-    // Add warnings for field mapping issues
+    // Generate schema violations for field mapping issues
+    // When a mapped field is missing from CSV, it's always a warning (recommended enforcement)
+    // because we can't validate data that doesn't exist - we just skip the mapping
     for (const fieldName of missingSourceFields) {
-      warnings.push({
-        fieldName,
-        targetName: fieldName,
-        requirementLevel: "configuration",
-        message:
-          `Field '${fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.`,
-      });
+      const mapping = dataset.fieldMappings.find((m) => m.originName === fieldName);
+      schemaViolations.push(
+        new MissingMappingViolation({
+          enforcement: "recommended",
+          severity: enforcementToSeverity("recommended"),
+          fieldName,
+          targetName: mapping?.targetName ?? fieldName,
+          errorMessage:
+            `Field '${fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.`,
+          validatorType: "schema",
+          datasetName: dataset.name,
+        }),
+      );
     }
 
-    // Add recommendations for unmapped source columns (informational)
+    // Generate schema violations for unmapped source columns (informational)
     for (const columnName of unmappedSourceColumns) {
-      recommendations.push({
-        fieldName: columnName,
-        targetName: columnName,
-        requirementLevel: "optional",
-        message:
-          `Source column '${columnName}' is not mapped to any Darwin Core field and will be ignored.`,
-      });
+      schemaViolations.push(
+        new UnmappedColumnViolation({
+          enforcement: "optional",
+          severity: enforcementToSeverity("optional"),
+          fieldName: columnName,
+          targetName: columnName,
+          errorMessage:
+            `Source column '${columnName}' is not mapped to any Darwin Core field and will be ignored.`,
+          validatorType: "schema",
+          datasetName: dataset.name,
+        }),
+      );
     }
 
     // Check profile field requirements based on requirement levels
@@ -621,49 +633,78 @@ function validateDataset(
         if (!isMapped) {
           // Handle missing fields based on requirement level
           if (fieldOverride.requirement === FieldRequirementLevel.Required) {
-            requiredFieldErrors.push({
-              fieldName,
-              targetName: fieldName,
-              message:
-                `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
-            });
+            schemaViolations.push(
+              new MissingFieldViolation({
+                enforcement: "required",
+                severity: enforcementToSeverity("required"),
+                fieldName,
+                targetName: fieldName,
+                errorMessage:
+                  `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
+                validatorType: "schema",
+                reason: "not_mapped",
+              }),
+            );
           } else if (
             fieldOverride.requirement ===
               FieldRequirementLevel.StronglyRecommended
           ) {
-            warnings.push({
-              fieldName,
-              targetName: fieldName,
-              requirementLevel: "strongly-recommended",
-              message:
-                `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
-            });
+            schemaViolations.push(
+              new MissingFieldViolation({
+                enforcement: "recommended",
+                severity: enforcementToSeverity("recommended"),
+                fieldName,
+                targetName: fieldName,
+                errorMessage:
+                  `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
+                validatorType: "schema",
+                reason: "not_mapped",
+              }),
+            );
           } else if (
             fieldOverride.requirement === FieldRequirementLevel.Recommended
           ) {
-            recommendations.push({
-              fieldName,
-              targetName: fieldName,
-              requirementLevel: "recommended",
-              message:
-                `Profile '${profile.name}' recommends field '${fieldName}' for better data quality`,
-            });
+            schemaViolations.push(
+              new MissingFieldViolation({
+                enforcement: "optional",
+                severity: enforcementToSeverity("optional"),
+                fieldName,
+                targetName: fieldName,
+                errorMessage:
+                  `Profile '${profile.name}' recommends field '${fieldName}' for better data quality`,
+                validatorType: "schema",
+                reason: "not_mapped",
+              }),
+            );
           }
           // RequiredIfExists and Optional don't generate messages when missing
         }
       }
     }
 
-    // Validate each field mapping (only valid mappings with source fields that exist)
+    // Phase 1: Pre-validation checks and build list of field validation effects
+    // These checks are fast (schema lookups, column existence checks)
+    const fieldValidationEffects: Effect.Effect<
+      { fieldName: string; status: "valid" },
+      FieldViolation[]
+    >[] = [];
+
     for (const mapping of validMappings) {
       // Require profile for validation - normalized fields are the source of truth
       if (!profile?.normalizedFields) {
-        requiredFieldErrors.push({
-          fieldName: mapping.originName,
-          targetName: mapping.targetName,
-          message:
-            `No validation profile specified for dataset '${dataset.name}'. Please add a 'profile' property to the dataset configuration.`,
-        });
+        schemaViolations.push(
+          new UnknownProfileViolation({
+            enforcement: "required",
+            severity: enforcementToSeverity("required"),
+            fieldName: mapping.originName,
+            targetName: mapping.targetName,
+            errorMessage:
+              `No validation profile specified for dataset '${dataset.name}'. Please add a 'profile' property to the dataset configuration.`,
+            validatorType: "schema",
+            profileId: dataset.spec ?? "unknown",
+            reason: "not_found",
+          }),
+        );
         continue;
       }
 
@@ -676,12 +717,18 @@ function validateDataset(
       // Validate that mapped fields exist in profile
       if (!baseField) {
         // Unknown field in profile
-        requiredFieldErrors.push({
-          fieldName: mapping.originName,
-          targetName: mapping.targetName,
-          message:
-            `Unknown field '${mapping.targetName}' in profile '${profile.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
-        });
+        schemaViolations.push(
+          new UnknownFieldViolation({
+            enforcement: "required",
+            severity: enforcementToSeverity("required"),
+            fieldName: mapping.originName,
+            targetName: mapping.targetName,
+            errorMessage:
+              `Unknown field '${mapping.targetName}' in profile '${profile.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
+            validatorType: "schema",
+            profileId: profile.id,
+          }),
+        );
         continue;
       }
 
@@ -706,109 +753,78 @@ function validateDataset(
       const fieldExists = fieldExistsResult.getRowObjects().length > 0;
 
       if (!fieldExists) {
-        if (mapping.isRequired) {
-          requiredFieldErrors.push({
+        schemaViolations.push(
+          new MissingFieldViolation({
+            enforcement: mapping.isRequired ? "required" : "recommended",
+            severity: enforcementToSeverity(mapping.isRequired ? "required" : "recommended"),
             fieldName: mapping.originName,
             targetName: mapping.targetName,
-            message: `Required field '${mapping.originName}' not found in CSV`,
-          });
-        } else {
-          warnings.push({
-            fieldName: mapping.originName,
-            targetName: mapping.targetName,
-            requirementLevel: "optional",
-            message:
-              `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
-          });
-        }
+            errorMessage: mapping.isRequired
+              ? `Required field '${mapping.originName}' not found in CSV`
+              : `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
+            validatorType: "schema",
+            reason: "not_in_csv",
+          }),
+        );
         continue;
       }
 
-      // Validate field using spec validators
+      // Add field validation effect to the list (will be run in parallel later)
       if (specField) {
-        // Range/constraint validation
-        const rangeViolations = yield* _(
-          validateRangeConstraints(
+        const rawField = profile.fields?.[mapping.targetName];
+
+        fieldValidationEffects.push(
+          validateField(
             connection,
             tableName,
             mapping.originName,
+            mapping.targetName,
             specField,
+            {
+              rawField,
+              schemaTableName,
+              hasControlledVocabulary: hasControlledVocabulary(specField),
+            },
           ),
         );
+      }
+    }
 
-        if (rangeViolations.length > 0) {
-          // NEW: Add to allViolations for partitioning
-          allViolations.push(...rangeViolations);
-        }
+    // Phase 2: Run all field validations concurrently across all fields
+    if (fieldValidationEffects.length > 0) {
+      const results = yield* _(
+        Effect.all(fieldValidationEffects, { mode: "either", concurrency: "unbounded" }),
+      );
 
-        // Vocabulary validation
-        // Skip if this field was already validated as an ENUM constraint
-        const hasVocab = hasControlledVocabulary(specField);
-        // Check raw field for values property
-        const rawFieldForVocab = profile.fields?.[mapping.targetName];
-        const hasEnumConstraint = rawFieldForVocab?.type === "controlled-vocabulary" &&
-          rawFieldForVocab?.values;
-
-        if (hasVocab && !hasEnumConstraint) {
-          const vocabResult = yield* _(
-            validateVocabulary(
-              connection,
-              tableName,
-              mapping.originName,
-              specField,
-            ),
-          );
-
-          // NEW: Add enriched violations to allViolations for partitioning
-          if (vocabResult.enriched.length > 0) {
-            allViolations.push(...vocabResult.enriched);
-          }
-        }
-
-        // Uniqueness validation for fields with explicit unique validators
-        // Skip PKs because row-by-row INSERT queries for ALL duplicate rows
-        const rawFieldForUnique = profile.fields?.[mapping.targetName];
-        const isPrimaryKeyField = mapping.targetName === schemaTableName + "ID" ||
-          (mapping.targetName.endsWith("ID") &&
-            rawFieldForUnique?.unique === "true");
-
-        const hasUniqueValidator = specField.validators
-          ? (specField.validators.some((v) =>
-            typeof v === "string" ? v === "uniqueIdentifier" : v.type === "unique"
-          ))
-          : false;
-
-        if (hasUniqueValidator && !isPrimaryKeyField) {
-          const uniqueResult = yield* _(
-            validateUniqueness(
-              connection,
-              tableName,
-              mapping.originName,
-              specField,
-            ),
-          );
-
-          // NEW: Add enriched violations to allViolations for partitioning
-          if (uniqueResult.enriched.length > 0) {
-            allViolations.push(...uniqueResult.enriched);
-          }
+      // Extract violations from Left results (failures)
+      for (const result of results) {
+        if (result._tag === "Left") {
+          allFieldViolations.push(...result.left);
         }
       }
     }
 
     const processingTimeMs = Date.now() - startTime;
 
-    // NEW: Partition violations by enforcement level
-    const partitioned = partitionViolations(allViolations);
+    // Partition violations by enforcement level
+    const partitionedSchemaViolations = partitionSchemaViolations(schemaViolations);
+    const partitionedFieldViolations = partitionViolations(allFieldViolations);
 
     // Determine status based on errors (required violations) only
-    const hasErrors = typeErrors.length > 0 ||
-      requiredFieldErrors.length > 0 ||
-      partitioned.errors.length > 0;
+    const hasErrors = partitionedSchemaViolations.errors.length > 0 ||
+      partitionedFieldViolations.errors.length > 0;
 
-    const hasWarnings = warnings.length > 0 || partitioned.warnings.length > 0;
+    const hasWarnings = partitionedSchemaViolations.warnings.length > 0 ||
+      partitionedFieldViolations.warnings.length > 0;
 
-    const status = hasErrors ? "fail" : hasWarnings ? "warn" : "pass";
+    let status: "fail" | "warn" | "pass";
+    if (hasErrors) {
+      status = "fail";
+    } else if (hasWarnings) {
+      status = "warn";
+    } else {
+      status = "pass";
+    }
 
     return {
       datasetName: dataset.name,
@@ -818,25 +834,19 @@ function validateDataset(
       processingTimeMs,
       status,
 
-      // NEW: Partitioned violations by enforcement level
-      violations: partitioned,
-
-      // OLD: Deprecated fields for backward compatibility
-      typeErrors,
-      requiredFieldErrors,
-      warnings,
-      recommendations,
+      // Partitioned violations by enforcement level
+      schemaViolations: partitionedSchemaViolations,
+      fieldViolations: partitionedFieldViolations,
     };
   });
 }
 
 /**
- * Validate cross-dataset rule
- */
-/**
  * Find cross-dataset foreign key violations
  *
- * Returns fully-formed CrossDatasetViolation objects with all metadata.
+ * Uses the error channel pattern for violations:
+ * - Success: No foreign key violations found
+ * - Failure: Contains array of CrossDatasetViolation objects
  */
 function findCrossDatasetViolations(
   connection: DuckDBConnection,
@@ -849,7 +859,7 @@ function findCrossDatasetViolations(
     enforcement?: EnforcementLevel;
   },
   datasets: readonly DatasetConfig[],
-): Effect.Effect<CrossDatasetViolation[], never> {
+): Effect.Effect<void, CrossDatasetViolation[]> {
   return Effect.gen(function* (_) {
     // Resolve dataset names to schema table names
     const sourceTable = resolveSchemaTableName(rule.sourceDataset, datasets);
@@ -874,10 +884,16 @@ function findCrossDatasetViolations(
     );
 
     const rows = violationsResult.getRowObjects();
+
+    // No violations - succeed with void
+    if (rows.length === 0) {
+      return;
+    }
+
     const enforcement = rule.enforcement ?? "required";
 
-    // Return fully-formed CrossDatasetViolation objects
-    return rows.map((row) =>
+    // Build CrossDatasetViolation objects and fail with them
+    const violations = rows.map((row) =>
       new CrossDatasetViolation({
         enforcement,
         severity: enforcementToSeverity(enforcement),
@@ -895,13 +911,15 @@ function findCrossDatasetViolations(
         },
       })
     );
+
+    return yield* _(Effect.fail(violations));
   });
 }
 
 /**
  * Validate cross-dataset rule
  *
- * Returns cross-dataset violations with enforcement level.
+ * Returns cross-dataset validation result with any violations found.
  */
 function validateCrossDatasetRule(
   connection: DuckDBConnection,
@@ -924,12 +942,18 @@ function validateCrossDatasetRule(
       ? "optional"
       : "required";
 
-    // Get fully-formed CrossDatasetViolation objects
-    const violations = yield* _(
+    // findCrossDatasetViolations uses error channel - catch violations
+    let violations: CrossDatasetViolation[] = [];
+    yield* _(
       findCrossDatasetViolations(
         connection,
         { ...rule, enforcement },
         datasets,
+      ).pipe(
+        Effect.catchAll((v) => {
+          violations = v;
+          return Effect.succeed(undefined);
+        }),
       ),
     );
 

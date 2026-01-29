@@ -40,12 +40,12 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
 
   // Verify we collected ENUM violations for taxonRank
   assert(
-    occResult.violations.warnings.length > 0,
+    occResult.fieldViolations.warnings.length > 0,
     "Should have warnings from taxonRank ENUM violations",
   );
 
   // Check that violations are EnumViolation type with correct details
-  const taxonRankViolations = occResult.violations.warnings.filter((v) =>
+  const taxonRankViolations = occResult.fieldViolations.warnings.filter((v) =>
     v.targetName === "taxonRank"
   );
   assert(

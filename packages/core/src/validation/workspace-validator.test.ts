@@ -342,7 +342,7 @@ function assertPrimaryKeyViolations(
 ): void {
   const datasetResult = result.datasetResults[0];
   const pkViolations = Array.filter(
-    datasetResult.violations.errors,
+    datasetResult.fieldViolations.errors,
     isPrimaryKeyViolation,
   );
 
@@ -360,7 +360,7 @@ function assertRowNumbers(
   options?: { checkOrdering?: boolean },
 ): void {
   const pkViolations = Array.filter(
-    result.datasetResults[0].violations.errors,
+    result.datasetResults[0].fieldViolations.errors,
     isPrimaryKeyViolation,
   );
   const rowNumbers = pkViolations.map(({ rowNumber }) => rowNumber);
@@ -385,7 +385,7 @@ function assertEnumViolations(
 ): void {
   const datasetResult = result.datasetResults[0];
   const enumViolations = Array.filter(
-    datasetResult.violations.errors,
+    datasetResult.fieldViolations.errors,
     isEnumViolation,
   );
 
@@ -401,7 +401,7 @@ function assertRangeViolations(
   fieldName: string,
 ): void {
   const rangeErrors = Array.filter(
-    result.datasetResults[0].violations.errors,
+    result.datasetResults[0].fieldViolations.errors,
     isRangeViolation,
   );
   assertEquals(rangeErrors.length, expectedCount);
@@ -562,8 +562,8 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       "Expected validation to warn when missing source fields are skipped",
     );
 
-    // Verify warning was generated for the missing field
-    const missingFieldWarning = datasetResult.warnings.find(
+    // Verify schema warning was generated for the missing field
+    const missingFieldWarning = datasetResult.schemaViolations.warnings.find(
       (w) => w.fieldName === "countryCode",
     );
     assertExists(
@@ -571,7 +571,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       "Expected warning for missing 'countryCode' field",
     );
     assert(
-      missingFieldWarning.message.includes("not found in source CSV"),
+      missingFieldWarning.errorMessage.includes("not found in source CSV"),
       "Warning message should indicate field not found in source",
     );
   });
@@ -695,7 +695,7 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
 
     const getRowNumbers = (result: WorkspaceValidationResult) => {
       const pkViolations = Array.filter(
-        result.datasetResults[0].violations.errors,
+        result.datasetResults[0].fieldViolations.errors,
         isPrimaryKeyViolation,
       );
       return pkViolations.map((v) => v.rowNumber);

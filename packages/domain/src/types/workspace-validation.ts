@@ -16,7 +16,12 @@
  * (errors, warnings, info).
  */
 
-import type { CrossDatasetViolation, ValidationViolation } from "./validation-violation.ts";
+import type {
+  CrossDatasetViolation,
+  FieldViolation,
+  PartitionedViolations,
+} from "./validation-violation.ts";
+import type { SchemaViolation } from "./schema-violation.ts";
 
 /**
  * Validation result for a single dataset within a workspace
@@ -29,49 +34,11 @@ export interface DatasetValidationResult {
   readonly processingTimeMs: number;
   readonly status: "pass" | "warn" | "fail";
 
-  // Enforcement-aware violations (NEW - partitioned by severity)
-  readonly violations: {
-    readonly errors: ReadonlyArray<ValidationViolation>; // enforcement: "required"
-    readonly warnings: ReadonlyArray<ValidationViolation>; // enforcement: "recommended"
-    readonly info: ReadonlyArray<ValidationViolation>; // enforcement: "optional"
-  };
+  /** Schema-level violations (structural issues: missing fields, unknown profiles) */
+  readonly schemaViolations: PartitionedViolations<SchemaViolation>;
 
-  // Type validation errors (from CSV parsing)
-  readonly typeErrors: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly expectedType: string;
-    readonly failureCount: number;
-    readonly sampleFailures: ReadonlyArray<{
-      readonly rowNumber: number;
-      readonly originalValue: string; // Deprecated: use csvValue
-      readonly csvValue?: string; // Original value in CSV file
-      readonly transformedValue?: unknown; // Value after transformations
-      readonly errorMessage: string;
-    }>;
-  }>;
-
-  // Required field errors (from spec)
-  readonly requiredFieldErrors: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly message: string;
-  }>;
-
-  // Field warnings (strongly recommended fields that are missing)
-  readonly warnings: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly requirementLevel: string;
-    readonly message: string;
-  }>;
-
-  // Field recommendations (recommended fields that are missing)
-  readonly recommendations: ReadonlyArray<{
-    readonly fieldName: string;
-    readonly targetName: string;
-    readonly requirementLevel: string;
-    readonly message: string;
-  }>;
+  /** Field-level violations (data issues: range, vocabulary, uniqueness) */
+  readonly fieldViolations: PartitionedViolations<FieldViolation>;
 }
 
 /**
@@ -101,13 +68,13 @@ export interface WorkspaceValidationResult {
   readonly totalProcessingTimeMs: number;
   readonly overallStatus: "pass" | "warn" | "fail";
 
-  // Per-dataset results
+  /** Per-dataset results */
   readonly datasetResults: ReadonlyArray<DatasetValidationResult>;
 
-  // Cross-dataset results
+  /** Cross-dataset results */
   readonly crossDatasetResults: ReadonlyArray<CrossDatasetValidationResult>;
 
-  // Summary statistics
+  /** Summary statistics */
   readonly summary: {
     readonly totalDatasets: number;
     readonly datasetsPassedCount: number;
@@ -119,7 +86,7 @@ export interface WorkspaceValidationResult {
     readonly totalRowsProcessed: number;
   };
 
-  // Transformation statistics (optional, populated when transformation tracking is enabled)
+  /** Transformation statistics (optional, populated when transformation tracking is enabled) */
   readonly transformationSummary?: {
     readonly totalValues: number;
     readonly transformedValues: number;
