@@ -19,6 +19,7 @@ import type { FieldViolation, ValidationProfile, ValidationSettings } from "@dwk
 import {
   enforcementToSeverity,
   EnumViolation,
+  ForeignKeyViolation,
   NotNullViolation,
   PrimaryKeyViolation,
 } from "@dwkt/domain";
@@ -211,10 +212,96 @@ function handleEnumViolation(
 }
 
 /**
+ * Handle foreign key violation
+ *
+ * Creates a ForeignKeyViolation when a row references a value that doesn't
+ * exist in the referenced table (e.g., eventID references non-existent event).
+ */
+function handleForeignKeyViolation(
+  parsed: ParsedErrorInfo,
+  ctx: ViolationContext,
+): Effect.Effect<FieldViolation[]> {
+  return Effect.gen(function* (_) {
+    // Try to find the mapping for the FK field
+    const fkMapping = parsed.fieldName
+      ? ctx.columnMappings.find((m) =>
+        m.target === parsed.fieldName || m.origin === parsed.fieldName
+      )
+      : undefined;
+
+    // If we can't identify the field, fall back to generic handling
+    if (!fkMapping) {
+      // Try to infer from field name pattern (fields ending in ID)
+      const idMappings = ctx.columnMappings.filter((m) =>
+        m.target.endsWith("ID") && m.target !== ctx.schemaTableName + "ID"
+      );
+      if (idMappings.length === 1) {
+        // Only one FK field, use it
+        const mapping = idMappings[0];
+        const specField = ctx.profile.normalizedFields?.[mapping.target];
+        if (!specField) return [];
+
+        // Get the CSV value for this row
+        const csvValue = parsed.value ??
+          (yield* _(getCsvValue(ctx.connection, ctx.rawTableName, mapping.origin, ctx.rowNum)));
+
+        // Derive the referenced table from the field name (eventID -> event)
+        const referencedTable = mapping.target.slice(0, -2).toLowerCase();
+
+        return [
+          new ForeignKeyViolation({
+            enforcement: "required",
+            severity: enforcementToSeverity("required"),
+            fieldName: mapping.origin,
+            targetName: mapping.target,
+            rowNumber: ctx.rowNum,
+            value: csvValue,
+            csvValue,
+            referencedTable,
+            referencedField: mapping.target,
+            errorMessage:
+              `Foreign key violation: "${csvValue}" does not exist in ${referencedTable}.${mapping.target}`,
+            validatorType: "foreign-key",
+          }),
+        ];
+      }
+      return [];
+    }
+
+    const specField = ctx.profile.normalizedFields?.[fkMapping.target];
+    if (!specField) return [];
+
+    // Get the CSV value for this row
+    const csvValue = parsed.value ??
+      (yield* _(getCsvValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum)));
+
+    // Derive the referenced table from the field name (eventID -> event)
+    const referencedTable = fkMapping.target.slice(0, -2).toLowerCase();
+
+    return [
+      new ForeignKeyViolation({
+        enforcement: "required",
+        severity: enforcementToSeverity("required"),
+        fieldName: fkMapping.origin,
+        targetName: fkMapping.target,
+        rowNumber: ctx.rowNum,
+        value: csvValue,
+        csvValue,
+        referencedTable,
+        referencedField: fkMapping.target,
+        errorMessage:
+          `Foreign key violation: "${csvValue}" does not exist in ${referencedTable}.${fkMapping.target}`,
+        validatorType: "foreign-key",
+      }),
+    ];
+  });
+}
+
+/**
  * Create violations from a parsed DuckDB error
  *
  * Uses Match pattern matching to handle different error types.
- * Returns empty array for unhandled error types (check constraints, foreign keys, unknown).
+ * Returns empty array for unhandled error types (check constraints, unknown).
  */
 function createViolationsFromError(
   parsed: ParsedErrorInfo,
@@ -224,7 +311,8 @@ function createViolationsFromError(
     Match.when({ type: "primary-key" }, (p) => handlePrimaryKeyViolation(p, ctx)),
     Match.when({ type: "not-null" }, (p) => handleNotNullViolation(p, ctx)),
     Match.when({ type: "enum" }, (p) => handleEnumViolation(p, ctx)),
-    // Foreign key, check, and unknown errors don't generate violations
+    Match.when({ type: "foreign-key" }, (p) => handleForeignKeyViolation(p, ctx)),
+    // Check and unknown errors don't generate violations
     Match.orElse(() => Effect.succeed([])),
   );
 }

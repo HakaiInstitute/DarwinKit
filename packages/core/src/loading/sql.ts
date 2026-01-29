@@ -138,10 +138,26 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
   }
 
   // FOREIGN KEY constraint violation
-  const fkMatch = message.match(/FOREIGN KEY constraint/i);
+  // Example: "Constraint Error: Violates foreign key constraint because key "eventID: E999" does not exist in the referenced table"
+  // Example: "FOREIGN KEY constraint violation: key "eventID": "E999" does not exist"
+  const fkMatch = message.match(/FOREIGN KEY constraint/i) ||
+    message.match(/foreign key constraint/i) ||
+    message.match(/does not exist in the referenced table/i);
   if (fkMatch) {
+    // Try to extract field name and value from various DuckDB FK error formats
+    // Format 1: key "fieldName: value"
+    const keyMatch1 = message.match(/key "(\w+):\s*([^"]+)"/);
+    // Format 2: key "fieldName": "value"
+    const keyMatch2 = message.match(/key "(\w+)":\s*"([^"]+)"/);
+    // Format 3: column fieldName with value
+    const keyMatch3 = message.match(/column (\w+).+value[:\s]+['"]?([^'"]+)['"]?/i);
+
+    const keyMatch = keyMatch1 || keyMatch2 || keyMatch3;
+
     return {
       type: "foreign-key",
+      fieldName: keyMatch?.[1],
+      value: keyMatch?.[2],
       message,
     };
   }

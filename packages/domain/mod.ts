@@ -7,8 +7,6 @@ export * from "./src/types/validation-violation.ts";
 export * from "./src/types/schema-violation.ts";
 export * from "./src/types/workspace-validation.ts";
 
-// Note: enrichCrossDatasetViolation is exported via validation-violation.ts wildcard export above
-
 // Schemas
 export * from "./src/schemas/primitives.ts";
 export * from "./src/schemas/schema.ts";
