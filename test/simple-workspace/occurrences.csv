@@ -1,5 +1,0 @@
-eventID,occurrenceID,basisOfRecord,scientificName,taxonRank
-E001,O001,HumanObservation,Ursus arctos,species
-E001,O002,HumanObservation,Canis lupus,species
-E002,O003,HumanObservation,Cervus elaphus,species
-E003,O004,HumanObservation,Ursus arctos,species
