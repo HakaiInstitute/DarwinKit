@@ -23,7 +23,6 @@ export * from "./src/validation/workspace-validator.ts";
 
 // CSV parsing (ParseError is re-exported via ./src/errors.ts)
 export {
-  ParsedFileResult,
   parseFileForWorkspace,
   ParseMetadata,
   type ParseOptions,

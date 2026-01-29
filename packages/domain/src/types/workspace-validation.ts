@@ -16,7 +16,6 @@
  * (errors, warnings, info).
  */
 
-import type { TransformationChain } from "./transformation.ts";
 import type { CrossDatasetViolation, ValidationViolation } from "./validation-violation.ts";
 
 /**
@@ -47,7 +46,6 @@ export interface DatasetValidationResult {
       readonly originalValue: string; // Deprecated: use csvValue
       readonly csvValue?: string; // Original value in CSV file
       readonly transformedValue?: unknown; // Value after transformations
-      readonly transformationChain?: TransformationChain; // Full transformation history
       readonly errorMessage: string;
     }>;
   }>;

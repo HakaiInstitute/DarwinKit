@@ -2,14 +2,8 @@
  * Effect Schema definitions for workspace configuration validation
  */
 
-import type { WorkspaceConfig } from "@dwkt/domain";
 import * as S from "effect/Schema";
 import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
-import type {
-  TransformAndValidationConfig,
-  TransformOnlyConfig,
-  ValidationOnlyConfig,
-} from "../types/workspace-config.ts";
 
 /**
  * Workspace field mapping schema
@@ -148,22 +142,10 @@ export const hasValidationConfig = (
   return S.is(configWithValidationSchema)(config);
 };
 
-export const isTransformOnlyConfig = (
-  config: WorkspaceConfig,
-): config is TransformOnlyConfig => {
-  return S.is(transformOnlyConfigSchema)(config);
-};
-
 export const hasTransformationConfig = (
   config: WorkspaceConfig,
 ): config is TransformOnlyConfig | TransformAndValidationConfig => {
   return S.is(configWithTransformationSchema)(config);
-};
-
-export const isTransformAndValidationConfig = (
-  config: WorkspaceConfig,
-): config is TransformAndValidationConfig => {
-  return S.is(transformAndValidationConfigSchema)(config);
 };
 
 /**
@@ -180,3 +162,34 @@ export const workspaceConfigSchema = S.Union(
   transformOnlyConfigSchema,
   transformAndValidationConfigSchema,
 );
+
+// Types derived from schemas
+export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
+export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
+export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
+export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
+export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
+export type ValidationOnlyConfig = S.Schema.Type<typeof validationOnlyConfigSchema>;
+export type TransformOnlyConfig = S.Schema.Type<typeof transformOnlyConfigSchema>;
+export type TransformAndValidationConfig = S.Schema.Type<typeof transformAndValidationConfigSchema>;
+export type ConfigWithValidation = S.Schema.Type<typeof configWithValidationSchema>;
+
+/**
+ * Parse spec identifier into spec name and type
+ */
+export function parseSpecIdentifier(
+  specId: string | undefined,
+): { spec: string; type: string } | null {
+  if (!specId) {
+    return null;
+  }
+  const parts = specId.split("-");
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const spec = parts[0];
+  const type = parts.slice(1).join("-");
+
+  return { spec, type };
+}

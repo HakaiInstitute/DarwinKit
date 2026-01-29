@@ -1,7 +1,3 @@
-/**
- * Zod schemas for runtime validation
- */
-
 import * as S from "effect/Schema";
 
 export const primitiveType = S.Literal(
@@ -17,7 +13,7 @@ export const primitiveType = S.Literal(
 // Field schema validation
 export const fieldSchemaSchema = S.Struct({
   name: S.String,
-  inferredType: S.String, // Raw DuckDB type string
+  inferredType: S.String,
   primitiveType: primitiveType,
   isNullable: S.Boolean,
   defaultValue: S.optional(S.String),
@@ -42,3 +38,9 @@ export const datasetSchemaSchema = S.Struct({
   tableName: S.String,
   inferredAt: S.Date,
 });
+
+// Field schema derived from DuckDB column metadata
+export type FieldSchema = S.Schema.Type<typeof fieldSchemaSchema>;
+
+// Schema for the entire dataset
+export type DatasetSchema = S.Schema.Type<typeof datasetSchemaSchema>;

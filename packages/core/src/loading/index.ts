@@ -8,7 +8,6 @@
 
 // CSV parsing with DuckDB schema inference
 export {
-  ParsedFileResult,
   ParseError,
   parseFileForWorkspace,
   ParseMetadata,
