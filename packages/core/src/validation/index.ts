@@ -30,13 +30,6 @@ export {
   vocabularyEnforcementToStandard,
 } from "./field-validators.ts";
 
-// Cross-dataset constraint validation
-export {
-  type CrossDatasetRule,
-  findCrossDatasetViolations,
-  validateCrossDatasetRule,
-} from "./constraint-validator.ts";
-
 // Row-by-row data loading with violation collection
 export { type ColumnMapping, insertRowByRow } from "./data-loader.ts";
 

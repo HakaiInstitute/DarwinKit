@@ -264,6 +264,26 @@ export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolati
 }
 
 /**
+ * Type guard helper for CrossDatasetViolation
+ *
+ * Note: CrossDatasetViolation is NOT part of the FieldViolation union
+ * because it operates at a different level (between datasets, not within fields).
+ * This guard works on unknown values for flexibility.
+ *
+ * @example
+ * ```typescript
+ * const crossDatasetErrors = violations.filter(isCrossDatasetViolation);
+ * // TypeScript knows crossDatasetErrors is CrossDatasetViolation[]
+ * ```
+ */
+export function isCrossDatasetViolation(v: unknown): v is CrossDatasetViolation {
+  return v !== null &&
+    typeof v === "object" &&
+    "_tag" in v &&
+    v._tag === "CrossDatasetViolation";
+}
+
+/**
  * Convert enforcement level to severity
  *
  * Maps validation domain enforcement levels to error severity

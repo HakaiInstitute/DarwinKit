@@ -1,21 +1,14 @@
 /**
- * Domain Error Tag Types
+ * Domain Error Utilities
  *
- * Type-only exports for validation violation tags to enable IDE autocomplete
- * and type safety when writing tests. These tags are derived directly from
- * the ValidationViolation classes using TypeScript's type system, ensuring
- * they stay in sync automatically.
+ * Re-exports error handling utilities including severity levels and
+ * cause formatting helpers.
  *
- * Usage in tests:
+ * For violation type guards, import directly from "@dwkt/domain":
  * ```typescript
- * import type { ValidationViolationTag } from "@dwkt/domain/errors";
- * import { isRangeViolation } from "@dwkt/domain";
+ * import { isRangeViolation, isPrimaryKeyViolation } from "@dwkt/domain";
  *
- * const rangeViolations = result.violations.filter(isRangeViolation);
- * // Or filter by tag directly:
- * const violations = result.violations.filter(
- *   v => v._tag === "RangeViolation" as ValidationViolationTag
- * );
+ * const rangeErrors = violations.filter(isRangeViolation);
  * ```
  *
  * Re-exports from other error modules:
