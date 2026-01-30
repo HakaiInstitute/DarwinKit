@@ -154,17 +154,26 @@ function handleValidateError(
       Output.error('❌ Configuration not found:');
       Output.error(e.message);
       Output.blank();
-      Output.muted(`Searched from: ${e.startDirectory}`);
-      Output.muted(`Paths checked:\n${e.searchDescription}`);
-      Output.blank();
-      Output.warning('💡 Hint: Create a darwinkit.json configuration file.');
+
+      // Show context-appropriate hints based on whether we searched multiple paths
+      if (e.searchedPaths.length > 1) {
+        // Directory search - show all paths checked
+        Output.muted(`Searched from: ${e.startDirectory}`);
+        Output.muted(`Paths checked:\n${e.searchDescription}`);
+        Output.blank();
+        Output.warning('💡 Hint: Create a darwinkit.yaml configuration file.');
+      } else {
+        // Explicit file path - show simpler output
+        Output.muted(`Path: ${e.searchedPaths[0]}`);
+        Output.blank();
+        Output.warning('💡 Hint: Check that the file path is correct.');
+      }
       return 3;
     }),
     Match.tag('ConfigParseError', (e) => {
       Output.error('❌ Configuration parse error:');
       Output.error(e.message);
       Output.muted(`File: ${e.configPath}`);
-      Output.muted(`Format: ${e.format.toUpperCase()}`);
       return 3;
     }),
     Match.tag('ConfigValidationError', (e) => {
@@ -199,7 +208,7 @@ function handleValidateError(
       Output.error(e.message);
       Output.muted(`Workspace: ${e.workspaceName}`);
       Output.blank();
-      Output.warning('💡 Hint: Add a "validation" section to darwinkit.json.');
+      Output.warning('💡 Hint: Add a "validation" section to darwinkit.yaml.');
       return 3;
     }),
     // Ensure all possible errors are handled
@@ -552,7 +561,7 @@ function getStatusIcon(status: string): string {
 
 export const validateCommand = new Command()
   .description(
-    'Validate datasets in workspace using darwinkit.json configuration',
+    'Validate datasets in workspace using darwinkit.yaml configuration',
   )
   .option(
     '--config <path:string>',

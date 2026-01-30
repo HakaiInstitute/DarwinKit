@@ -17,7 +17,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
     const program = Effect.scoped(
       Effect.gen(function* () {
         // Try to load non-existent config
-        return yield* Workspace.open(join(tempDir, "nonexistent", "darwinkit.json"));
+        return yield* Workspace.open(join(tempDir, "nonexistent", "darwinkit.yaml"));
       }),
     );
 
@@ -69,12 +69,12 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
   });
 
   await t.step("Invalid workspace configuration", async () => {
-    // Create invalid darwinkit.json
+    // Create invalid darwinkit.yaml
     const configPath = join(tempDir, "invalid-config");
     await Deno.mkdir(configPath, { recursive: true });
     await Deno.writeTextFile(
-      join(configPath, "darwinkit.json"),
-      "{ invalid json }",
+      join(configPath, "darwinkit.yaml"),
+      "invalid: yaml: content:",
     );
 
     const validator = new WorkspaceValidator();
@@ -122,7 +122,7 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
   await t.step("Error messages include context (config not found)", async () => {
     const program = Effect.scoped(
       Effect.gen(function* () {
-        return yield* Workspace.open(join(tempDir, "test-workspace", "darwinkit.json"));
+        return yield* Workspace.open(join(tempDir, "test-workspace", "darwinkit.yaml"));
       }),
     );
 
@@ -178,7 +178,7 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
     const program = Effect.scoped(
       Effect.gen(function* () {
         const workspace = yield* Workspace.open(
-          join(tempDir, "nonexistent", "darwinkit.json"),
+          join(tempDir, "nonexistent", "darwinkit.yaml"),
         );
         // Return a compatible structure (this branch won't execute due to error)
         return { id: workspace.config.id, name: workspace.name };

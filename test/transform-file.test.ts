@@ -17,7 +17,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
   // 1. Setup: Create a temporary workspace with config and source data
   const workspaceDir = await Deno.makeTempDir({ prefix: "dwkt-e2e-test-" });
   const outputDir = join(workspaceDir, "output");
-  const configPath = join(workspaceDir, "workspace.dwc.json");
+  const configPath = join(workspaceDir, "workspace.dwc.yaml");
   const sourceCsvPath = join(workspaceDir, "source_data.csv");
 
   const config: WorkspaceConfig = {
@@ -115,7 +115,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 });
 
 Deno.test("transformFile - returns ConfigError for non-existent config", async () => {
-  const nonExistentConfigPath = "/path/to/nothing/workspace.dwc.json";
+  const nonExistentConfigPath = "/path/to/nothing/workspace.dwc.yaml";
 
   const result = await Effect.runPromise(Effect.flip(transformFile(nonExistentConfigPath)));
 

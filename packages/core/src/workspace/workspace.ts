@@ -39,7 +39,7 @@ import { ValidationError } from "../errors/index.ts";
 import { WorkspaceValidator } from "../validation/workspace-validator.ts";
 
 // Configuration file constants
-const DEFAULT_CONFIG_FILENAME = "darwinkit.json";
+const DEFAULT_CONFIG_FILENAME = "darwinkit.yaml";
 const MAX_SEARCH_DEPTH = 10;
 
 /**
@@ -60,7 +60,7 @@ export interface ValidationOptions {
  * ```typescript
  * const program = Effect.scoped(
  *   Effect.gen(function* () {
- *     const workspace = yield* Workspace.open("./darwinkit.json");
+ *     const workspace = yield* Workspace.open("./darwinkit.yaml");
  *     return yield* workspace.validate();
  *   })
  * );
@@ -122,7 +122,7 @@ export class Workspace {
    *
    * @example
    * ```typescript
-   * const workspace = yield* Workspace.open("./darwinkit.json");
+   * const workspace = yield* Workspace.open("./darwinkit.yaml");
    * const results = yield* workspace.validate({ failFast: false });
    *
    * if (results.status === "error") {
@@ -219,7 +219,7 @@ export class Workspace {
    * @example
    * ```typescript
    * // With explicit config path
-   * const workspace = yield* Workspace.open("./my-project/darwinkit.json");
+   * const workspace = yield* Workspace.open("./my-project/darwinkit.yaml");
    *
    * // Auto-discover config in current/parent directories
    * const workspace = yield* Workspace.open();
@@ -248,7 +248,6 @@ export class Workspace {
             new ConfigParseError({
               message: "Failed to create DuckDB instance",
               configPath: resolvedPath,
-              format: "json",
             }),
         });
 
@@ -258,7 +257,6 @@ export class Workspace {
             new ConfigParseError({
               message: "Failed to connect to DuckDB",
               configPath: resolvedPath,
-              format: "json",
             }),
         });
 
@@ -305,27 +303,54 @@ const pathExists = (path: string): Effect.Effect<boolean> =>
   );
 
 /**
- * Discover darwinkit.json configuration file
+ * Check if a path looks like a config file (has .yaml or .yml extension)
+ */
+const isConfigFilePath = (path: string): boolean => {
+  const lower = path.toLowerCase();
+  return lower.endsWith(".yaml") || lower.endsWith(".yml");
+};
+
+/**
+ * Discover darwinkit.yaml configuration file
  *
  * Searches for configuration starting from the given path:
- * - If searchDir is a file, returns it directly
- * - Otherwise searches up the directory tree for darwinkit.json
+ * - If searchDir looks like a config file path, checks if it exists and fails with clear error if not
+ * - If searchDir is an existing file, returns it directly
+ * - Otherwise searches up the directory tree for darwinkit.yaml
  */
 function discoverConfig(
   searchDir: string = Deno.cwd(),
 ): Effect.Effect<string, ConfigNotFoundError> {
   return Effect.gen(function* () {
-    let currentDir = resolve(searchDir);
+    const resolvedPath = resolve(searchDir);
+
+    // If user provided a path that looks like a config file, check if it exists
+    if (isConfigFilePath(resolvedPath)) {
+      const exists = yield* isFile(resolvedPath);
+      if (exists) {
+        return resolvedPath;
+      }
+      // File path provided but doesn't exist - fail with clear error
+      return yield* Effect.fail(
+        new ConfigNotFoundError({
+          message: `Configuration file not found at specified path: ${searchDir}`,
+          searchedPaths: [resolvedPath],
+          startDirectory: dirname(resolvedPath),
+        }),
+      );
+    }
+
+    // Check if searchDir is an existing file (direct config path without standard extension)
+    const isDirectFile = yield* isFile(resolvedPath);
+    if (isDirectFile) {
+      return resolvedPath;
+    }
+
+    // Search up the directory tree for darwinkit.yaml
+    let currentDir = resolvedPath;
     let depth = 0;
     const searchedPaths: string[] = [];
 
-    // Check if searchDir is a file (direct config path provided)
-    const isDirectFile = yield* isFile(currentDir);
-    if (isDirectFile) {
-      return currentDir;
-    }
-
-    // Search up the directory tree
     while (depth < MAX_SEARCH_DEPTH) {
       const configPath = join(currentDir, DEFAULT_CONFIG_FILENAME);
       searchedPaths.push(configPath);
@@ -374,34 +399,17 @@ function loadConfig(
         }),
     });
 
-    const isYaml = configPath.endsWith(".yaml") || configPath.endsWith(".yml");
+    const configData = yield* Effect.try({
+      try: () => parseYAML(configContent),
+      catch: (error) =>
+        new ConfigParseError({
+          message: `Invalid YAML syntax`,
+          configPath,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        }),
+    });
 
-    let configJson: unknown;
-    if (isYaml) {
-      configJson = yield* Effect.try({
-        try: () => parseYAML(configContent),
-        catch: (error) =>
-          new ConfigParseError({
-            message: `Invalid YAML syntax`,
-            configPath,
-            format: "yaml",
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      });
-    } else {
-      configJson = yield* Effect.try({
-        try: () => JSON.parse(configContent),
-        catch: (error) =>
-          new ConfigParseError({
-            message: `Invalid JSON syntax`,
-            configPath,
-            format: "json",
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      });
-    }
-
-    const configRecord = configJson as Record<string, unknown>;
+    const configRecord = configData as Record<string, unknown>;
     const configWithMeta = {
       id: configRecord.id || "workspace-" + Date.now(),
       ...configRecord,

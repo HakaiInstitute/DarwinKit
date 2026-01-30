@@ -27,7 +27,7 @@ This starts the CLI in development mode with all necessary permissions.
 
 #### `validate`
 
-Validates datasets using a `darwinkit.json` configuration file.
+Validates datasets using a `darwinkit.yaml` configuration file.
 
 ```bash
 # Auto-discover config in current/parent directories

@@ -7,9 +7,9 @@
  * @module errors/workspace
  */
 
-import * as Data from "effect/Data";
+import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
 import type * as Cause from "effect/Cause";
-import { createTaggedFormatter, prettyPrintCause } from "./cause-formatter.ts";
+import * as Data from "effect/Data";
 
 /**
  * Error when configuration file is not found after searching
@@ -28,12 +28,11 @@ export class ConfigNotFoundError extends Data.TaggedError("ConfigNotFoundError")
 }
 
 /**
- * Error when configuration file cannot be parsed (invalid JSON/YAML)
+ * Error when configuration file cannot be parsed (invalid YAML)
  */
 export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
   readonly message: string;
   readonly configPath: string;
-  readonly format: "json" | "yaml";
   readonly cause?: Error;
 }> {}
 
@@ -135,14 +134,13 @@ export const formatWorkspaceConfigError = createTaggedFormatter<WorkspaceConfigE
     `Configuration file not found\n\n` +
     `Started searching from: ${error.startDirectory}\n\n` +
     `Searched paths:\n${error.searchDescription}\n\n` +
-    `Create a darwinkit.json file to define your workspace configuration.`,
+    `Create a darwinkit.yaml file to define your workspace configuration.`,
 
   ConfigParseError: (error) =>
     `Failed to parse configuration file\n\n` +
     `File: ${error.configPath}\n` +
-    `Format: ${error.format.toUpperCase()}\n\n` +
     `${error.cause?.message ?? error.message}\n\n` +
-    `Check that the file contains valid ${error.format.toUpperCase()} syntax.`,
+    `Check that the file contains valid YAML syntax.`,
 
   ConfigValidationError: (error) =>
     `Configuration validation failed\n\n` +
@@ -155,19 +153,19 @@ export const formatWorkspaceConfigError = createTaggedFormatter<WorkspaceConfigE
     `Dataset: ${error.datasetName}\n` +
     `Path: ${error.filePath}\n` +
     `Config: ${error.configPath}\n\n` +
-    `Check that the path in darwinkit.json is correct and the file exists.`,
+    `Check that the path in darwinkit.yaml is correct and the file exists.`,
 
   TransformInputNotFoundError: (error) =>
     `Transform input file not found\n\n` +
     `Input: ${error.inputName}\n` +
     `Path: ${error.filePath}\n` +
     `Config: ${error.configPath}\n\n` +
-    `Check that the path in darwinkit.json is correct and the file exists.`,
+    `Check that the path in darwinkit.yaml is correct and the file exists.`,
 
   ValidationConfigMissingError: (error) =>
     `Validation configuration missing\n\n` +
     `Workspace: ${error.workspaceName}\n\n` +
-    `Add a "validation" section to darwinkit.json with datasets to validate.`,
+    `Add a "validation" section to darwinkit.yaml with datasets to validate.`,
 });
 
 /**

@@ -9,8 +9,9 @@ import {
   type WorkspaceFieldMapping,
 } from "@dwkt/domain";
 import { assert, assertEquals, assertExists } from "@std/assert";
-import { stringify } from "@std/csv";
+import { stringify as stringifyCSV } from "@std/csv";
 import { join } from "@std/path";
+import { stringify as stringifyYAML } from "@std/yaml";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
 import type { WorkspaceValidationResult } from "../../../domain/src/types/workspace-validation.ts";
@@ -156,7 +157,7 @@ const TEST_DATA = {
 function toCSV<T extends Record<string, unknown>>(data: T[]): string {
   if (data.length === 0) return "";
   const columns = Object.keys(data[0]);
-  return stringify(data, { columns });
+  return stringifyCSV(data, { columns });
 }
 
 const tempDirs: string[] = [];
@@ -180,9 +181,15 @@ async function removeTempDirs() {
 
 // Write a workspace configuration file to the temp directory
 async function writeConfig(tempDir: string, config: WorkspaceConfig) {
+  // Convert dates to ISO strings for YAML serialization
+  const configForYaml = {
+    ...config,
+    createdAt: config.createdAt instanceof Date ? config.createdAt.toISOString() : config.createdAt,
+    updatedAt: config.updatedAt instanceof Date ? config.updatedAt.toISOString() : config.updatedAt,
+  };
   return await Deno.writeTextFile(
-    join(tempDir, "darwinkit.json"),
-    JSON.stringify(config, null, 2),
+    join(tempDir, "darwinkit.yaml"),
+    stringifyYAML(configForYaml),
   );
 }
 

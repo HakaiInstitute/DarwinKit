@@ -16,9 +16,9 @@ We can correct this manually or write bespoke scripts to process and transform t
 
 ### The Solution
 
-DarwinKit validates CSV biodiversity data against Darwin Core specifications (and repository supersets) using a JSON configuration file. It checks field mappings, renames columns, can enforce referential integrity across related datasets, validate controlled vocabularies, and ensure other types of data quality before submission to biodiversity repositories. It takes the guess-work and wheel-reinvention out of biodiversity data preparation.
+DarwinKit validates CSV biodiversity data against Darwin Core specifications (and repository supersets) using a YAML configuration file. It checks field mappings, renames columns, can enforce referential integrity across related datasets, validate controlled vocabularies, and ensure other types of data quality before submission to biodiversity repositories. It takes the guess-work and wheel-reinvention out of biodiversity data preparation.
 
-If you know how your data should be mapped to Darwin Core, you can use DarwinKit to validate and transform your data with as little as a JSON configuration file.
+If you know how your data should be mapped to Darwin Core, you can use DarwinKit to validate and transform your data with as little as a YAML configuration file.
 
 ## Quick Start
 
@@ -36,66 +36,72 @@ curl -fsSL https://deno.land/install.sh | sh
 irm https://deno.land/install.ps1 | iex
 ```
 
-Create a `darwinkit.json` configuration file:
+Create a `darwinkit.yaml` configuration file:
 
-```json
-{
-  "id": "marine-survey-2024",
-  "name": "Marine Survey 2024",
-  "version": "1.0.0",
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:00.000Z",
-  "validation": {
-    "nullValues": ["NA", "N/A", "", "NULL", "null"],
-    "failFast": false,
-    "outputDir": "./validation_results",
-    "datasets": [
-      {
-        "name": "events",
-        "spec": "dwc-event",
-        "path": "./data/events.csv",
-        "fieldMappings": [
-          { "originName": "event_id", "targetName": "eventID", "isRequired": true },
-          { "originName": "sample_date", "targetName": "eventDate", "isRequired": true },
-          { "originName": "latitude", "targetName": "decimalLatitude", "isRequired": true },
-          { "originName": "longitude", "targetName": "decimalLongitude", "isRequired": true }
-        ]
-      },
-      {
-        "name": "occurrences",
-        "spec": "dwc-occurrence",
-        "path": "./data/occurrences.csv",
-        "fieldMappings": [
-          { "originName": "occurrence_id", "targetName": "occurrenceID", "isRequired": true },
-          { "originName": "event_id", "targetName": "eventID", "isRequired": true },
-          { "originName": "species_name", "targetName": "scientificName", "isRequired": true }
-        ]
-      }
-    ]
-  },
-  "crossDatasetRules": [
-    {
-      "ruleType": "foreignKey",
-      "sourceDataset": "occurrences",
-      "sourceField": "eventID",
-      "targetDataset": "events",
-      "targetField": "eventID"
-    }
-  ]
-}
+```yaml
+id: marine-survey-2024
+name: Marine Survey 2024
+version: 1.0.0
+createdAt: "2024-01-01T00:00:00.000Z"
+updatedAt: "2024-01-01T00:00:00.000Z"
+validation:
+  nullValues:
+    - NA
+    - N/A
+    - ""
+    - "NULL"
+    - "null"
+  failFast: false
+  outputDir: ./validation_results
+  datasets:
+    - name: events
+      spec: dwc-event
+      path: ./data/events.csv
+      fieldMappings:
+        - originName: event_id
+          targetName: eventID
+          isRequired: true
+        - originName: sample_date
+          targetName: eventDate
+          isRequired: true
+        - originName: latitude
+          targetName: decimalLatitude
+          isRequired: true
+        - originName: longitude
+          targetName: decimalLongitude
+          isRequired: true
+    - name: occurrences
+      spec: dwc-occurrence
+      path: ./data/occurrences.csv
+      fieldMappings:
+        - originName: occurrence_id
+          targetName: occurrenceID
+          isRequired: true
+        - originName: event_id
+          targetName: eventID
+          isRequired: true
+        - originName: species_name
+          targetName: scientificName
+          isRequired: true
+crossDatasetRules:
+  - ruleType: foreignKey
+    sourceDataset: occurrences
+    sourceField: eventID
+    targetDataset: events
+    targetField: eventID
 ```
 
 Run validation:
 
 ```bash
 deno task cli validate
-deno task cli validate --config ./my-config.json
+deno task cli validate --config ./my-config.yaml
 ```
 
 Transform data to Darwin Core format:
 
 ```bash
-deno task cli transform --config ./my-config.json
+deno task cli transform --config ./my-config.yaml
 ```
 
 ## Project Structure
