@@ -175,6 +175,15 @@ export type TransformAndValidationConfig = S.Schema.Type<typeof transformAndVali
 export type ConfigWithValidation = S.Schema.Type<typeof configWithValidationSchema>;
 
 /**
+ * Result of looking up a foreign key rule
+ *
+ * Derived from WorkspaceCrossDatasetRule with required enforcement
+ */
+export type ForeignKeyRuleMatch =
+  & Pick<WorkspaceCrossDatasetRule, "targetDataset" | "targetField">
+  & Required<Pick<WorkspaceCrossDatasetRule, "enforcement">>;
+
+/**
  * Parse spec identifier into spec name and type
  */
 export function parseSpecIdentifier(

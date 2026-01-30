@@ -21,6 +21,7 @@ import type {
   ValidationProfile,
   ValidationSettings,
   ValidatorConfig,
+  WorkspaceCrossDatasetRule,
   WorkspaceFieldMapping,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
@@ -74,15 +75,7 @@ export class WorkspaceValidator {
     settings: ValidationSettings,
     basePath: string,
     workspaceId?: string,
-    crossDatasetRules?: readonly {
-      ruleType: string;
-      sourceDataset: string;
-      sourceField: string;
-      targetDataset: string;
-      targetField: string;
-      enforcement?: string;
-      description?: string;
-    }[],
+    crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
       const startTime = Date.now();
@@ -95,6 +88,7 @@ export class WorkspaceValidator {
           datasets,
           settings,
           basePath,
+          crossDatasetRules,
         ),
       );
 
@@ -121,7 +115,7 @@ export class WorkspaceValidator {
             }
 
             const result = yield* _(
-              validateDataset(connection, dataset, datasetProfile, settings),
+              validateDataset(connection, dataset, datasetProfile, settings, crossDatasetRules),
             );
 
             datasetResults.push(result);
@@ -197,15 +191,7 @@ export class WorkspaceValidator {
     settings: ValidationSettings,
     basePath: string,
     workspaceId?: string,
-    crossDatasetRules?: readonly {
-      ruleType: string;
-      sourceDataset: string;
-      sourceField: string;
-      targetDataset: string;
-      targetField: string;
-      enforcement?: string;
-      description?: string;
-    }[],
+    crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
       const startTime = Date.now();
@@ -224,7 +210,7 @@ export class WorkspaceValidator {
             ),
           ),
         );
-        yield* _(importSchema(connection, dataset, datasets));
+        yield* _(importSchema(connection, dataset, datasets, crossDatasetRules));
       }
 
       // Validate each dataset
@@ -245,7 +231,7 @@ export class WorkspaceValidator {
         }
 
         const result = yield* _(
-          validateDataset(connection, dataset, datasetProfile, settings),
+          validateDataset(connection, dataset, datasetProfile, settings, crossDatasetRules),
         );
 
         datasetResults.push(result);
@@ -344,6 +330,7 @@ function createWorkspaceFromConfig(
   datasets: readonly DatasetConfig[],
   validationSettings: ValidationSettings,
   basePath: string,
+  crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<
   {
     workspaceId: string;
@@ -378,7 +365,7 @@ function createWorkspaceFromConfig(
           Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
         ),
       );
-      yield* _(importSchema(connection, dataset, datasets));
+      yield* _(importSchema(connection, dataset, datasets, crossDatasetRules));
     }
 
     return { workspaceId, connection, instance };
@@ -440,6 +427,7 @@ function validateDataset(
   dataset: DatasetConfig,
   profile?: ValidationProfile,
   validationSettings?: ValidationSettings,
+  crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     const startTime = Date.now();
@@ -564,6 +552,8 @@ function validateDataset(
             schemaTableName,
             columnMappings,
             profile,
+            dataset.name,
+            crossDatasetRules ?? [],
             validationSettings,
           ).pipe(
             Effect.catchAll((violations) => {

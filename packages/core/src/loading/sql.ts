@@ -4,6 +4,9 @@
  * @module loading/sql
  */
 
+import type { ForeignKeyRuleMatch, WorkspaceCrossDatasetRule } from "@dwkt/domain";
+import * as Match from "effect/Match";
+
 /**
  * Sanitize a string for use as a SQL table name
  *
@@ -59,18 +62,65 @@ export function formatNullValues(nullValues: readonly string[]): string {
 }
 
 /**
+ * Find a matching foreign key rule for a given dataset and field
+ *
+ * Looks up the cross-dataset rules to find explicit FK relationship metadata
+ *
+ * @param sourceDataset - The current dataset name
+ * @param sourceField - The field name to look up
+ * @param rules - The cross-dataset rules from config
+ * @returns The matching rule info, or undefined if no rule matches
+ *
+ * @example
+ * ```typescript
+ * const rules = [{ sourceDataset: "occurrence", sourceField: "eventID", targetDataset: "event", targetField: "eventID", ruleType: "foreignKey" }];
+ * findForeignKeyRule("occurrence", "eventID", rules)
+ * // { targetDataset: "event", targetField: "eventID", enforcement: "required" }
+ * ```
+ */
+export function findForeignKeyRule(
+  sourceDataset: string,
+  sourceField: string,
+  rules?: readonly WorkspaceCrossDatasetRule[],
+): ForeignKeyRuleMatch | undefined {
+  if (!rules) return undefined;
+
+  const rule = rules.find(
+    (r) =>
+      r.ruleType === "foreignKey" &&
+      r.sourceDataset === sourceDataset &&
+      r.sourceField === sourceField,
+  );
+
+  if (!rule) return undefined;
+
+  return {
+    targetDataset: rule.targetDataset,
+    targetField: rule.targetField,
+    enforcement: rule.enforcement ?? "required",
+  };
+}
+
+/**
+ * Parsed error type for DuckDB constraint violations
+ */
+export type ParsedErrorType =
+  | "primary-key"
+  | "not-null"
+  | "enum"
+  | "foreign-key"
+  | "check"
+  | "unknown";
+
+/**
  * Parsed DuckDB error information
  */
 export interface ParsedErrorInfo {
-  readonly type:
-    | "primary-key"
-    | "not-null"
-    | "enum"
-    | "foreign-key"
-    | "check"
-    | "unknown";
+  readonly type: ParsedErrorType;
   readonly fieldName?: string;
   readonly value?: string;
+  readonly referencedTable?: string;
+  readonly referencedField?: string;
   readonly message: string;
 }
 
@@ -87,23 +137,11 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
   const message = error.message;
 
   // PRIMARY KEY or UNIQUE constraint violation
-  // Example 1: "Constraint Error: PRIMARY KEY or UNIQUE constraint violation: duplicate key "E1""
-  // Example 2: "Constraint Error: Duplicate key "eventID: E1" violates primary key constraint."
-  let pkMatch = message.match(
-    /PRIMARY KEY or UNIQUE constraint violation: duplicate key "([^"]+)"/,
+  // Format: 'Duplicate key "field: value" violates (primary key|unique) constraint.'
+  const pkMatch = message.match(
+    /Duplicate key "(?:\w+:\s*)?([^"]+)" violates (?:primary key|unique) constraint/,
   );
-  if (pkMatch) {
-    return {
-      type: "primary-key",
-      value: pkMatch[1],
-      message,
-    };
-  }
 
-  // Alternative format for duplicate keys
-  pkMatch = message.match(
-    /Duplicate key "(?:\w+:\s*)?([^"]+)" violates primary key constraint/,
-  );
   if (pkMatch) {
     return {
       type: "primary-key",
@@ -113,56 +151,71 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
   }
 
   // NOT NULL constraint violation
-  // Example: "Constraint Error: NOT NULL constraint failed: column_name"
-  const notNullMatch = message.match(/NOT NULL constraint failed:?\s*(.+)?/i);
+  // Format: 'NOT NULL constraint failed: table.column'
+  const notNullMatch = message.match(/NOT NULL constraint failed:\s*(.+)?/i);
   if (notNullMatch) {
+    // Extract just the column name if table.column format
+    const fieldPart = notNullMatch[1]?.trim();
+    const fieldName = fieldPart?.includes(".") ? fieldPart.split(".").pop() : fieldPart;
     return {
       type: "not-null",
-      fieldName: notNullMatch[1]?.trim(),
+      fieldName,
       message,
     };
   }
 
   // ENUM/Type conversion error
-  // Example: "Conversion Error: Could not convert string 'InvalidBasis' to UINT8 when casting from source column basisOfRecord"
-  const enumMatch = message.match(
+  // Format 1: "Could not convert string 'X' to UINT8 when casting from source column Y" (CSV import)
+  // Format 2: "Could not convert string 'X' to UINT8" (direct INSERT)
+  const enumMatchWithColumn = message.match(
     /Could not convert string '([^']+)'.+from source column (\w+)/,
   );
-  if (enumMatch) {
+  if (enumMatchWithColumn) {
     return {
       type: "enum",
-      value: enumMatch[1],
-      fieldName: enumMatch[2],
+      value: enumMatchWithColumn[1],
+      fieldName: enumMatchWithColumn[2],
+      message,
+    };
+  }
+
+  const enumMatchSimple = message.match(
+    /Could not convert string '([^']+)' to UINT8/,
+  );
+  if (enumMatchSimple) {
+    return {
+      type: "enum",
+      value: enumMatchSimple[1],
       message,
     };
   }
 
   // FOREIGN KEY constraint violation
-  // Example: "Constraint Error: Violates foreign key constraint because key "eventID: E999" does not exist in the referenced table"
-  // Example: "FOREIGN KEY constraint violation: key "eventID": "E999" does not exist"
-  const fkMatch = message.match(/FOREIGN KEY constraint/i) ||
-    message.match(/foreign key constraint/i) ||
-    message.match(/does not exist in the referenced table/i);
+  // Format: 'Violates foreign key constraint because key "field: value" does not exist in the referenced table'
+  const fkMatch = message.match(/foreign key constraint/i);
   if (fkMatch) {
-    // Try to extract field name and value from various DuckDB FK error formats
-    // Format 1: key "fieldName: value"
-    const keyMatch1 = message.match(/key "(\w+):\s*([^"]+)"/);
-    // Format 2: key "fieldName": "value"
-    const keyMatch2 = message.match(/key "(\w+)":\s*"([^"]+)"/);
-    // Format 3: column fieldName with value
-    const keyMatch3 = message.match(/column (\w+).+value[:\s]+['"]?([^'"]+)['"]?/i);
+    // Extract field name and value: key "fieldName: value"
+    const keyMatch = message.match(/key "(\w+):\s*([^"]+)"/);
+    const fieldName = keyMatch?.[1];
 
-    const keyMatch = keyMatch1 || keyMatch2 || keyMatch3;
+    // Try to extract referenced table from error message
+    const refTableMatch = message.match(
+      /does not exist in the referenced table "(\w+)"/i,
+    );
+    const referencedTable = refTableMatch?.[1];
 
     return {
       type: "foreign-key",
-      fieldName: keyMatch?.[1],
+      fieldName,
       value: keyMatch?.[2],
+      referencedTable,
+      referencedField: fieldName,
       message,
     };
   }
 
   // CHECK constraint violation
+  // Format: 'CHECK constraint failed on table X with expression...'
   const checkMatch = message.match(/CHECK constraint/i);
   if (checkMatch) {
     return {
@@ -175,4 +228,54 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
     type: "unknown",
     message,
   };
+}
+
+/**
+ * Context for formatting constraint violations
+ */
+export interface ConstraintViolationContext {
+  readonly type: ParsedErrorType;
+  readonly fieldName: string;
+  readonly value: string;
+  readonly message: string;
+  readonly datasetName?: string;
+  readonly fkRule?: ForeignKeyRuleMatch;
+  readonly referencedTable?: string;
+  readonly referencedField?: string;
+}
+
+/**
+ * Format a constraint violation into a human-readable message
+ *
+ * Shared formatting logic for both validation and transformation workflows.
+ * Requires fieldName and value to be provided explicitly to avoid ambiguous messages.
+ *
+ * @param ctx - Violation context with required field and value information
+ * @returns Formatted error message
+ */
+export function formatConstraintViolation(ctx: ConstraintViolationContext): string {
+  const dataset = ctx.datasetName ? `'${ctx.datasetName}'` : "dataset";
+
+  return Match.value(ctx.type).pipe(
+    Match.when("foreign-key", () => {
+      const target = ctx.fkRule
+        ? `${ctx.fkRule.targetDataset}.${ctx.fkRule.targetField}`
+        : ctx.referencedTable
+        ? `${ctx.referencedTable}.${ctx.referencedField ?? ctx.fieldName}`
+        : "referenced table";
+      return `Foreign key violation in ${dataset}: ${ctx.fieldName} value "${ctx.value}" does not exist in ${target}`;
+    }),
+    Match.when("primary-key", () => {
+      return `Primary key violation in ${dataset}: duplicate value "${ctx.value}"`;
+    }),
+    Match.when("not-null", () => {
+      return `Not-null violation in ${dataset}: ${ctx.fieldName} cannot be null`;
+    }),
+    Match.when("enum", () => {
+      return `Enum violation in ${dataset}: "${ctx.value}" is not a valid value for ${ctx.fieldName}`;
+    }),
+    Match.when("check", () => `Check constraint violation in ${dataset}`),
+    Match.when("unknown", () => `Constraint violation in ${dataset}: ${ctx.message}`),
+    Match.exhaustive,
+  );
 }

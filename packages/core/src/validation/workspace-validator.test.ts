@@ -508,10 +508,28 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
     const result = await validateWorkspace(tempDir);
 
-    // Should detect violation for E2
+    // FK violation is caught during insert via DuckDB FK constraint (not cross-dataset validation)
+    // This is more efficient as violations are caught earlier
+    const occurrenceResult = result.datasetResults.find((r) => r.datasetName === "occurrences");
+    assertExists(occurrenceResult);
+
+    // Should detect FK violation for E2 in field violations
+    const fkViolations = occurrenceResult.fieldViolations.errors.filter(
+      (v) => v.validatorType === "foreign-key",
+    );
+    assertEquals(fkViolations.length, 1);
+
+    const violation = fkViolations[0];
+    assertEquals(violation.value, "E2");
+
+    // Verify FK violation includes rule context in params
+    const params = violation.params as { targetDataset?: string; targetField?: string } | undefined;
+    assertEquals(params?.targetDataset, "events");
+    assertEquals(params?.targetField, "eventID");
+
+    // Cross-dataset validation finds nothing (row was rejected at insert)
     assertEquals(result.crossDatasetResults.length, 1);
-    assertEquals(result.crossDatasetResults[0].violations.length, 1);
-    assertEquals(result.crossDatasetResults[0].violations[0].value, "E2");
+    assertEquals(result.crossDatasetResults[0].violations.length, 0);
   });
 
   await t.step("handles missing source fields with warning", async () => {
