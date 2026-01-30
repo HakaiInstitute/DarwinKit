@@ -1,22 +1,12 @@
 /**
  * @dwkt/core - Core business logic and Node.js-specific implementations
+ *
+ * Note: Workspace error types (ConfigNotFoundError, WorkspaceValidationError, etc.)
+ * should be imported from @dwkt/domain, not from @dwkt/core.
  */
 
 // Workspace
 export { type ValidationOptions, Workspace } from "./src/workspace/workspace.ts";
-
-// Workspace errors
-export {
-  ConfigNotFoundError,
-  ConfigParseError,
-  ConfigValidationError,
-  DatasetFileNotFoundError,
-  formatWorkspaceConfigError,
-  prettyPrintWorkspaceError,
-  TransformInputNotFoundError,
-  ValidationConfigMissingError,
-  type WorkspaceConfigError,
-} from "./src/workspace/errors.ts";
 
 // Workspace validation
 export * from "./src/validation/workspace-validator.ts";

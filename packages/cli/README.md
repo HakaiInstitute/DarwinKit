@@ -86,7 +86,7 @@ CLI commands use Effect's error handling patterns:
 
 - Expected errors (validation failures, missing files) use `Effect.fail`
 - Unexpected errors (system failures) use `Effect.die`
-- Use `prettyPrintCause` from `@dwkt/core` for user-friendly error formatting
+- Use `prettyPrintCause` from `@dwkt/domain` for user-friendly error formatting
 
 ### Output Formatting
 

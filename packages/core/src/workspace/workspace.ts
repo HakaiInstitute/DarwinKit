@@ -21,22 +21,22 @@ import type {
   DatasetConfig,
   ValidationSettings,
   WorkspaceConfig,
+  WorkspaceConfigError,
   WorkspaceValidationResult,
 } from "@dwkt/domain";
-import { hasValidationConfig, workspaceConfigSchema } from "@dwkt/domain";
-
-import { ValidationError } from "../errors/index.ts";
-import { WorkspaceValidator } from "../validation/workspace-validator.ts";
-
 import {
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
+  hasValidationConfig,
   TransformInputNotFoundError,
   ValidationConfigMissingError,
-  type WorkspaceConfigError,
-} from "./errors.ts";
+  workspaceConfigSchema,
+} from "@dwkt/domain";
+
+import { ValidationError } from "../errors/index.ts";
+import { WorkspaceValidator } from "../validation/workspace-validator.ts";
 
 // Configuration file constants
 const DEFAULT_CONFIG_FILENAME = "darwinkit.yaml";

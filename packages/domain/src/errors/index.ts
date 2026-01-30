@@ -18,3 +18,5 @@ export { ErrorSeverity } from "./severity.ts";
 // Import violation classes to extract their tags
 
 export { createTaggedFormatter, prettyPrintCause } from "./cause-formatter.ts";
+
+export * from "./workspace.ts";
