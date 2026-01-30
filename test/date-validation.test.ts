@@ -2,7 +2,7 @@
  * Date Validation Test
  *
  * Ensures that temporal field validation is working correctly
- * for year, month, and day fields.
+ * for year, month, and day fields (range validation).
  */
 
 import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";

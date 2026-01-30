@@ -165,3 +165,10 @@ export function partitionSchemaViolations(
 
   return { errors, warnings, info };
 }
+
+/**
+ * Create an empty partitioned schema violations object
+ */
+export function emptyPartitionedSchemaViolations(): PartitionedViolations<SchemaViolation> {
+  return { errors: [], warnings: [], info: [] };
+}
