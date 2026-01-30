@@ -175,10 +175,6 @@ export interface ValidField {
  * FieldViolation represents data-level violations found during validation.
  * These are returned in the error channel using Effect.fail().
  *
- * Note: CrossDatasetViolation is NOT part of this union - it's a standalone type
- * used separately in CrossDatasetValidationResult because cross-dataset validation
- * operates at a different level (between datasets, not within a single field).
- *
  * Use the provided type guard helpers for filtering:
  *
  * @example Type guard filtering
@@ -191,6 +187,7 @@ export type FieldViolation =
   | RangeViolation
   | VocabularyViolation
   | UniquenessViolation
+  | CrossDatasetViolation
   | PrimaryKeyViolation
   | NotNullViolation
   | EnumViolation
@@ -265,22 +262,9 @@ export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolati
 
 /**
  * Type guard helper for CrossDatasetViolation
- *
- * Note: CrossDatasetViolation is NOT part of the FieldViolation union
- * because it operates at a different level (between datasets, not within fields).
- * This guard works on unknown values for flexibility.
- *
- * @example
- * ```typescript
- * const crossDatasetErrors = violations.filter(isCrossDatasetViolation);
- * // TypeScript knows crossDatasetErrors is CrossDatasetViolation[]
- * ```
  */
-export function isCrossDatasetViolation(v: unknown): v is CrossDatasetViolation {
-  return v !== null &&
-    typeof v === "object" &&
-    "_tag" in v &&
-    v._tag === "CrossDatasetViolation";
+export function isCrossDatasetViolation(v: FieldViolation): v is CrossDatasetViolation {
+  return v._tag === "CrossDatasetViolation";
 }
 
 /**
@@ -311,10 +295,12 @@ export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSever
 }
 
 /**
- * Partition field violations by enforcement level
+ * Partition field violations by severity level
  *
- * Groups violations into errors (required), warnings (recommended),
- * and info (optional) based on their enforcement level.
+ * Groups violations into errors, warnings, and info based on their
+ * severity level. This is more semantically correct than partitioning
+ * by enforcement since severity is the actual categorization used
+ * for reporting.
  *
  * @param violations - Array of violations to partition
  * @returns Partitioned violations object
@@ -327,18 +313,25 @@ export function partitionFieldViolations(
   const info: FieldViolation[] = [];
 
   for (const violation of violations) {
-    switch (violation.enforcement) {
-      case "required":
+    switch (violation.severity) {
+      case "error":
         errors.push(violation);
         break;
-      case "recommended":
+      case "warning":
         warnings.push(violation);
         break;
-      case "optional":
+      case "info":
         info.push(violation);
         break;
     }
   }
 
   return { errors, warnings, info };
+}
+
+/**
+ * Create an empty partitioned field violations object
+ */
+export function emptyPartitionedFieldViolations(): PartitionedViolations<FieldViolation> {
+  return { errors: [], warnings: [], info: [] };
 }
