@@ -1,7 +1,7 @@
 /**
  * Example Configuration Test
  *
- * Ensures that the example darwinkit.json configuration in test/example-config/
+ * Ensures that the example darwinkit.yaml configuration in test/example-config/
  * is always valid and can successfully validate the sample data.
  *
  * This test serves as both documentation and a smoke test for the validation system.

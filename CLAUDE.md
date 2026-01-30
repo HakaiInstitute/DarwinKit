@@ -77,7 +77,7 @@ packages/
 **Data Storage:**
 
 - **DuckDB** - In-memory database for CSV parsing, schema inference, and validation operations
-- **File-based configuration** - `darwinkit.json` files for dataset configuration and field mappings
+- **File-based configuration** - `darwinkit.yaml` files for dataset configuration and field mappings
 
 **External Resources:**
 
@@ -197,7 +197,7 @@ DarwinKit uses Effect's resource management patterns for workspace operations:
 
 DarwinKit's current workflow centers on config-based validation:
 
-1. **Define datasets** in `darwinkit.json` configuration files
+1. **Define datasets** in `darwinkit.yaml` configuration files
 2. **Map fields** from CSV columns to Darwin Core fields
 3. **Configure validation** with profile selection and custom rules
 4. **Run validation** via CLI to check data quality
@@ -205,56 +205,53 @@ DarwinKit's current workflow centers on config-based validation:
 
 ## Config-Based Validation
 
-DarwinKit supports configuration-driven validation for multi-dataset projects using `darwinkit.json` files.
+DarwinKit supports configuration-driven validation for multi-dataset projects using `darwinkit.yaml` files.
 
 ### Configuration Format
 
-```json
-{
-  "name": "Marine Biodiversity Dataset",
-  "version": "1.0.0",
-  "description": "Survey data validation configuration",
+```yaml
+name: Marine Biodiversity Dataset
+version: 1.0.0
+description: Survey data validation configuration
 
-  "validation": {
-    "nullValues": ["NA", "N/A", "", "NULL", "null"],
-    "failFast": false,
-    "outputDir": "./validation_results"
-  },
+validation:
+  nullValues:
+    - NA
+    - N/A
+    - ""
+    - "NULL"
+    - "null"
+  failFast: false
+  outputDir: ./validation_results
+  datasets:
+    - name: event_data
+      spec: dwc-event
+      path: ../data/FC2022_event.csv
+      description: Sampling events
+      fieldMappings:
+        - originName: eventID
+          targetName: eventID
+          isRequired: true
+        - originName: country
+          targetName: country
+          isRequired: true
 
-  "datasets": [
-    {
-      "name": "event_data",
-      "spec": "dwc-event",
-      "path": "../data/FC2022_event.csv",
-      "description": "Sampling events",
-
-      "fieldMappings": [
-        {"originName": "eventID", "targetName": "eventID", "isRequired": true},
-        {"originName": "country", "targetName": "country", "isRequired": true}
-      ]
-    }
-  ],
-
-  "crossDatasetRules": [
-    {
-      "ruleType": "foreignKey",
-      "sourceDataset": "occurrence_data",
-      "sourceField": "eventID",
-      "targetDataset": "event_data",
-      "targetField": "eventID"
-    }
-  ]
-}
+crossDatasetRules:
+  - ruleType: foreignKey
+    sourceDataset: occurrence_data
+    sourceField: eventID
+    targetDataset: event_data
+    targetField: eventID
 ```
 
 ### CLI Validation Workflow
 
 ```bash
-# Auto-discover darwinkit.json in current or parent directories
+# Auto-discover darwinkit.yaml in current or parent directories
 deno task cli validate
 
-# Specify config directory
-deno task cli validate --config /path/to/workspace
+# Specify config file path
+deno task cli validate --config /path/to/darwinkit.yaml
 
 # Output results as JSON
 deno task cli validate --format json
@@ -281,7 +278,7 @@ import * as Effect from "effect/Effect";
 const result = await Effect.runPromise(
   Effect.scoped(
     Effect.gen(function* () {
-      const workspace = yield* Workspace.open("./darwinkit.json");
+      const workspace = yield* Workspace.open("./darwinkit.yaml");
       return yield* workspace.validate();
     })
   )
@@ -295,7 +292,7 @@ import { makeWorkspaceLayer, WorkspaceService } from "@dwkt/core";
 import * as Effect from "effect/Effect";
 
 // Create a layer for a specific workspace
-const WorkspaceLive = makeWorkspaceLayer("./darwinkit.json");
+const WorkspaceLive = makeWorkspaceLayer("./darwinkit.yaml");
 
 // Use in Effect programs - connection stays open for layer lifetime
 const program = Effect.gen(function* () {
@@ -315,13 +312,13 @@ import { WorkspaceValidator } from "@dwkt/core";
 
 const validator = new WorkspaceValidator();
 const result = await Effect.runPromise(
-  validator.validateFromConfig("./path/to/darwinkit.json")
+  validator.validateFromConfig("./path/to/darwinkit.yaml")
 );
 ```
 
 ### Example Configuration
 
-A working example configuration is available at `test/example-config/darwinkit.json` with corresponding test data in `test/data/`. This example uses real marine biodiversity survey data (FC2022) and demonstrates:
+A working example configuration is available at `test/example-config/darwinkit.yaml` with corresponding test data in `test/data/`. This example uses real marine biodiversity survey data (FC2022) and demonstrates:
 
 - Multi-dataset validation (events + occurrences)
 - Field mappings to Darwin Core

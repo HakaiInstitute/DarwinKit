@@ -8,6 +8,7 @@
 import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
 import { assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
+import { stringify as stringifyYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
 import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
 
@@ -54,9 +55,19 @@ E4,2022,6,32,2022-06-32`;
         updatedAt: new Date(),
       };
 
+      // Convert dates to ISO strings for YAML serialization
+      const configForYaml = {
+        ...config,
+        createdAt: config.createdAt instanceof Date
+          ? config.createdAt.toISOString()
+          : config.createdAt,
+        updatedAt: config.updatedAt instanceof Date
+          ? config.updatedAt.toISOString()
+          : config.updatedAt,
+      };
       await Deno.writeTextFile(
-        join(tempDir, "darwinkit.json"),
-        JSON.stringify(config, null, 2),
+        join(tempDir, "darwinkit.yaml"),
+        stringifyYAML(configForYaml),
       );
 
       const validator = new WorkspaceValidator();

@@ -106,6 +106,8 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
 
   return {
     ...profile,
+    // Ensure id is set (JSON profiles may only have 'name', not 'id')
+    id: profile.id ?? profile.name,
     // Keep raw fields for transformation (SQL DDL generation)
     fields: "fields" in profile ? profile.fields : undefined,
     // Add normalized fields for validation
@@ -134,6 +136,7 @@ export function getValidationProfile(profileId: string): ValidationProfile | und
   }
 
   // Fall back to JSON schema (for base Darwin Core profiles like "Event", "Occurrence")
+  // TODO: Don't cast here
   const rawJsonProfile = (DWC_SCHEMA as unknown as Record<string, unknown>)[profileId];
 
   if (!rawJsonProfile) return undefined;

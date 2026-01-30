@@ -175,6 +175,7 @@ export function validateRangeConstraints(
     const validationEffects = rangeValidators.map((validator) => {
       // Normalize validator format: JSON schema may have min/max at top level,
       // but ValidatorConfig expects them under params
+      // TODO: Don't cast here
       const validatorUnknown = validator as unknown as Record<string, unknown>;
       const normalizedValidator = {
         type: validator.type,

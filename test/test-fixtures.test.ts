@@ -9,22 +9,23 @@
 import { Workspace } from "@dwkt/core";
 import { type WorkspaceConfig, workspaceConfigSchema } from "@dwkt/domain";
 import { assert, assertExists } from "@std/assert";
+import { parse as parseYAML } from "@std/yaml";
 import { Schema } from "effect";
 import * as Effect from "effect/Effect";
 
 /**
- * Load and validate a workspace config from a JSON file
+ * Load and validate a workspace config from a YAML file
  */
 async function loadExpectedConfig(configPath: string): Promise<WorkspaceConfig> {
-  const configFile = `${configPath}/darwinkit.json`;
+  const configFile = `${configPath}/darwinkit.yaml`;
 
   return await Effect.runPromise(
     Effect.gen(function* (_) {
       const fileContents = yield* _(
         Effect.tryPromise(() => Deno.readTextFile(configFile)),
       );
-      const rawJson = JSON.parse(fileContents);
-      return yield* _(Schema.decode(workspaceConfigSchema)(rawJson));
+      const rawConfig = parseYAML(fileContents);
+      return yield* _(Schema.decodeUnknown(workspaceConfigSchema)(rawConfig));
     }),
   );
 }

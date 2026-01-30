@@ -5,6 +5,7 @@
 import { isRangeViolation, WorkspaceConfig } from "@dwkt/domain";
 import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
+import { stringify as stringifyYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
 import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
 
@@ -57,8 +58,16 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
       };
 
       Deno.writeTextFileSync(
-        join(tempDir, "darwinkit.json"),
-        JSON.stringify(config, null, 2),
+        join(tempDir, "darwinkit.yaml"),
+        stringifyYAML({
+          ...config,
+          createdAt: config.createdAt instanceof Date
+            ? config.createdAt.toISOString()
+            : config.createdAt,
+          updatedAt: config.updatedAt instanceof Date
+            ? config.updatedAt.toISOString()
+            : config.updatedAt,
+        }),
       );
 
       // Validate
@@ -139,8 +148,16 @@ E2,2022-09-16,49.9012,-125.4789`;
       };
 
       Deno.writeTextFileSync(
-        join(tempDir, "darwinkit.json"),
-        JSON.stringify(config, null, 2),
+        join(tempDir, "darwinkit.yaml"),
+        stringifyYAML({
+          ...config,
+          createdAt: config.createdAt instanceof Date
+            ? config.createdAt.toISOString()
+            : config.createdAt,
+          updatedAt: config.updatedAt instanceof Date
+            ? config.updatedAt.toISOString()
+            : config.updatedAt,
+        }),
       );
 
       // Validate
@@ -224,8 +241,16 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     };
 
     Deno.writeTextFileSync(
-      join(tempDir, "darwinkit.json"),
-      JSON.stringify(config, null, 2),
+      join(tempDir, "darwinkit.yaml"),
+      stringifyYAML({
+        ...config,
+        createdAt: config.createdAt instanceof Date
+          ? config.createdAt.toISOString()
+          : config.createdAt,
+        updatedAt: config.updatedAt instanceof Date
+          ? config.updatedAt.toISOString()
+          : config.updatedAt,
+      }),
     );
 
     // Validate
