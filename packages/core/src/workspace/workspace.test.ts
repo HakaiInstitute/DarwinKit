@@ -1,9 +1,17 @@
 import { assert, assertEquals } from "@std/assert";
+import { dirname, fromFileUrl, join } from "@std/path";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import { Workspace } from "./workspace.ts";
+
+// Compute path relative to this test file (works regardless of cwd)
+const testDir = dirname(fromFileUrl(import.meta.url));
+const exampleConfigPath = join(
+  testDir,
+  "../../../../test/example-config/darwinkit.yaml",
+);
 
 Deno.test("Workspace.open fails with clear error when config file path doesn't exist", async () => {
   const result = await Effect.runPromiseExit(
@@ -47,9 +55,7 @@ Deno.test("Workspace.open succeeds with existing config file", async () => {
   const result = await Effect.runPromiseExit(
     Effect.scoped(
       Effect.gen(function* () {
-        const workspace = yield* Workspace.open(
-          "../../test/example-config/darwinkit.yaml",
-        );
+        const workspace = yield* Workspace.open(exampleConfigPath);
         return workspace.name;
       }),
     ),
