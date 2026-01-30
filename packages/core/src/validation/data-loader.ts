@@ -245,8 +245,9 @@ function handleForeignKeyViolation(
         const csvValue = parsed.value ??
           (yield* _(getCsvValue(ctx.connection, ctx.rawTableName, mapping.origin, ctx.rowNum)));
 
-        // Derive the referenced table from the field name (eventID -> event)
-        const referencedTable = mapping.target.slice(0, -2).toLowerCase();
+        // Use parsed referencedTable if available, otherwise derive from field name
+        const referencedTable = parsed.referencedTable ??
+          mapping.target.slice(0, -2).toLowerCase();
 
         return [
           new ForeignKeyViolation({
@@ -275,8 +276,9 @@ function handleForeignKeyViolation(
     const csvValue = parsed.value ??
       (yield* _(getCsvValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum)));
 
-    // Derive the referenced table from the field name (eventID -> event)
-    const referencedTable = fkMapping.target.slice(0, -2).toLowerCase();
+    // Use parsed referencedTable if available, otherwise derive from field name
+    const referencedTable = parsed.referencedTable ??
+      fkMapping.target.slice(0, -2).toLowerCase();
 
     return [
       new ForeignKeyViolation({
@@ -300,8 +302,8 @@ function handleForeignKeyViolation(
 /**
  * Create violations from a parsed DuckDB error
  *
- * Uses Match pattern matching to handle different error types.
- * Returns empty array for unhandled error types (check constraints, unknown).
+ * Uses exhaustive Match pattern matching to handle all error types at compile time.
+ * Returns empty array for error types that don't generate violations (check, unknown).
  */
 function createViolationsFromError(
   parsed: ParsedErrorInfo,
@@ -312,8 +314,9 @@ function createViolationsFromError(
     Match.when({ type: "not-null" }, (p) => handleNotNullViolation(p, ctx)),
     Match.when({ type: "enum" }, (p) => handleEnumViolation(p, ctx)),
     Match.when({ type: "foreign-key" }, (p) => handleForeignKeyViolation(p, ctx)),
-    // Check and unknown errors don't generate violations
-    Match.orElse(() => Effect.succeed([])),
+    Match.when({ type: "check" }, () => Effect.succeed([])),
+    Match.when({ type: "unknown" }, () => Effect.succeed([])),
+    Match.exhaustive,
   );
 }
 

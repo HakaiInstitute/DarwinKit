@@ -59,18 +59,25 @@ export function formatNullValues(nullValues: readonly string[]): string {
 }
 
 /**
+ * Parsed error type for DuckDB constraint violations
+ */
+export type ParsedErrorType =
+  | "primary-key"
+  | "not-null"
+  | "enum"
+  | "foreign-key"
+  | "check"
+  | "unknown";
+
+/**
  * Parsed DuckDB error information
  */
 export interface ParsedErrorInfo {
-  readonly type:
-    | "primary-key"
-    | "not-null"
-    | "enum"
-    | "foreign-key"
-    | "check"
-    | "unknown";
+  readonly type: ParsedErrorType;
   readonly fieldName?: string;
   readonly value?: string;
+  readonly referencedTable?: string;
+  readonly referencedField?: string;
   readonly message: string;
 }
 
@@ -87,23 +94,11 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
   const message = error.message;
 
   // PRIMARY KEY or UNIQUE constraint violation
-  // Example 1: "Constraint Error: PRIMARY KEY or UNIQUE constraint violation: duplicate key "E1""
-  // Example 2: "Constraint Error: Duplicate key "eventID: E1" violates primary key constraint."
-  let pkMatch = message.match(
-    /PRIMARY KEY or UNIQUE constraint violation: duplicate key "([^"]+)"/,
+  // Format: 'Duplicate key "field: value" violates (primary key|unique) constraint.'
+  const pkMatch = message.match(
+    /Duplicate key "(?:\w+:\s*)?([^"]+)" violates (?:primary key|unique) constraint/,
   );
-  if (pkMatch) {
-    return {
-      type: "primary-key",
-      value: pkMatch[1],
-      message,
-    };
-  }
 
-  // Alternative format for duplicate keys
-  pkMatch = message.match(
-    /Duplicate key "(?:\w+:\s*)?([^"]+)" violates primary key constraint/,
-  );
   if (pkMatch) {
     return {
       type: "primary-key",
@@ -113,56 +108,73 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
   }
 
   // NOT NULL constraint violation
-  // Example: "Constraint Error: NOT NULL constraint failed: column_name"
-  const notNullMatch = message.match(/NOT NULL constraint failed:?\s*(.+)?/i);
+  // Format: 'NOT NULL constraint failed: table.column'
+  const notNullMatch = message.match(/NOT NULL constraint failed:\s*(.+)?/i);
   if (notNullMatch) {
+    // Extract just the column name if table.column format
+    const fieldPart = notNullMatch[1]?.trim();
+    const fieldName = fieldPart?.includes(".") ? fieldPart.split(".").pop() : fieldPart;
     return {
       type: "not-null",
-      fieldName: notNullMatch[1]?.trim(),
+      fieldName,
       message,
     };
   }
 
   // ENUM/Type conversion error
-  // Example: "Conversion Error: Could not convert string 'InvalidBasis' to UINT8 when casting from source column basisOfRecord"
-  const enumMatch = message.match(
+  // Format 1: "Could not convert string 'X' to UINT8 when casting from source column Y" (CSV import)
+  // Format 2: "Could not convert string 'X' to UINT8" (direct INSERT)
+  const enumMatchWithColumn = message.match(
     /Could not convert string '([^']+)'.+from source column (\w+)/,
   );
-  if (enumMatch) {
+  if (enumMatchWithColumn) {
     return {
       type: "enum",
-      value: enumMatch[1],
-      fieldName: enumMatch[2],
+      value: enumMatchWithColumn[1],
+      fieldName: enumMatchWithColumn[2],
+      message,
+    };
+  }
+
+  const enumMatchSimple = message.match(
+    /Could not convert string '([^']+)' to UINT8/,
+  );
+  if (enumMatchSimple) {
+    return {
+      type: "enum",
+      value: enumMatchSimple[1],
       message,
     };
   }
 
   // FOREIGN KEY constraint violation
-  // Example: "Constraint Error: Violates foreign key constraint because key "eventID: E999" does not exist in the referenced table"
-  // Example: "FOREIGN KEY constraint violation: key "eventID": "E999" does not exist"
-  const fkMatch = message.match(/FOREIGN KEY constraint/i) ||
-    message.match(/foreign key constraint/i) ||
-    message.match(/does not exist in the referenced table/i);
+  // Format: 'Violates foreign key constraint because key "field: value" does not exist in the referenced table'
+  const fkMatch = message.match(/foreign key constraint/i);
   if (fkMatch) {
-    // Try to extract field name and value from various DuckDB FK error formats
-    // Format 1: key "fieldName: value"
-    const keyMatch1 = message.match(/key "(\w+):\s*([^"]+)"/);
-    // Format 2: key "fieldName": "value"
-    const keyMatch2 = message.match(/key "(\w+)":\s*"([^"]+)"/);
-    // Format 3: column fieldName with value
-    const keyMatch3 = message.match(/column (\w+).+value[:\s]+['"]?([^'"]+)['"]?/i);
+    // Extract field name and value: key "fieldName: value"
+    const keyMatch = message.match(/key "(\w+):\s*([^"]+)"/);
+    const fieldName = keyMatch?.[1];
 
-    const keyMatch = keyMatch1 || keyMatch2 || keyMatch3;
+    // Try to extract referenced table from error message
+    const refTableMatch = message.match(
+      /does not exist in the referenced table "(\w+)"/i,
+    );
+    // Fall back to inferring from field name (eventID -> event)
+    const referencedTable = refTableMatch?.[1] ??
+      (fieldName?.endsWith("ID") ? fieldName.slice(0, -2).toLowerCase() : undefined);
 
     return {
       type: "foreign-key",
-      fieldName: keyMatch?.[1],
+      fieldName,
       value: keyMatch?.[2],
+      referencedTable,
+      referencedField: fieldName,
       message,
     };
   }
 
   // CHECK constraint violation
+  // Format: 'CHECK constraint failed on table X with expression...'
   const checkMatch = message.match(/CHECK constraint/i);
   if (checkMatch) {
     return {
