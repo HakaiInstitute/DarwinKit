@@ -405,7 +405,6 @@ function loadConfig(
         new ConfigParseError({
           message: `Invalid YAML syntax`,
           configPath,
-          format: "yaml",
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
     });

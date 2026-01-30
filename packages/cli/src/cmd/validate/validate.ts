@@ -174,7 +174,6 @@ function handleValidateError(
       Output.error('❌ Configuration parse error:');
       Output.error(e.message);
       Output.muted(`File: ${e.configPath}`);
-      Output.muted(`Format: ${e.format.toUpperCase()}`);
       return 3;
     }),
     Match.tag('ConfigValidationError', (e) => {

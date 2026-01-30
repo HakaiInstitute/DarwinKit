@@ -48,7 +48,7 @@ Deno.test("Workspace.open succeeds with existing config file", async () => {
     Effect.scoped(
       Effect.gen(function* () {
         const workspace = yield* Workspace.open(
-          "./test/example-config/darwinkit.yaml",
+          "../../test/example-config/darwinkit.yaml",
         );
         return workspace.name;
       }),
