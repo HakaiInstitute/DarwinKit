@@ -4,9 +4,9 @@ import { join, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import { Workspace, type WorkspaceConfigError, WorkspaceImportError } from "@dwkt/core";
-import type { WorkspaceConfig } from "@dwkt/domain";
-import { getValidationProfile, hasTransformationConfig } from "@dwkt/domain";
+import { Workspace } from "@dwkt/core";
+import type { WorkspaceConfig, WorkspaceConfigError } from "@dwkt/domain";
+import { getValidationProfile, hasTransformationConfig, WorkspaceImportError } from "@dwkt/domain";
 import { importCsv } from "../loading/csv-import.ts";
 import { importSchema } from "../loading/schema.ts";
 

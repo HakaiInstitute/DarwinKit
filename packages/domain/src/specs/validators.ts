@@ -9,6 +9,7 @@
 import * as S from "effect/Schema";
 import type { Field } from "../schemas/validation-profile.ts";
 import type { FieldDefinition } from "./field-definition.ts";
+import type { VocabularyEnforcement } from "./vocabularies/config.ts";
 
 /**
  * Available validator types
@@ -120,4 +121,25 @@ export function hasControlledVocabulary(
   }
 
   return false;
+}
+
+/**
+ * Map VocabularyEnforcement to EnforcementLevel
+ *
+ * Converts vocabulary-specific enforcement to standard enforcement levels:
+ * - strict → required (ERROR)
+ * - recommended → recommended (WARNING)
+ * - loose → optional (no violations generated - any value accepted)
+ */
+export function vocabularyEnforcementToStandard(
+  vocabEnforcement: VocabularyEnforcement,
+): EnforcementLevel {
+  switch (vocabEnforcement) {
+    case "strict":
+      return "required";
+    case "recommended":
+      return "recommended";
+    case "loose":
+      return "optional";
+  }
 }

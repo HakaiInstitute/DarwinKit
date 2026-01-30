@@ -1,46 +1,22 @@
 /**
  * Core Error Types
  *
- * Centralized error definitions for the core package. Re-exports specialized
- * error types from their source modules for convenient imports.
+ * Error definitions specific to the core package.
+ * Workspace error types (ConfigNotFoundError, WorkspaceValidationError, etc.)
+ * should be imported from @dwkt/domain.
  *
  * Usage:
  * ```typescript
- * import { ValidationError, WorkspaceValidationError } from "@dwkt/core/errors";
- *
- * // For workspace validation operations
- * return Effect.fail(new WorkspaceValidationError({
- *   message: "Validation failed",
- *   cause: originalError,
- * }));
- *
- * // For simplified validation interface
- * return Effect.fail(new ValidationError({
- *   message: "Validation failed",
- * }));
+ * import { ValidationError, CsvImportError } from "@dwkt/core";
+ * import { WorkspaceValidationError } from "@dwkt/domain";
  * ```
  */
 
 import * as Data from "effect/Data";
 
-// Re-export error classes from their source modules
+// Core-specific error types
 export { ParseError } from "../loading/csv-parser.ts";
 export type { OutputError, TransformationError } from "../transform/transform.ts";
-export {
-  WorkspaceImportError,
-  WorkspaceValidationError,
-} from "../validation/workspace-validator.ts";
-export {
-  ConfigNotFoundError,
-  ConfigParseError,
-  ConfigValidationError,
-  DatasetFileNotFoundError,
-  formatWorkspaceConfigError,
-  prettyPrintWorkspaceError,
-  TransformInputNotFoundError,
-  ValidationConfigMissingError,
-  type WorkspaceConfigError,
-} from "../workspace/errors.ts";
 
 /**
  * Validation operation errors
@@ -53,6 +29,9 @@ export class ValidationError extends Data.TaggedError("ValidationError")<{
   readonly cause?: Error;
 }> {}
 
+/**
+ * CSV import operation errors
+ */
 export class CsvImportError extends Data.TaggedClass("CsvImportError")<{
   readonly message: string;
   readonly tableName: string;
