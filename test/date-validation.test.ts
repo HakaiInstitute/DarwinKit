@@ -11,6 +11,7 @@ import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
 import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
+import { prepareConfigForYaml } from "./helpers/config-utils.ts";
 
 Deno.test({
   name: "WorkspaceValidator - validates date ranges",
@@ -55,19 +56,9 @@ E4,2022,6,32,2022-06-32`;
         updatedAt: new Date(),
       };
 
-      // Convert dates to ISO strings for YAML serialization
-      const configForYaml = {
-        ...config,
-        createdAt: config.createdAt instanceof Date
-          ? config.createdAt.toISOString()
-          : config.createdAt,
-        updatedAt: config.updatedAt instanceof Date
-          ? config.updatedAt.toISOString()
-          : config.updatedAt,
-      };
       await Deno.writeTextFile(
         join(tempDir, "darwinkit.yaml"),
-        stringifyYAML(configForYaml),
+        stringifyYAML(prepareConfigForYaml(config)),
       );
 
       const validator = new WorkspaceValidator();
