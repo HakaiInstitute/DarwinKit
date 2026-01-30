@@ -4,8 +4,10 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
+import type { WorkspaceCrossDatasetRule } from "@dwkt/domain";
 import { assertEquals } from "@std/assert";
 import {
+  findForeignKeyRule,
   formatNullValues,
   type ParsedErrorInfo,
   type ParsedErrorType,
@@ -165,3 +167,91 @@ function assertParsedError(
 for (const testCase of constraintTestCases) {
   Deno.test(`parseDuckDBError - ${testCase.name}`, () => runConstraintTest(testCase));
 }
+
+// findForeignKeyRule tests
+
+const sampleRules: WorkspaceCrossDatasetRule[] = [
+  {
+    ruleType: "foreignKey",
+    sourceDataset: "occurrence",
+    sourceField: "eventID",
+    targetDataset: "event",
+    targetField: "eventID",
+    enforcement: "required",
+  },
+  {
+    ruleType: "foreignKey",
+    sourceDataset: "measurement",
+    sourceField: "occurrenceID",
+    targetDataset: "occurrence",
+    targetField: "occurrenceID",
+    enforcement: "recommended",
+  },
+  {
+    ruleType: "referentialIntegrity",
+    sourceDataset: "event",
+    sourceField: "eventID",
+    targetDataset: "event",
+    targetField: "eventID",
+  },
+];
+
+Deno.test("findForeignKeyRule - finds matching rule", () => {
+  const result = findForeignKeyRule("occurrence", "eventID", sampleRules);
+
+  assertEquals(result?.targetDataset, "event");
+  assertEquals(result?.targetField, "eventID");
+  assertEquals(result?.enforcement, "required");
+});
+
+Deno.test("findForeignKeyRule - returns enforcement from rule", () => {
+  const result = findForeignKeyRule("measurement", "occurrenceID", sampleRules);
+
+  assertEquals(result?.enforcement, "recommended");
+});
+
+Deno.test("findForeignKeyRule - returns undefined for non-matching dataset", () => {
+  const result = findForeignKeyRule("nonexistent", "eventID", sampleRules);
+
+  assertEquals(result, undefined);
+});
+
+Deno.test("findForeignKeyRule - returns undefined for non-matching field", () => {
+  const result = findForeignKeyRule("occurrence", "nonexistentID", sampleRules);
+
+  assertEquals(result, undefined);
+});
+
+Deno.test("findForeignKeyRule - ignores referentialIntegrity rules", () => {
+  const result = findForeignKeyRule("event", "eventID", sampleRules);
+
+  assertEquals(result, undefined);
+});
+
+Deno.test("findForeignKeyRule - returns undefined when rules are undefined", () => {
+  const result = findForeignKeyRule("occurrence", "eventID", undefined);
+
+  assertEquals(result, undefined);
+});
+
+Deno.test("findForeignKeyRule - returns undefined when rules are empty", () => {
+  const result = findForeignKeyRule("occurrence", "eventID", []);
+
+  assertEquals(result, undefined);
+});
+
+Deno.test("findForeignKeyRule - defaults enforcement to required", () => {
+  const rulesWithoutEnforcement: WorkspaceCrossDatasetRule[] = [
+    {
+      ruleType: "foreignKey",
+      sourceDataset: "test",
+      sourceField: "refID",
+      targetDataset: "target",
+      targetField: "refID",
+    },
+  ];
+
+  const result = findForeignKeyRule("test", "refID", rulesWithoutEnforcement);
+
+  assertEquals(result?.enforcement, "required");
+});

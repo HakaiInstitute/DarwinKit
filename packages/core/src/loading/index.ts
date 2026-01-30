@@ -19,6 +19,9 @@ export { getCsvValue, importCsv } from "./csv-import.ts";
 
 // SQL utilities
 export {
+  type ConstraintViolationContext,
+  findForeignKeyRule,
+  formatConstraintViolation,
   formatNullValues,
   type ParsedErrorInfo,
   parseDuckDBError,

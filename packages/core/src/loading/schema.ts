@@ -1,7 +1,8 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
+import type { WorkspaceCrossDatasetRule } from "@dwkt/domain";
 import { getValidationProfile, parseSpecIdentifier, WorkspaceImportError } from "@dwkt/domain";
 import * as Effect from "effect/Effect";
-import { sanitizeTableName } from "./index.ts";
+import { findForeignKeyRule, sanitizeTableName } from "./index.ts";
 
 /**
  * Minimal dataset interface for schema import
@@ -37,10 +38,9 @@ type DatasetWithProfile = {
  *     - it ends with `ID` and the profile field has `unique === "true"`.
  *   - A column is marked NOT NULL if `spec.fieldOverrides?.[fieldName]?.requirement === "required"`.
  *   - Foreign key constraints:
- *     - For any column ending with `ID` that is not treated as the table's primary key,
- *       the code attempts to add `REFERENCES referencedTable(fieldName)` where
- *       `referencedTable` = `fieldName.slice(0, -2).toLowerCase()` — only if a dataset
- *       with that validation profile name exists in the provided `datasets` array.
+ *     - Created based on explicit `crossDatasetRules` from configuration.
+ *     - Only adds FK constraints when a rule with `ruleType === "foreignKey"` exists
+ *       where `sourceDataset` matches the current dataset name and `sourceField` matches the column.
  * - Executes DDL against the given `connection` using Effect-wrapped promises:
  *   - ENUM creation and table creation are executed via `connection.run(...)`
  *     wrapped in `Effect.tryPromise`.
@@ -57,7 +57,8 @@ type DatasetWithProfile = {
  * Parameters:
  * - connection: DuckDBConnection used to execute DDL statements.
  * - dataset: Dataset config with name and profile/spec (works with both validation and transform configs).
- * - datasets: readonly array of datasets used to resolve referenced tables for foreign keys.
+ * - datasets: All datasets, used to resolve target table names for FK constraints.
+ * - crossDatasetRules: Explicit FK rules from configuration. Only rules with ruleType "foreignKey" are used.
  *
  * Returns:
  * - Effect.Effect<void, WorkspaceImportError> — an Effect which completes successfully
@@ -75,6 +76,7 @@ export function importSchema(
   connection: DuckDBConnection,
   dataset: DatasetWithProfile,
   datasets: readonly DatasetWithProfile[],
+  crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
     // Load validation profile - use profile if specified, otherwise derive from spec
@@ -144,26 +146,26 @@ export function importSchema(
         // Only apply NOT NULL if this specific profile marks the field as required
         fieldStr += " NOT NULL";
       }
-      // add foreign key constraints for fields
-      // Skip FK for this table's PK, but include it for other ID fields
-      const isPrimaryKey = fieldName === tableName + "ID" ||
-        (fieldName.endsWith("ID") && isUniqueIdentifier);
-      if (fieldName.endsWith("ID") && !isPrimaryKey) {
-        const referencedTable = fieldName.slice(0, -2).toLowerCase();
-        // check if referenced table exists in config
-        if (
-          datasets.find((ds) => {
-            const profileName = ds.profile ||
-              (ds.spec
-                ? parseSpecIdentifier(ds.spec)?.type.charAt(0).toUpperCase() +
-                  ds.spec.slice(ds.spec.indexOf("-") + 1)
-                : undefined);
-            return profileName &&
-              getValidationProfile(profileName)?.name.toLowerCase() ===
-                referencedTable;
-          })
-        ) {
-          fieldStr += ` REFERENCES ${referencedTable}(${fieldName})`;
+      // Add foreign key constraint if an explicit rule exists in config
+      const fkRule = findForeignKeyRule(dataset.name, fieldName, crossDatasetRules);
+      if (fkRule) {
+        // Resolve target dataset name to table name via its profile
+        const targetDataset = datasets.find((ds) => ds.name === fkRule.targetDataset);
+        if (targetDataset) {
+          // Get profile ID for target dataset
+          let targetProfileId = targetDataset.profile;
+          if (!targetProfileId && targetDataset.spec) {
+            const parsed = parseSpecIdentifier(targetDataset.spec);
+            if (parsed) {
+              targetProfileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+            }
+          }
+          // Look up profile to get the actual table name
+          const targetProfile = targetProfileId ? getValidationProfile(targetProfileId) : undefined;
+          if (targetProfile) {
+            const referencedTable = sanitizeTableName(targetProfile.name).toLowerCase();
+            fieldStr += ` REFERENCES ${referencedTable}("${fkRule.targetField}")`;
+          }
         }
       }
       return fieldStr;

@@ -4,6 +4,9 @@
  * @module loading/sql
  */
 
+import type { ForeignKeyRuleMatch, WorkspaceCrossDatasetRule } from "@dwkt/domain";
+import * as Match from "effect/Match";
+
 /**
  * Sanitize a string for use as a SQL table name
  *
@@ -56,6 +59,46 @@ function escapeString(value: string): string {
  */
 export function formatNullValues(nullValues: readonly string[]): string {
   return nullValues.map((v) => `'${escapeString(v)}'`).join(", ");
+}
+
+/**
+ * Find a matching foreign key rule for a given dataset and field
+ *
+ * Looks up the cross-dataset rules to find explicit FK relationship metadata
+ *
+ * @param sourceDataset - The current dataset name
+ * @param sourceField - The field name to look up
+ * @param rules - The cross-dataset rules from config
+ * @returns The matching rule info, or undefined if no rule matches
+ *
+ * @example
+ * ```typescript
+ * const rules = [{ sourceDataset: "occurrence", sourceField: "eventID", targetDataset: "event", targetField: "eventID", ruleType: "foreignKey" }];
+ * findForeignKeyRule("occurrence", "eventID", rules)
+ * // { targetDataset: "event", targetField: "eventID", enforcement: "required" }
+ * ```
+ */
+export function findForeignKeyRule(
+  sourceDataset: string,
+  sourceField: string,
+  rules?: readonly WorkspaceCrossDatasetRule[],
+): ForeignKeyRuleMatch | undefined {
+  if (!rules) return undefined;
+
+  const rule = rules.find(
+    (r) =>
+      r.ruleType === "foreignKey" &&
+      r.sourceDataset === sourceDataset &&
+      r.sourceField === sourceField,
+  );
+
+  if (!rule) return undefined;
+
+  return {
+    targetDataset: rule.targetDataset,
+    targetField: rule.targetField,
+    enforcement: rule.enforcement ?? "required",
+  };
 }
 
 /**
@@ -159,9 +202,7 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
     const refTableMatch = message.match(
       /does not exist in the referenced table "(\w+)"/i,
     );
-    // Fall back to inferring from field name (eventID -> event)
-    const referencedTable = refTableMatch?.[1] ??
-      (fieldName?.endsWith("ID") ? fieldName.slice(0, -2).toLowerCase() : undefined);
+    const referencedTable = refTableMatch?.[1];
 
     return {
       type: "foreign-key",
@@ -187,4 +228,54 @@ export function parseDuckDBError(error: Error): ParsedErrorInfo {
     type: "unknown",
     message,
   };
+}
+
+/**
+ * Context for formatting constraint violations
+ */
+export interface ConstraintViolationContext {
+  readonly type: ParsedErrorType;
+  readonly fieldName: string;
+  readonly value: string;
+  readonly message: string;
+  readonly datasetName?: string;
+  readonly fkRule?: ForeignKeyRuleMatch;
+  readonly referencedTable?: string;
+  readonly referencedField?: string;
+}
+
+/**
+ * Format a constraint violation into a human-readable message
+ *
+ * Shared formatting logic for both validation and transformation workflows.
+ * Requires fieldName and value to be provided explicitly to avoid ambiguous messages.
+ *
+ * @param ctx - Violation context with required field and value information
+ * @returns Formatted error message
+ */
+export function formatConstraintViolation(ctx: ConstraintViolationContext): string {
+  const dataset = ctx.datasetName ? `'${ctx.datasetName}'` : "dataset";
+
+  return Match.value(ctx.type).pipe(
+    Match.when("foreign-key", () => {
+      const target = ctx.fkRule
+        ? `${ctx.fkRule.targetDataset}.${ctx.fkRule.targetField}`
+        : ctx.referencedTable
+        ? `${ctx.referencedTable}.${ctx.referencedField ?? ctx.fieldName}`
+        : "referenced table";
+      return `Foreign key violation in ${dataset}: ${ctx.fieldName} value "${ctx.value}" does not exist in ${target}`;
+    }),
+    Match.when("primary-key", () => {
+      return `Primary key violation in ${dataset}: duplicate value "${ctx.value}"`;
+    }),
+    Match.when("not-null", () => {
+      return `Not-null violation in ${dataset}: ${ctx.fieldName} cannot be null`;
+    }),
+    Match.when("enum", () => {
+      return `Enum violation in ${dataset}: "${ctx.value}" is not a valid value for ${ctx.fieldName}`;
+    }),
+    Match.when("check", () => `Check constraint violation in ${dataset}`),
+    Match.when("unknown", () => `Constraint violation in ${dataset}: ${ctx.message}`),
+    Match.exhaustive,
+  );
 }
