@@ -4,9 +4,12 @@ import { join, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import { Workspace } from "@dwkt/core";
-import type { WorkspaceConfig, WorkspaceConfigError } from "@dwkt/domain";
-import { getValidationProfile, hasTransformationConfig, WorkspaceImportError } from "@dwkt/domain";
+import { Workspace } from "../workspace/mod.ts";
+import type { WorkspaceConfig } from "@dwkt/domain/schemas";
+import { hasTransformationConfig } from "@dwkt/domain/schemas";
+import { getValidationProfile } from "@dwkt/domain/specs";
+import type { WorkspaceConfigError } from "@dwkt/domain/errors";
+import { WorkspaceImportError } from "@dwkt/domain/errors";
 import { importCsv } from "../loading/csv-import.ts";
 import { importSchema } from "../loading/schema.ts";
 import { findForeignKeyRule, formatConstraintViolation, parseDuckDBError } from "../loading/sql.ts";

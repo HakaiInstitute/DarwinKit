@@ -4,7 +4,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import type { WorkspaceCrossDatasetRule } from "@dwkt/domain";
+import type { WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
 import { assertEquals } from "@std/assert";
 import {
   findForeignKeyRule,
