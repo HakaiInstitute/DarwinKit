@@ -58,7 +58,7 @@ export const transformDatasetConfigSchema = S.Struct({
  */
 export const validationSettingsSchema = S.Struct({
   nullValues: S.optionalWith(S.Array(S.String), {
-    default: () => ['NA', 'N/A', '', 'NULL', 'null']
+    default: () => ["NA", "N/A", "", "NULL", "null"],
   }),
   failFast: S.optionalWith(S.Boolean, { default: () => false }),
   debug: S.optionalWith(S.Boolean, { default: () => false }),
@@ -74,7 +74,7 @@ export const validationSettingsSchema = S.Struct({
  */
 export const transformSettingsSchema = S.Struct({
   nullValues: S.optionalWith(S.Array(S.String), {
-    default: () => ['NA', 'N/A', '', 'NULL', 'null']
+    default: () => ["NA", "N/A", "", "NULL", "null"],
   }),
   inputs: S.Object,
   postImportTransforms: S.optional(S.Array(S.String)),
