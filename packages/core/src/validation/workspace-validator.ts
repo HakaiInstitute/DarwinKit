@@ -555,7 +555,6 @@ function validateDataset(
     // Detect field mapping issues
     const configFieldMappings = dataset?.fieldMappings || [];
     const mappedOriginFields = configFieldMappings.map((m) => m.originName);
-
     const missingSourceFields = mappedOriginFields.filter(
       (f) => !originTableColumns.includes(f),
     ).map((f) => ({
