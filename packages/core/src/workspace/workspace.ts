@@ -13,26 +13,26 @@ import { DuckDBInstance } from "@duckdb/node-api";
 import { dirname, join, resolve } from "@std/path";
 import { parse as parseYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 
-import type {
-  ConfigWithValidation,
-  DatasetConfig,
-  ValidationSettings,
-  WorkspaceConfig,
-} from "@dwkt/domain/schemas";
-import { hasValidationConfig, workspaceConfigSchema } from "@dwkt/domain/schemas";
-import type { WorkspaceValidationResult } from "@dwkt/domain/types";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import {
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
+  NoDatasetsDefinedError,
   TransformInputNotFoundError,
   ValidationConfigMissingError,
 } from "@dwkt/domain/errors";
+import type {
+  ConfigWithValidation,
+  DatasetConfig,
+  ValidationSettings,
+  WorkspaceConfig,
+} from "@dwkt/domain/schemas";
+import { decodeWorkspaceConfig, hasValidationConfig } from "@dwkt/domain/schemas";
+import type { WorkspaceValidationResult } from "@dwkt/domain/types";
 
 import { ValidationError } from "../errors/mod.ts";
 import { WorkspaceValidator } from "../validation/workspace-validator.ts";
@@ -133,7 +133,7 @@ export class Workspace {
     options?: ValidationOptions,
   ): Effect.Effect<
     WorkspaceValidationResult,
-    ValidationError | ValidationConfigMissingError
+    ValidationError | ValidationConfigMissingError | NoDatasetsDefinedError
   > {
     return Effect.gen(this, function* () {
       if (!this.hasValidation) {
@@ -147,6 +147,13 @@ export class Workspace {
 
       const configWithValidation = this.config as ConfigWithValidation;
       const datasets = configWithValidation.validation.datasets;
+
+      if (datasets.length === 0) {
+        return yield* Effect.fail(
+          new NoDatasetsDefinedError({ message: `Validation config has no datasets defined` }),
+        );
+      }
+
       const configSettings = configWithValidation.validation;
 
       // Merge options with config settings (options take precedence)
@@ -398,7 +405,7 @@ function loadConfig(
         }),
     });
 
-    const configData = yield* Effect.try({
+    const parsedConfig = yield* Effect.try({
       try: () => parseYAML(configContent),
       catch: (error) =>
         new ConfigParseError({
@@ -408,21 +415,8 @@ function loadConfig(
         }),
     });
 
-    const configRecord = configData as Record<string, unknown>;
-    const configWithMeta = {
-      id: configRecord.id || "workspace-" + Date.now(),
-      ...configRecord,
-      createdAt: configRecord.createdAt || new Date().toISOString(),
-      updatedAt: configRecord.updatedAt || new Date().toISOString(),
-    };
-
     const config = yield* Effect.try({
-      try: () => {
-        const decoded = Schema.decodeUnknownSync(workspaceConfigSchema)(
-          configWithMeta,
-        );
-        return decoded;
-      },
+      try: () => decodeWorkspaceConfig(parsedConfig),
       catch: (error) => {
         // Extract validation errors from the error message
         const errorStr = String(error);

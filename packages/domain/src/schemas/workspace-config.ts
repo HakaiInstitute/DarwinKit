@@ -229,6 +229,16 @@ export function makeWorkspaceConfig(input: WorkspaceConfigInput): WorkspaceConfi
   return S.decodeUnknownSync(workspaceConfigSchema)(input);
 }
 
+/**
+ * Decode unknown external data into a WorkspaceConfig. Use this when parsing configuration from YAML
+ *
+ * @param input - Unknown data to decode
+ * @returns Decoded WorkspaceConfig with defaults applied
+ * @throws ParseError if the input doesn't match the schema
+ */
+export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig =>
+  S.decodeUnknownSync(workspaceConfigSchema)(input);
+
 // =============================================================================
 // Utility Functions
 // =============================================================================
