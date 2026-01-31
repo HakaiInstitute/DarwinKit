@@ -1,11 +1,8 @@
 /**
- * Effect Schema definitions for workspace configuration validation
+ * Schema definitions for workspace configuration validation
  *
  * Uses a single struct with optional validation/transform fields,
- * filtered to ensure at least one is present. This approach:
- * - Simplifies schema logic over union-based variants
- * - Enables schema.make() with constructor defaults
- * - Keeps all validation logic in the schema definition
+ * filtered to ensure at least one is present.
  */
 
 import * as S from "effect/Schema";
