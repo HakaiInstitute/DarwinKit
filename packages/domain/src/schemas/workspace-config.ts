@@ -38,7 +38,7 @@ export const datasetConfigSchema = S.Struct({
   path: S.String,
   description: S.optional(S.String),
   profile: S.optional(S.String),
-  fieldMappings: S.Array(workspaceFieldMappingSchema),
+  fieldMappings: S.optional(S.Array(workspaceFieldMappingSchema)),
 });
 
 /**
@@ -59,6 +59,7 @@ export const transformDatasetConfigSchema = S.Struct({
 export const validationSettingsSchema = S.Struct({
   nullValues: S.Array(S.String),
   failFast: S.Boolean,
+  debug: S.optionalWith(S.Boolean, { default: () => false }),
   outputDir: S.String,
   description: S.optional(S.String),
   maxViolationsPerField: S.optional(S.Number), // Limit violations per field (default: unlimited)
