@@ -9,7 +9,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
-import { CsvImportError } from "../errors/index.ts";
+import { CsvImportError } from "../errors/mod.ts";
 import { formatNullValues, sanitizeTableName } from "./sql.ts";
 
 /**

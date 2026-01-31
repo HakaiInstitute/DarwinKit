@@ -1,8 +1,10 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
-import type { WorkspaceCrossDatasetRule } from "@dwkt/domain";
-import { getValidationProfile, parseSpecIdentifier, WorkspaceImportError } from "@dwkt/domain";
+import type { WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
+import { parseSpecIdentifier } from "@dwkt/domain/schemas";
+import { getValidationProfile } from "@dwkt/domain/specs";
+import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
-import { findForeignKeyRule, sanitizeTableName } from "./index.ts";
+import { findForeignKeyRule, sanitizeTableName } from "./sql.ts";
 
 /**
  * Minimal dataset interface for schema import

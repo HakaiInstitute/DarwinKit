@@ -1,5 +1,5 @@
 import { Command } from '@cliffy/command';
-import { import_schema } from '@dwkt/core';
+import { import_schema } from '@dwkt/core/import';
 import { join } from '@std/path';
 import * as Effect from 'effect/Effect';
 import { Output } from '../../utils/output.ts';

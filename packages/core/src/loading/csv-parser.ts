@@ -3,7 +3,7 @@
  */
 
 import { DuckDBConnection as DuckDB } from "@duckdb/node-api";
-import type { DatasetSchema, FieldSchema, PrimitiveType } from "@dwkt/domain";
+import type { DatasetSchema, FieldSchema, PrimitiveType } from "@dwkt/domain/schemas";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";

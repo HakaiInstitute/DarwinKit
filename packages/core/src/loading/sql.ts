@@ -4,7 +4,7 @@
  * @module loading/sql
  */
 
-import type { ForeignKeyRuleMatch, WorkspaceCrossDatasetRule } from "@dwkt/domain";
+import type { ForeignKeyRuleMatch, WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
 import * as Match from "effect/Match";
 
 /**
