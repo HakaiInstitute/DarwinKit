@@ -12,6 +12,15 @@ import * as S from "effect/Schema";
 import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
 
 // =============================================================================
+// Default Values
+// =============================================================================
+
+const DEFAULT_NULL_VALUES = ["NA", "N/A", "", "NULL", "null"];
+const DEFAULT_WORKSPACE_NAME = "Workspace";
+const DEFAULT_VERSION = "1.0.0";
+const DEFAULT_OUTPUT_DIR = "./output";
+
+// =============================================================================
 // Field Mapping Schemas
 // =============================================================================
 
@@ -74,22 +83,22 @@ export const transformDatasetConfigSchema = S.Struct({
 /**
  * Validation settings schema
  *
- * Uses two default pattern for optional fields:
+ * Uses two default patterns for optional fields:
  * - `S.optionalWith(schema, { default: () => value })` - Applies defaults during decoding
  * - `.pipe(S.withConstructorDefault(() => value))` - Applies defaults when using schema.make()
  */
 export const validationSettingsSchema = S.Struct({
   nullValues: S.optionalWith(S.Array(S.String), {
-    default: () => ["NA", "N/A", "", "NULL", "null"],
-  }).pipe(S.withConstructorDefault(() => ["NA", "N/A", "", "NULL", "null"])),
+    default: () => [...DEFAULT_NULL_VALUES],
+  }).pipe(S.withConstructorDefault(() => [...DEFAULT_NULL_VALUES])),
   failFast: S.optionalWith(S.Boolean, { default: () => false }).pipe(
     S.withConstructorDefault(() => false),
   ),
   debug: S.optionalWith(S.Boolean, { default: () => false }).pipe(
     S.withConstructorDefault(() => false),
   ),
-  outputDir: S.optionalWith(S.String, { default: () => "./output" }).pipe(
-    S.withConstructorDefault(() => "./output"),
+  outputDir: S.optionalWith(S.String, { default: () => DEFAULT_OUTPUT_DIR }).pipe(
+    S.withConstructorDefault(() => DEFAULT_OUTPUT_DIR),
   ),
   description: S.optional(S.String),
   maxViolationsPerField: S.optional(S.Number),
@@ -98,12 +107,6 @@ export const validationSettingsSchema = S.Struct({
     S.withConstructorDefault(() => []),
   ),
 });
-
-/** Create ValidationSettings with defaults applied */
-export const makeValidationSettings = validationSettingsSchema.make;
-
-/** Input type for makeValidationSettings; necessary due to limitations of Schema.make() */
-export type ValidationSettingsInput = Parameters<typeof makeValidationSettings>[0];
 
 // =============================================================================
 // Transform Settings Schema
@@ -114,7 +117,7 @@ export type ValidationSettingsInput = Parameters<typeof makeValidationSettings>[
  */
 export const transformSettingsSchema = S.Struct({
   nullValues: S.optionalWith(S.Array(S.String), {
-    default: () => ["NA", "N/A", "", "NULL", "null"],
+    default: () => [...DEFAULT_NULL_VALUES],
   }),
   inputs: S.Object,
   postImportTransforms: S.optional(S.Array(S.String)),
@@ -136,15 +139,15 @@ export const transformSettingsSchema = S.Struct({
  * Defines the structure with optional validation/transform, filtered to ensure
  * at least one is present.
  */
-export const workspaceConfigSchema = S.Struct({
+const workspaceConfigSchema = S.Struct({
   id: S.optionalWith(S.String, { default: () => crypto.randomUUID() }).pipe(
     S.withConstructorDefault(() => crypto.randomUUID()),
   ),
-  name: S.optionalWith(S.String, { default: () => "Workspace" }).pipe(
-    S.withConstructorDefault(() => "Workspace"),
+  name: S.optionalWith(S.String, { default: () => DEFAULT_WORKSPACE_NAME }).pipe(
+    S.withConstructorDefault(() => DEFAULT_WORKSPACE_NAME),
   ),
-  version: S.optionalWith(S.String, { default: () => "1.0.0" }).pipe(
-    S.withConstructorDefault(() => "1.0.0"),
+  version: S.optionalWith(S.String, { default: () => DEFAULT_VERSION }).pipe(
+    S.withConstructorDefault(() => DEFAULT_VERSION),
   ),
   description: S.optional(S.String),
   crossDatasetRules: S.optional(S.Array(workspaceCrossDatasetRuleSchema)),
@@ -168,6 +171,7 @@ export const workspaceConfigSchema = S.Struct({
 // =============================================================================
 
 export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
+export type ValidationSettingsInput = S.Schema.Encoded<typeof validationSettingsSchema>;
 export type TransformSettings = S.Schema.Type<typeof transformSettingsSchema>;
 export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
 export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;

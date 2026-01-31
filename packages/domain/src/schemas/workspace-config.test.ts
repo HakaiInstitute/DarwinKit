@@ -1,102 +1,14 @@
 /**
  * Tests for workspace-config schema helper functions.
  *
- * Verifies that makeValidationSettings and makeWorkspaceConfig correctly
- * apply default values when fields are omitted.
+ * Verifies that makeWorkspaceConfig correctly applies default values
+ * when fields are omitted, and handles various config types.
  */
 
-import { assertEquals, assertExists, assertNotEquals } from "@std/assert";
-import {
-  makeValidationSettings,
-  makeWorkspaceConfig,
-  type ValidationSettingsInput,
-  type WorkspaceConfigInput,
-} from "./workspace-config.ts";
+import { assertEquals, assertExists, assertNotEquals, assertThrows } from "@std/assert";
+import { makeWorkspaceConfig, type WorkspaceConfigInput } from "./workspace-config.ts";
 
 const DEFAULT_NULL_VALUES = ["NA", "N/A", "", "NULL", "null"];
-
-Deno.test("makeValidationSettings", async (t) => {
-  await t.step("applies default nullValues when omitted", () => {
-    const settings = makeValidationSettings({});
-
-    assertEquals(settings.nullValues, DEFAULT_NULL_VALUES);
-  });
-
-  await t.step("applies default failFast when omitted", () => {
-    const settings = makeValidationSettings({});
-
-    assertEquals(settings.failFast, false);
-  });
-
-  await t.step("applies default debug when omitted", () => {
-    const settings = makeValidationSettings({});
-
-    assertEquals(settings.debug, false);
-  });
-
-  await t.step("applies default outputDir when omitted", () => {
-    const settings = makeValidationSettings({});
-
-    assertEquals(settings.outputDir, "./output");
-  });
-
-  await t.step("applies default datasets when omitted", () => {
-    const settings = makeValidationSettings({});
-
-    assertEquals(settings.datasets, []);
-  });
-
-  await t.step("uses provided values instead of defaults", () => {
-    const input: ValidationSettingsInput = {
-      nullValues: ["EMPTY"],
-      failFast: true,
-      debug: true,
-      outputDir: "./custom-output",
-      datasets: [
-        {
-          name: "test",
-          spec: "dwc-event",
-          path: "./test.csv",
-          fieldMappings: [],
-        },
-      ],
-    };
-
-    const settings = makeValidationSettings(input);
-
-    assertEquals(settings.nullValues, ["EMPTY"]);
-    assertEquals(settings.failFast, true);
-    assertEquals(settings.debug, true);
-    assertEquals(settings.outputDir, "./custom-output");
-    assertEquals(settings.datasets.length, 1);
-    assertEquals(settings.datasets[0].name, "test");
-  });
-
-  await t.step("applies defaults for omitted fields while preserving provided values", () => {
-    const input: ValidationSettingsInput = {
-      failFast: true,
-      datasets: [
-        {
-          name: "events",
-          spec: "dwc-event",
-          path: "./events.csv",
-          fieldMappings: [],
-        },
-      ],
-    };
-
-    const settings = makeValidationSettings(input);
-
-    // Provided values are preserved
-    assertEquals(settings.failFast, true);
-    assertEquals(settings.datasets.length, 1);
-
-    // Omitted fields get defaults
-    assertEquals(settings.nullValues, DEFAULT_NULL_VALUES);
-    assertEquals(settings.debug, false);
-    assertEquals(settings.outputDir, "./output");
-  });
-});
 
 Deno.test("makeWorkspaceConfig", async (t) => {
   await t.step("generates unique id when omitted", () => {
@@ -125,9 +37,6 @@ Deno.test("makeWorkspaceConfig", async (t) => {
     const config = makeWorkspaceConfig({ validation: {} });
     const after = new Date();
 
-    assertExists(config.createdAt);
-    assertExists(config.updatedAt);
-
     // Dates should be between before and after
     assertEquals(config.createdAt >= before, true);
     assertEquals(config.createdAt <= after, true);
@@ -137,6 +46,7 @@ Deno.test("makeWorkspaceConfig", async (t) => {
 
   await t.step("uses provided values instead of defaults", () => {
     const customDateStr = "2024-01-15T00:00:00.000Z";
+
     const input: WorkspaceConfigInput = {
       id: "custom-id",
       name: "My Workspace",
@@ -148,14 +58,14 @@ Deno.test("makeWorkspaceConfig", async (t) => {
 
     const config = makeWorkspaceConfig(input);
 
-    assertEquals(config.id, "custom-id");
-    assertEquals(config.name, "My Workspace");
-    assertEquals(config.version, "2.0.0");
+    assertEquals(config.id, input.id);
+    assertEquals(config.name, input.name);
+    assertEquals(config.version, input.version);
     assertEquals(config.createdAt, new Date(customDateStr));
     assertEquals(config.updatedAt, new Date(customDateStr));
   });
 
-  await t.step("applies validation defaults through nested makeValidationSettings", () => {
+  await t.step("applies validation defaults when validation provided", () => {
     const config = makeWorkspaceConfig({
       validation: {
         datasets: [
@@ -222,5 +132,123 @@ Deno.test("makeWorkspaceConfig", async (t) => {
     assertEquals(config.description, "Test description");
     assertExists(config.crossDatasetRules);
     assertEquals(config.crossDatasetRules.length, 1);
+  });
+});
+
+Deno.test("makeWorkspaceConfig - transform-only config", async (t) => {
+  await t.step("creates config with transform settings only", () => {
+    const config = makeWorkspaceConfig({
+      transform: {
+        inputs: { events: "./events.csv" },
+        datasets: [
+          {
+            name: "events",
+            profile: "obis-event",
+          },
+        ],
+        output: {
+          outputDir: "./output",
+          exportDB: true,
+        },
+      },
+    });
+
+    assertExists(config.transform);
+    assertEquals(config.validation, undefined);
+    assertEquals(config.transform.datasets.length, 1);
+    assertEquals(config.transform.output.exportDB, true);
+  });
+
+  await t.step("applies transform nullValues default", () => {
+    const config = makeWorkspaceConfig({
+      transform: {
+        inputs: {},
+        datasets: [],
+        output: {
+          outputDir: "./output",
+          exportDB: false,
+        },
+      },
+    });
+
+    assertExists(config.transform);
+    assertEquals(config.transform.nullValues, DEFAULT_NULL_VALUES);
+  });
+
+  await t.step("preserves transform nullValues when provided", () => {
+    const config = makeWorkspaceConfig({
+      transform: {
+        nullValues: ["CUSTOM", "NA"],
+        inputs: {},
+        datasets: [],
+        output: {
+          outputDir: "./output",
+          exportDB: false,
+        },
+      },
+    });
+
+    assertExists(config.transform);
+    assertEquals(config.transform.nullValues, ["CUSTOM", "NA"]);
+  });
+});
+
+Deno.test("makeWorkspaceConfig - both validation and transform", async (t) => {
+  await t.step("creates config with both validation and transform", () => {
+    const config = makeWorkspaceConfig({
+      validation: {
+        datasets: [],
+      },
+      transform: {
+        inputs: {},
+        datasets: [],
+        output: {
+          outputDir: "./output",
+          exportDB: false,
+        },
+      },
+    });
+
+    assertExists(config.validation);
+    assertExists(config.transform);
+  });
+});
+
+Deno.test("makeWorkspaceConfig - invalid input", async (t) => {
+  await t.step("throws ParseError when neither validation nor transform provided", () => {
+    assertThrows(
+      () => makeWorkspaceConfig({} as WorkspaceConfigInput),
+      Error,
+      "validation",
+    );
+  });
+
+  await t.step("throws ParseError for invalid validation settings", () => {
+    assertThrows(
+      () =>
+        makeWorkspaceConfig({
+          validation: {
+            datasets: [
+              {
+                // Missing required fields: spec, path, fieldMappings
+                name: "incomplete",
+              } as unknown,
+            ],
+          },
+        } as WorkspaceConfigInput),
+      Error,
+    );
+  });
+
+  await t.step("throws ParseError for invalid transform settings", () => {
+    assertThrows(
+      () =>
+        makeWorkspaceConfig({
+          transform: {
+            // Missing required fields: inputs, datasets, output
+          } as unknown,
+        } as WorkspaceConfigInput),
+      Error,
+    );
   });
 });
