@@ -10,23 +10,24 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
+import type { FieldViolation, ValidField } from "@dwkt/domain/types";
+import {
+  enforcementToSeverity,
+  RangeViolation,
+  UniquenessViolation,
+  VocabularyViolation,
+} from "@dwkt/domain/types";
 import type {
   EnforcementLevel,
   FieldDefinition,
-  FieldViolation,
   ValidatorConfig,
-  ValidField,
   VocabularyKey,
-} from "@dwkt/domain";
+} from "@dwkt/domain/specs";
 import {
-  enforcementToSeverity,
   getVocabularyValues,
   isValidVocabularyValue,
-  RangeViolation,
-  UniquenessViolation,
   vocabularyEnforcementToStandard,
-  VocabularyViolation,
-} from "@dwkt/domain";
+} from "@dwkt/domain/specs";
 
 /**
  * Create a ValidField result for a field that passed validation

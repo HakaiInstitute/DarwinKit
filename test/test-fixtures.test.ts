@@ -6,8 +6,9 @@
  * validation scenarios.
  */
 
-import { Workspace } from "@dwkt/core";
-import { type WorkspaceConfig, workspaceConfigSchema } from "@dwkt/domain";
+import { Workspace } from "@dwkt/core/workspace";
+import type { WorkspaceConfig } from "@dwkt/domain/schemas";
+import { workspaceConfigSchema } from "@dwkt/domain/schemas";
 import { assert, assertExists } from "@std/assert";
 import { parse as parseYAML } from "@std/yaml";
 import { Schema } from "effect";

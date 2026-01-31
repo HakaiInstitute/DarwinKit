@@ -1,7 +1,12 @@
 {
   "name": "@dwkt/domain",
   "version": "0.1.0",
-  "exports": "./mod.ts",
+  "exports": {
+    "./types": "./src/types/mod.ts",
+    "./schemas": "./src/schemas/mod.ts",
+    "./errors": "./src/errors/mod.ts",
+    "./specs": "./src/specs/mod.ts"
+  },
   "imports": {},
   "tasks": {
     "test": "deno test --parallel"

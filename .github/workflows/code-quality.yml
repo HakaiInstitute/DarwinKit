@@ -35,8 +35,7 @@ jobs:
 
       - name: Type check packages
         run: |
-          deno check packages/domain/mod.ts
-          deno check packages/core/mod.ts
+          deno check
 
       - name: Run domain tests
         id: domain

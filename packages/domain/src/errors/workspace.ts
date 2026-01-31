@@ -7,7 +7,7 @@
  * @module errors/workspace
  */
 
-import { createTaggedFormatter, prettyPrintCause } from "@dwkt/domain";
+import { createTaggedFormatter, prettyPrintCause } from "./cause-formatter.ts";
 import type * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
 

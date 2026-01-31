@@ -5,7 +5,7 @@
  * (invalid user CSV data) and defects (system failures).
  */
 
-import { parseFileForWorkspace } from "@dwkt/core";
+import { parseFileForWorkspace } from "@dwkt/core/loading";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
