@@ -57,8 +57,11 @@ export const transformDatasetConfigSchema = S.Struct({
  * Validation settings schema
  */
 export const validationSettingsSchema = S.Struct({
-  nullValues: S.Array(S.String),
-  failFast: S.Boolean,
+  nullValues: S.optionalWith(S.Array(S.String), {
+    default: () => ['NA', 'N/A', '', 'NULL', 'null']
+  }),
+  failFast: S.optionalWith(S.Boolean, { default: () => false }),
+  debug: S.optionalWith(S.Boolean, { default: () => false }),
   outputDir: S.String,
   description: S.optional(S.String),
   maxViolationsPerField: S.optional(S.Number), // Limit violations per field (default: unlimited)
@@ -70,7 +73,9 @@ export const validationSettingsSchema = S.Struct({
  * Transform settings schema
  */
 export const transformSettingsSchema = S.Struct({
-  nullValues: S.Array(S.String),
+  nullValues: S.optionalWith(S.Array(S.String), {
+    default: () => ['NA', 'N/A', '', 'NULL', 'null']
+  }),
   inputs: S.Object,
   postImportTransforms: S.optional(S.Array(S.String)),
   datasets: S.Array(transformDatasetConfigSchema),
