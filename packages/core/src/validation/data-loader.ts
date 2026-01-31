@@ -15,19 +15,19 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 
-import type {
-  FieldViolation,
-  ValidationProfile,
-  ValidationSettings,
-  WorkspaceCrossDatasetRule,
-} from "@dwkt/domain";
+import type { FieldViolation } from "@dwkt/domain/types";
 import {
   enforcementToSeverity,
   EnumViolation,
   ForeignKeyViolation,
   NotNullViolation,
   PrimaryKeyViolation,
-} from "@dwkt/domain";
+} from "@dwkt/domain/types";
+import type {
+  ValidationProfile,
+  ValidationSettings,
+  WorkspaceCrossDatasetRule,
+} from "@dwkt/domain/schemas";
 
 import { getCsvValue } from "../loading/csv-import.ts";
 import type { ParsedErrorInfo } from "../loading/sql.ts";

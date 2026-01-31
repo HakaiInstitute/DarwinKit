@@ -21,21 +21,20 @@ import type {
   DatasetConfig,
   ValidationSettings,
   WorkspaceConfig,
-  WorkspaceConfigError,
-  WorkspaceValidationResult,
-} from "@dwkt/domain";
+} from "@dwkt/domain/schemas";
+import { hasValidationConfig, workspaceConfigSchema } from "@dwkt/domain/schemas";
+import type { WorkspaceValidationResult } from "@dwkt/domain/types";
+import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import {
   ConfigNotFoundError,
   ConfigParseError,
   ConfigValidationError,
   DatasetFileNotFoundError,
-  hasValidationConfig,
   TransformInputNotFoundError,
   ValidationConfigMissingError,
-  workspaceConfigSchema,
-} from "@dwkt/domain";
+} from "@dwkt/domain/errors";
 
-import { ValidationError } from "../errors/index.ts";
+import { ValidationError } from "../errors/mod.ts";
 import { WorkspaceValidator } from "../validation/workspace-validator.ts";
 
 // Configuration file constants
