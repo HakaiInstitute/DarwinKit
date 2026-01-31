@@ -1,8 +1,8 @@
 import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
-import { Workspace } from '@dwkt/core';
-import type { FieldViolation, WorkspaceValidationResult } from '@dwkt/domain';
+import { Workspace } from '@dwkt/core/workspace';
+import type { FieldViolation, WorkspaceValidationResult } from '@dwkt/domain/types';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';

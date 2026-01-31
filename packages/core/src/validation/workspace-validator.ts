@@ -12,38 +12,35 @@ import * as Effect from "effect/Effect";
 
 import type {
   CrossDatasetValidationResult,
-  DatasetConfig,
   DatasetValidationResult,
-  EnforcementLevel,
-  FieldDefinition,
   FieldViolation,
   SchemaViolation,
-  ValidationProfile,
-  ValidationSettings,
-  ValidatorConfig,
-  WorkspaceCrossDatasetRule,
-  WorkspaceFieldMapping,
   WorkspaceValidationResult,
-} from "@dwkt/domain";
+} from "@dwkt/domain/types";
 import {
   calculateSummary,
   CrossDatasetViolation,
   enforcementToSeverity,
-  FieldRequirementLevel,
-  getValidationProfile,
-  hasControlledVocabulary,
   MissingFieldViolation,
   MissingMappingViolation,
-  parseSpecIdentifier,
   partitionFieldViolations,
   partitionSchemaViolations,
   UnknownFieldViolation,
   UnknownProfileViolation,
   UnmappedColumnViolation,
-  WorkspaceImportError,
-  WorkspaceValidationError,
-} from "@dwkt/domain";
-import type { WorkspaceOperationError } from "@dwkt/domain";
+} from "@dwkt/domain/types";
+import type {
+  DatasetConfig,
+  ValidationProfile,
+  ValidationSettings,
+  WorkspaceCrossDatasetRule,
+  WorkspaceFieldMapping,
+} from "@dwkt/domain/schemas";
+import { FieldRequirementLevel, parseSpecIdentifier } from "@dwkt/domain/schemas";
+import type { EnforcementLevel, FieldDefinition, ValidatorConfig } from "@dwkt/domain/specs";
+import { getValidationProfile, hasControlledVocabulary } from "@dwkt/domain/specs";
+import type { WorkspaceOperationError } from "@dwkt/domain/errors";
+import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
 import { importCsv } from "../loading/csv-import.ts";
 import { sanitizeTableName } from "../loading/sql.ts";
 import { Workspace } from "../workspace/workspace.ts";

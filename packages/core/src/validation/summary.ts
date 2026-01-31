@@ -6,8 +6,8 @@
  * imported from @dwkt/domain.
  */
 
-import type { DatasetConfig } from "@dwkt/domain";
-import { parseSpecIdentifier } from "@dwkt/domain";
+import type { DatasetConfig } from "@dwkt/domain/schemas";
+import { parseSpecIdentifier } from "@dwkt/domain/schemas";
 import { sanitizeTableName } from "../loading/sql.ts";
 
 /**

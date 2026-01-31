@@ -1,5 +1,5 @@
 import { Command } from '@cliffy/command';
-import { transformFile } from '@dwkt/core';
+import { transformFile } from '@dwkt/core/transform';
 import { Output } from '../../utils/output.ts';
 import * as Effect from 'effect/Effect';
 
