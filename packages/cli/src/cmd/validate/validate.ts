@@ -211,6 +211,13 @@ function handleValidateError(
       Output.warning('💡 Hint: Add a "validation" section to darwinkit.yaml.');
       return 3;
     }),
+    Match.tag('NoDatasetsDefinedError', (e) => {
+      Output.error('❌ No datasets defined:');
+      Output.error(e.message);
+      Output.blank();
+      Output.warning('💡 Hint: Add datasets to the "validation.datasets" array in darwinkit.yaml.');
+      return 3;
+    }),
     // Ensure all possible errors are handled
     Match.exhaustive,
   );
@@ -260,6 +267,7 @@ export async function validate(options: {
   failFast?: boolean;
 }) {
   // Ensure format is valid
+  // TODO: Should tell the user their option was invalid and tell them which ones are valid instead
   const validFormat = (options.format === 'json') ? 'json' : 'table';
 
   // Create spinner for validation progress
