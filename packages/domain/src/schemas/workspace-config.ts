@@ -35,6 +35,7 @@ export const workspaceFieldMappingSchema = S.Struct({
 /**
  * Defines relationships between datasets
  */
+// TODO: this can likely be removed because all cross dataset rules are enforced in the database now.
 export const workspaceCrossDatasetRuleSchema = S.Struct({
   ruleType: S.Literal("foreignKey", "referentialIntegrity"),
   sourceDataset: S.String,
@@ -99,7 +100,9 @@ export const validationSettingsSchema = S.Struct({
   ),
   description: S.optional(S.String),
   maxViolationsPerField: S.optional(S.Number),
-  enableSuggestions: S.optional(S.Boolean),
+  enableSuggestions: S.optionalWith(S.Boolean, { default: () => true }).pipe(
+    S.withConstructorDefault(() => true),
+  ),
   datasets: S.optionalWith(S.Array(datasetConfigSchema), { default: () => [] }).pipe(
     S.withConstructorDefault(() => []),
   ),
@@ -115,7 +118,7 @@ export const validationSettingsSchema = S.Struct({
 export const transformSettingsSchema = S.Struct({
   nullValues: S.optionalWith(S.Array(S.String), {
     default: () => [...DEFAULT_NULL_VALUES],
-  }),
+  }).pipe(S.withConstructorDefault(() => DEFAULT_NULL_VALUES)),
   inputs: S.Object,
   postImportTransforms: S.optional(S.Array(S.String)),
   datasets: S.Array(transformDatasetConfigSchema),
