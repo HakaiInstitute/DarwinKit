@@ -7,9 +7,9 @@
  * @module errors/workspace
  */
 
-import { createTaggedFormatter, prettyPrintCause } from "./cause-formatter.ts";
 import type * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
+import { createTaggedFormatter, prettyPrintCause } from "./cause-formatter.ts";
 
 /**
  * Error when configuration file is not found after searching
@@ -81,6 +81,12 @@ export class ValidationConfigMissingError extends Data.TaggedError("ValidationCo
 }> {}
 
 /**
+ * Error when validation config exists but has no datasets defined
+ */
+export class NoDatasetsDefinedError
+  extends Data.TaggedError("NoDatasetsDefinedError")<{ message: string }> {}
+
+/**
  * Error that occurs during workspace validation
  */
 export class WorkspaceValidationError extends Data.TaggedClass("WorkspaceValidationError")<{
@@ -122,7 +128,8 @@ export type WorkspaceConfigError =
   | ConfigValidationError
   | DatasetFileNotFoundError
   | TransformInputNotFoundError
-  | ValidationConfigMissingError;
+  | ValidationConfigMissingError
+  | NoDatasetsDefinedError;
 
 /**
  * Formatter for workspace configuration errors
@@ -164,8 +171,13 @@ export const formatWorkspaceConfigError = createTaggedFormatter<WorkspaceConfigE
 
   ValidationConfigMissingError: (error) =>
     `Validation configuration missing\n\n` +
+    // TODO: No need to include workspace name; only one is operated on at a time
     `Workspace: ${error.workspaceName}\n\n` +
     `Add a "validation" section to darwinkit.yaml with datasets to validate.`,
+
+  NoDatasetsDefinedError: (_error) =>
+    `No datasets defined for validation\n\n` +
+    `Add at least one dataset to the "validation.datasets" array in darwinkit.yaml.`,
 });
 
 /**

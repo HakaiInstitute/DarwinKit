@@ -6,7 +6,7 @@
  */
 
 import { isRangeViolation } from "@dwkt/domain/types";
-import type { WorkspaceConfig } from "@dwkt/domain/schemas";
+import { makeWorkspaceConfig } from "@dwkt/domain/schemas";
 import { assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";
@@ -29,14 +29,10 @@ E4,2022,6,32,2022-06-32`;
 
       await Deno.writeTextFile(join(tempDir, "events.csv"), eventCsv);
 
-      const config: WorkspaceConfig = {
-        id: "date-test-workspace",
+      const config = makeWorkspaceConfig({
         name: "Date Validation Test",
-        version: "1.0.0",
         validation: {
           nullValues: [""],
-          failFast: false,
-          outputDir: "./output",
           datasets: [
             {
               name: "events",
@@ -53,9 +49,7 @@ E4,2022,6,32,2022-06-32`;
             },
           ],
         },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
 
       await Deno.writeTextFile(
         join(tempDir, "darwinkit.yaml"),

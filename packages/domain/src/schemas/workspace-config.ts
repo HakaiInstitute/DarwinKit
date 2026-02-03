@@ -1,12 +1,28 @@
 /**
- * Effect Schema definitions for workspace configuration validation
+ * Schema definitions for workspace configuration validation
+ *
+ * Uses a single struct with optional validation/transform fields,
+ * filtered to ensure at least one is present.
  */
 
 import * as S from "effect/Schema";
 import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
 
+// =============================================================================
+// Default Values
+// =============================================================================
+
+const DEFAULT_NULL_VALUES = ["NA", "N/A", "", "NULL", "null"];
+const DEFAULT_WORKSPACE_NAME = "Workspace";
+const DEFAULT_VERSION = "1.0.0";
+const DEFAULT_OUTPUT_DIR = "./output";
+
+// =============================================================================
+// Field Mapping Schemas
+// =============================================================================
+
 /**
- * Workspace field mapping schema
+ * Maps source columns to Darwin Core fields
  */
 export const workspaceFieldMappingSchema = S.Struct({
   originName: S.String,
@@ -17,20 +33,26 @@ export const workspaceFieldMappingSchema = S.Struct({
 });
 
 /**
- * Workspace cross-dataset rule schema
+ * Defines relationships between datasets
  */
+// TODO: this can likely be removed because all cross dataset rules are enforced in the database now.
 export const workspaceCrossDatasetRuleSchema = S.Struct({
   ruleType: S.Literal("foreignKey", "referentialIntegrity"),
   sourceDataset: S.String,
   sourceField: S.String,
   targetDataset: S.String,
   targetField: S.String,
-  enforcement: S.optional(EnforcementLevel), // Defaults to "required" if not specified
+  enforcement: S.optional(EnforcementLevel),
   description: S.optional(S.String),
 });
 
+// =============================================================================
+// Dataset Configuration Schemas
+// =============================================================================
+
 /**
  * Dataset configuration schema for validation
+ * TODO: Should probably name accordingly (something like validationDatasetConfig)
  */
 export const datasetConfigSchema = S.Struct({
   name: S.String,
@@ -42,8 +64,7 @@ export const datasetConfigSchema = S.Struct({
 });
 
 /**
- * Dataset configuration schema for transform
- * (includes additional fields needed for transformation)
+ * Dataset configuration schema for transform workflows
  */
 export const transformDatasetConfigSchema = S.Struct({
   name: S.String,
@@ -53,25 +74,51 @@ export const transformDatasetConfigSchema = S.Struct({
   fields: S.optional(S.Object),
 });
 
+// =============================================================================
+// Validation Settings Schema
+// =============================================================================
+
 /**
  * Validation settings schema
+ *
+ * Uses two default patterns for optional fields:
+ * - `S.optionalWith(schema, { default: () => value })` - Applies defaults during decoding
+ * - `.pipe(S.withConstructorDefault(() => value))` - Applies defaults when using schema.make()
  */
 export const validationSettingsSchema = S.Struct({
-  nullValues: S.Array(S.String),
-  failFast: S.Boolean,
-  debug: S.optionalWith(S.Boolean, { default: () => false }),
-  outputDir: S.String,
+  nullValues: S.optionalWith(S.Array(S.String), {
+    default: () => [...DEFAULT_NULL_VALUES],
+  }).pipe(S.withConstructorDefault(() => [...DEFAULT_NULL_VALUES])),
+  failFast: S.optionalWith(S.Boolean, { default: () => false }).pipe(
+    S.withConstructorDefault(() => false),
+  ),
+  debug: S.optionalWith(S.Boolean, { default: () => false }).pipe(
+    S.withConstructorDefault(() => false),
+  ),
+  outputDir: S.optionalWith(S.String, { default: () => DEFAULT_OUTPUT_DIR }).pipe(
+    S.withConstructorDefault(() => DEFAULT_OUTPUT_DIR),
+  ),
   description: S.optional(S.String),
-  maxViolationsPerField: S.optional(S.Number), // Limit violations per field (default: unlimited)
-  enableSuggestions: S.optional(S.Boolean), // Enable fuzzy matching for vocabulary violations (default: true)
-  datasets: S.Array(datasetConfigSchema),
+  maxViolationsPerField: S.optional(S.Number),
+  enableSuggestions: S.optionalWith(S.Boolean, { default: () => true }).pipe(
+    S.withConstructorDefault(() => true),
+  ),
+  datasets: S.optionalWith(S.Array(datasetConfigSchema), { default: () => [] }).pipe(
+    S.withConstructorDefault(() => []),
+  ),
 });
+
+// =============================================================================
+// Transform Settings Schema
+// =============================================================================
 
 /**
  * Transform settings schema
  */
 export const transformSettingsSchema = S.Struct({
-  nullValues: S.Array(S.String),
+  nullValues: S.optionalWith(S.Array(S.String), {
+    default: () => [...DEFAULT_NULL_VALUES],
+  }).pipe(S.withConstructorDefault(() => DEFAULT_NULL_VALUES)),
   inputs: S.Object,
   postImportTransforms: S.optional(S.Array(S.String)),
   datasets: S.Array(transformDatasetConfigSchema),
@@ -84,105 +131,117 @@ export const transformSettingsSchema = S.Struct({
   }),
 });
 
+// =============================================================================
+// Workspace Configuration Schema
+// =============================================================================
+
 /**
- * Base fields shared by all workspace configurations
+ * Defines the structure with optional validation/transform, filtered to ensure
+ * at least one is present.
  */
-const workspaceConfigBaseFields = S.Struct({
-  id: S.String,
-  name: S.String,
-  version: S.String,
+const workspaceConfigSchema = S.Struct({
+  id: S.optionalWith(S.String, { default: () => crypto.randomUUID() }).pipe(
+    S.withConstructorDefault(() => crypto.randomUUID()),
+  ),
+  name: S.optionalWith(S.String, { default: () => DEFAULT_WORKSPACE_NAME }).pipe(
+    S.withConstructorDefault(() => DEFAULT_WORKSPACE_NAME),
+  ),
+  version: S.optionalWith(S.String, { default: () => DEFAULT_VERSION }).pipe(
+    S.withConstructorDefault(() => DEFAULT_VERSION),
+  ),
   description: S.optional(S.String),
   crossDatasetRules: S.optional(S.Array(workspaceCrossDatasetRuleSchema)),
-  createdAt: S.Date,
-  updatedAt: S.Date,
-});
-
-export const validationOnlyConfigSchema = S.Struct({
-  ...workspaceConfigBaseFields.fields,
-  validation: validationSettingsSchema,
-});
-
-export const transformOnlyConfigSchema = S.Struct({
-  ...workspaceConfigBaseFields.fields,
-  transform: transformSettingsSchema,
-});
-
-export const transformAndValidationConfigSchema = S.Struct({
-  ...workspaceConfigBaseFields.fields,
-  validation: validationSettingsSchema,
-  transform: transformSettingsSchema,
-});
-
-/**
- * Schema for any config that has validation settings
- * (may or may not have transformation settings)
- */
-export const configWithValidationSchema = S.Union(
-  validationOnlyConfigSchema,
-  transformAndValidationConfigSchema,
+  createdAt: S.optionalWith(S.Date, { default: () => new Date() }).pipe(
+    S.withConstructorDefault(() => new Date()),
+  ),
+  updatedAt: S.optionalWith(S.Date, { default: () => new Date() }).pipe(
+    S.withConstructorDefault(() => new Date()),
+  ),
+  validation: S.optional(validationSettingsSchema),
+  transform: S.optional(transformSettingsSchema),
+}).pipe(
+  S.filter(
+    (config) => config.validation !== undefined || config.transform !== undefined,
+    { message: () => "Workspace config must have 'validation' and/or 'transform' settings" },
+  ),
 );
 
-/**
- * Schema for any config that has transformation settings
- * (may or may not have validation settings)
- */
-export const configWithTransformationSchema = S.Union(
-  transformOnlyConfigSchema,
-  transformAndValidationConfigSchema,
-);
+// =============================================================================
+// Type Exports
+// =============================================================================
 
-export const isValidationOnlyConfig = (
-  config: WorkspaceConfig,
-): config is ValidationOnlyConfig => {
-  return S.is(validationOnlyConfigSchema)(config);
-};
-
-export const hasValidationConfig = (
-  config: WorkspaceConfig,
-): config is ValidationOnlyConfig | TransformAndValidationConfig => {
-  return S.is(configWithValidationSchema)(config);
-};
-
-export const hasTransformationConfig = (
-  config: WorkspaceConfig,
-): config is TransformOnlyConfig | TransformAndValidationConfig => {
-  return S.is(configWithTransformationSchema)(config);
-};
-
-/**
- * Workspace configuration schema that requires at least one of validation or transform.
- * This creates a discriminated union with three variants:
- * 1. Only validation (no transform)
- * 2. Only transform (no validation)
- * 3. Both validation and transform
- *
- * Note: datasets is at root level for validation workflows
- */
-export const workspaceConfigSchema = S.Union(
-  validationOnlyConfigSchema,
-  transformOnlyConfigSchema,
-  transformAndValidationConfigSchema,
-);
-
-// Types derived from schemas
 export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
+export type ValidationSettingsInput = S.Schema.Encoded<typeof validationSettingsSchema>;
+export type TransformSettings = S.Schema.Type<typeof transformSettingsSchema>;
 export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
 export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
 export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
-export type ValidationOnlyConfig = S.Schema.Type<typeof validationOnlyConfigSchema>;
-export type TransformOnlyConfig = S.Schema.Type<typeof transformOnlyConfigSchema>;
-export type TransformAndValidationConfig = S.Schema.Type<typeof transformAndValidationConfigSchema>;
-export type ConfigWithValidation = S.Schema.Type<typeof configWithValidationSchema>;
 
 /**
  * Result of looking up a foreign key rule
- *
- * Derived from WorkspaceCrossDatasetRule with required enforcement
  */
 export type ForeignKeyRuleMatch =
   & Pick<WorkspaceCrossDatasetRule, "targetDataset" | "targetField">
   & Required<Pick<WorkspaceCrossDatasetRule, "enforcement">>;
+
+/** Config with validation settings guaranteed present */
+export type ConfigWithValidation = WorkspaceConfig & { validation: ValidationSettings };
+
+/** Config with transform settings guaranteed present */
+export type ConfigWithTransform = WorkspaceConfig & { transform: TransformSettings };
+
+// =============================================================================
+// Type Predicates
+// =============================================================================
+
+export const hasValidationConfig = (c: WorkspaceConfig): c is ConfigWithValidation =>
+  c.validation !== undefined;
+
+export const hasTransformationConfig = (c: WorkspaceConfig): c is ConfigWithTransform =>
+  c.transform !== undefined;
+
+// =============================================================================
+// Factory Functions
+// =============================================================================
+
+/** Input type for makeWorkspaceConfig - allows partial settings with defaults applied */
+export type WorkspaceConfigInput = S.Schema.Encoded<typeof workspaceConfigSchema>;
+
+/**
+ * Create a WorkspaceConfig with defaults applied.
+ *
+ * Uses schema decoding to apply defaults to both workspace fields and nested
+ * validation settings. All defaults are defined in the schema itself.
+ *
+ * @example
+ * ```typescript
+ * const config = makeWorkspaceConfig({
+ *   validation: {
+ *     datasets: [{ name: "events", spec: "dwc-event", path: "./events.csv", fieldMappings: [] }]
+ *   }
+ * });
+ * // id, name, version, createdAt, updatedAt are auto-generated
+ * // validation.nullValues, failFast, debug, outputDir get defaults
+ * ```
+ */
+export function makeWorkspaceConfig(input: WorkspaceConfigInput): WorkspaceConfig {
+  return S.decodeUnknownSync(workspaceConfigSchema)(input);
+}
+
+/**
+ * Decode unknown external data into a WorkspaceConfig. Use this when parsing configuration from YAML
+ *
+ * @param input - Unknown data to decode
+ * @returns Decoded WorkspaceConfig with defaults applied
+ * @throws ParseError if the input doesn't match the schema
+ */
+export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig =>
+  S.decodeUnknownSync(workspaceConfigSchema)(input);
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
 
 /**
  * Parse spec identifier into spec name and type

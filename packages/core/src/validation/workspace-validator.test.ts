@@ -1,9 +1,10 @@
-import type {
-  DatasetConfig,
-  ValidationSettings,
-  WorkspaceConfig,
-  WorkspaceCrossDatasetRule,
-  WorkspaceFieldMapping,
+import {
+  type DatasetConfig,
+  makeWorkspaceConfig,
+  type ValidationSettingsInput,
+  type WorkspaceConfig,
+  type WorkspaceCrossDatasetRule,
+  type WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
 import { isEnumViolation, isPrimaryKeyViolation, isRangeViolation } from "@dwkt/domain/types";
 import { assert, assertEquals, assertExists } from "@std/assert";
@@ -21,7 +22,7 @@ type TestWorkspaceOptions = {
   occurrenceData?: Array<Record<string, unknown>>;
   datasets?: DatasetConfig[];
   crossDatasetRules?: WorkspaceCrossDatasetRule[];
-  validation?: ValidationSettings;
+  validation?: ValidationSettingsInput;
 };
 
 // Test data as structured objects (easier to read and modify than CSV strings)
@@ -271,24 +272,15 @@ async function createMultiDatasetWorkspace(
     },
   ];
 
-  // Default validation settings
-  const validation: ValidationSettings = options?.validation ?? {
-    nullValues: ["", "NA"],
-    failFast: false,
-    outputDir: "./output",
-    datasets,
-  };
-
-  // Create config
-  const config: WorkspaceConfig = {
-    id: "test-workspace",
+  // Create config with defaults
+  const config = makeWorkspaceConfig({
     name: "Test Workspace",
-    version: "1.0.0",
-    validation,
+    validation: options?.validation ?? {
+      nullValues: ["", "NA"],
+      datasets,
+    },
     crossDatasetRules,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
 
   await writeConfig(tempDir, config);
 }
@@ -303,14 +295,10 @@ async function createSingleDatasetWorkspace(
 ): Promise<void> {
   await writeCSV(tempDir, datasetName, data);
 
-  const config: WorkspaceConfig = {
-    id: "test-workspace",
+  const config = makeWorkspaceConfig({
     name: "Test Workspace",
-    version: "1.0.0",
     validation: {
       nullValues: [""],
-      failFast: false,
-      outputDir: "./output",
       datasets: [
         {
           name: datasetName,
@@ -321,9 +309,7 @@ async function createSingleDatasetWorkspace(
         },
       ],
     },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
 
   await writeConfig(tempDir, config);
 }
@@ -461,14 +447,10 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     );
 
     // Create minimal config
-    const config: WorkspaceConfig = {
-      id: "test-workspace",
+    const config = makeWorkspaceConfig({
       name: "Test Workspace",
-      version: "1.0.0",
       validation: {
         nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
         datasets: [
           {
             name: "events",
@@ -498,9 +480,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
           targetField: "eventID",
         },
       ],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    });
 
     await writeConfig(tempDir, config);
 
@@ -534,14 +514,10 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     const tempDir = await createTempDir("detect_missing_required_fields");
     await writeCSV(tempDir, "events", TEST_DATA.EVENTS_MISSING_COUNTRY_CODE);
 
-    const config: WorkspaceConfig = {
-      id: "test-workspace",
+    const config = makeWorkspaceConfig({
       name: "Test Workspace",
-      version: "1.0.0",
       validation: {
         nullValues: [""],
-        failFast: false,
-        outputDir: "./output",
         datasets: [
           {
             name: "events",
@@ -563,9 +539,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
           },
         ],
       },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    });
 
     await writeConfig(tempDir, config);
 
