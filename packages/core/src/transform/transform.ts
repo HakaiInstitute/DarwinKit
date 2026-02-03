@@ -52,7 +52,7 @@ export function createTablesFromCSV( // Export for testing
   // Using Effect.gen to handle asynchronous operations in a sequential and readable manner.
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
-    if (!("transform" in config)) {
+    if (!hasTransformationConfig(config)) {
       return;
     }
 
@@ -99,7 +99,7 @@ function runPostImportTransformations(
 ): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
-    if (!("transform" in config)) {
+    if (!hasTransformationConfig(config)) {
       return;
     }
     if (!config.transform.postImportTransforms) {
@@ -131,7 +131,7 @@ export function createTableFromSchema(
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
-    if (!("transform" in config)) {
+    if (!hasTransformationConfig(config)) {
       return;
     }
 
@@ -156,7 +156,7 @@ export function populateSchemaFromDataTables( // Export for testing
 ): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
     // Type guard - ensure config has transform settings
-    if (!("transform" in config)) {
+    if (!hasTransformationConfig(config)) {
       return;
     }
 
@@ -399,7 +399,7 @@ export function exportToPersistentDB(
   config: WorkspaceConfig,
 ): Effect.Effect<void, OutputError> {
   // Type guard - ensure config has transform settings
-  if (!("transform" in config)) {
+  if (!hasTransformationConfig(config)) {
     return Effect.succeed(void 0);
   }
 
