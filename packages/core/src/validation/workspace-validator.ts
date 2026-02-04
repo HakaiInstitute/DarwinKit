@@ -650,8 +650,9 @@ function validateDataset(
           severity: enforcementToSeverity("recommended"),
           fieldName: missingSourceField.fieldName,
           targetName: mapping?.targetName ?? missingSourceField.fieldName,
-          errorMessage: `Field '${missingSourceField.fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.` +
-              (altMsg ? ` ${altMsg}` : ""),
+          errorMessage:
+            `Field '${missingSourceField.fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.` +
+            (altMsg ? ` ${altMsg}` : ""),
           validatorType: "schema",
           datasetName: dataset.name,
         }),
@@ -669,8 +670,9 @@ function validateDataset(
           severity: enforcementToSeverity("optional"),
           fieldName: unmappedSourceColumn.fieldName,
           targetName: unmappedSourceColumn.fieldName,
-          errorMessage: `Source column '${unmappedSourceColumn.fieldName}' is not mapped to any Darwin Core field and will be ignored.` +
-              (altMsg ? ` ${altMsg}` : ""),
+          errorMessage:
+            `Source column '${unmappedSourceColumn.fieldName}' is not mapped to any Darwin Core field and will be ignored.` +
+            (altMsg ? ` ${altMsg}` : ""),
           validatorType: "schema",
           datasetName: dataset.name,
         }),
