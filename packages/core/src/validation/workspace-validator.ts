@@ -238,7 +238,7 @@ export class WorkspaceValidator {
         // Print result object as you go if in debug mode, report first occurrence of each error
         if (settings.debug) {
           const earlyResult = {
-            ...result,
+            ...structuredClone(result),
             schemaViolations: {
               errors: result.schemaViolations.errors.filter((obj1, i, arr) =>
                 arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
