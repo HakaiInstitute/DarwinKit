@@ -528,6 +528,15 @@ function validateDataset(
       : dataset.name.toLowerCase();
 
     const schemaProfile = getValidationProfile(profileName || "");
+    if (schemaProfile === undefined) {
+      return yield* _(
+        Effect.fail(
+          new WorkspaceValidationError({
+            message: `Invalid profile identifier: ${profileName}`,
+          }),
+        ),
+      );
+    }
     const schemaColumnsObj = Object.keys(schemaProfile?.fields || {}).map((fieldName: string) =>
       <WorkspaceFieldMapping> {
         originName: fieldName,
@@ -664,7 +673,10 @@ function validateDataset(
           fieldName: unmappedSourceColumn.fieldName,
           targetName: unmappedSourceColumn.fieldName,
           errorMessage:
-            `Source column '${unmappedSourceColumn.fieldName}' is not mapped to any Darwin Core field and will be ignored. ${altMsg}`,
+            `Source column '${unmappedSourceColumn.fieldName}' is not mapped to any Darwin Core field and will be ignored.` +
+              altMsg
+              ? ` ${altMsg}`
+              : "",
           validatorType: "schema",
           datasetName: dataset.name,
         }),
