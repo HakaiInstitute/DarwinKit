@@ -235,20 +235,32 @@ export class WorkspaceValidator {
 
         datasetResults.push(result);
 
-        // Print result object as you go if in debug mode
+        // Print result object as you go if in debug mode, report first occurrence of each error
         if (settings.debug) {
-          const earlyResult = structuredClone(result);
-
-          (earlyResult as any).violations = {
-            errors: earlyResult.violations.errors.filter((obj1, i, arr) =>
-              arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
-            ),
-            warnings: earlyResult.violations.warnings.filter((obj1, i, arr) =>
-              arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
-            ),
-            info: earlyResult.violations.info.filter((obj1, i, arr) =>
-              arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
-            )
+          const earlyResult = {
+            ...structuredClone(result),
+            schemaViolations: {
+              errors: result.schemaViolations.errors.filter((obj1, i, arr) =>
+                arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+              warnings: result.schemaViolations.warnings.filter((obj1, i, arr) =>
+                arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+              info: result.schemaViolations.info.filter((obj1, i, arr) =>
+                arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
+              )
+            },
+            fieldViolations: {
+              errors: result.fieldViolations.errors.filter((obj1, i, arr) =>
+                arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+              warnings: result.fieldViolations.warnings.filter((obj1, i, arr) =>
+                arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+              info: result.fieldViolations.info.filter((obj1, i, arr) =>
+                arr.findIndex(obj2 => (obj2.errorMessage === obj1.errorMessage)) === i
+              )
+            }
           };
 
           console.debug(JSON.stringify(earlyResult, null, 4));
@@ -515,15 +527,15 @@ function validateDataset(
       ? sanitizeTableName(profileName).toLowerCase()
       : dataset.name.toLowerCase();
 
-    interface fieldMappings { originName: string; targetName: string }
-    const schemaProfile = getValidationProfile(profileName);
-    const schemaColumnsObj = Object.keys(schemaProfile.fields).map((fieldName: string) => <fieldMappings>{
+
+    const schemaProfile = getValidationProfile(profileName || "");
+    const schemaColumnsObj = Object.keys(schemaProfile?.fields || {}).map((fieldName: string) => <WorkspaceFieldMapping>{
       originName: fieldName,
       targetName: fieldName
     }).reduce((obj, item) => {
       obj[item.targetName] = item;
       return obj;
-    }, {} as Record<string, fieldMappings>);
+    }, {} as Record<string, WorkspaceFieldMapping>) as Record<string, WorkspaceFieldMapping>;
 
     // Detect field mapping issues
     const configFieldMappings = dataset?.fieldMappings || []
@@ -538,11 +550,11 @@ function validateDataset(
 
     // override with fieldMappings from config
     configFieldMappings.forEach((field) => {
-      schemaColumnsObj[field.targetName] = <fieldMappings>{
+      schemaColumnsObj[field.targetName] = <WorkspaceFieldMapping>{
         ...field
       }
     })
-    const allFieldMappings = Object.values(schemaColumnsObj).map((m) => m.originName);
+    const allFieldMappings = Object.values(schemaColumnsObj).map((m: WorkspaceFieldMapping) => m.originName);
     
     const unmappedSourceColumns = originTableColumns.filter(
       (f) => !allFieldMappings.includes(f),
@@ -614,7 +626,7 @@ function validateDataset(
     // When a mapped field is missing from CSV, it's always a warning (recommended enforcement)
     // because we can't validate data that doesn't exist - we just skip the mapping
     for (const missingSourceField of missingSourceFields) {
-      const mapping = dataset.fieldMappings.find((m) => m.originName === missingSourceField.fieldName);
+      const mapping = (dataset.fieldMappings || []).find((m) => m.originName === missingSourceField.fieldName);
       const altMsg = missingSourceField.alternatives ? `Possible alternative fields: ${ missingSourceField.alternatives }` : ''
       schemaViolations.push(
         new MissingMappingViolation({
