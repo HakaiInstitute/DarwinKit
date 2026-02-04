@@ -51,7 +51,7 @@ import { validateField } from "./field-validators.ts";
 import { resolveSchemaTableName } from "./summary.ts";
 import { importSchema } from "../loading/schema.ts";
 
-import { findSuggestedValue } from "..//validation/string-matching.ts";
+import { findSuggestedValue } from "../validation/string-matching.ts";
 
 /**
  * Workspace validator for config-based validation
