@@ -642,7 +642,10 @@ function validateDataset(
           fieldName: missingSourceField.fieldName,
           targetName: mapping?.targetName ?? missingSourceField.fieldName,
           errorMessage:
-            `Field '${missingSourceField.fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped. ${altMsg}`,
+            `Field '${missingSourceField.fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.` +
+              altMsg
+              ? ` ${altMsg}`
+              : "",
           validatorType: "schema",
           datasetName: dataset.name,
         }),
