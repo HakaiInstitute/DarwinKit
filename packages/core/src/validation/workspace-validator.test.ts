@@ -537,8 +537,8 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
                 isRequired: true,
               },
               {
-                originName: "countryCodeTest",
-                targetName: "countryCodeTest",
+                originName: "countryCode",
+                targetName: "countryCode",
                 isRequired: true,
               }, // Missing from CSV - will be skipped with warning
             ],
@@ -567,11 +567,11 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
     // Verify schema warning was generated for the missing field
     const missingFieldWarning = datasetResult.schemaViolations.warnings.find(
-      (w) => w.fieldName === "countryCodeTest",
+      (w) => w.fieldName === "countryCode",
     );
     assertExists(
       missingFieldWarning,
-      "Expected warning for missing 'countryCodeTest' field",
+      "Expected warning for missing 'countryCode' field",
     );
     assert(
       missingFieldWarning.errorMessage.includes("not found in source CSV"),
