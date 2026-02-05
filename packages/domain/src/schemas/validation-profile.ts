@@ -8,7 +8,7 @@ import { ValidatorConfigSchema } from "../specs/validators.ts";
 // Field requirement level schema
 export const fieldRequirementLevelSchema = S.Literal(
   "required",
-  "strongly-recommended",
+  "strongly recommended",
   "recommended",
   "required-if-exists",
   "optional",
@@ -72,7 +72,7 @@ export enum FieldRequirementLevel {
   Required = "required",
 
   /** Field should be present; generates warning if missing but doesn't fail validation */
-  StronglyRecommended = "strongly-recommended",
+  StronglyRecommended = "strongly recommended",
 
   /** Field is recommended but not critical; generates info message if missing */
   Recommended = "recommended",

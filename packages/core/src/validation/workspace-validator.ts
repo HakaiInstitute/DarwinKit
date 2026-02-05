@@ -537,10 +537,15 @@ function validateDataset(
         ),
       );
     }
-    const schemaColumnsObj = Object.keys(schemaProfile?.fields || {}).map((fieldName: string) =>
+    const schemaColumnsObj = Object.keys(schemaProfile?.normalizedFields || {}).map((
+      fieldName: string,
+    ) =>
       <WorkspaceFieldMapping> {
         originName: fieldName,
         targetName: fieldName,
+        requirement: schemaProfile?.normalizedFields
+          ? schemaProfile.normalizedFields[fieldName]?.requirement
+          : undefined,
       }
     ).reduce((obj, item) => {
       obj[item.targetName] = item;
@@ -680,14 +685,14 @@ function validateDataset(
     }
 
     // Check profile field requirements based on requirement levels
-    if (profile && profile.fieldOverrides && dataset.fieldMappings) {
+    if (profile && schemaColumnsObj && validMappings) {
       const mappedSpecFields = new Set(
-        dataset.fieldMappings.map((m) => m.targetName),
+        validMappings.map((m) => m.targetName),
       );
 
       for (
         const [fieldName, fieldOverride] of Object.entries(
-          profile.fieldOverrides,
+          schemaColumnsObj,
         )
       ) {
         if (!fieldOverride.requirement) continue;
@@ -696,7 +701,9 @@ function validateDataset(
 
         if (!isMapped) {
           // Handle missing fields based on requirement level
-          if (fieldOverride.requirement === FieldRequirementLevel.Required) {
+          if (
+            fieldOverride.requirement === FieldRequirementLevel.Required || fieldOverride.isRequired
+          ) {
             schemaViolations.push(
               new MissingFieldViolation({
                 enforcement: "required",
@@ -709,10 +716,7 @@ function validateDataset(
                 reason: "not_mapped",
               }),
             );
-          } else if (
-            fieldOverride.requirement ===
-              FieldRequirementLevel.StronglyRecommended
-          ) {
+          } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
             schemaViolations.push(
               new MissingFieldViolation({
                 enforcement: "recommended",
