@@ -21,6 +21,6 @@ jobs:
 
       # Validate the darwin core archive
       - run: deno task cli validate --format markdown_summary_action --config ../../external/rocky-subtidal-fish-invertebrate_config.yaml
-      
+
       # set github action summary
       - run: echo "$(cat packages/cli/validation_results/validation-results.md)" >> $GITHUB_STEP_SUMMARY
