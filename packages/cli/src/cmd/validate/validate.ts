@@ -134,7 +134,7 @@ function handleValidateError(
       if (e.hint) {
         Output.muted(`   ${e.hint}`);
       }
-      return e.exitCode;
+      return e.exitCode === 2 ? 0 : e.exitCode;
     }),
     // Output/file writing errors
     Match.tag('OutputError', (e) => {
