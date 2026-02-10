@@ -221,9 +221,9 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     const result = await Effect.runPromise(
       validator.validateFromConfig(tempDir),
     );
-    
+
     // TODO WE DONT DO THIS CURRENTLY. NO CHECK constraints are created when creating tables. Not sure if anything else runs???
-    
+
     // Should detect depth constraint violations
     assertExists(result);
     assertEquals(result.datasetResults.length, 1);
