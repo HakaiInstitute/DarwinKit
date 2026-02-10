@@ -15,12 +15,16 @@ import { ProgressSpinner } from '../../utils/spinner.ts';
 // Structured output function
 function outputResults(
   results: WorkspaceValidationResult,
-  format: 'table' | 'json',
+  format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
   outputDir?: string,
 ): Effect.Effect<void, OutputError> {
   return Effect.gen(function* (_) {
     if (format === 'json') {
       yield* _(outputJsonResultsEffect(results, outputDir));
+    } else if (format === 'markdown') {
+      yield* _(outputMarkdownResultsEffect(results, outputDir, false));
+    } else if (format === 'markdown_summary_action') {
+        yield* _(outputMarkdownResultsEffect(results, outputDir, true));
     } else {
       outputTableResults(results);
     }
@@ -67,6 +71,262 @@ function outputJsonResultsEffect(
     );
 
     Output.success(`✅ Results written to: ${fullPath}`);
+    Output.blank();
+    Output.line(`Overall status: ${results.overallStatus}`);
+    Output.line(
+      `Datasets: ${results.summary.datasetsPassedCount} passed, ${results.summary.datasetsWithWarningsCount} warnings, ${results.summary.datasetsFailedCount} failed`,
+    );
+  });
+}
+
+function outputMarkdownResultsEffect(
+  results: WorkspaceValidationResult,
+  outputDir?: string,
+  github_action?: boolean,
+): Effect.Effect<void, OutputError> {
+  return Effect.gen(function* (_) {
+    const outputPath = outputDir || './validation_results';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = github_action ? 'validation-results.md' : `validation-results-${timestamp}.md`;
+    const fullPath = join(outputPath, filename);
+
+    // Helper function to group violations by field
+    function groupViolationsByField(
+      violations: ReadonlyArray<FieldViolation>,
+    ): Map<string, FieldViolation[]> {
+      const grouped = new Map<string, FieldViolation[]>();
+
+      for (const violation of violations) {
+        if (!grouped.has(violation.fieldName)) {
+          grouped.set(violation.fieldName, []);
+        }
+        grouped.get(violation.fieldName)!.push(violation);
+      }
+
+      return grouped;
+    }
+
+    // Build markdown content
+    let markdown = '';
+
+    // Header
+    markdown += '# 📂 Workspace Validation Results\n\n';
+    markdown += `**Configuration:** \`${results.configPath}\`\n\n`;
+    markdown += `**Validation Date:** ${new Date().toISOString()}\n\n`;
+
+    // Summary table
+    markdown += '## Summary Table\n\n';
+    markdown += '| Dataset | Spec | Status | Errors | Warnings | Info |\n';
+    markdown += '|---------|------|--------|--------|----------|------|\n';
+
+    for (const dataset of results.datasetResults) {
+      const statusIcon = getStatusIcon(dataset.status);
+      const statusText = `${statusIcon} ${dataset.status.toUpperCase()}`;
+
+      const errorCount = dataset.schemaViolations.errors.length +
+        dataset.fieldViolations.errors.length;
+
+      const warningCount = dataset.schemaViolations.warnings.length +
+        dataset.fieldViolations.warnings.length;
+
+      const infoCount = dataset.schemaViolations.info.length +
+        dataset.fieldViolations.info.length;
+
+      markdown += `| ${dataset.datasetName} | ${dataset.spec} | ${statusText} | ${errorCount} | ${warningCount} | ${infoCount} |\n`;
+    }
+
+    markdown += '\n';
+
+    // Detailed results by dataset
+    for (const dataset of results.datasetResults) {
+      const hasErrors = dataset.schemaViolations.errors.length > 0 ||
+        dataset.fieldViolations.errors.length > 0;
+
+      const hasWarnings = dataset.schemaViolations.warnings.length > 0 ||
+        dataset.fieldViolations.warnings.length > 0;
+
+      const hasInfo = dataset.schemaViolations.info.length > 0 ||
+        dataset.fieldViolations.info.length > 0;
+
+      if (hasErrors || hasWarnings || hasInfo) {
+        markdown += `## 📊 ${dataset.datasetName} (${dataset.spec})\n\n`;
+      }
+
+      // ❌ ERRORS (required violations)
+      if (hasErrors) {
+        const totalErrors = dataset.schemaViolations.errors.length +
+          dataset.fieldViolations.errors.length;
+        markdown += `### ❌ ERRORS (${totalErrors})\n\n`;
+
+        // Show schema errors first
+        if (dataset.schemaViolations.errors.length > 0) {
+          markdown += '**Schema Issues:**\n\n';
+          for (const violation of dataset.schemaViolations.errors) {
+            markdown += `- **${violation.fieldName}:** ${violation.errorMessage}\n`;
+          }
+          markdown += '\n';
+        }
+
+        // Show field violations
+        if (dataset.fieldViolations.errors.length > 0) {
+          markdown += '**Data Validation Errors:**\n\n';
+          const errorsByField = groupViolationsByField(dataset.fieldViolations.errors);
+          for (const [fieldName, violations] of errorsByField) {
+            const firstViolation = violations[0];
+            markdown += `- **${fieldName}** (${firstViolation.validatorType}): ${violations.length} violations\n`;
+
+            const examples = violations.slice(0, 3);
+            for (const violation of examples) {
+              markdown += `  - Row ${violation.rowNumber}: ${violation.errorMessage}\n`;
+            }
+
+            if (violations.length > 3) {
+              markdown += `  - ... and ${violations.length - 3} more violations\n`;
+            }
+          }
+          markdown += '\n';
+        }
+      }
+
+      // ⚠️ WARNINGS (recommended violations)
+      if (hasWarnings) {
+        const totalWarnings = dataset.schemaViolations.warnings.length +
+          dataset.fieldViolations.warnings.length;
+        markdown += `### ⚠️ WARNINGS (${totalWarnings})\n\n`;
+
+        // Show schema warnings first
+        if (dataset.schemaViolations.warnings.length > 0) {
+          markdown += '**Schema Issues:**\n\n';
+          for (const violation of dataset.schemaViolations.warnings) {
+            markdown += `- **${violation.fieldName}:** ${violation.errorMessage}\n`;
+          }
+          markdown += '\n';
+        }
+
+        // Show field violations
+        if (dataset.fieldViolations.warnings.length > 0) {
+          markdown += '**Data Validation Warnings:**\n\n';
+          const warningsByField = groupViolationsByField(dataset.fieldViolations.warnings);
+          for (const [fieldName, violations] of warningsByField) {
+            const firstViolation = violations[0];
+            markdown += `- **${fieldName}** (${firstViolation.validatorType}): ${violations.length} violations\n`;
+
+            const examples = violations.slice(0, 3);
+            for (const violation of examples) {
+              markdown += `  - Row ${violation.rowNumber}: ${violation.errorMessage}\n`;
+            }
+
+            if (violations.length > 3) {
+              markdown += `  - ... and ${violations.length - 3} more violations\n`;
+            }
+          }
+          markdown += '\n';
+        }
+      }
+
+      // ℹ️ INFO (optional violations)
+      if (hasInfo) {
+        const totalInfo = dataset.schemaViolations.info.length +
+          dataset.fieldViolations.info.length;
+        markdown += `### ℹ️ INFO (${totalInfo})\n\n`;
+
+        // Show schema info first
+        if (dataset.schemaViolations.info.length > 0) {
+          markdown += '**Schema Issues:**\n\n';
+          for (const violation of dataset.schemaViolations.info) {
+            markdown += `- **${violation.fieldName}:** ${violation.errorMessage}\n`;
+          }
+          markdown += '\n';
+        }
+
+        // Show field violations
+        if (dataset.fieldViolations.info.length > 0) {
+          markdown += '**Data Validation Info:**\n\n';
+          const infoByField = groupViolationsByField(dataset.fieldViolations.info);
+          for (const [fieldName, violations] of infoByField) {
+            const firstViolation = violations[0];
+            markdown += `- **${fieldName}** (${firstViolation.validatorType}): ${violations.length} violations\n`;
+
+            const examples = violations.slice(0, 3);
+            for (const violation of examples) {
+              markdown += `  - Row ${violation.rowNumber}: ${violation.errorMessage}\n`;
+            }
+
+            if (violations.length > 3) {
+              markdown += `  - ... and ${violations.length - 3} more violations\n`;
+            }
+          }
+          markdown += '\n';
+        }
+      }
+    }
+
+    // Show cross-dataset validation results
+    if (results.crossDatasetResults.length > 0) {
+      markdown += '## 🔗 Cross-dataset Validation\n\n';
+
+      for (const crossResult of results.crossDatasetResults) {
+        if (crossResult.violations.length > 0) {
+          markdown += `### ❌ Foreign Key Violation\n\n`;
+          markdown += `**${crossResult.sourceDataset}.${crossResult.sourceField}** → **${crossResult.targetDataset}.${crossResult.targetField}**\n\n`;
+
+          const sampleViolations = crossResult.violations.slice(0, 5);
+          for (const violation of sampleViolations) {
+            markdown += `- Row ${violation.rowNumber}: ${violation.errorMessage}\n`;
+          }
+
+          if (crossResult.violations.length > 5) {
+            markdown += `- ... and ${crossResult.violations.length - 5} more violations\n`;
+          }
+          markdown += '\n';
+        } else {
+          markdown += `### ✅ Foreign Key Valid\n\n`;
+          markdown += `**${crossResult.sourceDataset}.${crossResult.sourceField}** → **${crossResult.targetDataset}.${crossResult.targetField}**\n\n`;
+        }
+      }
+    }
+
+    // Overall summary
+    markdown += '## 📊 Overall Summary\n\n';
+    markdown += `**Datasets processed:** ${results.summary.totalDatasets}  \n`;
+    markdown += `**Passed:** ${results.summary.datasetsPassedCount}  \n`;
+    markdown += `**Warnings:** ${results.summary.datasetsWithWarningsCount}  \n`;
+    markdown += `**Failed:** ${results.summary.datasetsFailedCount}  \n`;
+    markdown += '  \n';
+    markdown += `**❌ Errors:** ${results.summary.totalErrors}  \n`;
+    markdown += `**⚠️ Warnings:** ${results.summary.totalWarnings}  \n`;
+    markdown += `**ℹ️ Info:** ${results.summary.totalInfo}  \n`;
+    markdown += '  \n';
+    markdown += `**Total rows processed:** ${results.summary.totalRowsProcessed}  \n`;
+    markdown += `**Processing time:** ${results.totalProcessingTimeMs}ms  \n`;
+
+    // Create output directory
+    yield* _(
+      Effect.tryPromise({
+        try: () => Deno.mkdir(outputPath, { recursive: true }),
+        catch: (error) =>
+          new OutputError({
+            message: `Failed to create output directory: ${error}`,
+            outputPath,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          }),
+      }),
+    );
+
+    // Write markdown file
+    yield* _(
+      Effect.tryPromise({
+        try: () => Deno.writeTextFile(fullPath, markdown),
+        catch: (error) =>
+          new OutputError({
+            message: `Failed to write markdown file: ${error}`,
+            outputPath: fullPath,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          }),
+      }),
+    );
+
+    Output.success(`✅ Markdown results written to: ${fullPath}`);
     Output.blank();
     Output.line(`Overall status: ${results.overallStatus}`);
     Output.line(
@@ -231,7 +491,7 @@ function handleValidateError(
  */
 function buildValidationEffect(
   configPath: string | undefined,
-  format: 'table' | 'json',
+  format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
   outputDir: string | undefined,
   spinner: ProgressSpinner,
 ) {
@@ -268,7 +528,11 @@ export async function validate(options: {
 }) {
   // Ensure format is valid
   // TODO: Should tell the user their option was invalid and tell them which ones are valid instead
-  const validFormat = (options.format === 'json') ? 'json' : 'table';
+  const validFormat = (
+    options.format === 'json' || 
+    options.format === 'markdown' || 
+    options.format === 'markdown_summary_action'
+  ) ? options.format : 'table';
 
   // Create spinner for validation progress
   const spinner = new ProgressSpinner({
