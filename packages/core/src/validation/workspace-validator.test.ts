@@ -88,14 +88,20 @@ const TEST_DATA = {
 
   // Missing field scenarios
   EVENTS_MISSING_COUNTRY_CODE: [
-    { eventID: "E1", country: "Canada" },
+    {
+      eventID: "E1",
+      country: "Canada",
+      eventDate: "2000-01-01",
+      decimalLatitude: 49.5,
+      decimalLongitude: -123.5,
+    },
   ],
 
   // Range violation scenarios
   EVENTS_WITH_INVALID_LATITUDE: [
-    { eventID: "E1", decimalLatitude: 49.5, decimalLongitude: -123.5 },
-    { eventID: "E2", decimalLatitude: 95.0, decimalLongitude: -124.0 },
-    { eventID: "E3", decimalLatitude: -95.0, decimalLongitude: -125.0 },
+    { eventID: "E1", eventDate: "2000-01-01", decimalLatitude: 49.5, decimalLongitude: -123.5 },
+    { eventID: "E2", eventDate: "2000-01-01", decimalLatitude: 95.0, decimalLongitude: -124.0 },
+    { eventID: "E3", eventDate: "2000-01-01", decimalLatitude: -95.0, decimalLongitude: -125.0 },
   ],
 
   // Vocabulary violation scenarios

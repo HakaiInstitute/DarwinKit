@@ -51,6 +51,8 @@ import { validateField } from "./field-validators.ts";
 import { resolveSchemaTableName } from "./summary.ts";
 import { importSchema } from "../loading/schema.ts";
 
+import { findSuggestedValue } from "../validation/string-matching.ts";
+
 /**
  * Workspace validator for config-based validation
  */
@@ -232,6 +234,37 @@ export class WorkspaceValidator {
         );
 
         datasetResults.push(result);
+
+        // Print result object as you go if in debug mode, report first occurrence of each error
+        if (settings.debug) {
+          const earlyResult = {
+            ...result,
+            schemaViolations: {
+              errors: result.schemaViolations.errors.filter((obj1, i, arr) =>
+                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+              warnings: result.schemaViolations.warnings.filter((obj1, i, arr) =>
+                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+              info: result.schemaViolations.info.filter((obj1, i, arr) =>
+                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+            },
+            fieldViolations: {
+              errors: result.fieldViolations.errors.filter((obj1, i, arr) =>
+                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+              warnings: result.fieldViolations.warnings.filter((obj1, i, arr) =>
+                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+              info: result.fieldViolations.info.filter((obj1, i, arr) =>
+                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
+              ),
+            },
+          };
+
+          console.debug(JSON.stringify(earlyResult, null, 4));
+        }
 
         // Fail-fast if enabled and we have critical errors
         if (settings.failFast && result.status === "fail") {
@@ -494,17 +527,61 @@ function validateDataset(
       ? sanitizeTableName(profileName).toLowerCase()
       : dataset.name.toLowerCase();
 
+    const schemaProfile = getValidationProfile(profileName || "");
+    if (schemaProfile === undefined) {
+      return yield* _(
+        Effect.fail(
+          new WorkspaceValidationError({
+            message: `Invalid profile identifier: ${profileName}`,
+          }),
+        ),
+      );
+    }
+    const schemaColumnsObj = Object.keys(schemaProfile?.normalizedFields || {}).map((
+      fieldName: string,
+    ) =>
+      <WorkspaceFieldMapping> {
+        originName: fieldName,
+        targetName: fieldName,
+        requirement: schemaProfile?.normalizedFields
+          ? schemaProfile.normalizedFields[fieldName]?.requirement
+          : undefined,
+      }
+    ).reduce((obj, item) => {
+      obj[item.targetName] = item;
+      return obj;
+    }, {} as Record<string, WorkspaceFieldMapping>) as Record<string, WorkspaceFieldMapping>;
+
     // Detect field mapping issues
-    const mappedOriginFields = dataset.fieldMappings.map((m) => m.originName);
+    const configFieldMappings = dataset?.fieldMappings || [];
+    const mappedOriginFields = configFieldMappings.map((m) => m.originName);
+
     const missingSourceFields = mappedOriginFields.filter(
       (f) => !originTableColumns.includes(f),
-    );
-    const unmappedSourceColumns = originTableColumns.filter(
-      (f) => !mappedOriginFields.includes(f),
+    ).map((f) => ({
+      fieldName: f,
+      alternatives: findSuggestedValue(f, originTableColumns) || "",
+    }));
+
+    // override with fieldMappings from config
+    configFieldMappings.forEach((field) => {
+      schemaColumnsObj[field.targetName] = <WorkspaceFieldMapping> {
+        ...field,
+      };
+    });
+    const allFieldMappings = Object.values(schemaColumnsObj).map((m: WorkspaceFieldMapping) =>
+      m.originName
     );
 
+    const unmappedSourceColumns = originTableColumns.filter(
+      (f) => !allFieldMappings.includes(f),
+    ).map((f) => ({
+      fieldName: f,
+      alternatives: findSuggestedValue(f, mappedOriginFields) || "",
+    }));
+
     // Filter out mappings that reference missing source fields
-    const validMappings = dataset.fieldMappings.filter(
+    const validMappings = Object.values(schemaColumnsObj).filter(
       (mapping) => originTableColumns.includes(mapping.originName),
     );
 
@@ -565,16 +642,22 @@ function validateDataset(
     // Generate schema violations for field mapping issues
     // When a mapped field is missing from CSV, it's always a warning (recommended enforcement)
     // because we can't validate data that doesn't exist - we just skip the mapping
-    for (const fieldName of missingSourceFields) {
-      const mapping = dataset.fieldMappings.find((m) => m.originName === fieldName);
+    for (const missingSourceField of missingSourceFields) {
+      const mapping = (dataset.fieldMappings || []).find((m) =>
+        m.originName === missingSourceField.fieldName
+      );
+      const altMsg = missingSourceField.alternatives
+        ? `Possible alternative fields: ${missingSourceField.alternatives}`
+        : "";
       schemaViolations.push(
         new MissingMappingViolation({
           enforcement: "recommended",
           severity: enforcementToSeverity("recommended"),
-          fieldName,
-          targetName: mapping?.targetName ?? fieldName,
+          fieldName: missingSourceField.fieldName,
+          targetName: mapping?.targetName ?? missingSourceField.fieldName,
           errorMessage:
-            `Field '${fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.`,
+            `Field '${missingSourceField.fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.` +
+            (altMsg ? ` ${altMsg}` : ""),
           validatorType: "schema",
           datasetName: dataset.name,
         }),
@@ -582,15 +665,19 @@ function validateDataset(
     }
 
     // Generate schema violations for unmapped source columns (informational)
-    for (const columnName of unmappedSourceColumns) {
+    for (const unmappedSourceColumn of unmappedSourceColumns) {
+      const altMsg = unmappedSourceColumn.alternatives
+        ? `Possible alternative columns: ${unmappedSourceColumn.alternatives}`
+        : "";
       schemaViolations.push(
         new UnmappedColumnViolation({
           enforcement: "optional",
           severity: enforcementToSeverity("optional"),
-          fieldName: columnName,
-          targetName: columnName,
+          fieldName: unmappedSourceColumn.fieldName,
+          targetName: unmappedSourceColumn.fieldName,
           errorMessage:
-            `Source column '${columnName}' is not mapped to any Darwin Core field and will be ignored.`,
+            `Source column '${unmappedSourceColumn.fieldName}' is not mapped to any Darwin Core field and will be ignored.` +
+            (altMsg ? ` ${altMsg}` : ""),
           validatorType: "schema",
           datasetName: dataset.name,
         }),
@@ -598,14 +685,14 @@ function validateDataset(
     }
 
     // Check profile field requirements based on requirement levels
-    if (profile && profile.fieldOverrides && dataset.fieldMappings) {
+    if (profile && schemaColumnsObj && validMappings) {
       const mappedSpecFields = new Set(
-        dataset.fieldMappings.map((m) => m.targetName),
+        validMappings.map((m) => m.targetName),
       );
 
       for (
         const [fieldName, fieldOverride] of Object.entries(
-          profile.fieldOverrides,
+          schemaColumnsObj,
         )
       ) {
         if (!fieldOverride.requirement) continue;
@@ -614,7 +701,9 @@ function validateDataset(
 
         if (!isMapped) {
           // Handle missing fields based on requirement level
-          if (fieldOverride.requirement === FieldRequirementLevel.Required) {
+          if (
+            fieldOverride.requirement === FieldRequirementLevel.Required || fieldOverride.isRequired
+          ) {
             schemaViolations.push(
               new MissingFieldViolation({
                 enforcement: "required",
@@ -627,10 +716,7 @@ function validateDataset(
                 reason: "not_mapped",
               }),
             );
-          } else if (
-            fieldOverride.requirement ===
-              FieldRequirementLevel.StronglyRecommended
-          ) {
+          } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
             schemaViolations.push(
               new MissingFieldViolation({
                 enforcement: "recommended",

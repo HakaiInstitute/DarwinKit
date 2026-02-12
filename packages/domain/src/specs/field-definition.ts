@@ -36,6 +36,7 @@ export const FieldDefinitionSchema = S.Struct({
     enforcement: S.optional(S.Literal("strict", "recommended", "loose")),
   })),
   type: S.optional(S.String),
+  requirement: S.optional(S.String),
   comments: S.optional(S.String),
   examples: S.optional(S.String),
 });
@@ -123,6 +124,7 @@ export function normalizeField(jsonField: Field): FieldDefinition {
     validators,
     vocabulary,
     type: jsonField.type,
+    requirement: jsonField.obis_required,
     comments: jsonField.comments,
     examples: jsonField.examples,
   };
