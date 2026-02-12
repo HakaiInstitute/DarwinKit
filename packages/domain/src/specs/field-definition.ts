@@ -21,14 +21,8 @@
 
 import * as S from "effect/Schema";
 import type { Field } from "../schemas/validation-profile.ts";
-import {
-  Constraint,
-  type EnforcementLevel,
-  FieldDataType,
-  type Obligation,
-  ObligationsMap,
-} from "./constraints.ts";
-import { vocabularyEnforcementToStandard } from "./validators.ts";
+import { Constraint, FieldDataType, type Obligation, ObligationsMap } from "./constraints.ts";
+import { vocabularyEnforcementToStandard } from "./vocabulary-utils.ts";
 import type { VocabularyEnforcement } from "./vocabularies/config.ts";
 import type { VocabularyKey } from "./vocabularies/registry.ts";
 
@@ -97,75 +91,39 @@ export function normalizeField(jsonField: Field): FieldDefinition {
   // Convert validators to Constraint objects
   if (jsonField.validators) {
     for (const v of jsonField.validators) {
-      // If already an object with type field, convert to flat constraint format
+      // If already an object with type field, flatten params and decode via Constraint schema
       if (typeof v === "object" && v !== null && "type" in v) {
         const obj = v as Record<string, unknown>;
-        const constraintType = obj.type as string;
+        const params = (obj.params as Record<string, unknown>) || {};
 
-        if (constraintType === "range") {
-          const params = (obj.params as Record<string, unknown>) || {};
-          constraints.push({
-            type: "range" as const,
-            min: typeof params.min === "number" ? params.min : undefined,
-            max: typeof params.max === "number" ? params.max : undefined,
-            inclusive: typeof params.inclusive === "boolean" ? params.inclusive : true,
-            enforcement: (obj.enforcement as EnforcementLevel) || "required",
-            message: obj.message as string | undefined,
-          });
-        } else if (constraintType === "format") {
-          const params = (obj.params as Record<string, unknown>) || {};
-          constraints.push({
-            type: "format" as const,
-            format: (params.format || obj.format) as
-              | "email"
-              | "url"
-              | "uuid"
-              | "iso8601"
-              | "decimal-degrees"
-              | "integer",
-            enforcement: (obj.enforcement as EnforcementLevel) || "required",
-            message: obj.message as string | undefined,
-          });
-        } else if (constraintType === "pattern") {
-          const params = (obj.params as Record<string, unknown>) || {};
-          constraints.push({
-            type: "pattern" as const,
-            pattern: (params.pattern || obj.pattern) as string,
-            flags: (params.flags || obj.flags) as string | undefined,
-            enforcement: (obj.enforcement as EnforcementLevel) || "required",
-            message: obj.message as string | undefined,
-          });
-        } else if (constraintType === "length") {
-          const params = (obj.params as Record<string, unknown>) || {};
-          constraints.push({
-            type: "length" as const,
-            minLength: typeof params.minLength === "number" ? params.minLength : undefined,
-            maxLength: typeof params.maxLength === "number" ? params.maxLength : undefined,
-            enforcement: (obj.enforcement as EnforcementLevel) || "required",
-            message: obj.message as string | undefined,
-          });
-        } else if (constraintType === "unique") {
-          constraints.push({
-            type: "unique" as const,
-            enforcement: (obj.enforcement as EnforcementLevel) || "required",
-            message: obj.message as string | undefined,
-          });
-        } else if (constraintType === "required") {
-          constraints.push({
-            type: "required" as const,
-            allowEmpty: false,
-            allowWhitespace: false,
-            enforcement: (obj.enforcement as EnforcementLevel) || "required",
-            message: obj.message as string | undefined,
-          });
-        } else if (constraintType === "vocabulary") {
-          constraints.push({
-            type: "vocabulary" as const,
-            vocabularyKey: (obj.vocabularyKey as string) || "",
-            caseSensitive: false,
-            enforcement: (obj.enforcement as EnforcementLevel) || "recommended",
-            message: obj.message as string | undefined,
-          });
+        // Flatten params into the object and apply defaults per type
+        const raw: Record<string, unknown> = {
+          ...params,
+          ...obj,
+          enforcement: obj.enforcement || "required",
+        };
+        // Remove nested params — fields are now at top level
+        delete raw.params;
+
+        // Apply type-specific defaults for fields that Schema requires
+        if (raw.type === "required") {
+          raw.allowEmpty ??= false;
+          raw.allowWhitespace ??= false;
+        }
+        if (raw.type === "vocabulary") {
+          raw.vocabularyKey ??= "";
+          raw.caseSensitive ??= false;
+          raw.enforcement ??= "recommended";
+        }
+
+        try {
+          constraints.push(S.decodeUnknownSync(Constraint)(raw));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `Invalid constraint object for field "${jsonField.name}" — skipping: ${message}`,
+            JSON.stringify(raw),
+          );
         }
         continue;
       }

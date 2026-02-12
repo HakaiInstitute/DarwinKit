@@ -14,11 +14,8 @@ export * from "./constraints.ts";
 // Constraint Presets
 export * from "./constraint-presets.ts";
 
-// Semantic Types
-export * from "./semantic-type.ts";
-
-// Validator utilities
-export * from "./validators.ts";
+// Vocabulary utilities
+export * from "./vocabulary-utils.ts";
 
 // Validation Profiles
 export { OBIS_EVENT_PROFILE } from "./profiles/obis-event.ts";

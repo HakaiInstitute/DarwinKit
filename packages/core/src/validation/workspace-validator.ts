@@ -17,15 +17,14 @@ import type {
   ValidationProfile,
   ValidationSettings,
   WorkspaceCrossDatasetRule,
-  WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
 import { deriveProfileId, FieldRequirementLevel, parseSpecIdentifier } from "@dwkt/domain/schemas";
-import type { Constraint, EnforcementLevel, FieldDefinition, Obligation } from "@dwkt/domain/specs";
+import type { EnforcementLevel, FieldDefinition } from "@dwkt/domain/specs";
 import {
   getPreset,
+  getPresetNames,
   getValidationProfile,
   hasControlledVocabulary,
-  mergeConstraints,
 } from "@dwkt/domain/specs";
 import type {
   CrossDatasetValidationResult,
@@ -56,56 +55,13 @@ import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
 import { resolveSchemaTableName } from "./summary.ts";
 
+import {
+  applyResolvedConstraints,
+  deriveRequirementFromConstraints,
+  resolveActiveStandard,
+  resolveFieldDefinitions,
+} from "./field-resolution.ts";
 import { findSuggestedValue } from "../validation/string-matching.ts";
-
-/**
- * Resolve the active standard for a profile.
- *
- * TypeScript profiles (obis, obis-event) have an explicit `targetSchema`.
- * JSON base profiles (Event, Occurrence, etc.) have `targetSchema: undefined`
- * since they come from dwcSchema.json. Default to "obis" for these since
- * the JSON schema contains OBIS requirement metadata.
- */
-function resolveActiveStandard(
-  profile: ValidationProfile | undefined,
-): "obis" | "gbif" | "custom" {
-  if (profile?.targetSchema) return profile.targetSchema;
-  return "obis";
-}
-
-/**
- * Get the obligation for a field from its obligations map, given the active standard.
- */
-function obligationForStandard(
-  field: FieldDefinition,
-  standard: "obis" | "gbif" | "custom",
-): Obligation | undefined {
-  if (!field.obligations) return undefined;
-  if (standard === "obis") return field.obligations.obis;
-  if (standard === "gbif") return field.obligations.gbif;
-  return undefined;
-}
-
-/**
- * Map an Obligation value to FieldRequirementLevel.
- */
-function obligationToRequirementLevel(
-  obligation: Obligation,
-): FieldRequirementLevel {
-  switch (obligation) {
-    case "required":
-      return FieldRequirementLevel.Required;
-    case "strongly recommended":
-      return FieldRequirementLevel.StronglyRecommended;
-    case "recommended":
-      return FieldRequirementLevel.Recommended;
-    case "optional":
-    case "optional (required for imaging data)":
-      return FieldRequirementLevel.Optional;
-    case "required (if exists)":
-      return FieldRequirementLevel.RequiredIfExists;
-  }
-}
 
 /** Deduplicate violations by validator type + field name composite key */
 function deduplicateByTypeAndField<T extends { validatorType: string; fieldName: string }>(
@@ -127,14 +83,7 @@ export class WorkspaceValidator {
   /**
    * Validate datasets directly from in-memory configuration
    *
-   * This is the preferred method for programmatic validation as it
-   * operates on already-loaded configuration without file I/O.
-   *
-   * @param datasets - Dataset configurations to validate
-   * @param settings - Validation settings (null values, fail-fast, etc.)
-   * @param basePath - Base directory for resolving relative dataset paths
-   * @param workspaceId - Optional workspace ID for result tracking
-   * @param crossDatasetRules - Optional cross-dataset validation rules
+   * Creates an isolated DuckDB instance, loads datasets, validates, then cleans up.
    */
   validateDatasets(
     datasets: readonly DatasetConfig[],
@@ -144,7 +93,6 @@ export class WorkspaceValidator {
     crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
-      const startTime = Date.now();
       const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
 
       // Create workspace and load all datasets
@@ -160,68 +108,15 @@ export class WorkspaceValidator {
 
       // Perform validation with guaranteed connection cleanup
       return yield* _(
-        Effect.gen(function* (_) {
-          // Validate each dataset
-          const datasetResults: DatasetValidationResult[] = [];
-
-          for (const dataset of datasets) {
-            // Derive profile from dataset config
-            const profileId1 = deriveProfileId(dataset);
-            const datasetProfile = profileId1 ? getValidationProfile(profileId1) : undefined;
-
-            const result = yield* _(
-              validateDataset(connection, dataset, datasetProfile, settings, crossDatasetRules),
-            );
-
-            datasetResults.push(result);
-
-            // Fail-fast if enabled and we have critical errors
-            if (settings.failFast && result.status === "fail") {
-              break;
-            }
-          }
-
-          // Validate cross-dataset rules if provided
-          const crossDatasetResults: CrossDatasetValidationResult[] = [];
-          if (crossDatasetRules && !settings.failFast) {
-            for (const rule of crossDatasetRules) {
-              const result = yield* _(
-                validateCrossDatasetRule(connection, rule, datasets),
-              );
-              crossDatasetResults.push(result);
-            }
-          }
-
-          // Calculate summary (including cross-dataset violations)
-          const summary = calculateSummary(datasetResults, crossDatasetResults);
-          const totalProcessingTimeMs = Date.now() - startTime;
-
-          const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0 ||
-              summary.totalErrors > 0
-            ? "fail"
-            : summary.datasetsWithWarningsCount > 0 || summary.totalWarnings > 0
-            ? "warn"
-            : "pass";
-
-          return {
-            workspaceId: wsId,
-            configPath: basePath,
-            validatedAt: new Date(),
-            totalProcessingTimeMs,
-            overallStatus,
-            datasetResults,
-            crossDatasetResults,
-            summary,
-          };
-        }).pipe(
-          // Ensure connection and instance are closed even if validation fails
-          Effect.ensuring(
-            Effect.all([
-              Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
-              Effect.try(() => instance.closeSync()).pipe(Effect.ignore),
-            ]),
+        _validateDatasetsCore(connection, datasets, settings, basePath, wsId, crossDatasetRules)
+          .pipe(
+            Effect.ensuring(
+              Effect.all([
+                Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
+                Effect.try(() => instance.closeSync()).pipe(Effect.ignore),
+              ]),
+            ),
           ),
-        ),
       );
     });
   }
@@ -232,13 +127,6 @@ export class WorkspaceValidator {
    * Unlike validateDatasets(), this method does NOT create or close
    * the connection. It's designed for use with an Effect-managed
    * Workspace that owns the connection lifecycle.
-   *
-   * @param connection - An existing DuckDB connection to use
-   * @param datasets - Dataset configurations to validate
-   * @param settings - Validation settings (null values, fail-fast, etc.)
-   * @param basePath - Base directory for resolving relative dataset paths
-   * @param workspaceId - Optional workspace ID for result tracking
-   * @param crossDatasetRules - Optional cross-dataset validation rules
    */
   validateDatasetsWithConnection(
     connection: DuckDBConnection,
@@ -249,7 +137,6 @@ export class WorkspaceValidator {
     crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
-      const startTime = Date.now();
       const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
 
       // Load each dataset into DuckDB (using the provided connection)
@@ -257,7 +144,6 @@ export class WorkspaceValidator {
         const filePath = resolve(basePath, dataset.path);
         const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
-        // Import CSV with row numbers
         yield* _(
           importCsv(connection, tableName, filePath, settings.nullValues).pipe(
             Effect.mapError((e) =>
@@ -268,79 +154,16 @@ export class WorkspaceValidator {
         yield* _(importSchema(connection, dataset, datasets, crossDatasetRules));
       }
 
-      // Validate each dataset
-      const datasetResults: DatasetValidationResult[] = [];
-
-      for (const dataset of datasets) {
-        // Derive profile from dataset config
-        const datasetProfileId = deriveProfileId(dataset);
-        const datasetProfile = datasetProfileId
-          ? getValidationProfile(datasetProfileId)
-          : undefined;
-
-        const result = yield* _(
-          validateDataset(connection, dataset, datasetProfile, settings, crossDatasetRules),
-        );
-
-        datasetResults.push(result);
-
-        // Print result object as you go if in debug mode, report first occurrence of each error
-        if (settings.debug) {
-          const earlyResult = {
-            ...result,
-            schemaViolations: {
-              errors: deduplicateByTypeAndField(result.schemaViolations.errors),
-              warnings: deduplicateByTypeAndField(result.schemaViolations.warnings),
-              info: deduplicateByTypeAndField(result.schemaViolations.info),
-            },
-            fieldViolations: {
-              errors: deduplicateByTypeAndField(result.fieldViolations.errors),
-              warnings: deduplicateByTypeAndField(result.fieldViolations.warnings),
-              info: deduplicateByTypeAndField(result.fieldViolations.info),
-            },
-          };
-
-          console.debug(JSON.stringify(earlyResult, null, 4));
-        }
-
-        // Fail-fast if enabled and we have critical errors
-        if (settings.failFast && result.status === "fail") {
-          break;
-        }
-      }
-
-      // Validate cross-dataset rules if provided
-      const crossDatasetResults: CrossDatasetValidationResult[] = [];
-      if (crossDatasetRules && !settings.failFast) {
-        for (const rule of crossDatasetRules) {
-          const result = yield* _(
-            validateCrossDatasetRule(connection, rule, datasets),
-          );
-          crossDatasetResults.push(result);
-        }
-      }
-
-      // Calculate summary (including cross-dataset violations)
-      const summary = calculateSummary(datasetResults, crossDatasetResults);
-      const totalProcessingTimeMs = Date.now() - startTime;
-
-      const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0 ||
-          summary.totalErrors > 0
-        ? "fail"
-        : summary.datasetsWithWarningsCount > 0 || summary.totalWarnings > 0
-        ? "warn"
-        : "pass";
-
-      return {
-        workspaceId: resolvedWorkspaceId,
-        configPath: basePath,
-        validatedAt: new Date(),
-        totalProcessingTimeMs,
-        overallStatus,
-        datasetResults,
-        crossDatasetResults,
-        summary,
-      };
+      return yield* _(
+        _validateDatasetsCore(
+          connection,
+          datasets,
+          settings,
+          basePath,
+          resolvedWorkspaceId,
+          crossDatasetRules,
+        ),
+      );
     });
   }
 
@@ -387,6 +210,86 @@ export class WorkspaceValidator {
       }),
     );
   }
+}
+
+/**
+ * Shared validation loop used by both validateDatasets() and validateDatasetsWithConnection()
+ */
+function _validateDatasetsCore(
+  connection: DuckDBConnection,
+  datasets: readonly DatasetConfig[],
+  settings: ValidationSettings,
+  basePath: string,
+  workspaceId: string,
+  crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
+  return Effect.gen(function* (_) {
+    const startTime = Date.now();
+    const datasetResults: DatasetValidationResult[] = [];
+
+    for (const dataset of datasets) {
+      const datasetProfileId = deriveProfileId(dataset);
+      const datasetProfile = datasetProfileId ? getValidationProfile(datasetProfileId) : undefined;
+
+      const result = yield* _(
+        validateDataset(connection, dataset, datasetProfile, settings, crossDatasetRules),
+      );
+
+      datasetResults.push(result);
+
+      if (settings.debug) {
+        const earlyResult = {
+          ...result,
+          schemaViolations: {
+            errors: deduplicateByTypeAndField(result.schemaViolations.errors),
+            warnings: deduplicateByTypeAndField(result.schemaViolations.warnings),
+            info: deduplicateByTypeAndField(result.schemaViolations.info),
+          },
+          fieldViolations: {
+            errors: deduplicateByTypeAndField(result.fieldViolations.errors),
+            warnings: deduplicateByTypeAndField(result.fieldViolations.warnings),
+            info: deduplicateByTypeAndField(result.fieldViolations.info),
+          },
+        };
+        console.debug(JSON.stringify(earlyResult, null, 4));
+      }
+
+      if (settings.failFast && result.status === "fail") {
+        break;
+      }
+    }
+
+    const crossDatasetResults: CrossDatasetValidationResult[] = [];
+    if (crossDatasetRules && !settings.failFast) {
+      for (const rule of crossDatasetRules) {
+        const result = yield* _(
+          validateCrossDatasetRule(connection, rule, datasets),
+        );
+        crossDatasetResults.push(result);
+      }
+    }
+
+    const summary = calculateSummary(datasetResults, crossDatasetResults);
+    const totalProcessingTimeMs = Date.now() - startTime;
+
+    const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0 ||
+        summary.totalErrors > 0
+      ? "fail"
+      : summary.datasetsWithWarningsCount > 0 || summary.totalWarnings > 0
+      ? "warn"
+      : "pass";
+
+    return {
+      workspaceId,
+      configPath: basePath,
+      validatedAt: new Date(),
+      totalProcessingTimeMs,
+      overallStatus,
+      datasetResults,
+      crossDatasetResults,
+      summary,
+    };
+  });
 }
 
 /**
@@ -437,67 +340,6 @@ function createWorkspaceFromConfig(
 
     return { workspaceId, connection, instance };
   });
-}
-
-/**
- * Merge field definition with profile and field-level overrides
- *
- * Priority: field override > profile > base spec
- */
-function mergeFieldDefinition(
-  baseField: FieldDefinition | undefined,
-  profile: ValidationProfile | undefined,
-  fieldMapping: WorkspaceFieldMapping,
-): FieldDefinition | undefined {
-  if (!baseField) {
-    return undefined;
-  }
-
-  // Start with base field
-  let merged: FieldDefinition = { ...baseField };
-
-  // Apply profile overrides if profile exists and has overrides for this field
-  if (profile && profile.fieldOverrides[fieldMapping.targetName]) {
-    const profileOverride = profile.fieldOverrides[fieldMapping.targetName];
-
-    // Merge constraints (child type wins over parent type)
-    if (profileOverride.constraints) {
-      merged = {
-        ...merged,
-        constraints: mergeConstraints(
-          merged.constraints || [],
-          profileOverride.constraints as Constraint[],
-        ),
-      };
-    }
-  }
-
-  // Apply preset constraints before explicit field-level constraints
-  if (fieldMapping.preset) {
-    const presetConstraints = getPreset(fieldMapping.preset);
-    if (presetConstraints) {
-      merged = {
-        ...merged,
-        constraints: mergeConstraints(
-          merged.constraints || [],
-          presetConstraints as Constraint[],
-        ),
-      };
-    }
-  }
-
-  // Apply field-level overrides from config (highest priority)
-  if (fieldMapping.constraints) {
-    merged = {
-      ...merged,
-      constraints: mergeConstraints(
-        merged.constraints || [],
-        fieldMapping.constraints as Constraint[],
-      ),
-    };
-  }
-
-  return merged;
 }
 
 /**
@@ -573,50 +415,17 @@ function validateDataset(
         ),
       );
     }
-    // Resolve which standard's obligations to use for requirement checks
+    // Resolve field definitions through 3-tier merge pipeline:
+    // spec (obligations) → profile (fieldOverrides) → config (additive-only)
     const activeStandard = resolveActiveStandard(profile);
-
-    const schemaColumnsObj = Object.keys(schemaProfile?.normalizedFields || {}).map((
-      fieldName: string,
-    ) => {
-      const field = schemaProfile?.normalizedFields?.[fieldName];
-      // Derive requirement level from obligations for the active standard
-      const obligation = field ? obligationForStandard(field, activeStandard) : undefined;
-      const requirement = obligation ? obligationToRequirementLevel(obligation) : undefined;
-      return <WorkspaceFieldMapping> {
-        originName: fieldName,
-        targetName: fieldName,
-        requirement,
-      };
-    }).reduce((obj, item) => {
-      obj[item.targetName] = item;
-      return obj;
-    }, {} as Record<string, WorkspaceFieldMapping>) as Record<string, WorkspaceFieldMapping>;
-
-    // Apply profile fieldOverrides requirement levels to schemaColumnsObj
-    // Note: Only requirement is applied here. Constraint merging is handled by
-    // mergeFieldDefinition() which reads profile.fieldOverrides at validation time.
-    if (profile?.fieldOverrides) {
-      for (const [fieldName, override] of Object.entries(profile.fieldOverrides)) {
-        const existing = schemaColumnsObj[fieldName];
-        if (existing) {
-          schemaColumnsObj[fieldName] = {
-            ...existing,
-            requirement: override.requirement ?? existing.requirement,
-          };
-        } else {
-          // Field only exists in overrides (not in base schema) — add it
-          schemaColumnsObj[fieldName] = {
-            originName: fieldName,
-            targetName: fieldName,
-            requirement: override.requirement,
-          };
-        }
-      }
-    }
+    const configFieldMappings = dataset?.fieldMappings || [];
+    const schemaColumnsObj = resolveFieldDefinitions(
+      schemaProfile,
+      activeStandard,
+      configFieldMappings,
+    );
 
     // Detect field mapping issues
-    const configFieldMappings = dataset?.fieldMappings || [];
     const mappedOriginFields = configFieldMappings.map((m) => m.originName);
     const missingSourceFields = mappedOriginFields.filter(
       (f) => !originTableColumns.includes(f),
@@ -625,24 +434,7 @@ function validateDataset(
       alternatives: findSuggestedValue(f, originTableColumns) || "",
     }));
 
-    // Override with fieldMappings from config. Only explicit config properties
-    // are applied — undefined config fields never overwrite schema-populated values.
-    // This prevents constraint erasure when config fieldMappings omit constraints.
-    configFieldMappings.forEach((field) => {
-      const existing = schemaColumnsObj[field.targetName];
-      schemaColumnsObj[field.targetName] = {
-        ...existing,
-        originName: field.originName,
-        targetName: field.targetName,
-        ...(field.requirement !== undefined && { requirement: field.requirement }),
-        ...(field.preset !== undefined && { preset: field.preset }),
-        ...(field.constraints !== undefined && { constraints: field.constraints }),
-      };
-    });
-
-    const allFieldMappings = Object.values(schemaColumnsObj).map((m: WorkspaceFieldMapping) =>
-      m.originName
-    );
+    const allFieldMappings = Object.values(schemaColumnsObj).map((m) => m.originName);
 
     const unmappedSourceColumns = originTableColumns.filter(
       (f) => !allFieldMappings.includes(f),
@@ -651,20 +443,44 @@ function validateDataset(
       alternatives: findSuggestedValue(f, mappedOriginFields) || "",
     }));
 
-    // Filter out mappings that reference missing source fields
-    const validMappings = Object.values(schemaColumnsObj).filter(
-      (mapping) => originTableColumns.includes(mapping.originName),
-    );
-
-    // Build column lists from valid mappings only
-    const targetColumnNames = validMappings.map((field) => `"${field.targetName}"`);
-    const originColumnNames = validMappings.map((field) => `"${field.originName}"`);
-
     // Collect all field violations as FieldViolation[]
     const allFieldViolations: FieldViolation[] = [];
 
     // Collect all schema violations as SchemaViolation[]
     const schemaViolations: SchemaViolation[] = [];
+
+    // Filter out mappings that reference missing source fields
+    const validMappings = Object.values(schemaColumnsObj).filter(
+      (mapping) => originTableColumns.includes(mapping.originName),
+    );
+
+    // Check for invalid preset names in raw config mappings
+    // (resolved mappings have already expanded presets into constraints)
+    for (const mapping of configFieldMappings) {
+      if (
+        mapping.preset && getPreset(mapping.preset) === undefined &&
+        originTableColumns.includes(mapping.originName)
+      ) {
+        const suggestion = findSuggestedValue(mapping.preset, getPresetNames());
+        const suggestionMsg = suggestion ? ` Did you mean "${suggestion}"?` : "";
+        schemaViolations.push(
+          new MissingMappingViolation({
+            enforcement: "required",
+            severity: enforcementToSeverity("required"),
+            fieldName: mapping.originName,
+            targetName: mapping.targetName,
+            errorMessage:
+              `Unknown preset "${mapping.preset}" for field '${mapping.targetName}'.${suggestionMsg}`,
+            validatorType: "schema",
+            datasetName: dataset.name,
+          }),
+        );
+      }
+    }
+
+    // Build column lists from valid mappings only
+    const targetColumnNames = validMappings.map((field) => `"${field.targetName}"`);
+    const originColumnNames = validMappings.map((field) => `"${field.originName}"`);
 
     // Build column mappings for INSERT (using valid mappings only)
     const columnMappings = validMappings.map((m) => ({
@@ -755,9 +571,9 @@ function validateDataset(
       );
     }
 
-    // Check profile field requirements based on requirement levels
+    // Check field requirements based on constraints (derived from obligations + overrides).
     // Config-specified fields missing from CSV are always errors.
-    // Schema-populated fields use obligation-based noise suppression:
+    // Schema-populated fields use constraint-driven detection:
     //   Required → error, StronglyRecommended → warning, everything else → suppressed
     if (profile && schemaColumnsObj && validMappings) {
       const mappedSpecFields = new Set(
@@ -768,7 +584,7 @@ function validateDataset(
       );
 
       for (
-        const [fieldName, fieldOverride] of Object.entries(
+        const [fieldName, fieldMapping] of Object.entries(
           schemaColumnsObj,
         )
       ) {
@@ -791,12 +607,17 @@ function validateDataset(
               reason: "not_mapped",
             }),
           );
-        } else if (!fieldOverride.requirement) {
-          // No requirement level — skip silently
           continue;
-        } else if (
-          fieldOverride.requirement === FieldRequirementLevel.Required
-        ) {
+        }
+
+        // Derive requirement from constraints (single source of truth)
+        const requirement = deriveRequirementFromConstraints(fieldMapping.constraints);
+        if (!requirement) {
+          // No requirement constraint — skip silently
+          continue;
+        }
+
+        if (requirement === FieldRequirementLevel.Required) {
           schemaViolations.push(
             new MissingFieldViolation({
               enforcement: "required",
@@ -809,7 +630,7 @@ function validateDataset(
               reason: "not_mapped",
             }),
           );
-        } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
+        } else if (requirement === FieldRequirementLevel.StronglyRecommended) {
           schemaViolations.push(
             new MissingFieldViolation({
               enforcement: "recommended",
@@ -823,7 +644,7 @@ function validateDataset(
             }),
           );
         }
-        // Recommended, RequiredIfExists, Optional → suppressed when missing
+        // Optional/no constraint → suppressed when missing
       }
     }
 
@@ -877,8 +698,8 @@ function validateDataset(
         continue;
       }
 
-      // Merge with profile and field-level overrides
-      const specField = mergeFieldDefinition(baseField, profile, mapping);
+      // Apply resolved constraints from the 3-tier merge pipeline
+      const specField = applyResolvedConstraints(baseField, mapping);
 
       // Check if CSV field exists
       const fieldExistsQuery = `

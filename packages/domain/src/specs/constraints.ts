@@ -211,6 +211,32 @@ export type ObligationsMap = S.Schema.Type<typeof ObligationsMap>;
 // =============================================================================
 
 /**
+ * Map an Obligation (external standard metadata) to an EnforcementLevel for constraints.
+ *
+ * **Terminology chain:**
+ * - **Obligation**: External metadata from biodiversity standards (dwcSchema.json). Per-standard, per-field.
+ * - **EnforcementLevel**: Per-constraint severity. The single mechanism for all validation strictness.
+ *
+ * Returns undefined for obligations that should not generate a required constraint
+ * ("optional", "optional (required for imaging data)", "required (if exists)").
+ */
+export function obligationToEnforcement(
+  obligation: Obligation,
+): EnforcementLevel | undefined {
+  switch (obligation) {
+    case "required":
+      return "required";
+    case "strongly recommended":
+    case "recommended":
+      return "recommended";
+    case "optional":
+    case "optional (required for imaging data)":
+    case "required (if exists)":
+      return undefined;
+  }
+}
+
+/**
  * Merge parent and child constraint arrays.
  *
  * For each constraint type present in child, ALL child constraints of that type

@@ -108,3 +108,10 @@ export const CONSTRAINT_PRESETS: Record<string, ConstraintPreset> = {
 export function getPreset(name: string): readonly Constraint[] | undefined {
   return CONSTRAINT_PRESETS[name]?.constraints;
 }
+
+/**
+ * Get all valid preset names
+ */
+export function getPresetNames(): string[] {
+  return Object.keys(CONSTRAINT_PRESETS);
+}

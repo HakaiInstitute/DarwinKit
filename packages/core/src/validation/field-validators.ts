@@ -29,7 +29,7 @@ import type {
   FieldDefinition,
   VocabularyKey,
 } from "@dwkt/domain/specs";
-import { getVocabularyValues, isValidVocabularyValue } from "@dwkt/domain/specs";
+import { getVocabularyValues } from "@dwkt/domain/specs";
 import type { FieldViolation, ValidField } from "@dwkt/domain/types";
 import {
   enforcementToSeverity,
@@ -255,15 +255,42 @@ export function findVocabularyViolations(
       // Check if value is valid in vocabulary
       let isValid = false;
       if (caseSensitive) {
-        isValid = isValidVocabularyValue(vocabularyKey, value);
+        // getVocabularyValues validates key existence — if key is invalid, fail with one clear error
+        const vocabResult = yield* _(Effect.either(getVocabularyValues(vocabularyKey)));
+        if (vocabResult._tag === "Left") {
+          return yield* _(Effect.fail([
+            new VocabularyViolation({
+              enforcement,
+              severity: enforcementToSeverity(enforcement),
+              fieldName,
+              targetName: specField.name,
+              rowNumber: 0,
+              value: "",
+              errorMessage: `Unknown vocabulary key "${vocabularyKey}" — cannot validate field`,
+              validatorType: "vocabulary",
+            }),
+          ]));
+        }
+        isValid = (vocabResult.right as readonly string[]).includes(value);
       } else {
-        const vocabValues = yield* _(
-          getVocabularyValues(vocabularyKey).pipe(
-            Effect.catchAll(() => Effect.succeed([] as readonly string[])),
-          ),
-        );
+        const vocabResult = yield* _(Effect.either(getVocabularyValues(vocabularyKey)));
+        if (vocabResult._tag === "Left") {
+          return yield* _(Effect.fail([
+            new VocabularyViolation({
+              enforcement,
+              severity: enforcementToSeverity(enforcement),
+              fieldName,
+              targetName: specField.name,
+              rowNumber: 0,
+              value: "",
+              errorMessage: `Unknown vocabulary key "${vocabularyKey}" — cannot validate field`,
+              validatorType: "vocabulary",
+            }),
+          ]));
+        }
+        const vocabValues = vocabResult.right as readonly string[];
         const lowerValue = value.toLowerCase();
-        isValid = (vocabValues as readonly string[]).some((v) => v.toLowerCase() === lowerValue);
+        isValid = vocabValues.some((v) => v.toLowerCase() === lowerValue);
       }
 
       if (!isValid) {
@@ -295,50 +322,56 @@ export function findVocabularyViolations(
 }
 
 /**
- * Validate controlled vocabulary for a field
+ * Find vocabulary constraint violations for a single vocabulary constraint.
  *
- * Finds VocabularyConstraint in the field's constraints array
- * and validates against it.
+ * Matches the signature expected by validateConstraintsByType.
+ */
+export function findVocabularyConstraintViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  constraint: Constraint & { type: "vocabulary" },
+  specField: FieldDefinition,
+  _maxViolations = 100,
+): Effect.Effect<ValidField, VocabularyViolation[]> {
+  const { vocabularyKey, caseSensitive = false, enforcement } = constraint;
+  return findVocabularyViolations(
+    connection,
+    tableName,
+    fieldName,
+    vocabularyKey as VocabularyKey,
+    specField,
+    enforcement,
+    caseSensitive,
+  );
+}
+
+/**
+ * Validate controlled vocabulary for a field.
+ *
+ * Uses validateConstraintsByType with takeLast — after merge, only the
+ * last vocabulary constraint is validated (child overrides parent).
+ *
+ * Optional enforcement flows through with info severity (no early skip),
+ * matching the behavior of range, format, pattern, and length validators.
  */
 export function validateVocabulary(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
+  maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  return Effect.gen(function* (_) {
-    // Find the last vocabulary constraint (child overrides parent after merge)
-    const vocabConstraints = specField.constraints?.filter(
-      (c): c is Constraint & { type: "vocabulary" } => c.type === "vocabulary",
-    ) ?? [];
-    const vocabConstraint = vocabConstraints.length > 0
-      ? vocabConstraints[vocabConstraints.length - 1]
-      : undefined;
-
-    if (!vocabConstraint) {
-      return validField(fieldName, specField.name);
-    }
-
-    const { vocabularyKey, caseSensitive = false, enforcement } = vocabConstraint;
-
-    // Skip validation for optional enforcement - any value is accepted
-    if (enforcement === "optional") {
-      return validField(fieldName, specField.name);
-    }
-
-    // findVocabularyViolations fails with violations or succeeds with ValidField
-    return yield* _(
-      findVocabularyViolations(
-        connection,
-        tableName,
-        fieldName,
-        vocabularyKey as VocabularyKey,
-        specField,
-        enforcement,
-        caseSensitive,
-      ),
-    );
-  });
+  return validateConstraintsByType(
+    "vocabulary",
+    findVocabularyConstraintViolations,
+    connection,
+    tableName,
+    fieldName,
+    specField,
+    maxViolations,
+    { takeLast: true },
+  );
 }
 
 /**
@@ -604,11 +637,32 @@ export function findPatternViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
-    );
+    // Catch invalid regex patterns and return a user-friendly error instead of crashing
+    const queryResult = yield* _(Effect.either(
+      Effect.tryPromise(() => connection.runAndReadAll(query)),
+    ));
 
-    const rows = result.getRowObjects();
+    if (queryResult._tag === "Left") {
+      const errorMsg = queryResult.left instanceof Error
+        ? queryResult.left.message
+        : String(queryResult.left);
+      return yield* _(Effect.fail([
+        new PatternViolation({
+          enforcement: constraint.enforcement,
+          severity: enforcementToSeverity(constraint.enforcement),
+          fieldName,
+          targetName: specField.name,
+          rowNumber: 0,
+          value: "",
+          errorMessage: `Invalid regex pattern "/${constraint.pattern}/": ${errorMsg}`,
+          validatorType: "pattern",
+          pattern: constraint.pattern,
+          flags: constraint.flags,
+        }),
+      ]));
+    }
+
+    const rows = queryResult.right.getRowObjects();
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new PatternViolation({
@@ -884,7 +938,7 @@ export function validateField(
       context.rawField?.values;
     if (context.hasControlledVocabulary && !hasEnumConstraint) {
       validators.push(
-        validateVocabulary(connection, tableName, fieldName, specField),
+        validateVocabulary(connection, tableName, fieldName, specField, maxViolations),
       );
     }
 

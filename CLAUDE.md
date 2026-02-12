@@ -231,10 +231,10 @@ validation:
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
+          requirement: required
         - originName: country
           targetName: country
-          isRequired: true
+          requirement: required
 
 crossDatasetRules:
   - ruleType: foreignKey
@@ -348,6 +348,10 @@ The following enhancements are under consideration:
 - **Performance optimizations** - Caching and incremental validation for large datasets
 
 ## Development Guidelines
+
+### Security Context
+
+SQL injection is not a risk in DarwinKit — the application processes user-owned CSV files against local in-memory DuckDB instances with no multi-tenant or network-exposed SQL surface. Table and column names are sanitized via `sanitizeTableName()` as a defense-in-depth measure.
 
 ### Effect Library References
 

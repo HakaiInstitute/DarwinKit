@@ -792,9 +792,13 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
     const result = await validateWorkspace(tempDir);
     const datasetResult = result.datasetResults[0];
 
+    // Config's format constraint is additive-only; `references` already has a format
+    // constraint from spec (enforcement: "optional"), so the spec's enforcement is preserved.
+    // Check all severity levels for the violation.
     const formatViolations = [
       ...Array.filter(datasetResult.fieldViolations.errors, isFormatViolation),
       ...Array.filter(datasetResult.fieldViolations.warnings, isFormatViolation),
+      ...Array.filter(datasetResult.fieldViolations.info, isFormatViolation),
     ];
 
     const urlViolations = formatViolations.filter((v) => v.fieldName === "references");
@@ -918,10 +922,12 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
     const result = await validateWorkspace(tempDir);
     const datasetResult = result.datasetResults[0];
 
-    const requiredViolations = Array.filter(
-      datasetResult.fieldViolations.errors,
-      isRequiredFieldViolation,
-    );
+    // Config's required constraint is additive-only; `country` already has a required
+    // constraint from spec (enforcement: "recommended"), so it appears as a warning.
+    const requiredViolations = [
+      ...Array.filter(datasetResult.fieldViolations.errors, isRequiredFieldViolation),
+      ...Array.filter(datasetResult.fieldViolations.warnings, isRequiredFieldViolation),
+    ];
 
     // Empty string for country should be caught
     assert(
@@ -930,9 +936,10 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
     );
   });
 
-  await t.step("constraint merge override works for field-level constraints", async () => {
-    // Verify that a field-level constraint overrides profile constraints (Stage 2 merge)
-    const tempDir = await createTempDir("constraint_merge_override");
+  await t.step("config constraints are additive-only — cannot override spec range", async () => {
+    // Config attempts to narrow decimalLatitude range from spec's -90..90 to 49.0..49.9.
+    // With additive-only semantics, the spec's range is preserved and config's is ignored.
+    const tempDir = await createTempDir("constraint_additive_only");
 
     await createSingleDatasetWorkspace(
       tempDir,
@@ -953,7 +960,7 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
           originName: "decimalLatitude",
           targetName: "decimalLatitude",
           constraints: [
-            // Override the profile's range to a narrower range
+            // Attempt to narrow the spec's range — should be silently ignored
             { type: "range", min: 49.0, max: 49.9, inclusive: true, enforcement: "required" },
           ],
         },
@@ -965,17 +972,17 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
     const result = await validateWorkspace(tempDir);
     const datasetResult = result.datasetResults[0];
 
-    // decimalLatitude: 50.0 should fail the overridden narrow range (49.0-49.9)
-    const rangeViolations = Array.filter(
-      datasetResult.fieldViolations.errors,
-      isRangeViolation,
-    );
+    // 50.0 is within the spec's -90..90 range, so no range violation should fire.
+    // The config's narrower 49.0..49.9 range is ignored (additive-only).
+    const rangeViolations = [
+      ...Array.filter(datasetResult.fieldViolations.errors, isRangeViolation),
+      ...Array.filter(datasetResult.fieldViolations.warnings, isRangeViolation),
+    ];
     const latViolations = rangeViolations.filter((v) => v.fieldName === "decimalLatitude");
-    assertEquals(latViolations.length, 1, "Expected 1 range violation for overridden constraint");
-    // DuckDB may return "50" or "50.0" depending on type inference
-    assert(
-      latViolations[0].value === "50" || latViolations[0].value === "50.0",
-      `Expected value to be 50 or 50.0, got ${latViolations[0].value}`,
+    assertEquals(
+      latViolations.length,
+      0,
+      "Config cannot override spec range — no violations expected",
     );
   });
 });
@@ -1036,6 +1043,82 @@ Deno.test("WorkspaceValidator - Constraint Erasure Prevention", async (t) => {
       );
     },
   );
+});
+
+Deno.test("WorkspaceValidator - Invalid Preset Detection", async (t) => {
+  await t.step("invalid preset name produces schema error with suggestion", async () => {
+    const tempDir = await createTempDir("invalid_preset");
+
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", eventDate: "2022-01-01", decimalLatitude: 49.5, decimalLongitude: -123.5 },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "eventDate", targetName: "eventDate" },
+        {
+          originName: "decimalLatitude",
+          targetName: "decimalLatitude",
+          preset: "latidude", // typo: should be "latitude"
+        } as WorkspaceFieldMapping,
+        { originName: "decimalLongitude", targetName: "decimalLongitude" },
+      ],
+      { profile: "Event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    // Should produce a schema error for the invalid preset
+    const presetErrors = datasetResult.schemaViolations.errors.filter(
+      (v) => v.errorMessage.includes("Unknown preset"),
+    );
+    assertEquals(presetErrors.length, 1, "Expected 1 schema error for invalid preset");
+    assert(
+      presetErrors[0].errorMessage.includes("latidude"),
+      "Error should mention the invalid preset name",
+    );
+    assert(
+      presetErrors[0].errorMessage.includes("latitude"),
+      "Error should suggest the correct preset name",
+    );
+  });
+});
+
+Deno.test("WorkspaceValidator - Obligation-Based Requirement", async (t) => {
+  await t.step("missing required field from OBIS obligation produces schema error", async () => {
+    const tempDir = await createTempDir("obligation_requirement");
+
+    // eventDate has obis_required: "required" in the Event schema
+    // Map eventID but not eventDate — should produce an error for missing required field
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", country: "Canada" },
+        { eventID: "E2", country: "USA" },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "country", targetName: "country" },
+      ],
+      { profile: "obis-event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    // eventDate is required by OBIS — should appear as a schema error
+    const missingRequired = datasetResult.schemaViolations.errors.filter(
+      (v) => v.fieldName === "eventDate",
+    );
+    assert(
+      missingRequired.length >= 1,
+      `Expected schema error for missing required field 'eventDate', got ${missingRequired.length}`,
+    );
+  });
 });
 
 Deno.test("WorkspaceValidator - Preset Tests", async (t) => {

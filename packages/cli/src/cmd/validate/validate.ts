@@ -649,7 +649,7 @@ export const validateCommand = new Command()
   )
   .option(
     '--strict',
-    'Treat warnings as failures (exit code 2 instead of 0)',
+    'Exit with non-zero code when warnings are present (default: warnings exit 0)',
     { default: false },
   )
   .action(validate);

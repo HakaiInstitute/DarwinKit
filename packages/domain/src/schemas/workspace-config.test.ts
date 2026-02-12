@@ -111,6 +111,33 @@ Deno.test("makeWorkspaceConfig", async (t) => {
   });
 });
 
+Deno.test("makeWorkspaceConfig - isRequired regression", async (t) => {
+  await t.step("isRequired: true is silently stripped by Effect Schema decode", () => {
+    // isRequired was removed from the schema in favour of requirement/constraints.
+    // Verify that configs with the old `isRequired` property are still accepted
+    // (Effect Schema strips excess properties during decoding).
+    const config = makeWorkspaceConfig({
+      validation: {
+        datasets: [{
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          fieldMappings: [{
+            originName: "eventID",
+            targetName: "eventID",
+            isRequired: true,
+          } as unknown as { originName: string; targetName: string }],
+        }],
+      },
+    });
+
+    const mapping = config.validation?.datasets[0]?.fieldMappings?.[0];
+    assertEquals(mapping?.originName, "eventID");
+    // isRequired is not part of the decoded type
+    assertEquals((mapping as Record<string, unknown>).isRequired, undefined);
+  });
+});
+
 Deno.test("makeWorkspaceConfig - invalid input", async (t) => {
   await t.step("throws when neither validation nor transform provided", () => {
     assertThrows(
