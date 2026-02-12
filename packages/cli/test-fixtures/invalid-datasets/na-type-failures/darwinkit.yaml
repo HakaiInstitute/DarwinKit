@@ -20,16 +20,12 @@ validation:
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
         - originName: occurrenceID
           targetName: occurrenceID
-          isRequired: true
         - originName: basisOfRecord
           targetName: basisOfRecord
-          isRequired: true
         - originName: scientificName
           targetName: scientificName
-          isRequired: true
         - originName: scientificNameID
           targetName: scientificNameID
         - originName: taxonRank

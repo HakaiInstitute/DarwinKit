@@ -173,6 +173,40 @@ export const Constraint = S.Union(
 export type Constraint = S.Schema.Type<typeof Constraint>;
 
 // =============================================================================
+// Obligation System
+// =============================================================================
+
+/**
+ * Obligation levels from biodiversity data standards (OBIS, GBIF).
+ *
+ * These represent the requirement level for a field within a specific standard,
+ * directly matching the values used in dwcSchema.json.
+ */
+export const Obligation = S.Literal(
+  "required",
+  "strongly recommended",
+  "recommended",
+  "optional",
+  "required (if exists)",
+  "optional (required for imaging data)",
+);
+
+export type Obligation = S.Schema.Type<typeof Obligation>;
+
+/**
+ * Per-standard obligations map.
+ *
+ * Each key represents a biodiversity data standard and its value is the
+ * obligation level for the field within that standard.
+ */
+export const ObligationsMap = S.Struct({
+  obis: S.optional(Obligation),
+  gbif: S.optional(Obligation),
+});
+
+export type ObligationsMap = S.Schema.Type<typeof ObligationsMap>;
+
+// =============================================================================
 // Merge & Utility Functions
 // =============================================================================
 

@@ -19,8 +19,8 @@ import type {
   WorkspaceCrossDatasetRule,
   WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
-import { FieldRequirementLevel, parseSpecIdentifier } from "@dwkt/domain/schemas";
-import type { Constraint, EnforcementLevel, FieldDefinition } from "@dwkt/domain/specs";
+import { deriveProfileId, FieldRequirementLevel, parseSpecIdentifier } from "@dwkt/domain/schemas";
+import type { Constraint, EnforcementLevel, FieldDefinition, Obligation } from "@dwkt/domain/specs";
 import {
   getPreset,
   getValidationProfile,
@@ -58,12 +58,64 @@ import { resolveSchemaTableName } from "./summary.ts";
 
 import { findSuggestedValue } from "../validation/string-matching.ts";
 
-/** Deduplicate an array of objects by their errorMessage property */
-function deduplicateByMessage<T extends { errorMessage: string }>(arr: readonly T[]): T[] {
+/**
+ * Resolve the active standard for a profile.
+ *
+ * TypeScript profiles (obis, obis-event) have an explicit `targetSchema`.
+ * JSON base profiles (Event, Occurrence, etc.) have `targetSchema: undefined`
+ * since they come from dwcSchema.json. Default to "obis" for these since
+ * the JSON schema contains OBIS requirement metadata.
+ */
+function resolveActiveStandard(
+  profile: ValidationProfile | undefined,
+): "obis" | "gbif" | "custom" {
+  if (profile?.targetSchema) return profile.targetSchema;
+  return "obis";
+}
+
+/**
+ * Get the obligation for a field from its obligations map, given the active standard.
+ */
+function obligationForStandard(
+  field: FieldDefinition,
+  standard: "obis" | "gbif" | "custom",
+): Obligation | undefined {
+  if (!field.obligations) return undefined;
+  if (standard === "obis") return field.obligations.obis;
+  if (standard === "gbif") return field.obligations.gbif;
+  return undefined;
+}
+
+/**
+ * Map an Obligation value to FieldRequirementLevel.
+ */
+function obligationToRequirementLevel(
+  obligation: Obligation,
+): FieldRequirementLevel {
+  switch (obligation) {
+    case "required":
+      return FieldRequirementLevel.Required;
+    case "strongly recommended":
+      return FieldRequirementLevel.StronglyRecommended;
+    case "recommended":
+      return FieldRequirementLevel.Recommended;
+    case "optional":
+    case "optional (required for imaging data)":
+      return FieldRequirementLevel.Optional;
+    case "required (if exists)":
+      return FieldRequirementLevel.RequiredIfExists;
+  }
+}
+
+/** Deduplicate violations by validator type + field name composite key */
+function deduplicateByTypeAndField<T extends { validatorType: string; fieldName: string }>(
+  arr: readonly T[],
+): T[] {
   const seen = new Set<string>();
   return arr.filter((item) => {
-    if (seen.has(item.errorMessage)) return false;
-    seen.add(item.errorMessage);
+    const key = `${item.validatorType}:${item.fieldName}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }
@@ -113,20 +165,9 @@ export class WorkspaceValidator {
           const datasetResults: DatasetValidationResult[] = [];
 
           for (const dataset of datasets) {
-            // Use dataset-level profile if specified, otherwise derive from spec field
-            let datasetProfile = dataset.profile
-              ? getValidationProfile(dataset.profile)
-              : undefined;
-
-            // If still no profile, try to derive from spec field
-            if (!datasetProfile && dataset.spec) {
-              const parsed = parseSpecIdentifier(dataset.spec);
-              if (parsed) {
-                const derivedProfileId = parsed.type.charAt(0).toUpperCase() +
-                  parsed.type.slice(1);
-                datasetProfile = getValidationProfile(derivedProfileId);
-              }
-            }
+            // Derive profile from dataset config
+            const profileId1 = deriveProfileId(dataset);
+            const datasetProfile = profileId1 ? getValidationProfile(profileId1) : undefined;
 
             const result = yield* _(
               validateDataset(connection, dataset, datasetProfile, settings, crossDatasetRules),
@@ -231,18 +272,11 @@ export class WorkspaceValidator {
       const datasetResults: DatasetValidationResult[] = [];
 
       for (const dataset of datasets) {
-        // Use dataset-level profile if specified, otherwise derive from spec field
-        let datasetProfile = dataset.profile ? getValidationProfile(dataset.profile) : undefined;
-
-        // If still no profile, try to derive from spec field
-        if (!datasetProfile && dataset.spec) {
-          const parsed = parseSpecIdentifier(dataset.spec);
-          if (parsed) {
-            const derivedProfileId = parsed.type.charAt(0).toUpperCase() +
-              parsed.type.slice(1);
-            datasetProfile = getValidationProfile(derivedProfileId);
-          }
-        }
+        // Derive profile from dataset config
+        const datasetProfileId = deriveProfileId(dataset);
+        const datasetProfile = datasetProfileId
+          ? getValidationProfile(datasetProfileId)
+          : undefined;
 
         const result = yield* _(
           validateDataset(connection, dataset, datasetProfile, settings, crossDatasetRules),
@@ -255,14 +289,14 @@ export class WorkspaceValidator {
           const earlyResult = {
             ...result,
             schemaViolations: {
-              errors: deduplicateByMessage(result.schemaViolations.errors),
-              warnings: deduplicateByMessage(result.schemaViolations.warnings),
-              info: deduplicateByMessage(result.schemaViolations.info),
+              errors: deduplicateByTypeAndField(result.schemaViolations.errors),
+              warnings: deduplicateByTypeAndField(result.schemaViolations.warnings),
+              info: deduplicateByTypeAndField(result.schemaViolations.info),
             },
             fieldViolations: {
-              errors: deduplicateByMessage(result.fieldViolations.errors),
-              warnings: deduplicateByMessage(result.fieldViolations.warnings),
-              info: deduplicateByMessage(result.fieldViolations.info),
+              errors: deduplicateByTypeAndField(result.fieldViolations.errors),
+              warnings: deduplicateByTypeAndField(result.fieldViolations.warnings),
+              info: deduplicateByTypeAndField(result.fieldViolations.info),
             },
           };
 
@@ -522,18 +556,7 @@ function validateDataset(
       .filter((col) => col !== "_row_number");
 
     // Derive profile ID for registry lookup and display name for DuckDB table
-    let profileId: string | undefined;
-    if (profile) {
-      profileId = profile.id;
-    } else if (dataset.profile) {
-      profileId = dataset.profile;
-    } else if (dataset.spec) {
-      const parsed = parseSpecIdentifier(dataset.spec);
-      if (parsed) {
-        profileId = parsed.type.charAt(0).toUpperCase() +
-          parsed.type.slice(1);
-      }
-    }
+    const profileId = profile?.id ?? deriveProfileId(dataset);
 
     const schemaProfile = getValidationProfile(profileId || "");
 
@@ -550,22 +573,29 @@ function validateDataset(
         ),
       );
     }
+    // Resolve which standard's obligations to use for requirement checks
+    const activeStandard = resolveActiveStandard(profile);
+
     const schemaColumnsObj = Object.keys(schemaProfile?.normalizedFields || {}).map((
       fieldName: string,
-    ) =>
-      <WorkspaceFieldMapping> {
+    ) => {
+      const field = schemaProfile?.normalizedFields?.[fieldName];
+      // Derive requirement level from obligations for the active standard
+      const obligation = field ? obligationForStandard(field, activeStandard) : undefined;
+      const requirement = obligation ? obligationToRequirementLevel(obligation) : undefined;
+      return <WorkspaceFieldMapping> {
         originName: fieldName,
         targetName: fieldName,
-        requirement: schemaProfile?.normalizedFields
-          ? schemaProfile.normalizedFields[fieldName]?.requirement
-          : undefined,
-      }
-    ).reduce((obj, item) => {
+        requirement,
+      };
+    }).reduce((obj, item) => {
       obj[item.targetName] = item;
       return obj;
     }, {} as Record<string, WorkspaceFieldMapping>) as Record<string, WorkspaceFieldMapping>;
 
-    // Apply profile fieldOverrides (e.g. OBIS requirements) to schemaColumnsObj
+    // Apply profile fieldOverrides requirement levels to schemaColumnsObj
+    // Note: Only requirement is applied here. Constraint merging is handled by
+    // mergeFieldDefinition() which reads profile.fieldOverrides at validation time.
     if (profile?.fieldOverrides) {
       for (const [fieldName, override] of Object.entries(profile.fieldOverrides)) {
         const existing = schemaColumnsObj[fieldName];
@@ -573,12 +603,6 @@ function validateDataset(
           schemaColumnsObj[fieldName] = {
             ...existing,
             requirement: override.requirement ?? existing.requirement,
-            constraints: override.constraints
-              ? mergeConstraints(
-                existing.constraints || [],
-                override.constraints as Constraint[],
-              )
-              : existing.constraints,
           };
         } else {
           // Field only exists in overrides (not in base schema) — add it
@@ -586,9 +610,6 @@ function validateDataset(
             originName: fieldName,
             targetName: fieldName,
             requirement: override.requirement,
-            constraints: override.constraints
-              ? [...override.constraints] as Constraint[]
-              : undefined,
           };
         }
       }
@@ -604,22 +625,19 @@ function validateDataset(
       alternatives: findSuggestedValue(f, originTableColumns) || "",
     }));
 
-    // Override with fieldMappings from config (merge constraints, don't replace)
+    // Override with fieldMappings from config. Only explicit config properties
+    // are applied — undefined config fields never overwrite schema-populated values.
+    // This prevents constraint erasure when config fieldMappings omit constraints.
     configFieldMappings.forEach((field) => {
       const existing = schemaColumnsObj[field.targetName];
-      if (existing && field.constraints && existing.constraints) {
-        // Merge constraints: config (child) wins over profile/schema (parent)
-        schemaColumnsObj[field.targetName] = {
-          ...existing,
-          ...field,
-          constraints: mergeConstraints(existing.constraints, field.constraints as Constraint[]),
-        };
-      } else {
-        schemaColumnsObj[field.targetName] = {
-          ...existing,
-          ...field,
-        };
-      }
+      schemaColumnsObj[field.targetName] = {
+        ...existing,
+        originName: field.originName,
+        targetName: field.targetName,
+        ...(field.requirement !== undefined && { requirement: field.requirement }),
+        ...(field.preset !== undefined && { preset: field.preset }),
+        ...(field.constraints !== undefined && { constraints: field.constraints }),
+      };
     });
 
     const allFieldMappings = Object.values(schemaColumnsObj).map((m: WorkspaceFieldMapping) =>
@@ -693,26 +711,22 @@ function validateDataset(
     }
 
     // Generate schema violations for field mapping issues
-    // Enforcement depends on whether the field is marked as required
+    // Config-specified fields missing from CSV are always errors
     for (const missingSourceField of missingSourceFields) {
       const mapping = (dataset.fieldMappings || []).find((m) =>
         m.originName === missingSourceField.fieldName
       );
-      const fieldEnforcement: EnforcementLevel = mapping?.isRequired ? "required" : "recommended";
       const altMsg = missingSourceField.alternatives
         ? `Possible alternative fields: ${missingSourceField.alternatives}`
         : "";
       schemaViolations.push(
         new MissingMappingViolation({
-          enforcement: fieldEnforcement,
-          severity: enforcementToSeverity(fieldEnforcement),
+          enforcement: "required",
+          severity: enforcementToSeverity("required"),
           fieldName: missingSourceField.fieldName,
           targetName: mapping?.targetName ?? missingSourceField.fieldName,
-          errorMessage: mapping?.isRequired
-            ? `Required field '${missingSourceField.fieldName}' not found in CSV.${
-              altMsg ? ` ${altMsg}` : ""
-            }`
-            : `Field '${missingSourceField.fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.${
+          errorMessage:
+            `Field '${missingSourceField.fieldName}' is specified in config but not found in CSV.${
               altMsg ? ` ${altMsg}` : ""
             }`,
           validatorType: "schema",
@@ -742,9 +756,15 @@ function validateDataset(
     }
 
     // Check profile field requirements based on requirement levels
+    // Config-specified fields missing from CSV are always errors.
+    // Schema-populated fields use obligation-based noise suppression:
+    //   Required → error, StronglyRecommended → warning, everything else → suppressed
     if (profile && schemaColumnsObj && validMappings) {
       const mappedSpecFields = new Set(
         validMappings.map((m) => m.targetName),
+      );
+      const configSpecifiedFields = new Set(
+        configFieldMappings.map((m) => m.targetName),
       );
 
       for (
@@ -752,58 +772,58 @@ function validateDataset(
           schemaColumnsObj,
         )
       ) {
-        if (!fieldOverride.requirement) continue;
-
         const isMapped = mappedSpecFields.has(fieldName);
+        if (isMapped) continue;
 
-        if (!isMapped) {
-          // Handle missing fields based on requirement level
-          if (
-            fieldOverride.requirement === FieldRequirementLevel.Required || fieldOverride.isRequired
-          ) {
-            schemaViolations.push(
-              new MissingFieldViolation({
-                enforcement: "required",
-                severity: enforcementToSeverity("required"),
-                fieldName,
-                targetName: fieldName,
-                errorMessage:
-                  `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
-                validatorType: "schema",
-                reason: "not_mapped",
-              }),
-            );
-          } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
-            schemaViolations.push(
-              new MissingFieldViolation({
-                enforcement: "recommended",
-                severity: enforcementToSeverity("recommended"),
-                fieldName,
-                targetName: fieldName,
-                errorMessage:
-                  `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
-                validatorType: "schema",
-                reason: "not_mapped",
-              }),
-            );
-          } else if (
-            fieldOverride.requirement === FieldRequirementLevel.Recommended
-          ) {
-            schemaViolations.push(
-              new MissingFieldViolation({
-                enforcement: "optional",
-                severity: enforcementToSeverity("optional"),
-                fieldName,
-                targetName: fieldName,
-                errorMessage:
-                  `Profile '${profile.name}' recommends field '${fieldName}' for better data quality`,
-                validatorType: "schema",
-                reason: "not_mapped",
-              }),
-            );
-          }
-          // RequiredIfExists and Optional don't generate messages when missing
+        const isConfigField = configSpecifiedFields.has(fieldName);
+
+        if (isConfigField) {
+          // Config-specified field missing from CSV is always an error
+          schemaViolations.push(
+            new MissingFieldViolation({
+              enforcement: "required",
+              severity: enforcementToSeverity("required"),
+              fieldName,
+              targetName: fieldName,
+              errorMessage:
+                `Field '${fieldName}' is specified in config fieldMappings but not found in the dataset`,
+              validatorType: "schema",
+              reason: "not_mapped",
+            }),
+          );
+        } else if (!fieldOverride.requirement) {
+          // No requirement level — skip silently
+          continue;
+        } else if (
+          fieldOverride.requirement === FieldRequirementLevel.Required
+        ) {
+          schemaViolations.push(
+            new MissingFieldViolation({
+              enforcement: "required",
+              severity: enforcementToSeverity("required"),
+              fieldName,
+              targetName: fieldName,
+              errorMessage:
+                `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
+              validatorType: "schema",
+              reason: "not_mapped",
+            }),
+          );
+        } else if (fieldOverride.requirement === FieldRequirementLevel.StronglyRecommended) {
+          schemaViolations.push(
+            new MissingFieldViolation({
+              enforcement: "recommended",
+              severity: enforcementToSeverity("recommended"),
+              fieldName,
+              targetName: fieldName,
+              errorMessage:
+                `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
+              validatorType: "schema",
+              reason: "not_mapped",
+            }),
+          );
         }
+        // Recommended, RequiredIfExists, Optional → suppressed when missing
       }
     }
 
@@ -880,13 +900,12 @@ function validateDataset(
       if (!fieldExists) {
         schemaViolations.push(
           new MissingFieldViolation({
-            enforcement: mapping.isRequired ? "required" : "recommended",
-            severity: enforcementToSeverity(mapping.isRequired ? "required" : "recommended"),
+            enforcement: "required",
+            severity: enforcementToSeverity("required"),
             fieldName: mapping.originName,
             targetName: mapping.targetName,
-            errorMessage: mapping.isRequired
-              ? `Required field '${mapping.originName}' not found in CSV`
-              : `Mapped field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
+            errorMessage:
+              `Field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
             validatorType: "schema",
             reason: "not_in_csv",
           }),

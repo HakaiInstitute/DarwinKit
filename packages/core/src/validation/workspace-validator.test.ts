@@ -238,13 +238,9 @@ async function createMultiDatasetWorkspace(
       spec: "dwc-event",
       path: "./events.csv",
       fieldMappings: [
-        { originName: "eventID", targetName: "eventID", isRequired: true },
-        { originName: "country", targetName: "country", isRequired: true },
-        {
-          originName: "countryCode",
-          targetName: "countryCode",
-          isRequired: true,
-        },
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "country", targetName: "country" },
+        { originName: "countryCode", targetName: "countryCode" },
         { originName: "decimalLatitude", targetName: "decimalLatitude" },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
@@ -254,22 +250,10 @@ async function createMultiDatasetWorkspace(
       spec: "dwc-occurrence",
       path: "./occurrences.csv",
       fieldMappings: [
-        { originName: "eventID", targetName: "eventID", isRequired: true },
-        {
-          originName: "occurrenceID",
-          targetName: "occurrenceID",
-          isRequired: true,
-        },
-        {
-          originName: "basisOfRecord",
-          targetName: "basisOfRecord",
-          isRequired: true,
-        },
-        {
-          originName: "scientificName",
-          targetName: "scientificName",
-          isRequired: true,
-        },
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "occurrenceID", targetName: "occurrenceID" },
+        { originName: "basisOfRecord", targetName: "basisOfRecord" },
+        { originName: "scientificName", targetName: "scientificName" },
       ],
     },
   ];
@@ -539,16 +523,9 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
             path: "./events.csv",
             profile: "Event",
             fieldMappings: [
-              {
-                originName: "eventID",
-                targetName: "eventID",
-                isRequired: true,
-              },
-              {
-                originName: "countryCode",
-                targetName: "countryCode",
-                isRequired: true,
-              }, // Missing from CSV - will be skipped with warning
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "countryCode", targetName: "countryCode" },
+              // countryCode is missing from CSV — config-specified fields are implicitly required
             ],
           },
         ],
@@ -564,7 +541,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       validator.validateFromConfig(tempDir),
     );
 
-    // Validation should fail because countryCode is marked isRequired but missing from CSV
+    // Validation should fail because countryCode is config-specified but missing from CSV
     assert(result.datasetResults.length > 0, "Expected dataset results");
     const datasetResult = result.datasetResults[0];
     assertEquals(
@@ -1001,6 +978,64 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
       `Expected value to be 50 or 50.0, got ${latViolations[0].value}`,
     );
   });
+});
+
+Deno.test("WorkspaceValidator - Constraint Erasure Prevention", async (t) => {
+  await t.step(
+    "schema constraints preserved when config fieldMapping has no constraints",
+    async () => {
+      const tempDir = await createTempDir("constraint_erasure_prevention");
+
+      // decimalLatitude 95.0 is out of the OBIS profile range (-90 to 90)
+      // Config fieldMapping for decimalLatitude has NO constraints — should NOT erase
+      // the profile's range constraint
+      await createSingleDatasetWorkspace(
+        tempDir,
+        "events",
+        [
+          {
+            eventID: "E1",
+            eventDate: "2022-01-01",
+            decimalLatitude: 49.5,
+            decimalLongitude: -123.5,
+            geodeticDatum: "WGS84",
+          },
+          {
+            eventID: "E2",
+            eventDate: "2022-01-01",
+            decimalLatitude: 95.0,
+            decimalLongitude: -124.0,
+            geodeticDatum: "WGS84",
+          },
+        ],
+        [
+          { originName: "eventID", targetName: "eventID" },
+          { originName: "eventDate", targetName: "eventDate" },
+          // No constraints — should NOT erase OBIS range constraint
+          { originName: "decimalLatitude", targetName: "decimalLatitude" },
+          { originName: "decimalLongitude", targetName: "decimalLongitude" },
+          { originName: "geodeticDatum", targetName: "geodeticDatum" },
+        ],
+        { profile: "obis-event", spec: "dwc-event" },
+      );
+
+      const result = await validateWorkspace(tempDir);
+      const datasetResult = result.datasetResults[0];
+
+      // Profile range constraint (-90 to 90) should still fire for 95.0
+      const rangeViolations = [
+        ...Array.filter(datasetResult.fieldViolations.errors, isRangeViolation),
+        ...Array.filter(datasetResult.fieldViolations.warnings, isRangeViolation),
+      ];
+      const latViolations = rangeViolations.filter((v) => v.fieldName === "decimalLatitude");
+
+      assert(
+        latViolations.length >= 1,
+        `Expected range violation for decimalLatitude=95.0, got ${latViolations.length}. ` +
+          "Config fieldMapping without constraints should not erase profile constraints.",
+      );
+    },
+  );
 });
 
 Deno.test("WorkspaceValidator - Preset Tests", async (t) => {

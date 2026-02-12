@@ -7,8 +7,12 @@ import {
   type Constraint,
   Constraint as ConstraintSchema,
   mergeConstraints,
+  Obligation,
+  ObligationsMap,
   RangeConstraint,
 } from "./constraints.ts";
+import type { Field } from "../schemas/validation-profile.ts";
+import { normalizeField } from "./field-definition.ts";
 import * as S from "effect/Schema";
 
 // Helper to decode unknown values into Constraint
@@ -249,4 +253,113 @@ Deno.test("mergeConstraints - empty arrays handled", () => {
   ];
   assertEquals(mergeConstraints(withParent, child).length, 1);
   assertEquals(mergeConstraints(parent, withParent).length, 1);
+});
+
+// =============================================================================
+// Obligation Tests
+// =============================================================================
+
+Deno.test("Obligation - accepts all 6 valid values", () => {
+  const validValues = [
+    "required",
+    "strongly recommended",
+    "recommended",
+    "optional",
+    "required (if exists)",
+    "optional (required for imaging data)",
+  ];
+  for (const value of validValues) {
+    const result = S.decodeUnknownSync(Obligation)(value);
+    assertEquals(result, value);
+  }
+});
+
+Deno.test("Obligation - rejects invalid values", () => {
+  assertThrows(() => S.decodeUnknownSync(Obligation)("mandatory"));
+  assertThrows(() => S.decodeUnknownSync(Obligation)("true"));
+  assertThrows(() => S.decodeUnknownSync(Obligation)("false"));
+  assertThrows(() => S.decodeUnknownSync(Obligation)(""));
+  assertThrows(() => S.decodeUnknownSync(Obligation)(42));
+});
+
+Deno.test("ObligationsMap - decodes valid map with both standards", () => {
+  const result = S.decodeUnknownSync(ObligationsMap)({
+    obis: "required",
+    gbif: "recommended",
+  });
+  assertEquals(result.obis, "required");
+  assertEquals(result.gbif, "recommended");
+});
+
+Deno.test("ObligationsMap - accepts partial maps", () => {
+  const obisOnly = S.decodeUnknownSync(ObligationsMap)({ obis: "optional" });
+  assertEquals(obisOnly.obis, "optional");
+  assertEquals(obisOnly.gbif, undefined);
+
+  const empty = S.decodeUnknownSync(ObligationsMap)({});
+  assertEquals(empty.obis, undefined);
+  assertEquals(empty.gbif, undefined);
+});
+
+Deno.test("ObligationsMap - rejects invalid obligation values", () => {
+  assertThrows(() =>
+    S.decodeUnknownSync(ObligationsMap)({
+      obis: "mandatory",
+    })
+  );
+});
+
+// =============================================================================
+// normalizeField Obligations Tests
+// =============================================================================
+
+function makeTestField(overrides: Partial<Field>): Field {
+  return {
+    group: "test",
+    name: "testField",
+    label: "Test Field",
+    namespace: "http://test",
+    qualName: "test:testField",
+    "dc:relation": "http://test",
+    "dc:description": "Test field",
+    gbif_required: "",
+    type: "string",
+    obis_required: "",
+    ...overrides,
+  };
+}
+
+Deno.test("normalizeField - populates obligations.obis from obis_required", () => {
+  const field = makeTestField({ name: "eventDate", obis_required: "required" });
+  const result = normalizeField(field);
+  assertEquals(result.obligations?.obis, "required");
+});
+
+Deno.test("normalizeField - populates obligations.gbif from gbif_required", () => {
+  const field = makeTestField({ name: "eventDate", gbif_required: "true" });
+  const result = normalizeField(field);
+  assertEquals(result.obligations?.gbif, "required");
+});
+
+Deno.test("normalizeField - maps gbif_required 'false' to 'optional'", () => {
+  const field = makeTestField({ name: "eventDate", gbif_required: "false" });
+  const result = normalizeField(field);
+  assertEquals(result.obligations?.gbif, "optional");
+});
+
+Deno.test("normalizeField - handles both obis and gbif obligations", () => {
+  const field = makeTestField({
+    name: "eventDate",
+    obis_required: "strongly recommended",
+    gbif_required: "true",
+  });
+  const result = normalizeField(field);
+  assertEquals(result.obligations?.obis, "strongly recommended");
+  assertEquals(result.obligations?.gbif, "required");
+});
+
+Deno.test("normalizeField - omits obligations when no values present", () => {
+  const field = makeTestField({ name: "eventDate", obis_required: "", gbif_required: "" });
+  const result = normalizeField(field);
+  assertEquals(result.obligations, undefined);
 });

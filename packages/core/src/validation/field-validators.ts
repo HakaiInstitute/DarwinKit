@@ -131,27 +131,43 @@ export function findRangeViolations(
 }
 
 /**
- * Validate range constraints for a field
+ * Generic helper for the filter-loop-collect pattern shared by constraint validators.
+ *
+ * Filters constraints by type, runs the provided `findViolations` function for each,
+ * and accumulates violations. When `takeLast` is true, only the last matching constraint
+ * is validated (used for `required` where child overrides parent after merge).
  */
-export function validateRangeConstraints(
+function validateConstraintsByType<TType extends Constraint["type"]>(
+  constraintType: TType,
+  findViolations: (
+    connection: DuckDBConnection,
+    tableName: string,
+    fieldName: string,
+    constraint: Extract<Constraint, { type: TType }>,
+    specField: FieldDefinition,
+    maxViolations: number,
+  ) => Effect.Effect<ValidField, FieldViolation[]>,
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
-  maxViolations = 100,
+  maxViolations: number,
+  options?: { takeLast?: boolean },
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
-    const rangeConstraints = (specField.constraints ?? []).filter(
-      (c): c is Constraint & { type: "range" } => c.type === "range",
+    const filtered = (specField.constraints ?? []).filter(
+      (c): c is Extract<Constraint, { type: TType }> => c.type === constraintType,
     );
-    if (rangeConstraints.length === 0) {
+    if (filtered.length === 0) {
       return validField(fieldName, specField.name);
     }
 
+    const toValidate = options?.takeLast ? [filtered[filtered.length - 1]] : filtered;
+
     const violations: FieldViolation[] = [];
-    for (const constraint of rangeConstraints) {
+    for (const constraint of toValidate) {
       const result = yield* _(Effect.either(
-        findRangeViolations(connection, tableName, fieldName, constraint, specField, maxViolations),
+        findViolations(connection, tableName, fieldName, constraint, specField, maxViolations),
       ));
       if (result._tag === "Left") {
         violations.push(...result.left);
@@ -164,6 +180,27 @@ export function validateRangeConstraints(
 
     return validField(fieldName, specField.name);
   });
+}
+
+/**
+ * Validate range constraints for a field
+ */
+export function validateRangeConstraints(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, FieldViolation[]> {
+  return validateConstraintsByType(
+    "range",
+    findRangeViolations,
+    connection,
+    tableName,
+    fieldName,
+    specField,
+    maxViolations,
+  );
 }
 
 /**
@@ -528,37 +565,15 @@ export function validateFormatConstraints(
   specField: FieldDefinition,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  return Effect.gen(function* (_) {
-    const formatConstraints = (specField.constraints ?? []).filter(
-      (c): c is Constraint & { type: "format" } => c.type === "format",
-    );
-    if (formatConstraints.length === 0) {
-      return validField(fieldName, specField.name);
-    }
-
-    const violations: FieldViolation[] = [];
-    for (const constraint of formatConstraints) {
-      const result = yield* _(Effect.either(
-        findFormatViolations(
-          connection,
-          tableName,
-          fieldName,
-          constraint,
-          specField,
-          maxViolations,
-        ),
-      ));
-      if (result._tag === "Left") {
-        violations.push(...result.left);
-      }
-    }
-
-    if (violations.length > 0) {
-      return yield* _(Effect.fail(violations));
-    }
-
-    return validField(fieldName, specField.name);
-  });
+  return validateConstraintsByType(
+    "format",
+    findFormatViolations,
+    connection,
+    tableName,
+    fieldName,
+    specField,
+    maxViolations,
+  );
 }
 
 // =============================================================================
@@ -628,37 +643,15 @@ export function validatePatternConstraints(
   specField: FieldDefinition,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  return Effect.gen(function* (_) {
-    const patternConstraints = (specField.constraints ?? []).filter(
-      (c): c is Constraint & { type: "pattern" } => c.type === "pattern",
-    );
-    if (patternConstraints.length === 0) {
-      return validField(fieldName, specField.name);
-    }
-
-    const violations: FieldViolation[] = [];
-    for (const constraint of patternConstraints) {
-      const result = yield* _(Effect.either(
-        findPatternViolations(
-          connection,
-          tableName,
-          fieldName,
-          constraint,
-          specField,
-          maxViolations,
-        ),
-      ));
-      if (result._tag === "Left") {
-        violations.push(...result.left);
-      }
-    }
-
-    if (violations.length > 0) {
-      return yield* _(Effect.fail(violations));
-    }
-
-    return validField(fieldName, specField.name);
-  });
+  return validateConstraintsByType(
+    "pattern",
+    findPatternViolations,
+    connection,
+    tableName,
+    fieldName,
+    specField,
+    maxViolations,
+  );
 }
 
 // =============================================================================
@@ -744,37 +737,15 @@ export function validateLengthConstraints(
   specField: FieldDefinition,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  return Effect.gen(function* (_) {
-    const lengthConstraints = (specField.constraints ?? []).filter(
-      (c): c is Constraint & { type: "length" } => c.type === "length",
-    );
-    if (lengthConstraints.length === 0) {
-      return validField(fieldName, specField.name);
-    }
-
-    const violations: FieldViolation[] = [];
-    for (const constraint of lengthConstraints) {
-      const result = yield* _(Effect.either(
-        findLengthViolations(
-          connection,
-          tableName,
-          fieldName,
-          constraint,
-          specField,
-          maxViolations,
-        ),
-      ));
-      if (result._tag === "Left") {
-        violations.push(...result.left);
-      }
-    }
-
-    if (violations.length > 0) {
-      return yield* _(Effect.fail(violations));
-    }
-
-    return validField(fieldName, specField.name);
-  });
+  return validateConstraintsByType(
+    "length",
+    findLengthViolations,
+    connection,
+    tableName,
+    fieldName,
+    specField,
+    maxViolations,
+  );
 }
 
 // =============================================================================
@@ -842,7 +813,8 @@ export function findRequiredViolations(
 }
 
 /**
- * Validate required constraints for a field
+ * Validate required constraints for a field.
+ * Uses takeLast — after merge, there should be at most one required constraint.
  */
 export function validateRequiredConstraints(
   connection: DuckDBConnection,
@@ -851,34 +823,16 @@ export function validateRequiredConstraints(
   specField: FieldDefinition,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  return Effect.gen(function* (_) {
-    const requiredConstraints = specField.constraints?.filter(
-      (c): c is Constraint & { type: "required" } => c.type === "required",
-    ) ?? [];
-
-    if (requiredConstraints.length === 0) {
-      return validField(fieldName, specField.name);
-    }
-
-    // Use the last required constraint (after merge, there should be at most one)
-    const constraint = requiredConstraints[requiredConstraints.length - 1];
-
-    const effect = findRequiredViolations(
-      connection,
-      tableName,
-      fieldName,
-      constraint,
-      specField,
-      maxViolations,
-    );
-    const result = yield* _(Effect.either(effect));
-
-    if (result._tag === "Left") {
-      return yield* _(Effect.fail(result.left as FieldViolation[]));
-    }
-
-    return validField(fieldName, specField.name);
-  });
+  return validateConstraintsByType(
+    "required",
+    findRequiredViolations,
+    connection,
+    tableName,
+    fieldName,
+    specField,
+    maxViolations,
+    { takeLast: true },
+  );
 }
 
 /**

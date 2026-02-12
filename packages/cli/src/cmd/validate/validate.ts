@@ -173,6 +173,7 @@ function handleValidationResults(
  */
 function handleValidateError(
   error: Effect.Effect.Error<ReturnType<typeof buildValidationEffect>>,
+  options?: { strict?: boolean },
 ): never {
   Output.blank();
 
@@ -187,7 +188,7 @@ function handleValidateError(
       if (e.hint) {
         Output.muted(`   ${e.hint}`);
       }
-      return e.exitCode === 2 ? 0 : e.exitCode;
+      return options?.strict ? e.exitCode : (e.exitCode === 2 ? 0 : e.exitCode);
     }),
     // Output/file writing errors
     Match.tag('OutputError', (e) => {
@@ -318,6 +319,7 @@ export async function validate(options: {
   format?: string;
   outputDir?: string;
   failFast?: boolean;
+  strict?: boolean;
 }) {
   // Ensure format is valid
   // TODO: Should tell the user their option was invalid and tell them which ones are valid instead
@@ -348,7 +350,7 @@ export async function validate(options: {
     // Extract the error from the Cause and handle it exhaustively
     const failureOption = Cause.failureOption(result.cause);
     if (failureOption._tag === 'Some') {
-      handleValidateError(failureOption.value);
+      handleValidateError(failureOption.value, { strict: options.strict });
     } else {
       // Defect or interruption - show raw cause
       Output.blank();
@@ -643,6 +645,11 @@ export const validateCommand = new Command()
   .option(
     '--fail-fast',
     'Stop validation on first dataset with errors (only validates required violations)',
+    { default: false },
+  )
+  .option(
+    '--strict',
+    'Treat warnings as failures (exit code 2 instead of 0)',
     { default: false },
   )
   .action(validate);

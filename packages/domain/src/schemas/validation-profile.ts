@@ -48,7 +48,7 @@ export const validationProfileSchema = S.Struct({
   id: S.String,
   name: S.String,
   description: S.String,
-  targetSchema: S.Literal("obis", "gbif", "custom"),
+  targetSchema: S.optional(S.Literal("obis", "gbif", "custom")),
   extends: S.optional(S.String),
   fieldOverrides: S.Record({ key: S.String, value: fieldOverrideSchema }),
 
@@ -103,7 +103,7 @@ export enum FieldRequirementLevel {
  * @internal This type is used internally for normalization and should not be used
  * directly in application code. Use NormalizedField instead for validation logic.
  *
- * Validators can be either strings (legacy format) or ValidatorConfig objects.
+ * Validators can be either strings (legacy format) or typed Constraint objects.
  * The lowercase naming indicates this is a raw format from JSON schema.
  */
 export interface Field {

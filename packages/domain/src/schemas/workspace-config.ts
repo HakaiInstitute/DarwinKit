@@ -24,17 +24,16 @@ const DEFAULT_OUTPUT_DIR = "./output";
 /**
  * Maps source columns to Darwin Core fields with optional typed constraints.
  *
- * Three mechanisms control "required" behavior:
- * - `isRequired` — CSV column must exist (schema-level, affects missing-column enforcement)
+ * Two mechanisms control "required" behavior:
  * - `requirement` — profile-level field status (affects missing-field messages from profile check)
  * - `constraints[type="required"]` — runtime value validation (checks individual cell values)
+ *
+ * Config-specified fields are implicitly required — if a field is listed in
+ * fieldMappings but missing from the CSV, it is always reported as an error.
  */
 export const workspaceFieldMappingSchema = S.Struct({
   originName: S.String.annotations({ description: "Source column name in the CSV file." }),
   targetName: S.String.annotations({ description: "Target Darwin Core field name." }),
-  isRequired: S.optional(
-    S.Boolean.annotations({ description: "Whether this field mapping is required." }),
-  ),
   requirement: S.optional(
     S.String.annotations({ description: "Requirement level for this field." }),
   ),
@@ -367,4 +366,26 @@ export function parseSpecIdentifier(
   const type = parts.slice(1).join("-");
 
   return { spec, type };
+}
+
+/**
+ * Derive a profile ID from a dataset's profile or spec field.
+ *
+ * Resolution order:
+ * 1. Explicit `profile` field (returned as-is)
+ * 2. Parsed from `spec` field (e.g. "dwc-event" → "Event")
+ *
+ * @returns The profile ID, or undefined if neither field yields one
+ */
+export function deriveProfileId(
+  dataset: { profile?: string; spec?: string },
+): string | undefined {
+  if (dataset.profile) return dataset.profile;
+  if (dataset.spec) {
+    const parsed = parseSpecIdentifier(dataset.spec);
+    if (parsed) {
+      return parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
+    }
+  }
+  return undefined;
 }

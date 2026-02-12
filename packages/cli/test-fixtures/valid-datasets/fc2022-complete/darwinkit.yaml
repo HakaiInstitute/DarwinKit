@@ -21,7 +21,6 @@ validation:
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
         - originName: language
           targetName: language
         - originName: license
@@ -34,10 +33,8 @@ validation:
           targetName: modified
         - originName: country
           targetName: country
-          isRequired: true
         - originName: countryCode
           targetName: countryCode
-          isRequired: true
         - originName: geodeticDatum
           targetName: geodeticDatum
         - originName: stateProvince
@@ -91,16 +88,12 @@ validation:
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
         - originName: occurrenceID
           targetName: occurrenceID
-          isRequired: true
         - originName: basisOfRecord
           targetName: basisOfRecord
-          isRequired: true
         - originName: scientificName
           targetName: scientificName
-          isRequired: true
         - originName: scientificNameID
           targetName: scientificNameID
         - originName: taxonRank
@@ -166,7 +159,6 @@ validation:
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
         - originName: occurrenceID
           targetName: occurrenceID
         - originName: DNA_sequence

@@ -21,7 +21,13 @@
 
 import * as S from "effect/Schema";
 import type { Field } from "../schemas/validation-profile.ts";
-import { Constraint, type EnforcementLevel, FieldDataType } from "./constraints.ts";
+import {
+  Constraint,
+  type EnforcementLevel,
+  FieldDataType,
+  type Obligation,
+  ObligationsMap,
+} from "./constraints.ts";
 import { vocabularyEnforcementToStandard } from "./validators.ts";
 import type { VocabularyEnforcement } from "./vocabularies/config.ts";
 import type { VocabularyKey } from "./vocabularies/registry.ts";
@@ -31,7 +37,7 @@ export const FieldDefinitionSchema = S.Struct({
   label: S.optional(S.String),
   constraints: S.Array(Constraint),
   type: S.optional(FieldDataType),
-  requirement: S.optional(S.String),
+  obligations: S.optional(ObligationsMap),
   comments: S.optional(S.String),
   examples: S.optional(S.String),
 });
@@ -72,6 +78,19 @@ export function mapJsonTypeToFieldDataType(
  * - validators: string[] -> Constraint[]
  * - values: Record<string, unknown> -> VocabularyConstraint in constraints
  */
+const VALID_OBLIGATIONS: ReadonlySet<string> = new Set([
+  "required",
+  "strongly recommended",
+  "recommended",
+  "optional",
+  "required (if exists)",
+  "optional (required for imaging data)",
+]);
+
+function isValidObligation(value: string): value is Obligation {
+  return VALID_OBLIGATIONS.has(value);
+}
+
 export function normalizeField(jsonField: Field): FieldDefinition {
   const constraints: Constraint[] = [];
 
@@ -238,12 +257,28 @@ export function normalizeField(jsonField: Field): FieldDefinition {
     });
   }
 
+  // Build obligations map from raw JSON field metadata
+  const obligations: { obis?: Obligation; gbif?: Obligation } = {};
+  if (jsonField.obis_required && isValidObligation(jsonField.obis_required)) {
+    obligations.obis = jsonField.obis_required;
+  }
+  if (jsonField.gbif_required) {
+    // gbif_required uses "true"/"false" strings — map to standard obligation values
+    if (jsonField.gbif_required === "true") {
+      obligations.gbif = "required";
+    } else if (jsonField.gbif_required === "false") {
+      obligations.gbif = "optional";
+    } else if (isValidObligation(jsonField.gbif_required)) {
+      obligations.gbif = jsonField.gbif_required;
+    }
+  }
+
   return {
     name: jsonField.name,
     label: jsonField.label,
     constraints,
     type: mapJsonTypeToFieldDataType(jsonField.type),
-    requirement: jsonField.obis_required,
+    obligations: Object.keys(obligations).length > 0 ? obligations : undefined,
     comments: jsonField.comments,
     examples: jsonField.examples,
   };

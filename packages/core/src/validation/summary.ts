@@ -7,7 +7,7 @@
  */
 
 import type { DatasetConfig } from "@dwkt/domain/schemas";
-import { parseSpecIdentifier } from "@dwkt/domain/schemas";
+import { deriveProfileId } from "@dwkt/domain/schemas";
 import { getValidationProfile } from "@dwkt/domain/specs";
 import { sanitizeTableName } from "../loading/sql.ts";
 
@@ -30,16 +30,8 @@ export function resolveSchemaTableName(
     return sanitizeTableName(datasetName).toLowerCase();
   }
 
-  // Derive profile ID for registry lookup
-  let profileId = dataset.profile;
-  if (!profileId && dataset.spec) {
-    const parsed = parseSpecIdentifier(dataset.spec);
-    if (parsed) {
-      profileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-    }
-  }
+  const profileId = deriveProfileId(dataset);
 
-  // Resolve via profile registry to get display name (matches importSchema)
   if (profileId) {
     const profile = getValidationProfile(profileId);
     if (profile) {

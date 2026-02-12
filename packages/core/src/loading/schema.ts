@@ -1,6 +1,6 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import type { WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
-import { parseSpecIdentifier } from "@dwkt/domain/schemas";
+import { deriveProfileId } from "@dwkt/domain/schemas";
 import { getValidationProfile } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
@@ -82,13 +82,7 @@ export function importSchema(
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
     // Load validation profile - use profile if specified, otherwise derive from spec
-    let profileId = dataset.profile;
-    if (!profileId && dataset.spec) {
-      const parsed = parseSpecIdentifier(dataset.spec);
-      if (parsed) {
-        profileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-      }
-    }
+    const profileId = deriveProfileId(dataset);
 
     if (!profileId) {
       // No profile or spec specified - skip table creation
@@ -155,15 +149,7 @@ export function importSchema(
         // Resolve target dataset name to table name via its profile
         const targetDataset = datasets.find((ds) => ds.name === fkRule.targetDataset);
         if (targetDataset) {
-          // Get profile ID for target dataset
-          let targetProfileId = targetDataset.profile;
-          if (!targetProfileId && targetDataset.spec) {
-            const parsed = parseSpecIdentifier(targetDataset.spec);
-            if (parsed) {
-              targetProfileId = parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-            }
-          }
-          // Look up profile to get the actual table name
+          const targetProfileId = deriveProfileId(targetDataset);
           const targetProfile = targetProfileId ? getValidationProfile(targetProfileId) : undefined;
           if (targetProfile) {
             const referencedTable = sanitizeTableName(targetProfile.name).toLowerCase();
