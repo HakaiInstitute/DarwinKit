@@ -20,7 +20,6 @@ import type {
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
-import { vocabularyEnforcementToStandard } from "@dwkt/domain/specs";
 import type { FieldViolation } from "@dwkt/domain/types";
 import {
   enforcementToSeverity,
@@ -186,11 +185,16 @@ function handleEnumViolation(
 
     if (!specField || !rawField?.values) return [];
 
-    // Get vocabulary enforcement level - determines how strictly to validate
-    const vocabEnforcement = specField.vocabulary?.enforcement ?? "strict";
+    // Get enforcement from constraints: check required/unique constraints first
+    // (these represent the field's overall enforcement), fall back to vocabulary constraint
+    const fieldConstraint = specField.constraints?.find((c) =>
+      c.type === "required" || c.type === "unique"
+    );
+    const vocabConstraint = specField.constraints?.find((c) => c.type === "vocabulary");
+    const enforcement = fieldConstraint?.enforcement ?? vocabConstraint?.enforcement ?? "required";
 
-    // Skip violations for loose enforcement - any value is accepted
-    if (vocabEnforcement === "loose") {
+    // Skip violations for optional enforcement - any value is accepted
+    if (enforcement === "optional") {
       return [];
     }
 
@@ -198,13 +202,6 @@ function handleEnumViolation(
     const suggestedValue = ctx.enableSuggestions
       ? findSuggestedValue(parsed.value, allowedValues)
       : undefined;
-
-    // Get enforcement from the field's validators first, fall back to vocabulary enforcement
-    const vocabValidator = specField.validators?.find((v) =>
-      v.type === "required" || v.type === "unique"
-    );
-    const enforcement = vocabValidator?.enforcement ??
-      vocabularyEnforcementToStandard(vocabEnforcement);
 
     return [
       new EnumViolation({

@@ -30,9 +30,17 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
     validator.validateFromConfig(join(TEST_CONFIG_DIR, "example-config")),
   );
 
-  // Verify we get successful validation result
-  assertEquals(result.overallStatus, "warn", "Should have warnings due to taxonRank violations");
+  // Verify we get a validation result with 2 datasets
   assertEquals(result.datasetResults.length, 2, "Should have 2 datasets");
+
+  // Events dataset now correctly detects required field violations (empty/null values)
+  // for fields like parentEventID (null for root events), eventDate, decimalLatitude, etc.
+  const eventsResult = result.datasetResults.find((r) => r.datasetName === "events");
+  assert(eventsResult, "Should have events dataset");
+  assert(
+    eventsResult.fieldViolations.errors.length > 0,
+    "Events should have required field errors (null values in required fields)",
+  );
 
   // Find occurrences dataset result
   const occResult = result.datasetResults.find((r) => r.datasetName === "occurrences");

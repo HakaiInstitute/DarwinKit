@@ -3,21 +3,32 @@
  */
 
 import * as S from "effect/Schema";
-import { ValidatorConfigSchema } from "../specs/validators.ts";
+import { Constraint } from "../specs/constraints.ts";
 
 // Field requirement level schema
-export const fieldRequirementLevelSchema = S.Literal(
-  "required",
-  "strongly recommended",
-  "recommended",
-  "required-if-exists",
-  "optional",
+// Accepts both "strongly recommended" (canonical) and "strongly-recommended" (legacy alias)
+export const fieldRequirementLevelSchema = S.Union(
+  S.Literal(
+    "required",
+    "strongly recommended",
+    "recommended",
+    "required-if-exists",
+    "optional",
+  ),
+  S.transform(
+    S.Literal("strongly-recommended"),
+    S.Literal("strongly recommended"),
+    {
+      decode: () => "strongly recommended" as const,
+      encode: () => "strongly-recommended" as const,
+    },
+  ),
 );
 
 // Field override schema
 export const fieldOverrideSchema = S.Struct({
   requirement: S.optional(fieldRequirementLevelSchema),
-  validators: S.optional(S.Array(ValidatorConfigSchema)),
+  constraints: S.optional(S.Array(Constraint)),
   enforcement: S.optional(S.Literal("required", "recommended", "optional")),
 });
 

@@ -10,6 +10,23 @@ import { DuckDBInstance } from "@duckdb/node-api";
 import { resolve } from "@std/path";
 import * as Effect from "effect/Effect";
 
+import type { WorkspaceOperationError } from "@dwkt/domain/errors";
+import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
+import type {
+  DatasetConfig,
+  ValidationProfile,
+  ValidationSettings,
+  WorkspaceCrossDatasetRule,
+  WorkspaceFieldMapping,
+} from "@dwkt/domain/schemas";
+import { FieldRequirementLevel, parseSpecIdentifier } from "@dwkt/domain/schemas";
+import type { Constraint, EnforcementLevel, FieldDefinition } from "@dwkt/domain/specs";
+import {
+  getPreset,
+  getValidationProfile,
+  hasControlledVocabulary,
+  mergeConstraints,
+} from "@dwkt/domain/specs";
 import type {
   CrossDatasetValidationResult,
   DatasetValidationResult,
@@ -29,29 +46,27 @@ import {
   UnknownProfileViolation,
   UnmappedColumnViolation,
 } from "@dwkt/domain/types";
-import type {
-  DatasetConfig,
-  ValidationProfile,
-  ValidationSettings,
-  WorkspaceCrossDatasetRule,
-  WorkspaceFieldMapping,
-} from "@dwkt/domain/schemas";
-import { FieldRequirementLevel, parseSpecIdentifier } from "@dwkt/domain/schemas";
-import type { EnforcementLevel, FieldDefinition, ValidatorConfig } from "@dwkt/domain/specs";
-import { getValidationProfile, hasControlledVocabulary } from "@dwkt/domain/specs";
-import type { WorkspaceOperationError } from "@dwkt/domain/errors";
-import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
 import { importCsv } from "../loading/csv-import.ts";
 import { sanitizeTableName } from "../loading/sql.ts";
 import { Workspace } from "../workspace/workspace.ts";
 
 // Import from modular validation files
+import { importSchema } from "../loading/schema.ts";
 import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
 import { resolveSchemaTableName } from "./summary.ts";
-import { importSchema } from "../loading/schema.ts";
 
 import { findSuggestedValue } from "../validation/string-matching.ts";
+
+/** Deduplicate an array of objects by their errorMessage property */
+function deduplicateByMessage<T extends { errorMessage: string }>(arr: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return arr.filter((item) => {
+    if (seen.has(item.errorMessage)) return false;
+    seen.add(item.errorMessage);
+    return true;
+  });
+}
 
 /**
  * Workspace validator for config-based validation
@@ -240,26 +255,14 @@ export class WorkspaceValidator {
           const earlyResult = {
             ...result,
             schemaViolations: {
-              errors: result.schemaViolations.errors.filter((obj1, i, arr) =>
-                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
-              ),
-              warnings: result.schemaViolations.warnings.filter((obj1, i, arr) =>
-                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
-              ),
-              info: result.schemaViolations.info.filter((obj1, i, arr) =>
-                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
-              ),
+              errors: deduplicateByMessage(result.schemaViolations.errors),
+              warnings: deduplicateByMessage(result.schemaViolations.warnings),
+              info: deduplicateByMessage(result.schemaViolations.info),
             },
             fieldViolations: {
-              errors: result.fieldViolations.errors.filter((obj1, i, arr) =>
-                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
-              ),
-              warnings: result.fieldViolations.warnings.filter((obj1, i, arr) =>
-                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
-              ),
-              info: result.fieldViolations.info.filter((obj1, i, arr) =>
-                arr.findIndex((obj2) => (obj2.errorMessage === obj1.errorMessage)) === i
-              ),
+              errors: deduplicateByMessage(result.fieldViolations.errors),
+              warnings: deduplicateByMessage(result.fieldViolations.warnings),
+              info: deduplicateByMessage(result.fieldViolations.info),
             },
           };
 
@@ -423,26 +426,40 @@ function mergeFieldDefinition(
   if (profile && profile.fieldOverrides[fieldMapping.targetName]) {
     const profileOverride = profile.fieldOverrides[fieldMapping.targetName];
 
-    // Merge validators (append profile validators to base validators)
-    if (profileOverride.validators) {
+    // Merge constraints (child type wins over parent type)
+    if (profileOverride.constraints) {
       merged = {
         ...merged,
-        validators: [
-          ...(merged.validators || []),
-          ...(profileOverride.validators as ValidatorConfig[]),
-        ],
+        constraints: mergeConstraints(
+          merged.constraints || [],
+          profileOverride.constraints as Constraint[],
+        ),
+      };
+    }
+  }
+
+  // Apply preset constraints before explicit field-level constraints
+  if (fieldMapping.preset) {
+    const presetConstraints = getPreset(fieldMapping.preset);
+    if (presetConstraints) {
+      merged = {
+        ...merged,
+        constraints: mergeConstraints(
+          merged.constraints || [],
+          presetConstraints as Constraint[],
+        ),
       };
     }
   }
 
   // Apply field-level overrides from config (highest priority)
-  if (fieldMapping.validators) {
+  if (fieldMapping.constraints) {
     merged = {
       ...merged,
-      validators: [
-        ...(merged.validators || []),
-        ...(fieldMapping.validators as ValidatorConfig[]),
-      ],
+      constraints: mergeConstraints(
+        merged.constraints || [],
+        fieldMapping.constraints as Constraint[],
+      ),
     };
   }
 
@@ -504,35 +521,31 @@ function validateDataset(
       .map((row) => String(row.column_name))
       .filter((col) => col !== "_row_number");
 
-    // Derive profile name - use profile.name if available (this is the actual table name),
-    // otherwise use dataset.profile, or derive from spec
-    let profileName: string | undefined;
+    // Derive profile ID for registry lookup and display name for DuckDB table
+    let profileId: string | undefined;
     if (profile) {
-      // Use the profile's name property (e.g., "OBIS Event Core")
-      // This must match what importSchema uses to create the table
-      profileName = profile.name;
+      profileId = profile.id;
     } else if (dataset.profile) {
-      // Fallback to profile ID from config (may not match actual profile name)
-      profileName = dataset.profile;
+      profileId = dataset.profile;
     } else if (dataset.spec) {
-      // Derive from spec if neither profile nor profile ID available
       const parsed = parseSpecIdentifier(dataset.spec);
       if (parsed) {
-        profileName = parsed.type.charAt(0).toUpperCase() +
+        profileId = parsed.type.charAt(0).toUpperCase() +
           parsed.type.slice(1);
       }
     }
 
-    const schemaTableName = profileName
-      ? sanitizeTableName(profileName).toLowerCase()
-      : dataset.name.toLowerCase();
+    const schemaProfile = getValidationProfile(profileId || "");
 
-    const schemaProfile = getValidationProfile(profileName || "");
+    // Use the resolved profile's display name for DuckDB table (matches importSchema)
+    const schemaTableName = schemaProfile
+      ? sanitizeTableName(schemaProfile.name).toLowerCase()
+      : dataset.name.toLowerCase();
     if (schemaProfile === undefined) {
       return yield* _(
         Effect.fail(
           new WorkspaceValidationError({
-            message: `Invalid profile identifier: ${profileName}`,
+            message: `Invalid profile identifier: ${profileId}`,
           }),
         ),
       );
@@ -552,6 +565,35 @@ function validateDataset(
       return obj;
     }, {} as Record<string, WorkspaceFieldMapping>) as Record<string, WorkspaceFieldMapping>;
 
+    // Apply profile fieldOverrides (e.g. OBIS requirements) to schemaColumnsObj
+    if (profile?.fieldOverrides) {
+      for (const [fieldName, override] of Object.entries(profile.fieldOverrides)) {
+        const existing = schemaColumnsObj[fieldName];
+        if (existing) {
+          schemaColumnsObj[fieldName] = {
+            ...existing,
+            requirement: override.requirement ?? existing.requirement,
+            constraints: override.constraints
+              ? mergeConstraints(
+                existing.constraints || [],
+                override.constraints as Constraint[],
+              )
+              : existing.constraints,
+          };
+        } else {
+          // Field only exists in overrides (not in base schema) — add it
+          schemaColumnsObj[fieldName] = {
+            originName: fieldName,
+            targetName: fieldName,
+            requirement: override.requirement,
+            constraints: override.constraints
+              ? [...override.constraints] as Constraint[]
+              : undefined,
+          };
+        }
+      }
+    }
+
     // Detect field mapping issues
     const configFieldMappings = dataset?.fieldMappings || [];
     const mappedOriginFields = configFieldMappings.map((m) => m.originName);
@@ -562,12 +604,24 @@ function validateDataset(
       alternatives: findSuggestedValue(f, originTableColumns) || "",
     }));
 
-    // override with fieldMappings from config
+    // Override with fieldMappings from config (merge constraints, don't replace)
     configFieldMappings.forEach((field) => {
-      schemaColumnsObj[field.targetName] = <WorkspaceFieldMapping> {
-        ...field,
-      };
+      const existing = schemaColumnsObj[field.targetName];
+      if (existing && field.constraints && existing.constraints) {
+        // Merge constraints: config (child) wins over profile/schema (parent)
+        schemaColumnsObj[field.targetName] = {
+          ...existing,
+          ...field,
+          constraints: mergeConstraints(existing.constraints, field.constraints as Constraint[]),
+        };
+      } else {
+        schemaColumnsObj[field.targetName] = {
+          ...existing,
+          ...field,
+        };
+      }
     });
+
     const allFieldMappings = Object.values(schemaColumnsObj).map((m: WorkspaceFieldMapping) =>
       m.originName
     );
@@ -639,24 +693,28 @@ function validateDataset(
     }
 
     // Generate schema violations for field mapping issues
-    // When a mapped field is missing from CSV, it's always a warning (recommended enforcement)
-    // because we can't validate data that doesn't exist - we just skip the mapping
+    // Enforcement depends on whether the field is marked as required
     for (const missingSourceField of missingSourceFields) {
       const mapping = (dataset.fieldMappings || []).find((m) =>
         m.originName === missingSourceField.fieldName
       );
+      const fieldEnforcement: EnforcementLevel = mapping?.isRequired ? "required" : "recommended";
       const altMsg = missingSourceField.alternatives
         ? `Possible alternative fields: ${missingSourceField.alternatives}`
         : "";
       schemaViolations.push(
         new MissingMappingViolation({
-          enforcement: "recommended",
-          severity: enforcementToSeverity("recommended"),
+          enforcement: fieldEnforcement,
+          severity: enforcementToSeverity(fieldEnforcement),
           fieldName: missingSourceField.fieldName,
           targetName: mapping?.targetName ?? missingSourceField.fieldName,
-          errorMessage:
-            `Field '${missingSourceField.fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.` +
-            (altMsg ? ` ${altMsg}` : ""),
+          errorMessage: mapping?.isRequired
+            ? `Required field '${missingSourceField.fieldName}' not found in CSV.${
+              altMsg ? ` ${altMsg}` : ""
+            }`
+            : `Field '${missingSourceField.fieldName}' is mapped in configuration but not found in source CSV. This mapping will be skipped.${
+              altMsg ? ` ${altMsg}` : ""
+            }`,
           validatorType: "schema",
           datasetName: dataset.name,
         }),
@@ -851,6 +909,7 @@ function validateDataset(
               rawField,
               schemaTableName,
               hasControlledVocabulary: hasControlledVocabulary(specField),
+              maxViolations: validationSettings?.maxViolationsPerField,
             },
           ),
         );

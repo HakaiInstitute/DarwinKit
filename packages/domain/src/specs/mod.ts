@@ -8,7 +8,16 @@ export * from "./dwc/mod.ts";
 // Field normalization
 export * from "./field-definition.ts";
 
-// Validators
+// Constraints
+export * from "./constraints.ts";
+
+// Constraint Presets
+export * from "./constraint-presets.ts";
+
+// Semantic Types
+export * from "./semantic-type.ts";
+
+// Validator utilities
 export * from "./validators.ts";
 
 // Validation Profiles

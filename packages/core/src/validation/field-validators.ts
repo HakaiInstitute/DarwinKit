@@ -1,8 +1,21 @@
 /**
  * Field Validators
  *
- * Validation functions for individual field constraints including
- * range validation, vocabulary validation, and uniqueness validation.
+ * SQL-based validators for field constraints. Each validator runs queries
+ * against the raw table created by `read_csv_auto()`.
+ *
+ * ## Column Type Strategy
+ *
+ * DuckDB's `read_csv_auto()` auto-detects column types (DATE, DOUBLE, INTEGER,
+ * etc.). Validators that use string functions (TRY_STRPTIME, regexp_matches,
+ * TRIM, LENGTH) CAST columns to VARCHAR first to avoid type errors. Numeric
+ * validators use TRY_CAST to DOUBLE for the same reason.
+ *
+ * This means format/pattern validators check DuckDB's string representation
+ * of already-typed data, not the original CSV values. A future improvement
+ * would use `read_csv_auto(..., all_varchar=true)` for a separate raw-text
+ * table so validators see original values, while keeping the auto-typed table
+ * for schema inference and range validation.
  *
  * @module validation/field-validators
  */
@@ -10,24 +23,24 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
+import type {
+  Constraint,
+  EnforcementLevel,
+  FieldDefinition,
+  VocabularyKey,
+} from "@dwkt/domain/specs";
+import { getVocabularyValues, isValidVocabularyValue } from "@dwkt/domain/specs";
 import type { FieldViolation, ValidField } from "@dwkt/domain/types";
 import {
   enforcementToSeverity,
+  FormatViolation,
+  LengthViolation,
+  PatternViolation,
   RangeViolation,
+  RequiredFieldViolation,
   UniquenessViolation,
   VocabularyViolation,
 } from "@dwkt/domain/types";
-import type {
-  EnforcementLevel,
-  FieldDefinition,
-  ValidatorConfig,
-  VocabularyKey,
-} from "@dwkt/domain/specs";
-import {
-  getVocabularyValues,
-  isValidVocabularyValue,
-  vocabularyEnforcementToStandard,
-} from "@dwkt/domain/specs";
 
 /**
  * Create a ValidField result for a field that passed validation
@@ -37,43 +50,39 @@ function validField(fieldName: string, targetName: string): ValidField {
 }
 
 /**
- * Find range violations for a single validator
+ * Find range violations for a single range constraint
  *
- * Validates a field against range constraints (min/max values).
+ * Validates a field against range bounds (min/max values).
  * Violations are returned in the error channel for Effect-based aggregation.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name of the table to query
- * @param fieldName - Name of the field to validate
- * @param validator - Range validator configuration
- * @param specField - Field definition from spec
- * @returns Effect that succeeds with ValidField or fails with RangeViolation[]
  */
 export function findRangeViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  validator: ValidatorConfig,
+  constraint: Constraint & { type: "range" },
   specField: FieldDefinition,
+  maxViolations = 100,
 ): Effect.Effect<ValidField, RangeViolation[]> {
   return Effect.gen(function* (_) {
-    const { min, max, inclusive = true } = validator.params || {};
+    const { min, max, inclusive = true } = constraint;
 
-    // No range constraints - field is valid
+    // No range bounds - field is valid
     if (min === undefined && max === undefined) {
       return validField(fieldName, specField.name);
     }
 
-    // Build range condition
+    // Build range condition — TRY_CAST to DOUBLE so comparisons work regardless
+    // of whether the column was auto-detected as INTEGER, DOUBLE, or VARCHAR.
+    const asNum = `TRY_CAST("${fieldName}" AS DOUBLE)`;
     const conditions: string[] = [];
     if (min !== undefined) {
       conditions.push(
-        inclusive ? `"${fieldName}" < ${min}` : `"${fieldName}" <= ${min}`,
+        inclusive ? `${asNum} < ${min}` : `${asNum} <= ${min}`,
       );
     }
     if (max !== undefined) {
       conditions.push(
-        inclusive ? `"${fieldName}" > ${max}` : `"${fieldName}" >= ${max}`,
+        inclusive ? `${asNum} > ${max}` : `${asNum} >= ${max}`,
       );
     }
 
@@ -82,14 +91,14 @@ export function findRangeViolations(
     const query = `
       SELECT
         _row_number,
-        "${fieldName}" as value
+        CAST("${fieldName}" AS VARCHAR) as value
       FROM ${tableName}
-      WHERE "${fieldName}" IS NOT NULL
+      WHERE ${asNum} IS NOT NULL
         AND (${rangeCondition})
-      LIMIT 100
+      LIMIT ${maxViolations}
     `;
 
-    // SQL query execution should work - query failure is a defect
+    // Field existence verified upstream via information_schema check; query failure is a defect
     const result = yield* _(
       Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
         Effect.orDie,
@@ -102,16 +111,16 @@ export function findRangeViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new RangeViolation({
-          enforcement: validator.enforcement,
-          severity: enforcementToSeverity(validator.enforcement),
+          enforcement: constraint.enforcement,
+          severity: enforcementToSeverity(constraint.enforcement),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
           value: String(row.value),
           csvValue: String(row.value),
-          errorMessage: validator.message || `Value out of range`,
-          validatorType: validator.type,
-          params: validator.params,
+          errorMessage: constraint.message || `Value out of range`,
+          validatorType: constraint.type,
+          params: { min: constraint.min, max: constraint.max },
         })
       );
       return yield* _(Effect.fail(violations));
@@ -123,70 +132,27 @@ export function findRangeViolations(
 
 /**
  * Validate range constraints for a field
- *
- * Uses Effect.all with mode: "either" to run all range validators concurrently
- * and collect violations from the error channel.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name of the table to query
- * @param fieldName - Name of the field to validate
- * @param specField - Field definition from spec
- * @returns Effect that succeeds with ValidField or fails with FieldViolation[]
  */
 export function validateRangeConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
+  maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
-    if (!specField.validators || !Array.isArray(specField.validators)) {
-      return validField(fieldName, specField.name);
-    }
-
-    // Get range validators (now always ValidatorConfig[] after normalization)
-    const rangeValidators = specField.validators.filter((v) => v.type === "range");
-
-    if (rangeValidators.length === 0) {
-      return validField(fieldName, specField.name);
-    }
-
-    // Build array of validation effects
-    const validationEffects = rangeValidators.map((validator) => {
-      // Normalize validator format: JSON schema may have min/max at top level,
-      // but ValidatorConfig expects them under params
-      // TODO: Don't cast here
-      const validatorUnknown = validator as unknown as Record<string, unknown>;
-      const normalizedValidator = {
-        type: validator.type,
-        enforcement: validator.enforcement || "required",
-        message: validator.message,
-        params: validator.params || {
-          min: typeof validatorUnknown.min === "number" ? validatorUnknown.min : undefined,
-          max: typeof validatorUnknown.max === "number" ? validatorUnknown.max : undefined,
-          inclusive: typeof validatorUnknown.inclusive === "boolean"
-            ? validatorUnknown.inclusive
-            : true,
-        },
-      };
-
-      return findRangeViolations(
-        connection,
-        tableName,
-        fieldName,
-        normalizedValidator,
-        specField,
-      );
-    });
-
-    // Run all validators concurrently, collecting both successes and failures
-    const results = yield* _(
-      Effect.all(validationEffects, { mode: "either", concurrency: "unbounded" }),
+    const rangeConstraints = (specField.constraints ?? []).filter(
+      (c): c is Constraint & { type: "range" } => c.type === "range",
     );
+    if (rangeConstraints.length === 0) {
+      return validField(fieldName, specField.name);
+    }
 
-    // Extract violations from Left results (failures)
     const violations: FieldViolation[] = [];
-    for (const result of results) {
+    for (const constraint of rangeConstraints) {
+      const result = yield* _(Effect.either(
+        findRangeViolations(connection, tableName, fieldName, constraint, specField, maxViolations),
+      ));
       if (result._tag === "Left") {
         violations.push(...result.left);
       }
@@ -204,16 +170,6 @@ export function validateRangeConstraints(
  * Find vocabulary violations using vocabulary key
  *
  * Validates a field against a controlled vocabulary.
- * Violations are returned in the error channel for Effect-based aggregation.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name of the table to query
- * @param fieldName - Name of the field to validate
- * @param vocabularyKey - Key for the controlled vocabulary
- * @param specField - Field definition from spec
- * @param enforcement - Enforcement level for violations
- * @param caseSensitive - Whether validation is case-sensitive
- * @returns Effect that succeeds with ValidField or fails with VocabularyViolation[]
  */
 export function findVocabularyViolations(
   connection: DuckDBConnection,
@@ -235,7 +191,7 @@ export function findVocabularyViolations(
       GROUP BY "${fieldName}"
     `;
 
-    // SQL query execution should work - query failure is a defect
+    // Field existence verified upstream via information_schema check; query failure is a defect
     const result = yield* _(
       Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
         Effect.orDie,
@@ -304,14 +260,8 @@ export function findVocabularyViolations(
 /**
  * Validate controlled vocabulary for a field
  *
- * Validates a field against its controlled vocabulary configuration.
- * Violations are returned in the error channel for Effect-based aggregation.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name of the table to query
- * @param fieldName - Name of the field to validate
- * @param specField - Field definition from spec
- * @returns Effect that succeeds with ValidField or fails with FieldViolation[]
+ * Finds VocabularyConstraint in the field's constraints array
+ * and validates against it.
  */
 export function validateVocabulary(
   connection: DuckDBConnection,
@@ -320,20 +270,24 @@ export function validateVocabulary(
   specField: FieldDefinition,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
-    // After normalization, vocabulary config is always present if field has controlled vocabulary
-    if (!specField.vocabulary) {
+    // Find the last vocabulary constraint (child overrides parent after merge)
+    const vocabConstraints = specField.constraints?.filter(
+      (c): c is Constraint & { type: "vocabulary" } => c.type === "vocabulary",
+    ) ?? [];
+    const vocabConstraint = vocabConstraints.length > 0
+      ? vocabConstraints[vocabConstraints.length - 1]
+      : undefined;
+
+    if (!vocabConstraint) {
       return validField(fieldName, specField.name);
     }
 
-    const { vocabularyKey, caseSensitive = false, enforcement = "strict" } = specField.vocabulary;
+    const { vocabularyKey, caseSensitive = false, enforcement } = vocabConstraint;
 
-    // Skip validation for loose enforcement - any value is accepted
-    if (enforcement === "loose") {
+    // Skip validation for optional enforcement - any value is accepted
+    if (enforcement === "optional") {
       return validField(fieldName, specField.name);
     }
-
-    // Map vocabulary enforcement to standard enforcement level
-    const standardEnforcement = vocabularyEnforcementToStandard(enforcement);
 
     // findVocabularyViolations fails with violations or succeeds with ValidField
     return yield* _(
@@ -343,7 +297,7 @@ export function validateVocabulary(
         fieldName,
         vocabularyKey as VocabularyKey,
         specField,
-        standardEnforcement,
+        enforcement,
         caseSensitive,
       ),
     );
@@ -354,17 +308,8 @@ export function validateVocabulary(
  * Find uniqueness violations
  *
  * Validates a field for uniqueness constraints.
- * Violations are returned in the error channel for Effect-based aggregation.
- *
  * Note: This "explodes" duplicate values into individual violations,
  * so a value duplicated 3 times creates 3 UniquenessViolations.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name of the table to query
- * @param fieldName - Name of the field to validate
- * @param specField - Field definition from spec
- * @param enforcement - Enforcement level for violations
- * @returns Effect that succeeds with ValidField or fails with UniquenessViolation[]
  */
 export function findUniquenessViolations(
   connection: DuckDBConnection,
@@ -372,6 +317,7 @@ export function findUniquenessViolations(
   fieldName: string,
   specField: FieldDefinition,
   enforcement: EnforcementLevel,
+  maxViolations = 100,
 ): Effect.Effect<ValidField, UniquenessViolation[]> {
   return Effect.gen(function* (_) {
     // Query to find duplicate values with ordered row numbers
@@ -385,10 +331,10 @@ export function findUniquenessViolations(
       GROUP BY "${fieldName}"
       HAVING COUNT(*) > 1
       ORDER BY COUNT(*) DESC
-      LIMIT 100
+      LIMIT ${maxViolations}
     `;
 
-    // SQL query execution should work - query failure is a defect
+    // Field existence verified upstream via information_schema check; query failure is a defect
     const result = yield* _(
       Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
         Effect.orDie,
@@ -440,25 +386,19 @@ export function findUniquenessViolations(
 /**
  * Validate uniqueness for a field
  *
- * Validates a field for uniqueness constraints.
- * Violations are returned in the error channel for Effect-based aggregation.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name of the table to query
- * @param fieldName - Name of the field to validate
- * @param specField - Field definition from spec
- * @returns Effect that succeeds with ValidField or fails with FieldViolation[]
+ * Checks for UniqueConstraint in the constraints array.
  */
 export function validateUniqueness(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
+  maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
-    // Check if field has explicit uniqueness validator (already normalized)
-    const uniqueValidator = specField.validators?.find((v) => v.type === "unique");
-    const enforcement = uniqueValidator?.enforcement ?? "required";
+    // Check if field has explicit uniqueness constraint
+    const uniqueConstraint = specField.constraints?.find((c) => c.type === "unique");
+    const enforcement = uniqueConstraint?.enforcement ?? "required";
 
     // findUniquenessViolations fails with violations or succeeds with ValidField
     return yield* _(
@@ -468,15 +408,481 @@ export function validateUniqueness(
         fieldName,
         specField,
         enforcement,
+        maxViolations,
       ),
     );
   });
 }
 
+// =============================================================================
+// Format Validators
+// =============================================================================
+
+/**
+ * SQL condition for each format type.
+ * Returns a WHERE clause fragment that matches INVALID values.
+ *
+ * IMPORTANT: All string operations CAST to VARCHAR first because the raw table
+ * uses read_csv_auto() which auto-detects types (DATE, DOUBLE, etc.).
+ * Applying TRY_STRPTIME or regexp_matches on non-VARCHAR columns can crash DuckDB.
+ */
+function formatSqlCondition(fieldName: string, format: string): string | undefined {
+  // Use CAST to VARCHAR for all string operations to avoid crashes on auto-typed columns
+  const asText = `CAST("${fieldName}" AS VARCHAR)`;
+  switch (format) {
+    case "iso8601":
+      // Accept single dates and date ranges (YYYY-MM-DD/YYYY-MM-DD)
+      // TRY_STRPTIME handles single dates; regex handles ranges
+      return `"${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND TRY_STRPTIME(${asText}, '%Y-%m-%d') IS NULL
+        AND TRY_STRPTIME(${asText}, '%Y-%m-%dT%H:%M:%S') IS NULL
+        AND TRY_STRPTIME(${asText}, '%Y-%m-%dT%H:%M:%SZ') IS NULL
+        AND TRY_STRPTIME(${asText}, '%Y-%m') IS NULL
+        AND TRY_STRPTIME(${asText}, '%Y') IS NULL
+        AND NOT regexp_matches(${asText}, '^\\d{4}-\\d{2}-\\d{2}/\\d{4}-\\d{2}-\\d{2}$')`;
+    case "url":
+      return `"${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND NOT regexp_matches(${asText}, '^https?://[^\\s]+$')`;
+    case "uuid":
+      return `"${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND NOT regexp_matches(${asText}, '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')`;
+    case "decimal-degrees":
+      return `"${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND TRY_CAST(${asText} AS DOUBLE) IS NULL`;
+    case "integer":
+      return `"${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND TRY_CAST(${asText} AS INTEGER) IS NULL`;
+    case "email":
+      return `"${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND NOT regexp_matches(${asText}, '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')`;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Find format violations for a single format constraint
+ */
+export function findFormatViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  constraint: Constraint & { type: "format" },
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, FormatViolation[]> {
+  return Effect.gen(function* (_) {
+    const condition = formatSqlCondition(fieldName, constraint.format);
+    if (!condition) {
+      return validField(fieldName, specField.name);
+    }
+
+    const query = `
+      SELECT _row_number, CAST("${fieldName}" AS VARCHAR) as value
+      FROM ${tableName}
+      WHERE ${condition}
+      LIMIT ${maxViolations}
+    `;
+
+    const result = yield* _(
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    );
+
+    const rows = result.getRowObjects();
+    if (rows.length > 0) {
+      const violations = rows.map((row) =>
+        new FormatViolation({
+          enforcement: constraint.enforcement,
+          severity: enforcementToSeverity(constraint.enforcement),
+          fieldName,
+          targetName: specField.name,
+          rowNumber: Number(row._row_number),
+          value: String(row.value),
+          csvValue: String(row.value),
+          errorMessage: constraint.message ||
+            `Value "${String(row.value)}" does not match ${constraint.format} format`,
+          validatorType: "format",
+          format: constraint.format,
+        })
+      );
+      return yield* _(Effect.fail(violations));
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
+/**
+ * Validate format constraints for a field
+ */
+export function validateFormatConstraints(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, FieldViolation[]> {
+  return Effect.gen(function* (_) {
+    const formatConstraints = (specField.constraints ?? []).filter(
+      (c): c is Constraint & { type: "format" } => c.type === "format",
+    );
+    if (formatConstraints.length === 0) {
+      return validField(fieldName, specField.name);
+    }
+
+    const violations: FieldViolation[] = [];
+    for (const constraint of formatConstraints) {
+      const result = yield* _(Effect.either(
+        findFormatViolations(
+          connection,
+          tableName,
+          fieldName,
+          constraint,
+          specField,
+          maxViolations,
+        ),
+      ));
+      if (result._tag === "Left") {
+        violations.push(...result.left);
+      }
+    }
+
+    if (violations.length > 0) {
+      return yield* _(Effect.fail(violations));
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
+// =============================================================================
+// Pattern Validators
+// =============================================================================
+
+/**
+ * Find pattern violations for a single pattern constraint
+ */
+export function findPatternViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  constraint: Constraint & { type: "pattern" },
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, PatternViolation[]> {
+  return Effect.gen(function* (_) {
+    // DuckDB regexp_matches uses POSIX regex
+    // CAST to VARCHAR because raw table may have auto-detected non-string types
+    const asText = `CAST("${fieldName}" AS VARCHAR)`;
+    const query = `
+      SELECT _row_number, ${asText} as value
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND NOT regexp_matches(${asText}, '${constraint.pattern.replace(/'/g, "''")}')
+      LIMIT ${maxViolations}
+    `;
+
+    const result = yield* _(
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    );
+
+    const rows = result.getRowObjects();
+    if (rows.length > 0) {
+      const violations = rows.map((row) =>
+        new PatternViolation({
+          enforcement: constraint.enforcement,
+          severity: enforcementToSeverity(constraint.enforcement),
+          fieldName,
+          targetName: specField.name,
+          rowNumber: Number(row._row_number),
+          value: String(row.value),
+          csvValue: String(row.value),
+          errorMessage: constraint.message ||
+            `Value "${String(row.value)}" does not match pattern /${constraint.pattern}/`,
+          validatorType: "pattern",
+          pattern: constraint.pattern,
+          flags: constraint.flags,
+        })
+      );
+      return yield* _(Effect.fail(violations));
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
+/**
+ * Validate pattern constraints for a field
+ */
+export function validatePatternConstraints(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, FieldViolation[]> {
+  return Effect.gen(function* (_) {
+    const patternConstraints = (specField.constraints ?? []).filter(
+      (c): c is Constraint & { type: "pattern" } => c.type === "pattern",
+    );
+    if (patternConstraints.length === 0) {
+      return validField(fieldName, specField.name);
+    }
+
+    const violations: FieldViolation[] = [];
+    for (const constraint of patternConstraints) {
+      const result = yield* _(Effect.either(
+        findPatternViolations(
+          connection,
+          tableName,
+          fieldName,
+          constraint,
+          specField,
+          maxViolations,
+        ),
+      ));
+      if (result._tag === "Left") {
+        violations.push(...result.left);
+      }
+    }
+
+    if (violations.length > 0) {
+      return yield* _(Effect.fail(violations));
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
+// =============================================================================
+// Length Validators
+// =============================================================================
+
+/**
+ * Find length violations for a single length constraint
+ */
+export function findLengthViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  constraint: Constraint & { type: "length" },
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, LengthViolation[]> {
+  return Effect.gen(function* (_) {
+    const { minLength, maxLength } = constraint;
+    if (minLength === undefined && maxLength === undefined) {
+      return validField(fieldName, specField.name);
+    }
+
+    // CAST to VARCHAR because raw table may have auto-detected non-string types
+    const asText = `CAST("${fieldName}" AS VARCHAR)`;
+    const conditions: string[] = [];
+    if (minLength !== undefined) {
+      conditions.push(`LENGTH(${asText}) < ${minLength}`);
+    }
+    if (maxLength !== undefined) {
+      conditions.push(`LENGTH(${asText}) > ${maxLength}`);
+    }
+
+    const query = `
+      SELECT _row_number, ${asText} as value, LENGTH(${asText}) as actual_length
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NOT NULL
+        AND (${conditions.join(" OR ")})
+      LIMIT ${maxViolations}
+    `;
+
+    const result = yield* _(
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    );
+
+    const rows = result.getRowObjects();
+    if (rows.length > 0) {
+      const violations = rows.map((row) =>
+        new LengthViolation({
+          enforcement: constraint.enforcement,
+          severity: enforcementToSeverity(constraint.enforcement),
+          fieldName,
+          targetName: specField.name,
+          rowNumber: Number(row._row_number),
+          value: String(row.value),
+          csvValue: String(row.value),
+          errorMessage: constraint.message ||
+            `Value length ${row.actual_length} is outside bounds [${minLength ?? ""}..${
+              maxLength ?? ""
+            }]`,
+          validatorType: "length",
+          params: {
+            minLength,
+            maxLength,
+            actualLength: Number(row.actual_length),
+          },
+        })
+      );
+      return yield* _(Effect.fail(violations));
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
+/**
+ * Validate length constraints for a field
+ */
+export function validateLengthConstraints(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, FieldViolation[]> {
+  return Effect.gen(function* (_) {
+    const lengthConstraints = (specField.constraints ?? []).filter(
+      (c): c is Constraint & { type: "length" } => c.type === "length",
+    );
+    if (lengthConstraints.length === 0) {
+      return validField(fieldName, specField.name);
+    }
+
+    const violations: FieldViolation[] = [];
+    for (const constraint of lengthConstraints) {
+      const result = yield* _(Effect.either(
+        findLengthViolations(
+          connection,
+          tableName,
+          fieldName,
+          constraint,
+          specField,
+          maxViolations,
+        ),
+      ));
+      if (result._tag === "Left") {
+        violations.push(...result.left);
+      }
+    }
+
+    if (violations.length > 0) {
+      return yield* _(Effect.fail(violations));
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
+// =============================================================================
+// Required Validators
+// =============================================================================
+
+/**
+ * Find required field violations
+ */
+export function findRequiredViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  constraint: Constraint & { type: "required" },
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, RequiredFieldViolation[]> {
+  return Effect.gen(function* (_) {
+    // Skip validation for optional enforcement
+    if (constraint.enforcement === "optional") {
+      return validField(fieldName, specField.name);
+    }
+
+    // CAST to VARCHAR because raw table may have auto-detected non-string types
+    const asText = `CAST("${fieldName}" AS VARCHAR)`;
+    const conditions: string[] = [`"${fieldName}" IS NULL`];
+    if (!constraint.allowEmpty) {
+      conditions.push(`TRIM(${asText}) = ''`);
+    } else if (!constraint.allowWhitespace) {
+      // allowEmpty is true but whitespace-only strings are not allowed
+      conditions.push(`(TRIM(${asText}) = '' AND LENGTH(${asText}) > 0)`);
+    }
+
+    const query = `
+      SELECT _row_number, ${asText} as value
+      FROM ${tableName}
+      WHERE ${conditions.join(" OR ")}
+      LIMIT ${maxViolations}
+    `;
+
+    const result = yield* _(
+      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    );
+
+    const rows = result.getRowObjects();
+    if (rows.length > 0) {
+      const violations = rows.map((row) =>
+        new RequiredFieldViolation({
+          enforcement: constraint.enforcement,
+          severity: enforcementToSeverity(constraint.enforcement),
+          fieldName,
+          targetName: specField.name,
+          rowNumber: Number(row._row_number),
+          value: row.value == null ? "" : String(row.value),
+          csvValue: row.value == null ? "" : String(row.value),
+          errorMessage: constraint.message || `Required field "${fieldName}" is empty or null`,
+          validatorType: "required",
+        })
+      );
+      return yield* _(Effect.fail(violations));
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
+/**
+ * Validate required constraints for a field
+ */
+export function validateRequiredConstraints(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, FieldViolation[]> {
+  return Effect.gen(function* (_) {
+    const requiredConstraints = specField.constraints?.filter(
+      (c): c is Constraint & { type: "required" } => c.type === "required",
+    ) ?? [];
+
+    if (requiredConstraints.length === 0) {
+      return validField(fieldName, specField.name);
+    }
+
+    // Use the last required constraint (after merge, there should be at most one)
+    const constraint = requiredConstraints[requiredConstraints.length - 1];
+
+    const effect = findRequiredViolations(
+      connection,
+      tableName,
+      fieldName,
+      constraint,
+      specField,
+      maxViolations,
+    );
+    const result = yield* _(Effect.either(effect));
+
+    if (result._tag === "Left") {
+      return yield* _(Effect.fail(result.left as FieldViolation[]));
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
 /**
  * Context for field validation decisions
- *
- * Provides information needed to determine which validators to run for a field.
  */
 export interface FieldValidationContext {
   /** Raw field definition from profile (for hasEnumConstraint check) */
@@ -489,21 +895,15 @@ export interface FieldValidationContext {
   readonly schemaTableName: string;
   /** Whether the field has a controlled vocabulary */
   readonly hasControlledVocabulary: boolean;
+  /** Maximum violations per field (default: 100) */
+  readonly maxViolations?: number;
 }
 
 /**
  * Validate all constraints for a single field
  *
- * Composes range, vocabulary, and uniqueness validators for a field,
- * running them sequentially and collecting any violations.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name of the source data table
- * @param fieldName - Name of the field in the source table (originName)
- * @param targetName - Name of the target Darwin Core field
- * @param specField - Merged field definition with validators
- * @param context - Additional context for validation decisions
- * @returns Effect that succeeds with ValidField or fails with FieldViolation[]
+ * Builds a list of applicable validators and runs them sequentially,
+ * accumulating violations via Effect.either.
  */
 export function validateField(
   connection: DuckDBConnection,
@@ -514,57 +914,51 @@ export function validateField(
   context: FieldValidationContext,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
-    const violations: FieldViolation[] = [];
-    const result = validField(fieldName, targetName);
+    const maxViolations = context.maxViolations ?? 100;
 
-    // Helper to run a validator and collect any violations
-    const collectViolations = <E extends FieldViolation[]>(
-      effect: Effect.Effect<ValidField, E>,
-    ): Effect.Effect<ValidField, never> =>
-      effect.pipe(
-        Effect.catchAll((v) => {
-          violations.push(...v);
-          return Effect.succeed(result);
-        }),
-      );
+    // Build list of applicable constraint validators
+    const validators: Effect.Effect<ValidField, FieldViolation[]>[] = [
+      validateRequiredConstraints(connection, tableName, fieldName, specField, maxViolations),
+      validateRangeConstraints(connection, tableName, fieldName, specField, maxViolations),
+      validateFormatConstraints(connection, tableName, fieldName, specField, maxViolations),
+      validatePatternConstraints(connection, tableName, fieldName, specField, maxViolations),
+      validateLengthConstraints(connection, tableName, fieldName, specField, maxViolations),
+    ];
 
-    // Range/constraint validation - always run
-    yield* _(collectViolations(
-      validateRangeConstraints(connection, tableName, fieldName, specField),
-    ));
-
-    // Vocabulary validation
-    // Skip if this field was already validated as an ENUM constraint (has inline values)
+    // Vocabulary validation — skip if already validated as ENUM constraint
     const hasEnumConstraint = context.rawField?.type === "controlled-vocabulary" &&
       context.rawField?.values;
-
     if (context.hasControlledVocabulary && !hasEnumConstraint) {
-      yield* _(collectViolations(
+      validators.push(
         validateVocabulary(connection, tableName, fieldName, specField),
-      ));
+      );
     }
 
-    // Uniqueness validation for fields with explicit unique validators
-    // Skip PKs because row-by-row INSERT queries for ALL duplicate rows
+    // Uniqueness validation — skip PKs (handled by DB PRIMARY KEY constraint)
     const isPrimaryKeyField = targetName === context.schemaTableName + "ID" ||
       (targetName.endsWith("ID") && context.rawField?.unique === "true");
-
-    const hasUniqueValidator = specField.validators
-      ? specField.validators.some((v) =>
-        typeof v === "string" ? v === "uniqueIdentifier" : v.type === "unique"
-      )
+    const hasUniqueConstraint = specField.constraints
+      ? specField.constraints.some((c) => c.type === "unique")
       : false;
+    if (hasUniqueConstraint && !isPrimaryKeyField) {
+      validators.push(
+        validateUniqueness(connection, tableName, fieldName, specField, maxViolations),
+      );
+    }
 
-    if (hasUniqueValidator && !isPrimaryKeyField) {
-      yield* _(collectViolations(
-        validateUniqueness(connection, tableName, fieldName, specField),
-      ));
+    // Run validators sequentially, accumulating violations
+    const violations: FieldViolation[] = [];
+    for (const validator of validators) {
+      const result = yield* _(Effect.either(validator));
+      if (result._tag === "Left") {
+        violations.push(...result.left);
+      }
     }
 
     if (violations.length > 0) {
       return yield* _(Effect.fail(violations));
     }
 
-    return result;
+    return validField(fieldName, targetName);
   });
 }

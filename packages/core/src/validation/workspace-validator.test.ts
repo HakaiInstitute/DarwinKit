@@ -6,7 +6,15 @@ import {
   type WorkspaceCrossDatasetRule,
   type WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
-import { isEnumViolation, isPrimaryKeyViolation, isRangeViolation } from "@dwkt/domain/types";
+import {
+  isEnumViolation,
+  isFormatViolation,
+  isLengthViolation,
+  isPatternViolation,
+  isPrimaryKeyViolation,
+  isRangeViolation,
+  isRequiredFieldViolation,
+} from "@dwkt/domain/types";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { stringify as stringifyCSV } from "@std/csv";
 import { join } from "@std/path";
@@ -556,26 +564,26 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       validator.validateFromConfig(tempDir),
     );
 
-    // Validation should complete with warnings (not fail)
+    // Validation should fail because countryCode is marked isRequired but missing from CSV
     assert(result.datasetResults.length > 0, "Expected dataset results");
     const datasetResult = result.datasetResults[0];
     assertEquals(
       datasetResult.status,
-      "warn",
-      "Expected validation to warn when missing source fields are skipped",
+      "fail",
+      "Expected validation to fail when required source fields are missing",
     );
 
-    // Verify schema warning was generated for the missing field
-    const missingFieldWarning = datasetResult.schemaViolations.warnings.find(
-      (w) => w.fieldName === "countryCode",
+    // Verify schema error was generated for the missing required field
+    const missingFieldError = datasetResult.schemaViolations.errors.find(
+      (e) => e.fieldName === "countryCode",
     );
     assertExists(
-      missingFieldWarning,
-      "Expected warning for missing 'countryCode' field",
+      missingFieldError,
+      "Expected error for missing required 'countryCode' field",
     );
     assert(
-      missingFieldWarning.errorMessage.includes("not found in source CSV"),
-      "Warning message should indicate field not found in source",
+      missingFieldError.errorMessage.includes("not found in CSV"),
+      "Error message should indicate field not found in CSV",
     );
   });
 
@@ -711,6 +719,331 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
       rowNumbers1,
       rowNumbers2,
       "Validation should produce identical results on repeated runs",
+    );
+  });
+});
+
+// =============================================================================
+// Stage 3: New Validator Tests
+// =============================================================================
+
+Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
+  await t.step("detects ISO 8601 date format violations", async () => {
+    const tempDir = await createTempDir("format_iso8601");
+
+    // Use explicit format constraint with "required" enforcement so violations are errors
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", eventDate: "2022-09-15", decimalLatitude: 49.5, decimalLongitude: -123.5 },
+        {
+          eventID: "E2",
+          eventDate: "not-a-date",
+          decimalLatitude: 50.0,
+          decimalLongitude: -124.0,
+        },
+        {
+          eventID: "E3",
+          eventDate: "2022-09-15/2022-09-16",
+          decimalLatitude: 51.0,
+          decimalLongitude: -125.0,
+        },
+        { eventID: "E4", eventDate: "2022", decimalLatitude: 52.0, decimalLongitude: -126.0 },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        {
+          originName: "eventDate",
+          targetName: "eventDate",
+          constraints: [{ type: "format", format: "iso8601", enforcement: "required" }],
+        },
+        { originName: "decimalLatitude", targetName: "decimalLatitude" },
+        { originName: "decimalLongitude", targetName: "decimalLongitude" },
+      ],
+      { profile: "Event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    // Combine errors and warnings for format violations
+    const allFormatViolations = [
+      ...Array.filter(datasetResult.fieldViolations.errors, isFormatViolation),
+      ...Array.filter(datasetResult.fieldViolations.warnings, isFormatViolation),
+      ...Array.filter(datasetResult.fieldViolations.info, isFormatViolation),
+    ];
+
+    // "not-a-date" should be caught, but valid dates and date ranges should pass
+    const eventDateViolations = allFormatViolations.filter(
+      (v) => v.fieldName === "eventDate",
+    );
+
+    assert(
+      eventDateViolations.length >= 1,
+      `Expected at least 1 format violation for eventDate, got ${eventDateViolations.length}`,
+    );
+
+    // Verify "not-a-date" is flagged
+    const notADateViolation = eventDateViolations.find((v) => v.value === "not-a-date");
+    assertExists(notADateViolation, "Expected violation for 'not-a-date'");
+  });
+
+  await t.step("detects URL format violations", async () => {
+    const tempDir = await createTempDir("format_url");
+
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", eventDate: "2022-01-01", references: "https://example.com/data" },
+        { eventID: "E2", eventDate: "2022-01-01", references: "not-a-url" },
+        { eventID: "E3", eventDate: "2022-01-01", references: "http://valid.org/path" },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "eventDate", targetName: "eventDate" },
+        {
+          originName: "references",
+          targetName: "references",
+          constraints: [{ type: "format", format: "url", enforcement: "required" }],
+        },
+      ],
+      { profile: "Event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    const formatViolations = [
+      ...Array.filter(datasetResult.fieldViolations.errors, isFormatViolation),
+      ...Array.filter(datasetResult.fieldViolations.warnings, isFormatViolation),
+    ];
+
+    const urlViolations = formatViolations.filter((v) => v.fieldName === "references");
+    assertEquals(urlViolations.length, 1, "Expected 1 URL format violation");
+    assertEquals(urlViolations[0].value, "not-a-url");
+  });
+});
+
+Deno.test("WorkspaceValidator - Pattern Validation Tests", async (t) => {
+  await t.step("detects pattern violations", async () => {
+    const tempDir = await createTempDir("pattern_validation");
+
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", eventDate: "2022-01-01", countryCode: "CA" },
+        { eventID: "E2", eventDate: "2022-01-01", countryCode: "USA" },
+        { eventID: "E3", eventDate: "2022-01-01", countryCode: "GB" },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "eventDate", targetName: "eventDate" },
+        {
+          originName: "countryCode",
+          targetName: "countryCode",
+          constraints: [
+            { type: "pattern", pattern: "^[A-Z]{2}$", enforcement: "required" },
+          ],
+        },
+      ],
+      { profile: "Event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    const patternViolations = Array.filter(
+      datasetResult.fieldViolations.errors,
+      isPatternViolation,
+    );
+
+    // "USA" should fail the 2-letter country code pattern
+    assertEquals(patternViolations.length, 1, "Expected 1 pattern violation");
+    assertEquals(patternViolations[0].value, "USA");
+    assertEquals(patternViolations[0].fieldName, "countryCode");
+  });
+});
+
+Deno.test("WorkspaceValidator - Length Validation Tests", async (t) => {
+  await t.step("detects string length violations", async () => {
+    const tempDir = await createTempDir("length_validation");
+
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", eventDate: "2022-01-01", locality: "Vancouver" },
+        { eventID: "E2", eventDate: "2022-01-01", locality: "X" },
+        { eventID: "E3", eventDate: "2022-01-01", locality: "A normal location name" },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "eventDate", targetName: "eventDate" },
+        {
+          originName: "locality",
+          targetName: "locality",
+          constraints: [
+            { type: "length", minLength: 3, maxLength: 100, enforcement: "required" },
+          ],
+        },
+      ],
+      { profile: "Event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    const lengthViolations = Array.filter(
+      datasetResult.fieldViolations.errors,
+      isLengthViolation,
+    );
+
+    // "X" (length 1) should fail minLength 3
+    assertEquals(lengthViolations.length, 1, "Expected 1 length violation");
+    assertEquals(lengthViolations[0].value, "X");
+  });
+});
+
+Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
+  await t.step("detects required field empty/null violations", async () => {
+    const tempDir = await createTempDir("required_validation");
+
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", eventDate: "2022-01-01", country: "Canada" },
+        { eventID: "E2", eventDate: "2022-01-01", country: "" },
+        { eventID: "E3", eventDate: "2022-01-01", country: "USA" },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "eventDate", targetName: "eventDate" },
+        {
+          originName: "country",
+          targetName: "country",
+          constraints: [
+            {
+              type: "required",
+              allowEmpty: false,
+              allowWhitespace: false,
+              enforcement: "required",
+            },
+          ],
+        },
+      ],
+      { profile: "Event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    const requiredViolations = Array.filter(
+      datasetResult.fieldViolations.errors,
+      isRequiredFieldViolation,
+    );
+
+    // Empty string for country should be caught
+    assert(
+      requiredViolations.length >= 1,
+      `Expected at least 1 required field violation, got ${requiredViolations.length}`,
+    );
+  });
+
+  await t.step("constraint merge override works for field-level constraints", async () => {
+    // Verify that a field-level constraint overrides profile constraints (Stage 2 merge)
+    const tempDir = await createTempDir("constraint_merge_override");
+
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", eventDate: "2022-01-01", decimalLatitude: 49.5, decimalLongitude: -123.5 },
+        {
+          eventID: "E2",
+          eventDate: "2022-01-01",
+          decimalLatitude: 50.0,
+          decimalLongitude: -124.0,
+        },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "eventDate", targetName: "eventDate" },
+        {
+          originName: "decimalLatitude",
+          targetName: "decimalLatitude",
+          constraints: [
+            // Override the profile's range to a narrower range
+            { type: "range", min: 49.0, max: 49.9, inclusive: true, enforcement: "required" },
+          ],
+        },
+        { originName: "decimalLongitude", targetName: "decimalLongitude" },
+      ],
+      { profile: "Event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    // decimalLatitude: 50.0 should fail the overridden narrow range (49.0-49.9)
+    const rangeViolations = Array.filter(
+      datasetResult.fieldViolations.errors,
+      isRangeViolation,
+    );
+    const latViolations = rangeViolations.filter((v) => v.fieldName === "decimalLatitude");
+    assertEquals(latViolations.length, 1, "Expected 1 range violation for overridden constraint");
+    // DuckDB may return "50" or "50.0" depending on type inference
+    assert(
+      latViolations[0].value === "50" || latViolations[0].value === "50.0",
+      `Expected value to be 50 or 50.0, got ${latViolations[0].value}`,
+    );
+  });
+});
+
+Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
+  await t.step("YAML preset: latitude applies range and format constraints", async () => {
+    const tempDir = await createTempDir("preset_latitude");
+
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", eventDate: "2022-01-01", decimalLatitude: 49.5, decimalLongitude: -123.5 },
+        {
+          eventID: "E2",
+          eventDate: "2022-01-01",
+          decimalLatitude: 95.0,
+          decimalLongitude: -124.0,
+        },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "eventDate", targetName: "eventDate" },
+        {
+          originName: "decimalLatitude",
+          targetName: "decimalLatitude",
+          preset: "latitude",
+        } as WorkspaceFieldMapping,
+        { originName: "decimalLongitude", targetName: "decimalLongitude" },
+      ],
+      { profile: "Event", spec: "dwc-event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
+
+    // The latitude preset should produce a range violation for 95.0
+    const rangeViolations = Array.filter(
+      datasetResult.fieldViolations.errors,
+      isRangeViolation,
+    );
+    const latViolations = rangeViolations.filter((v) => v.fieldName === "decimalLatitude");
+    assert(
+      latViolations.length >= 1,
+      `Expected at least 1 range violation from latitude preset, got ${latViolations.length}`,
     );
   });
 });

@@ -121,9 +121,7 @@ export function importSchema(
       },
     );
 
-    //////
-    // TODO We need to add CHECK constraint for example min and max depth. these are defined in the config fieldmappings though.
-    /////
+    // TODO: Add CHECK constraints for config fieldMapping min/max — see fieldMapping.constraints
     // 2. Generate Column Definition SQL
     const columns = Object.keys(spec.fields || {}).map((fieldName) => {
       const field = spec.fields![fieldName];

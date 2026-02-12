@@ -25,7 +25,7 @@
 
 import { Schema } from "effect";
 import { ErrorSeverity } from "../errors/severity.ts";
-import type { EnforcementLevel } from "../specs/validators.ts";
+import type { EnforcementLevel } from "../specs/constraints.ts";
 
 /**
  * Partitioned violations by severity level
@@ -143,6 +143,48 @@ export class EnumViolation extends Schema.TaggedClass<EnumViolation>()("EnumViol
 }) {}
 
 /**
+ * Format validation violation (field doesn't match expected format like ISO 8601, URL, UUID)
+ */
+export class FormatViolation extends Schema.TaggedClass<FormatViolation>()("FormatViolation", {
+  ...baseViolationFields,
+  format: Schema.String,
+  params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+}) {}
+
+/**
+ * Pattern validation violation (field doesn't match regex pattern)
+ */
+export class PatternViolation extends Schema.TaggedClass<PatternViolation>()("PatternViolation", {
+  ...baseViolationFields,
+  pattern: Schema.String,
+  flags: Schema.optional(Schema.String),
+  params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+}) {}
+
+/**
+ * Length validation violation (string too short or too long)
+ */
+export class LengthViolation extends Schema.TaggedClass<LengthViolation>()("LengthViolation", {
+  ...baseViolationFields,
+  params: Schema.optional(
+    Schema.Struct({
+      minLength: Schema.optional(Schema.Number),
+      maxLength: Schema.optional(Schema.Number),
+      actualLength: Schema.optional(Schema.Number),
+    }),
+  ),
+}) {}
+
+/**
+ * Required field violation (field is null, empty, or whitespace-only)
+ */
+export class RequiredFieldViolation
+  extends Schema.TaggedClass<RequiredFieldViolation>()("RequiredFieldViolation", {
+    ...baseViolationFields,
+    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  }) {}
+
+/**
  * Foreign key constraint violation (referenced value doesn't exist)
  */
 export class ForeignKeyViolation
@@ -191,7 +233,11 @@ export type FieldViolation =
   | PrimaryKeyViolation
   | NotNullViolation
   | EnumViolation
-  | ForeignKeyViolation;
+  | ForeignKeyViolation
+  | FormatViolation
+  | PatternViolation
+  | LengthViolation
+  | RequiredFieldViolation;
 
 /**
  * Type guard helper for RangeViolation
@@ -265,6 +311,34 @@ export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolati
  */
 export function isCrossDatasetViolation(v: FieldViolation): v is CrossDatasetViolation {
   return v._tag === "CrossDatasetViolation";
+}
+
+/**
+ * Type guard helper for FormatViolation
+ */
+export function isFormatViolation(v: FieldViolation): v is FormatViolation {
+  return v._tag === "FormatViolation";
+}
+
+/**
+ * Type guard helper for PatternViolation
+ */
+export function isPatternViolation(v: FieldViolation): v is PatternViolation {
+  return v._tag === "PatternViolation";
+}
+
+/**
+ * Type guard helper for LengthViolation
+ */
+export function isLengthViolation(v: FieldViolation): v is LengthViolation {
+  return v._tag === "LengthViolation";
+}
+
+/**
+ * Type guard helper for RequiredFieldViolation
+ */
+export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldViolation {
+  return v._tag === "RequiredFieldViolation";
 }
 
 /**

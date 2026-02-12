@@ -6,7 +6,7 @@
  */
 
 import * as S from "effect/Schema";
-import { EnforcementLevel, ValidatorConfigSchema } from "../specs/validators.ts";
+import { Constraint, EnforcementLevel } from "../specs/constraints.ts";
 
 // =============================================================================
 // Default Values
@@ -22,7 +22,12 @@ const DEFAULT_OUTPUT_DIR = "./output";
 // =============================================================================
 
 /**
- * Maps source columns to Darwin Core fields
+ * Maps source columns to Darwin Core fields with optional typed constraints.
+ *
+ * Three mechanisms control "required" behavior:
+ * - `isRequired` — CSV column must exist (schema-level, affects missing-column enforcement)
+ * - `requirement` — profile-level field status (affects missing-field messages from profile check)
+ * - `constraints[type="required"]` — runtime value validation (checks individual cell values)
  */
 export const workspaceFieldMappingSchema = S.Struct({
   originName: S.String.annotations({ description: "Source column name in the CSV file." }),
@@ -33,10 +38,8 @@ export const workspaceFieldMappingSchema = S.Struct({
   requirement: S.optional(
     S.String.annotations({ description: "Requirement level for this field." }),
   ),
-  validators: S.optional(S.Array(ValidatorConfigSchema)),
-}).annotations({
-  title: "Field Mapping",
-  description: "Maps a source CSV column to a Darwin Core target field.",
+  constraints: S.optional(S.Array(Constraint)),
+  preset: S.optional(S.String),
 });
 
 /**

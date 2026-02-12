@@ -12,6 +12,7 @@ import type {
   ValidationProfile,
   ValidationProfileRegistry,
 } from "../../schemas/validation-profile.ts";
+import { mergeConstraints } from "../constraints.ts";
 import { type FieldDefinition, normalizeField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
@@ -53,9 +54,9 @@ function mergeFieldOverrides(
       // Merge parent and child overrides (child takes precedence)
       merged[fieldName] = {
         requirement: childOverride.requirement ?? parentOverride.requirement,
-        validators: childOverride.validators
-          ? [...(parentOverride.validators || []), ...childOverride.validators]
-          : parentOverride.validators,
+        constraints: childOverride.constraints
+          ? mergeConstraints(parentOverride.constraints || [], childOverride.constraints)
+          : parentOverride.constraints,
         enforcement: childOverride.enforcement ?? parentOverride.enforcement,
       };
     }

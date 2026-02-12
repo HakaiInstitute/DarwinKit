@@ -33,11 +33,13 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     // === Geographic Location (Required for all OBIS data) ===
     decimalLatitude: {
       requirement: FieldRequirementLevel.Required,
-      validators: [
+      constraints: [
         {
           type: "range",
           enforcement: "required",
-          params: { min: -90, max: 90 },
+          min: -90,
+          max: 90,
+          inclusive: true,
           message: "Latitude must be between -90 and 90 degrees",
         },
       ],
@@ -45,11 +47,13 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
 
     decimalLongitude: {
       requirement: FieldRequirementLevel.Required,
-      validators: [
+      constraints: [
         {
           type: "range",
           enforcement: "required",
-          params: { min: -180, max: 180 },
+          min: -180,
+          max: 180,
+          inclusive: true,
           message: "Longitude must be between -180 and 180 degrees",
         },
       ],
@@ -57,10 +61,12 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
 
     geodeticDatum: {
       requirement: FieldRequirementLevel.Required,
-      validators: [
+      constraints: [
         {
           type: "required",
           enforcement: "required",
+          allowEmpty: false,
+          allowWhitespace: false,
           message: "OBIS requires geodeticDatum (e.g., WGS84, EPSG:4326)",
         },
       ],
@@ -68,11 +74,12 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
 
     coordinateUncertaintyInMeters: {
       requirement: FieldRequirementLevel.StronglyRecommended,
-      validators: [
+      constraints: [
         {
           type: "range",
           enforcement: "recommended",
-          params: { min: 0 },
+          min: 0,
+          inclusive: true,
           message: "Coordinate uncertainty should be a positive number",
         },
       ],
@@ -81,11 +88,11 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     // === Temporal Information ===
     eventDate: {
       requirement: FieldRequirementLevel.Required,
-      validators: [
+      constraints: [
         {
           type: "format",
           enforcement: "required",
-          params: { format: "iso8601" },
+          format: "iso8601",
           message:
             "OBIS requires eventDate in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD)",
         },
@@ -107,10 +114,12 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     // === Taxonomic Information ===
     scientificName: {
       requirement: FieldRequirementLevel.StronglyRecommended,
-      validators: [
+      constraints: [
         {
           type: "required",
           enforcement: "recommended",
+          allowEmpty: false,
+          allowWhitespace: false,
           message: "Scientific name is strongly recommended for taxonomic identification",
         },
       ],
@@ -118,11 +127,11 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
 
     scientificNameID: {
       requirement: FieldRequirementLevel.StronglyRecommended,
-      validators: [
+      constraints: [
         {
           type: "format",
           enforcement: "recommended",
-          params: { format: "url" },
+          format: "url",
           message: "Scientific name ID should be a valid URI (e.g., WoRMS LSID)",
         },
       ],
@@ -144,11 +153,13 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     // === Depth Information (Marine-specific) ===
     minimumDepthInMeters: {
       requirement: FieldRequirementLevel.Recommended,
-      validators: [
+      constraints: [
         {
           type: "range",
           enforcement: "recommended",
-          params: { min: 0, max: 11000 },
+          min: 0,
+          max: 11000,
+          inclusive: true,
           message: "Depth should be between 0 and 11000 meters (Mariana Trench)",
         },
       ],
@@ -156,11 +167,13 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
 
     maximumDepthInMeters: {
       requirement: FieldRequirementLevel.Recommended,
-      validators: [
+      constraints: [
         {
           type: "range",
           enforcement: "recommended",
-          params: { min: 0, max: 11000 },
+          min: 0,
+          max: 11000,
+          inclusive: true,
           message: "Depth should be between 0 and 11000 meters",
         },
       ],
