@@ -198,12 +198,20 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
               {
                 originName: "minimumDepthInMeters",
                 targetName: "minimumDepthInMeters",
-                constraints: { minValue: 0, maxValue: 11000 },
+                validators: [{
+                  type: "range",
+                  enforcement: "recommended",
+                  params: { min: 0, max: 11000 },
+                }],
               },
               {
                 originName: "maximumDepthInMeters",
                 targetName: "maximumDepthInMeters",
-                constraints: { minValue: 0, maxValue: 11000 },
+                validators: [{
+                  type: "range",
+                  enforcement: "recommended",
+                  params: { min: 0, max: 11000 },
+                }],
               },
             ],
           },
