@@ -28,6 +28,7 @@ export const workspaceFieldMappingSchema = S.Struct({
   originName: S.String,
   targetName: S.String,
   isRequired: S.optional(S.Boolean),
+  requirement: S.optional(S.String),
   constraints: S.optional(S.Record({ key: S.String, value: S.Unknown })),
   validators: S.optional(S.Array(ValidatorConfigSchema)),
 });
@@ -60,7 +61,7 @@ export const datasetConfigSchema = S.Struct({
   path: S.String,
   description: S.optional(S.String),
   profile: S.optional(S.String),
-  fieldMappings: S.Array(workspaceFieldMappingSchema),
+  fieldMappings: S.optional(S.Array(workspaceFieldMappingSchema)),
 });
 
 /**

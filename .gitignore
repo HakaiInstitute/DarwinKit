@@ -37,3 +37,5 @@ packages/cli/transform_results
 
 # AI context - not tracked in repository
 .context/*
+
+packages/cli/validation_results/

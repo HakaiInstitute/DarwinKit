@@ -15,6 +15,12 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 
+import type {
+  ValidationProfile,
+  ValidationSettings,
+  WorkspaceCrossDatasetRule,
+} from "@dwkt/domain/schemas";
+import { vocabularyEnforcementToStandard } from "@dwkt/domain/specs";
 import type { FieldViolation } from "@dwkt/domain/types";
 import {
   enforcementToSeverity,
@@ -23,11 +29,6 @@ import {
   NotNullViolation,
   PrimaryKeyViolation,
 } from "@dwkt/domain/types";
-import type {
-  ValidationProfile,
-  ValidationSettings,
-  WorkspaceCrossDatasetRule,
-} from "@dwkt/domain/schemas";
 
 import { getCsvValue } from "../loading/csv-import.ts";
 import type { ParsedErrorInfo } from "../loading/sql.ts";
@@ -185,17 +186,25 @@ function handleEnumViolation(
 
     if (!specField || !rawField?.values) return [];
 
+    // Get vocabulary enforcement level - determines how strictly to validate
+    const vocabEnforcement = specField.vocabulary?.enforcement ?? "strict";
+
+    // Skip violations for loose enforcement - any value is accepted
+    if (vocabEnforcement === "loose") {
+      return [];
+    }
+
     const allowedValues = Object.keys(rawField.values);
     const suggestedValue = ctx.enableSuggestions
       ? findSuggestedValue(parsed.value, allowedValues)
       : undefined;
 
-    // Get enforcement from the field's validators - look for required/unique validators
-    // which carry the enforcement level for this field
+    // Get enforcement from the field's validators first, fall back to vocabulary enforcement
     const vocabValidator = specField.validators?.find((v) =>
       v.type === "required" || v.type === "unique"
     );
-    const enforcement = vocabValidator?.enforcement ?? "required";
+    const enforcement = vocabValidator?.enforcement ??
+      vocabularyEnforcementToStandard(vocabEnforcement);
 
     return [
       new EnumViolation({

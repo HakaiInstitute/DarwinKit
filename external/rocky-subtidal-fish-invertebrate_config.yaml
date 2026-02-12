@@ -12,6 +12,7 @@ validation:
     - "NULL"
     - "null"
   failFast: false
+  debug: false
   outputDir: ./validation_results
   datasets:
     - name: events
@@ -19,149 +20,16 @@ validation:
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_event.csv
       description: Marine sampling events for OBIS
       profile: Event
-      fieldMappings:
-        - originName: eventID
-          targetName: eventID
-        - originName: eventDate
-          targetName: eventDate
-        - originName: decimalLatitude
-          targetName: decimalLatitude
-        - originName: decimalLongitude
-          targetName: decimalLongitude
-        - originName: geodeticDatum
-          targetName: geodeticDatum
-        - originName: eventType
-          targetName: eventType
-        - originName: datasetName
-          targetName: datasetName
-        - originName: language
-          targetName: language
-        - originName: license
-          targetName: license
-        # - originName: bibliographicCitation
-        #   targetName: bibliographicCitation
-        - originName: accessRights
-          targetName: accessRights
-        - originName: samplingProtocol
-          targetName: samplingProtocol
-        - originName: rightsHolder
-          targetName: rightsHolder
-        - originName: institutionCode
-          targetName: institutionCode
-        - originName: institutionID
-          targetName: institutionID
-        - originName: modified
-          targetName: modified
-        - originName: parentEventID
-          targetName: parentEventID
-        - originName: verbatimLocality
-          targetName: verbatimLocality
-        - originName: coordinateUncertaintyInMeters
-          targetName: coordinateUncertaintyInMeters
-        - originName: day
-          targetName: day
-        - originName: month
-          targetName: month
-        - originName: year
-          targetName: year
-        - originName: eventTime
-          targetName: eventTime
-        - originName: eventRemarks
-          targetName: eventRemarks
-        - originName: country
-          targetName: country
-        - originName: countryCode
-          targetName: countryCode
-        - originName: dataGeneralizations
-          targetName: dataGeneralizations
-        - originName: fieldNotes
-          targetName: fieldNotes
-        # - originName: locality
-        #   targetName: locality
-        # - originName: minimumDepthInMeters
-        #   targetName: minimumDepthInMeters
-        #   constraints:
-        #     minValue: 0
-        #     maxValue: 11000
-        # - originName: maximumDepthInMeters
-        #   targetName: maximumDepthInMeters
-        #   constraints:
-        #     minValue: 0
-        #     maxValue: 11000
+
     - name: occurrence
       spec: dwc-occurrence
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_occ.csv
       description: Marine sampling occurrence for OBIS
       profile: Occurrence
-      fieldMappings:
-        - originName: scientificName
-          targetName: scientificName
-        - originName: vernacularName
-          targetName: vernacularName
-        - originName: identificationRemarks
-          targetName: identificationRemarks
-        - originName: occurrenceRemarks
-          targetName: occurrenceRemarks
-        - originName: verbatimIdentification
-          targetName: verbatimIdentification
-        - originName: scientificNameID
-          targetName: scientificNameID
-        - originName: taxonomicStatus
-          targetName: taxonomicStatus
-        - originName: scientificNameAuthorship
-          targetName: scientificNameAuthorship
-        - originName: kingdom
-          targetName: kingdom
-        - originName: phylum
-          targetName: phylum
-        - originName: class
-          targetName: class
-        - originName: order
-          targetName: order
-        - originName: family
-          targetName: family
-        - originName: genus
-          targetName: genus
-        - originName: recordedBy
-          targetName: recordedBy
-        - originName: occurrenceStatus
-          targetName: occurrenceStatus
-        - originName: individualCount
-          targetName: individualCount
-        - originName: specificEpithet
-          targetName: specificEpithet
-        - originName: basisOfRecord
-          targetName: basisOfRecord
-        - originName: eventID
-          targetName: eventID
-        - originName: occurrenceID
-          targetName: occurrenceID
-        - originName: taxonRemarks
-          targetName: taxonRemarks
 
     - name: extendedMeasurementOrFact
       spec: dwc-eMOF
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_eMOF.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
       profile: ExtendedMeasurementOrFact
-      fieldMappings:
-        - originName: eventID
-          targetName: eventID
-        - originName: measurementValue
-          targetName: measurementValue
-        - originName: measurementType
-          targetName: measurementType
-        - originName: measurementValueID
-          targetName: measurementValueID
-        - originName: measurementTypeID
-          targetName: measurementTypeID
-        - originName: measurementUnit
-          targetName: measurementUnit
-        - originName: measurementUnitID
-          targetName: measurementUnitID
-        - originName: measurementID
-          targetName: measurementID
-        - originName: occurrenceID
-          targetName: occurrenceID
-        # - originName: measurementMethod
-        #   targetName: measurementMethod
+
