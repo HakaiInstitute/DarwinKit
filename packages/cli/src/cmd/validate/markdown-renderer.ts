@@ -19,7 +19,7 @@ export function getStatusIcon(status: string): string {
   }
 }
 
-export function renderHeader(configPath: string): string {
+function renderHeader(configPath: string): string {
   return [
     '# \uD83D\uDCC2 Workspace Validation Results',
     '',
@@ -30,7 +30,7 @@ export function renderHeader(configPath: string): string {
   ].join('\n');
 }
 
-export function renderSummaryTable(
+function renderSummaryTable(
   datasets: ReadonlyArray<DatasetValidationResult>,
 ): string {
   const lines: string[] = [
@@ -73,7 +73,7 @@ function groupViolationsByField(
   return grouped;
 }
 
-export function renderViolationSection(
+function renderViolationSection(
   title: string,
   icon: string,
   schemaViolations: ReadonlyArray<SchemaViolation>,
@@ -123,7 +123,7 @@ export function renderViolationSection(
   return lines.join('\n');
 }
 
-export function renderDatasetDetails(
+function renderDatasetDetails(
   dataset: DatasetValidationResult,
 ): string {
   const hasErrors = dataset.schemaViolations.errors.length > 0 ||
@@ -203,7 +203,7 @@ export function renderCrossDatasetResults(
   return lines.join('\n');
 }
 
-export function renderOverallSummary(
+function renderOverallSummary(
   summary: WorkspaceValidationResult['summary'],
   totalProcessingTimeMs: number,
 ): string {
