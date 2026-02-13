@@ -11,16 +11,21 @@ import * as Match from 'effect/Match';
 import { CLIError, OutputError } from '../../errors.ts';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
+import { getStatusIcon, renderValidationMarkdown } from './markdown-renderer.ts';
 
 // Structured output function
 function outputResults(
   results: WorkspaceValidationResult,
-  format: 'table' | 'json',
+  format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
   outputDir?: string,
 ): Effect.Effect<void, OutputError> {
   return Effect.gen(function* (_) {
     if (format === 'json') {
       yield* _(outputJsonResultsEffect(results, outputDir));
+    } else if (format === 'markdown') {
+      yield* _(outputMarkdownResultsEffect(results, outputDir, false));
+    } else if (format === 'markdown_summary_action') {
+      yield* _(outputMarkdownResultsEffect(results, outputDir, true));
     } else {
       outputTableResults(results);
     }
@@ -67,6 +72,54 @@ function outputJsonResultsEffect(
     );
 
     Output.success(`✅ Results written to: ${fullPath}`);
+    Output.blank();
+    Output.line(`Overall status: ${results.overallStatus}`);
+    Output.line(
+      `Datasets: ${results.summary.datasetsPassedCount} passed, ${results.summary.datasetsWithWarningsCount} warnings, ${results.summary.datasetsFailedCount} failed`,
+    );
+  });
+}
+
+function outputMarkdownResultsEffect(
+  results: WorkspaceValidationResult,
+  outputDir?: string,
+  github_action?: boolean,
+): Effect.Effect<void, OutputError> {
+  return Effect.gen(function* (_) {
+    const outputPath = outputDir || './validation_results';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = github_action ? 'validation-results.md' : `validation-results-${timestamp}.md`;
+    const fullPath = join(outputPath, filename);
+
+    const markdown = renderValidationMarkdown(results);
+
+    // Create output directory
+    yield* _(
+      Effect.tryPromise({
+        try: () => Deno.mkdir(outputPath, { recursive: true }),
+        catch: (error) =>
+          new OutputError({
+            message: `Failed to create output directory: ${error}`,
+            outputPath,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          }),
+      }),
+    );
+
+    // Write markdown file
+    yield* _(
+      Effect.tryPromise({
+        try: () => Deno.writeTextFile(fullPath, markdown),
+        catch: (error) =>
+          new OutputError({
+            message: `Failed to write markdown file: ${error}`,
+            outputPath: fullPath,
+            cause: error instanceof Error ? error : new Error(String(error)),
+          }),
+      }),
+    );
+
+    Output.success(`✅ Markdown results written to: ${fullPath}`);
     Output.blank();
     Output.line(`Overall status: ${results.overallStatus}`);
     Output.line(
@@ -231,7 +284,7 @@ function handleValidateError(
  */
 function buildValidationEffect(
   configPath: string | undefined,
-  format: 'table' | 'json',
+  format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
   outputDir: string | undefined,
   spinner: ProgressSpinner,
 ) {
@@ -268,7 +321,13 @@ export async function validate(options: {
 }) {
   // Ensure format is valid
   // TODO: Should tell the user their option was invalid and tell them which ones are valid instead
-  const validFormat = (options.format === 'json') ? 'json' : 'table';
+  const validFormat = (
+      options.format === 'json' ||
+      options.format === 'markdown' ||
+      options.format === 'markdown_summary_action'
+    )
+    ? options.format
+    : 'table';
 
   // Create spinner for validation progress
   const spinner = new ProgressSpinner({
@@ -552,19 +611,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
   Output.line(`  Total rows processed: ${results.summary.totalRowsProcessed}`);
   Output.line(`  Processing time: ${results.totalProcessingTimeMs}ms`);
   Output.blank();
-}
-
-function getStatusIcon(status: string): string {
-  switch (status) {
-    case 'pass':
-      return '✅';
-    case 'warn':
-      return '⚠️';
-    case 'fail':
-      return '❌';
-    default:
-      return '❓';
-  }
 }
 
 export const validateCommand = new Command()
