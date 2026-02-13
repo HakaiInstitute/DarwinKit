@@ -102,67 +102,31 @@ function makeResults(
   };
 }
 
-Deno.test('test factory - makeResults returns valid structure', () => {
-  const results = makeResults();
-  assertEquals(results.overallStatus, 'pass');
-  assertEquals(results.datasetResults.length, 1);
-});
+// --- getStatusIcon ---
 
-// --- getStatusIcon tests ---
-
-Deno.test('getStatusIcon - pass returns check', () => {
+Deno.test('getStatusIcon - maps status to correct emoji', () => {
   assertEquals(getStatusIcon('pass'), '✅');
-});
-
-Deno.test('getStatusIcon - warn returns warning', () => {
   assertEquals(getStatusIcon('warn'), '⚠️');
-});
-
-Deno.test('getStatusIcon - fail returns x', () => {
   assertEquals(getStatusIcon('fail'), '❌');
-});
-
-Deno.test('getStatusIcon - unknown returns question', () => {
   assertEquals(getStatusIcon('other'), '❓');
 });
 
-// --- renderHeader tests ---
+// --- renderHeader ---
 
-Deno.test('renderHeader - includes config path', () => {
+Deno.test('renderHeader - includes title, config path, and date', () => {
   const result = renderHeader('/my/config.yaml');
-  assertStringIncludes(result, '`/my/config.yaml`');
-});
-
-Deno.test('renderHeader - includes title', () => {
-  const result = renderHeader('/any/path');
   assertStringIncludes(result, '# 📂 Workspace Validation Results');
-});
-
-Deno.test('renderHeader - includes validation date', () => {
-  const result = renderHeader('/any/path');
+  assertStringIncludes(result, '`/my/config.yaml`');
   assertStringIncludes(result, '**Validation Date:**');
 });
 
-// --- renderSummaryTable tests ---
+// --- renderSummaryTable ---
 
-Deno.test('renderSummaryTable - includes table header', () => {
-  const result = renderSummaryTable([makeCleanDataset()]);
-  assertStringIncludes(
-    result,
-    '| Dataset | Spec | Status | Errors | Warnings | Info |',
-  );
-});
-
-Deno.test('renderSummaryTable - includes dataset row', () => {
-  const result = renderSummaryTable([
-    makeCleanDataset({ datasetName: 'my_events', spec: 'dwc-event' }),
-  ]);
-  assertStringIncludes(result, '| my_events |');
-  assertStringIncludes(result, '| dwc-event |');
-});
-
-Deno.test('renderSummaryTable - shows correct violation counts', () => {
+Deno.test('renderSummaryTable - renders table with dataset row', () => {
   const dataset = makeCleanDataset({
+    datasetName: 'my_events',
+    spec: 'dwc-event',
+    status: 'fail',
     schemaViolations: {
       errors: [makeSchemaViolation()],
       warnings: [],
@@ -171,77 +135,49 @@ Deno.test('renderSummaryTable - shows correct violation counts', () => {
     fieldViolations: {
       errors: [makeFieldViolation(), makeFieldViolation({ rowNumber: 2 })],
       warnings: [
-        makeFieldViolation({
-          enforcement: 'recommended',
-          severity: 'warning',
-        }),
+        makeFieldViolation({ enforcement: 'recommended', severity: 'warning' }),
       ],
       info: [],
     },
   });
   const result = renderSummaryTable([dataset]);
-  // 1 schema error + 2 field errors = 3 errors
+  assertStringIncludes(result, '| Dataset | Spec | Status | Errors | Warnings | Info |');
+  assertStringIncludes(result, '| my_events |');
+  assertStringIncludes(result, '| dwc-event |');
+  assertStringIncludes(result, '❌ FAIL');
+  // 1 schema error + 2 field errors = 3
   assertStringIncludes(result, '| 3 |');
   // 1 field warning
   assertStringIncludes(result, '| 1 |');
 });
 
-Deno.test('renderSummaryTable - shows status icon', () => {
-  const result = renderSummaryTable([makeCleanDataset({ status: 'fail' })]);
-  assertStringIncludes(result, '❌ FAIL');
-});
-
-// --- renderViolationSection tests ---
+// --- renderViolationSection ---
 
 Deno.test('renderViolationSection - returns empty for no violations', () => {
-  const result = renderViolationSection('ERRORS', '❌', [], []);
-  assertEquals(result, '');
+  assertEquals(renderViolationSection('ERRORS', '❌', [], []), '');
 });
 
-Deno.test('renderViolationSection - includes title with count', () => {
+Deno.test('renderViolationSection - renders schema violations', () => {
   const result = renderViolationSection(
     'ERRORS',
     '❌',
-    [makeSchemaViolation()],
+    [makeSchemaViolation({
+      fieldName: 'eventDate',
+      errorMessage: 'Missing required field',
+    })],
     [],
   );
   assertStringIncludes(result, '### ❌ ERRORS (1)');
-});
-
-Deno.test('renderViolationSection - shows schema violations', () => {
-  const result = renderViolationSection(
-    'ERRORS',
-    '❌',
-    [
-      makeSchemaViolation({
-        fieldName: 'eventDate',
-        errorMessage: 'Missing required field',
-      }),
-    ],
-    [],
-  );
   assertStringIncludes(result, '**Schema Issues:**');
   assertStringIncludes(result, '**eventDate:**');
   assertStringIncludes(result, 'Missing required field');
 });
 
-Deno.test('renderViolationSection - shows field violations grouped by field', () => {
+Deno.test('renderViolationSection - groups field violations by field', () => {
   const violations = [
-    makeFieldViolation({
-      fieldName: 'lat',
-      rowNumber: 1,
-      errorMessage: 'Row 1 bad',
-    }),
-    makeFieldViolation({
-      fieldName: 'lat',
-      rowNumber: 2,
-      errorMessage: 'Row 2 bad',
-    }),
-    makeFieldViolation({
-      fieldName: 'lon',
-      rowNumber: 3,
-      errorMessage: 'Row 3 bad',
-    }),
+    makeFieldViolation({ fieldName: 'lat', rowNumber: 1, errorMessage: 'Row 1 bad' }),
+    makeFieldViolation({ fieldName: 'lat', rowNumber: 2, errorMessage: 'Row 2 bad' }),
+    makeFieldViolation({ fieldName: 'lon', rowNumber: 3, errorMessage: 'Row 3 bad' }),
   ];
   const result = renderViolationSection('ERRORS', '❌', [], violations);
   assertStringIncludes(result, '**Data Validation Errors:**');
@@ -249,19 +185,16 @@ Deno.test('renderViolationSection - shows field violations grouped by field', ()
   assertStringIncludes(result, '**lon** (rangeCheck): 1 violations');
 });
 
-Deno.test('renderViolationSection - truncates after 3 examples', () => {
-  const violations = [
-    makeFieldViolation({ fieldName: 'lat', rowNumber: 1 }),
-    makeFieldViolation({ fieldName: 'lat', rowNumber: 2 }),
-    makeFieldViolation({ fieldName: 'lat', rowNumber: 3 }),
-    makeFieldViolation({ fieldName: 'lat', rowNumber: 4 }),
-    makeFieldViolation({ fieldName: 'lat', rowNumber: 5 }),
-  ];
+Deno.test('renderViolationSection - truncates after 3 examples per field', () => {
+  const violations = Array.from(
+    { length: 5 },
+    (_, i) => makeFieldViolation({ fieldName: 'lat', rowNumber: i + 1 }),
+  );
   const result = renderViolationSection('ERRORS', '❌', [], violations);
   assertStringIncludes(result, '... and 2 more violations');
 });
 
-Deno.test('renderViolationSection - no truncation message for 3 or fewer', () => {
+Deno.test('renderViolationSection - no truncation for 3 or fewer', () => {
   const violations = [
     makeFieldViolation({ fieldName: 'lat', rowNumber: 1 }),
     makeFieldViolation({ fieldName: 'lat', rowNumber: 2 }),
@@ -270,13 +203,13 @@ Deno.test('renderViolationSection - no truncation message for 3 or fewer', () =>
   assertEquals(result.includes('... and'), false);
 });
 
-// --- renderDatasetDetails tests ---
+// --- renderDatasetDetails ---
 
 Deno.test('renderDatasetDetails - returns empty for clean dataset', () => {
   assertEquals(renderDatasetDetails(makeCleanDataset()), '');
 });
 
-Deno.test('renderDatasetDetails - includes dataset heading', () => {
+Deno.test('renderDatasetDetails - renders heading and all severity sections', () => {
   const dataset = makeCleanDataset({
     datasetName: 'occurrences',
     spec: 'dwc-occurrence',
@@ -285,55 +218,20 @@ Deno.test('renderDatasetDetails - includes dataset heading', () => {
       warnings: [],
       info: [],
     },
+    fieldViolations: {
+      errors: [],
+      warnings: [makeFieldViolation({ enforcement: 'recommended', severity: 'warning' })],
+      info: [makeFieldViolation({ enforcement: 'optional', severity: 'info' })],
+    },
   });
   const result = renderDatasetDetails(dataset);
   assertStringIncludes(result, '## 📊 occurrences (dwc-occurrence)');
-});
-
-Deno.test('renderDatasetDetails - includes errors section', () => {
-  const dataset = makeCleanDataset({
-    fieldViolations: {
-      errors: [makeFieldViolation()],
-      warnings: [],
-      info: [],
-    },
-  });
-  const result = renderDatasetDetails(dataset);
   assertStringIncludes(result, '### ❌ ERRORS');
-});
-
-Deno.test('renderDatasetDetails - includes warnings section', () => {
-  const dataset = makeCleanDataset({
-    fieldViolations: {
-      errors: [],
-      warnings: [
-        makeFieldViolation({
-          enforcement: 'recommended',
-          severity: 'warning',
-        }),
-      ],
-      info: [],
-    },
-  });
-  const result = renderDatasetDetails(dataset);
   assertStringIncludes(result, '### ⚠️ WARNINGS');
-});
-
-Deno.test('renderDatasetDetails - includes info section', () => {
-  const dataset = makeCleanDataset({
-    fieldViolations: {
-      errors: [],
-      warnings: [],
-      info: [
-        makeFieldViolation({ enforcement: 'optional', severity: 'info' }),
-      ],
-    },
-  });
-  const result = renderDatasetDetails(dataset);
   assertStringIncludes(result, '### ℹ️ INFO');
 });
 
-// --- renderCrossDatasetResults tests ---
+// --- renderCrossDatasetResults ---
 
 Deno.test('renderCrossDatasetResults - returns empty for no results', () => {
   assertEquals(renderCrossDatasetResults([]), '');
@@ -380,20 +278,17 @@ Deno.test('renderCrossDatasetResults - shows FK violations', () => {
 });
 
 Deno.test('renderCrossDatasetResults - truncates after 5 violations', () => {
-  const violations = Array.from(
-    { length: 8 },
-    (_, i) =>
-      new CrossDatasetViolation({
-        enforcement: 'required',
-        severity: 'error',
-        fieldName: 'eventID',
-        targetName: 'eventID',
-        rowNumber: i + 1,
-        value: `EVT-${i}`,
-        errorMessage: `Foreign key not found: EVT-${i}`,
-        validatorType: 'foreignKey',
-      }),
-  );
+  const violations = Array.from({ length: 8 }, (_, i) =>
+    new CrossDatasetViolation({
+      enforcement: 'required',
+      severity: 'error',
+      fieldName: 'eventID',
+      targetName: 'eventID',
+      rowNumber: i + 1,
+      value: `EVT-${i}`,
+      errorMessage: `Foreign key not found: EVT-${i}`,
+      validatorType: 'foreignKey',
+    }));
   const crossResult: CrossDatasetValidationResult = {
     ruleType: 'foreignKey',
     sourceDataset: 'occ',
@@ -406,59 +301,33 @@ Deno.test('renderCrossDatasetResults - truncates after 5 violations', () => {
   assertStringIncludes(result, '... and 3 more violations');
 });
 
-// --- renderOverallSummary tests ---
+// --- renderOverallSummary ---
 
-Deno.test('renderOverallSummary - includes section title', () => {
-  const summary = makeResults().summary;
-  const result = renderOverallSummary(summary, 150);
-  assertStringIncludes(result, '## 📊 Overall Summary');
-});
-
-Deno.test('renderOverallSummary - includes dataset counts', () => {
+Deno.test('renderOverallSummary - renders all summary fields', () => {
   const summary = {
     totalDatasets: 3,
     datasetsPassedCount: 1,
     datasetsWithWarningsCount: 1,
     datasetsFailedCount: 1,
-    totalErrors: 5,
-    totalWarnings: 3,
-    totalInfo: 2,
+    totalErrors: 10,
+    totalWarnings: 5,
+    totalInfo: 3,
     totalRowsProcessed: 500,
   };
-  const result = renderOverallSummary(summary, 250);
+  const result = renderOverallSummary(summary, 42);
+  assertStringIncludes(result, '## 📊 Overall Summary');
   assertStringIncludes(result, '**Datasets processed:** 3');
   assertStringIncludes(result, '**Passed:** 1');
   assertStringIncludes(result, '**Warnings:** 1');
   assertStringIncludes(result, '**Failed:** 1');
-});
-
-Deno.test('renderOverallSummary - includes violation totals', () => {
-  const summary = makeResults({
-    summary: {
-      totalDatasets: 1,
-      datasetsPassedCount: 0,
-      datasetsWithWarningsCount: 0,
-      datasetsFailedCount: 1,
-      totalErrors: 10,
-      totalWarnings: 5,
-      totalInfo: 3,
-      totalRowsProcessed: 200,
-    },
-  }).summary;
-  const result = renderOverallSummary(summary, 100);
   assertStringIncludes(result, '**❌ Errors:** 10');
   assertStringIncludes(result, '**⚠️ Warnings:** 5');
   assertStringIncludes(result, '**ℹ️ Info:** 3');
-});
-
-Deno.test('renderOverallSummary - includes processing stats', () => {
-  const summary = makeResults().summary;
-  const result = renderOverallSummary(summary, 42);
-  assertStringIncludes(result, '**Total rows processed:** 100');
+  assertStringIncludes(result, '**Total rows processed:** 500');
   assertStringIncludes(result, '**Processing time:** 42ms');
 });
 
-// --- renderValidationMarkdown tests ---
+// --- renderValidationMarkdown ---
 
 Deno.test('renderValidationMarkdown - includes all sections for clean results', () => {
   const result = renderValidationMarkdown(makeResults());
@@ -468,9 +337,7 @@ Deno.test('renderValidationMarkdown - includes all sections for clean results', 
 });
 
 Deno.test('renderValidationMarkdown - omits cross-dataset section when empty', () => {
-  const result = renderValidationMarkdown(
-    makeResults({ crossDatasetResults: [] }),
-  );
+  const result = renderValidationMarkdown(makeResults({ crossDatasetResults: [] }));
   assertEquals(result.includes('Cross-dataset'), false);
 });
 
@@ -484,14 +351,7 @@ Deno.test('renderValidationMarkdown - includes dataset details when violations e
       info: [],
     },
   });
-  const result = renderValidationMarkdown(
-    makeResults({ datasetResults: [dataset] }),
-  );
+  const result = renderValidationMarkdown(makeResults({ datasetResults: [dataset] }));
   assertStringIncludes(result, '## 📊 test_data (dwc-event)');
   assertStringIncludes(result, '### ❌ ERRORS');
-});
-
-Deno.test('renderValidationMarkdown - returns string (not Effect)', () => {
-  const result = renderValidationMarkdown(makeResults());
-  assertEquals(typeof result, 'string');
 });
