@@ -10,14 +10,6 @@
     "source.fixAll.eslint": true,
     "source.organizeImports": true
   },
-  "context_servers": {
-    "postgres-context-server": {
-      "enabled": true,
-      "settings": {
-        "database_url": "postgresql://darwin:U1tr4.M3g4@localhost:5432/darwin_kit"
-      }
-    }
-  },
   // Language-specific configurations
   "languages": {
     "TypeScript": {
@@ -70,28 +62,18 @@
         "eslint"
       ]
     }
-    // "JSX": {
-    //   // Use Prettier as the formatter for JSX files
-    //   "formatter": {
-    //     "external": {
-    //       "command": "node_modules/.bin/prettier",
-    //       "arguments": [
-    //         "--stdin-filepath",
-    //         "{buffer_path}"
-    //       ]
-    //     }
-    //   },
-    //   // Run ESLint fixes on format
-    //   "code_actions_on_format": {
-    //     "source.fixAll.eslint": true,
-    //     "source.organizeImports": true
-    //   },
-    //   // Language servers for JSX
-    //   "language_servers": ["vtsls", "eslint"]
-    // }
   },
   // LSP (Language Server Protocol) configurations
   "lsp": {
+    "yaml-language-server": {
+      "settings": {
+        "yaml": {
+          "schemas": {
+            "./darwinkit.schema.json": "**/*darwinkit.yaml"
+          }
+        }
+      }
+    },
     // vtsls configuration (Vue/TypeScript Language Server - faster than typescript-language-server)
     "vtsls": {
       "settings": {
@@ -198,17 +180,5 @@
   // File exclude patterns (don't show these in file tree)
   "file_scan_exclusions": [
     "**/.git",
-    "**/.svn",
-    "**/.hg",
-    "**/CVS",
-    "**/.DS_Store",
-    "**/Thumbs.db",
-    "**/node_modules",
-    "**/.vinxi",
-    "**/.output",
-    "**/dist",
-    "**/build",
-    "**/.next",
-    "**/coverage"
   ]
 }
