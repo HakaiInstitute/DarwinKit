@@ -47,7 +47,7 @@ src/
 
 **Specs** (`src/specs/`)
 
-- Darwin Core field definitions imported from `external/dwcSchema.json`
+- Darwin Core field definitions generated to `src/specs/generated/dwcSchema.json`
 - TypeScript-defined validation profiles for community standards
 - Field normalization utilities for JSON-to-TypeScript conversion
 

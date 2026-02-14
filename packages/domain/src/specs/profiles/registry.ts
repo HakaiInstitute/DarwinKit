@@ -5,7 +5,7 @@
  * for profile inheritance and composition.
  */
 
-import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
+import { join } from "@std/path";
 import type {
   Field,
   FieldOverride,
@@ -15,6 +15,17 @@ import type {
 import { type FieldDefinition, normalizeField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
+
+let _dwcSchemaCache: Record<string, unknown> | null = null;
+
+function loadDwcSchema(): Record<string, unknown> {
+  if (!_dwcSchemaCache) {
+    const schemaPath = join(import.meta.dirname!, "..", "generated", "dwcSchema.json");
+    const text = Deno.readTextFileSync(schemaPath);
+    _dwcSchemaCache = JSON.parse(text) as Record<string, unknown>;
+  }
+  return _dwcSchemaCache;
+}
 /**
  * All available validation profiles
  */
@@ -136,8 +147,7 @@ export function getValidationProfile(profileId: string): ValidationProfile | und
   }
 
   // Fall back to JSON schema (for base Darwin Core profiles like "Event", "Occurrence")
-  // TODO: Don't cast here
-  const rawJsonProfile = (DWC_SCHEMA as unknown as Record<string, unknown>)[profileId];
+  const rawJsonProfile = loadDwcSchema()[profileId];
 
   if (!rawJsonProfile) return undefined;
 

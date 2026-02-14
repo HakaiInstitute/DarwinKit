@@ -61,7 +61,7 @@ packages/
 **Package Dependencies:**
 
 - **@dwkt/domain** - Domain layer: types, schemas, field definitions, business rules
-  - Imports Darwin Core base specifications from `external/dwcSchema.json`
+  - Uses generated Darwin Core specifications from `src/specs/generated/dwcSchema.json`
   - Contains TypeScript-defined validation profiles (OBIS, GBIF, etc.)
   - Lightweight, no heavy dependencies (no DuckDB, no native modules)
   - Pure TypeScript, no runtime-specific code
@@ -81,20 +81,21 @@ packages/
 
 **External Resources:**
 
-- **external/dwcSchema.json** - Base Darwin Core specifications (Event, Occurrence, Taxon, etc.)
-- **external/get_dc_schema.cjs** - Script to regenerate specs from Darwin Core XML schemas
+- **external/rs_gbif/** - Darwin Core XML schemas from GBIF (source for schema generation)
+- **packages/domain/src/specs/generated/dwcSchema.json** - Generated Darwin Core specifications (gitignored, regenerated via `deno task cli import`)
 
 ### Darwin Core Specifications
 
 DarwinKit uses a hybrid specification system combining external JSON schemas with TypeScript validation profiles.
 
-**Base Schemas (external/dwcSchema.json):**
+**Base Schemas (packages/domain/src/specs/generated/dwcSchema.json):**
 
 The foundation of DarwinKit's validation system comes from official Darwin Core schemas:
-- Generated from Darwin Core XML schemas via `external/get_dc_schema.cjs`
-- Contains 5 standard profiles: `Event`, `Occurrence`, `Taxon`, `ExtendedMeasurementOrFact`, `dnaDerivedData`
-- Provides canonical field definitions with types, descriptions, and validation rules
+- Generated from Darwin Core XML schemas via `deno task cli import` (or `import_schema()` from `@dwkt/core/import`)
+- Contains 6 standard profiles: `Event`, `Occurrence`, `Taxon`, `ExtendedMeasurementOrFact`, `dnaDerivedData`, `ResourceRelationship`
+- Provides canonical field definitions with types, descriptions, OBIS requirements, and range validators
 - Imported as JSON into `packages/domain/src/specs/profiles/registry.ts`
+- **Gitignored** — must be regenerated before running tests (CI does this automatically)
 
 **Custom Profiles (packages/domain/src/specs/profiles/):**
 
@@ -147,15 +148,14 @@ JSON schemas use different field formats than TypeScript profiles, requiring nor
 When Darwin Core standards are updated, regenerate the base schemas:
 
 ```bash
-cd external
-node get_dc_schema.cjs
+deno task cli import
 ```
 
-This fetches the latest Darwin Core XML schemas and generates `dwcSchema.json` with all standard profiles and field definitions.
+This fetches the latest Darwin Core XML schemas and OBIS checklist, then generates `dwcSchema.json` with all standard profiles, field definitions, OBIS requirements, and range validators. The integration test `test/schema-generation.test.ts` validates the generated output.
 
 **Key Files:**
-- `external/dwcSchema.json` - Base Darwin Core specifications
-- `external/get_dc_schema.cjs` - Schema generation script
+- `packages/domain/src/specs/generated/dwcSchema.json` - Generated Darwin Core specifications (gitignored)
+- `packages/core/src/import/get_dwc_schema.ts` - Schema generation logic
 - `packages/domain/src/specs/profiles/registry.ts` - Profile resolution and merging
 - `packages/domain/src/specs/field-definition.ts` - JSON field normalization
 - `packages/domain/src/specs/vocabularies/registry.ts` - Controlled vocabularies
