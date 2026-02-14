@@ -69,7 +69,7 @@
       "settings": {
         "yaml": {
           "schemas": {
-            "./darwinkit.schema.json": "**/*darwinkit.yaml"
+            "./packages/domain/src/specs/generated/darwinkit.schema.json": "**/*darwinkit.yaml"
           }
         }
       }
