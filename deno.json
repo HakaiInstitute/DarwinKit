@@ -46,7 +46,7 @@
     "test:core": "deno task --cwd packages/core test",
     "test:cli": "deno task --cwd packages/cli test",
     "test:integration": "deno test test --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM",
-    "schema:generate": "deno run --allow-write packages/domain/src/schemas/generate-json-schema.ts"
+    "schema:generate": "deno run --allow-read --allow-write packages/domain/src/schemas/generate-json-schema.ts"
   },
   "exclude": [
     "build",

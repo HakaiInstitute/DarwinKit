@@ -39,3 +39,7 @@ packages/cli/transform_results
 .context/*
 
 packages/cli/validation_results/
+
+# Generated files
+darwinkit.schema.json
+packages/domain/src/schemas/darwinkit.schema.json

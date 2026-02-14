@@ -33,7 +33,6 @@ export const workspaceFieldMappingSchema = S.Struct({
   requirement: S.optional(
     S.String.annotations({ description: "Requirement level for this field." }),
   ),
-  constraints: S.optional(S.Record({ key: S.String, value: S.Unknown })),
   validators: S.optional(S.Array(ValidatorConfigSchema)),
 }).annotations({
   title: "Field Mapping",
@@ -97,6 +96,7 @@ export const transformDatasetConfigSchema = S.Struct({
   profile: S.String.annotations({
     description: "Darwin Core profile for the transform output.",
   }),
+  // TODO: Define proper S.Struct shapes for source and fields to improve JSON Schema output
   source: S.optional(S.Object),
   description: S.optional(S.String),
   fields: S.optional(S.Object),
@@ -140,7 +140,9 @@ export const validationSettingsSchema = S.Struct({
   ).pipe(S.withConstructorDefault(() => DEFAULT_OUTPUT_DIR)),
   description: S.optional(S.String),
   maxViolationsPerField: S.optional(
-    S.Number.annotations({ description: "Maximum number of violations to report per field." }),
+    S.Number.pipe(S.int()).annotations({
+      description: "Maximum number of violations to report per field.",
+    }),
   ),
   enableSuggestions: S.optionalWith(
     S.Boolean.annotations({
@@ -172,6 +174,7 @@ export const transformSettingsSchema = S.Struct({
     }),
     { default: () => [...DEFAULT_NULL_VALUES] },
   ).pipe(S.withConstructorDefault(() => DEFAULT_NULL_VALUES)),
+  // TODO: Define proper S.Struct shape for inputs to improve JSON Schema output
   inputs: S.Object.annotations({ description: "Input data source configuration." }),
   postImportTransforms: S.optional(
     S.Array(S.String).annotations({ description: "SQL transforms to run after data import." }),
