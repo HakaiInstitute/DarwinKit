@@ -37,7 +37,7 @@ jobs:
         run: |
           deno check
 
-      - name: Generate Darwin Core schema
+      - name: Generate and validate Darwin Core schema
         run: deno test test/schema-generation.test.ts --allow-all
 
       - name: Run domain tests
