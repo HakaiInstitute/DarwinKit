@@ -5,7 +5,7 @@
  * for profile inheritance and composition.
  */
 
-import DWC_SCHEMA from "../../../../../external/dwcSchema.json" with { type: "json" };
+import DWC_SCHEMA from "../generated/dwcSchema.json" with { type: "json" };
 import type {
   Field,
   FieldOverride,

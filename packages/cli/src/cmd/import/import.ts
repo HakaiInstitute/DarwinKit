@@ -7,11 +7,13 @@ import { Output } from '../../utils/output.ts';
 async function importSchema() {
   Output.section('🚀', 'Starting schema import from gbif...');
 
-  // Get external directory from project root (dev-only command)
-  const externalDir = join(Deno.cwd(), 'external');
+  // Resolve paths relative to project root (this file is at packages/cli/src/cmd/import/)
+  const projectRoot = join(import.meta.dirname!, '..', '..', '..', '..', '..');
+  const sourceDir = join(projectRoot, 'external');
+  const outputDir = join(projectRoot, 'packages/domain/src/specs/generated');
 
   await Effect.runPromise(
-    import_schema(externalDir),
+    import_schema(sourceDir, outputDir),
   );
 
   Output.success('✅ Import complete.');

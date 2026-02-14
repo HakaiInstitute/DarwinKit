@@ -37,6 +37,9 @@ jobs:
         run: |
           deno check
 
+      - name: Generate Darwin Core schema
+        run: deno test test/schema-generation.test.ts --allow-all
+
       - name: Run domain tests
         id: domain
         run: deno test packages/domain/ --allow-all --junit-path=./reports/report1.xml
@@ -50,6 +53,7 @@ jobs:
         run: |
           deno test test/example-config.test.ts --allow-all --junit-path=./reports/report3.xml
           deno test test/obis-profile.test.ts --allow-all --junit-path=./reports/report4.xml
+          deno test test/schema-generation.test.ts --allow-all --junit-path=./reports/report5.xml
 
       - name: Test Report
         uses: dorny/test-reporter@v2
