@@ -36,7 +36,7 @@ interface FieldDefinition {
   type?: string;
   thesaurus?: string;
   values?: Record<string, ThesaurusConcept>;
-  validators?: string[];
+  validators?: (string | RangeValidator)[];
   [key: string]: unknown;
 }
 
@@ -56,9 +56,16 @@ interface OBISChecklistRow {
   "Event Table"?: string;
   "Occurrence Extension"?: string;
   "eMoF Table"?: string;
-  "eMoF DNA Table"?: string;
+  "DNA Table"?: string;
   "OBIS Required"?: string;
   [key: string]: string | undefined;
+}
+
+interface RangeValidator {
+  type: "range";
+  enforcement: string;
+  params: { min: number; max: number };
+  message: string;
 }
 
 interface Options {
@@ -262,8 +269,19 @@ async function fetchObisChecklist(): Promise<OBISChecklistRow[]> {
   const cleanedCsv = csvText.replace(/[^\x00-\x7F]/g, "");
 
   // Parse CSV using Deno standard library
-  const records = parseCsv(cleanedCsv, {
+  const rawRecords = parseCsv(cleanedCsv, {
     skipFirstRow: true,
+    trimLeadingSpace: true,
+  }) as Record<string, string>[];
+
+  // Trim whitespace from all keys and values — the OBIS checklist CSV
+  // has spaces around headers and values that @std/csv preserves
+  const records = rawRecords.map((row) => {
+    const trimmed: Record<string, string> = {};
+    for (const [key, value] of Object.entries(row)) {
+      trimmed[key.trim()] = typeof value === "string" ? value.trim() : value;
+    }
+    return trimmed;
   }) as OBISChecklistRow[];
 
   return records;
@@ -286,7 +304,7 @@ function joinObisRequirements(
     if (item["Event Table"]) affectedTables.push("Event");
     if (item["Occurrence Extension"]) affectedTables.push("Occurrence");
     if (item["eMoF Table"]) affectedTables.push("ExtendedMeasurementOrFact");
-    if (item["eMoF DNA Table"]) affectedTables.push("dnaDerivedData");
+    if (item["DNA Table"]) affectedTables.push("dnaDerivedData");
 
     // Apply OBIS requirements to matching fields
     Object.keys(schemaJson).forEach((tableName) => {
@@ -312,9 +330,11 @@ function joinObisRequirements(
 function assignValidators(schemaJson: SchemaJson): void {
   Effect.logInfo("Assign Validators");
 
+  const currentYear = new Date().getFullYear();
+
   Object.values(schemaJson).forEach((table) => {
     Object.values(table.fields).forEach((field) => {
-      const validators: string[] = [];
+      const validators: (string | RangeValidator)[] = [];
 
       // Required validators
       if (
@@ -342,6 +362,48 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name.includes("latitude")) validators.push("latitude");
       if (field.name.includes("longitude")) validators.push("longitude");
 
+      // Range validators for well-known fields
+      if (field.name === "decimalLatitude") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: -90, max: 90 },
+          message: "Latitude must be between -90 and +90 degrees",
+        });
+      }
+      if (field.name === "decimalLongitude") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: -180, max: 180 },
+          message: "Longitude must be between -180 and +180 degrees",
+        });
+      }
+      if (field.name === "year") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: 1600, max: currentYear },
+          message: "Year must be between 1600 and current year",
+        });
+      }
+      if (field.name === "month") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: 1, max: 12 },
+          message: "Month must be between 1 and 12",
+        });
+      }
+      if (field.name === "day") {
+        validators.push({
+          type: "range",
+          enforcement: "required",
+          params: { min: 1, max: 31 },
+          message: "Day must be between 1 and 31",
+        });
+      }
+
       field.validators = validators;
     });
   });
@@ -358,23 +420,28 @@ function assignValidators(schemaJson: SchemaJson): void {
  * 1. Parses multiple Darwin Core XML schemas (Event, Occurrence, Taxon, etc.)
  * 2. Fetches OBIS checklist and applies requirements
  * 3. Assigns validators based on field types and patterns
- * 4. Writes final schema to external/dwcSchema.json
+ * 4. Writes final schema to outputDir/dwcSchema.json
  *
- * @param externalDir - Path to the external directory containing XML schemas
+ * @param sourceDir - Path to the directory containing XML schemas (rs_gbif/)
+ * @param outputDir - Path to the directory where generated files are written
  */
-export function import_schema(externalDir: string): Effect.Effect<void, Error> {
+export function import_schema(sourceDir: string, outputDir: string): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
     // Build XML file paths
     const exMoFxml = join(
-      externalDir,
+      sourceDir,
       "rs_gbif/extension/obis/extended_measurement_or_fact_2023-08-28.xml",
     );
-    const eventXml = join(externalDir, "rs_gbif/core/dwc_event_2025-07-10.xml");
-    const occurrenceXml = join(externalDir, "rs_gbif/core/dwc_occurrence_2025-07-10.xml");
-    const taxonXml = join(externalDir, "rs_gbif/core/dwc_taxon_2025-07-10.xml");
+    const eventXml = join(sourceDir, "rs_gbif/core/dwc_event_2025-07-10.xml");
+    const occurrenceXml = join(sourceDir, "rs_gbif/core/dwc_occurrence_2025-07-10.xml");
+    const taxonXml = join(sourceDir, "rs_gbif/core/dwc_taxon_2025-07-10.xml");
     const DNAXml = join(
-      externalDir,
+      sourceDir,
       "rs_gbif/extension/gbif/1.0/dna_derived_data_2024-07-11.xml",
+    );
+    const relatedXml = join(
+      sourceDir,
+      "rs_gbif/extension/dwc/resource_relationship_2025-07-10.xml",
     );
 
     // Parse all XML schemas
@@ -384,22 +451,30 @@ export function import_schema(externalDir: string): Effect.Effect<void, Error> {
         group: "ExtendedMeasurementOrFact",
         idFieldName: "measurementID",
       },
-      externalDir,
+      sourceDir,
     );
-    const eventJson = xmlSchemaToJson(eventXml, { idFieldName: "eventID" }, externalDir);
+    const eventJson = xmlSchemaToJson(eventXml, { idFieldName: "eventID" }, sourceDir);
     const occurrenceJson = xmlSchemaToJson(
       occurrenceXml,
       { idFieldName: "occurrenceID" },
-      externalDir,
+      sourceDir,
     );
-    const taxonJson = xmlSchemaToJson(taxonXml, { idFieldName: "taxonID" }, externalDir);
+    const taxonJson = xmlSchemaToJson(taxonXml, { idFieldName: "taxonID" }, sourceDir);
     const DNAJson = xmlSchemaToJson(
       DNAXml,
       {
         group: "dnaDerivedData",
         idFieldName: "samp_name",
       },
-      externalDir,
+      sourceDir,
+    );
+    const relatedJson = xmlSchemaToJson(
+      relatedXml,
+      {
+        group: "ResourceRelationship",
+        idFieldName: "resourceRelationshipID",
+      },
+      sourceDir,
     );
 
     // Combine all schemas
@@ -409,13 +484,14 @@ export function import_schema(externalDir: string): Effect.Effect<void, Error> {
       ...occurrenceJson,
       ...taxonJson,
       ...DNAJson,
+      ...relatedJson,
     };
 
     // Fetch and apply OBIS requirements
     const obisChecklist = yield* Effect.promise(() => fetchObisChecklist());
 
     Effect.logInfo("    Writing OBIS checklist to file");
-    const obisChecklistPath = join(externalDir, "obisChecklist.json");
+    const obisChecklistPath = join(outputDir, "obisChecklist.json");
     yield* Effect.promise(() =>
       Deno.writeTextFile(
         obisChecklistPath,
@@ -428,7 +504,7 @@ export function import_schema(externalDir: string): Effect.Effect<void, Error> {
     assignValidators(schemaJson);
 
     // Write final schema
-    const schemaPath = join(externalDir, "dwcSchema.json");
+    const schemaPath = join(outputDir, "dwcSchema.json");
     yield* Effect.promise(() =>
       Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2))
     );
