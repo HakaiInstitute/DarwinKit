@@ -19,10 +19,11 @@ Deno.test({
 
     try {
       // Create test CSV with OBIS-required fields
-      const eventCsv = `eventID,eventDate,decimalLatitude,decimalLongitude,geodeticDatum,locality
-E1,2022-09-15,49.8954,-125.4567,WGS84,Salish Sea
-E2,2022-09-16,49.9012,-125.4789,WGS84,Strait of Georgia
-E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
+      const eventCsv =
+        `eventID,parentEventID,eventDate,decimalLatitude,decimalLongitude,geodeticDatum,locality
+E1,P1,2022-09-15,49.8954,-125.4567,WGS84,Salish Sea
+E2,P1,2022-09-16,49.9012,-125.4789,WGS84,Strait of Georgia
+E3,P1,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
 
       Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
 
@@ -40,6 +41,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
               description: "Marine sampling events",
               fieldMappings: [
                 { originName: "eventID", targetName: "eventID" },
+                { originName: "parentEventID", targetName: "parentEventID" },
                 { originName: "eventDate", targetName: "eventDate" },
                 { originName: "decimalLatitude", targetName: "decimalLatitude" },
                 { originName: "decimalLongitude", targetName: "decimalLongitude" },
