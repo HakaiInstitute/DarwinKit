@@ -45,7 +45,16 @@
     "test:domain": "deno task --cwd packages/domain test",
     "test:core": "deno task --cwd packages/core test",
     "test:cli": "deno task --cwd packages/cli test",
-    "test:integration": "deno test test --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --allow-net"
+    "test:integration": "deno test test --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --allow-net",
+    "import": "deno task --cwd packages/cli dev import",
+    "compile:macos": {
+      "dependencies": ["import"],
+      "command": "deno task --cwd packages/cli compile:macos"
+    },
+    "compile:linux": {
+      "dependencies": ["import"],
+      "command": "deno task --cwd packages/cli compile:linux"
+    }
   },
   "exclude": [
     "build",
