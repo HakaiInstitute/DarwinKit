@@ -48,13 +48,18 @@
     "test:integration": "deno test test --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --allow-net",
     "import": "deno task --cwd packages/cli dev import",
     "compile:macos": {
-      "dependencies": ["import"],
+      "dependencies": [
+        "import"
+      ],
       "command": "deno task --cwd packages/cli compile:macos"
     },
     "compile:linux": {
-      "dependencies": ["import"],
+      "dependencies": [
+        "import"
+      ],
       "command": "deno task --cwd packages/cli compile:linux"
-    }
+    },
+    "schema:generate": "deno run --allow-read --allow-write packages/domain/src/schemas/generate-json-schema.ts"
   },
   "exclude": [
     "build",

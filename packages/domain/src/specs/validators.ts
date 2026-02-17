@@ -21,7 +21,10 @@ export const ValidatorType = S.Literal(
   "range", // Numeric field must be within min/max bounds
   "length", // String field must meet length requirements
   "format", // Field must conform to specific format (email, URL, etc.)
-);
+).annotations({
+  title: "Validator Type",
+  description: "Type of validation to apply: required, unique, pattern, range, length, or format.",
+});
 
 export type ValidatorType = S.Schema.Type<typeof ValidatorType>;
 
@@ -36,7 +39,11 @@ export const EnforcementLevel: S.Literal<[
   "required",
   "recommended",
   "optional",
-);
+).annotations({
+  title: "Enforcement Level",
+  description:
+    "How strictly a validator is enforced: required (error), recommended (warning), or optional (info).",
+});
 
 export type EnforcementLevel = S.Schema.Type<typeof EnforcementLevel>;
 
@@ -84,20 +91,43 @@ export interface ValidatorParams {
 export const ValidatorConfigSchema = S.Struct({
   type: ValidatorType,
   enforcement: EnforcementLevel,
-  params: S.optional(S.Struct({
-    min: S.optional(S.Number),
-    max: S.optional(S.Number),
-    inclusive: S.optional(S.Boolean),
-    minLength: S.optional(S.Number),
-    maxLength: S.optional(S.Number),
-    pattern: S.optional(S.String),
-    flags: S.optional(S.String),
-    format: S.optional(S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees", "integer")),
-    allowEmpty: S.optional(S.Boolean),
-    allowWhitespace: S.optional(S.Boolean),
-    custom: S.optional(S.Record({ key: S.String, value: S.Unknown })),
-  })),
-  message: S.optional(S.String),
+  params: S.optional(
+    S.Struct({
+      min: S.optional(S.Number.annotations({ description: "Minimum value for range validation." })),
+      max: S.optional(S.Number.annotations({ description: "Maximum value for range validation." })),
+      inclusive: S.optional(
+        S.Boolean.annotations({ description: "Whether range bounds are inclusive." }),
+      ),
+      minLength: S.optional(S.Number.annotations({ description: "Minimum string length." })),
+      maxLength: S.optional(S.Number.annotations({ description: "Maximum string length." })),
+      pattern: S.optional(
+        S.String.annotations({ description: "Regular expression pattern to match." }),
+      ),
+      flags: S.optional(S.String.annotations({ description: "Regular expression flags." })),
+      format: S.optional(
+        S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees", "integer").annotations({
+          description: "Expected value format.",
+        }),
+      ),
+      allowEmpty: S.optional(
+        S.Boolean.annotations({ description: "Allow empty string values." }),
+      ),
+      allowWhitespace: S.optional(
+        S.Boolean.annotations({ description: "Allow whitespace-only values." }),
+      ),
+      custom: S.optional(S.Record({ key: S.String, value: S.Unknown })),
+    }).annotations({
+      title: "Validator Parameters",
+      description: "Parameters for the validator, varying by validator type.",
+    }),
+  ),
+  message: S.optional(
+    S.String.annotations({ description: "Custom error message for validation failures." }),
+  ),
+}).annotations({
+  title: "Validator Configuration",
+  description:
+    "Configuration for a field validator with type, enforcement level, and optional parameters.",
 });
 
 /**
