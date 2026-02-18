@@ -111,11 +111,10 @@ Deno.test("makeWorkspaceConfig", async (t) => {
   });
 });
 
-Deno.test("makeWorkspaceConfig - isRequired regression", async (t) => {
-  await t.step("isRequired: true is silently stripped by Effect Schema decode", () => {
-    // isRequired was removed from the schema in favour of requirement/constraints.
-    // Verify that configs with the old `isRequired` property are still accepted
-    // (Effect Schema strips excess properties during decoding).
+Deno.test("makeWorkspaceConfig - isRequired is not accepted", async (t) => {
+  await t.step("isRequired is no longer a valid field mapping property", () => {
+    // isRequired was removed in favour of requirement/constraints.
+    // Configs using isRequired should be updated to use `requirement` instead.
     const config = makeWorkspaceConfig({
       validation: {
         datasets: [{
@@ -125,16 +124,15 @@ Deno.test("makeWorkspaceConfig - isRequired regression", async (t) => {
           fieldMappings: [{
             originName: "eventID",
             targetName: "eventID",
-            isRequired: true,
-          } as unknown as { originName: string; targetName: string }],
+            requirement: "required",
+          }],
         }],
       },
     });
 
     const mapping = config.validation?.datasets[0]?.fieldMappings?.[0];
     assertEquals(mapping?.originName, "eventID");
-    // isRequired is not part of the decoded type
-    assertEquals((mapping as Record<string, unknown>).isRequired, undefined);
+    assertEquals(mapping?.requirement, "required");
   });
 });
 
