@@ -17,10 +17,8 @@ export { resolveSchemaTableName } from "./summary.ts";
 export {
   findRangeViolations,
   findUniquenessViolations,
-  findVocabularyViolations,
   validateRangeConstraints,
   validateUniqueness,
-  validateVocabulary,
 } from "./field-validators.ts";
 
 // Row-by-row data loading with violation collection

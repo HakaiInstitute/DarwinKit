@@ -33,7 +33,6 @@ import {
   RangeViolation,
   RequiredFieldViolation,
   UniquenessViolation,
-  VocabularyViolation,
 } from "@dwkt/domain/types";
 
 /**
@@ -206,145 +205,6 @@ export function validateRangeConstraints(
   return validateConstraintsByType(
     "range",
     findRangeViolations,
-    connection,
-    tableName,
-    fieldName,
-    specField,
-    maxViolations,
-  );
-}
-
-/**
- * Find vocabulary violations for a field against a set of valid values.
- *
- * Validates a field against a controlled vocabulary.
- */
-export function findVocabularyViolations(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  values: readonly string[],
-  specField: FieldDefinition,
-  strictness: "strict" | "recommended" = "recommended",
-  caseSensitive = false,
-): Effect.Effect<ValidField, VocabularyViolation[]> {
-  // strict → ERROR, recommended → WARNING
-  const enforcement = strictness === "strict" ? "required" : "recommended";
-  const severity = enforcementToSeverity(enforcement);
-
-  return Effect.gen(function* (_) {
-    // Get distinct values from the field with ordered row numbers
-    const query = `
-      SELECT
-        "${fieldName}" as value,
-        list(_row_number ORDER BY _row_number) as row_numbers
-      FROM ${tableName}
-      WHERE "${fieldName}" IS NOT NULL
-      GROUP BY "${fieldName}"
-    `;
-
-    // Field existence verified upstream via information_schema check; query failure is a defect
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const rows = result.getRowObjects();
-
-    // For case-insensitive matching, pre-compute lowercase set
-    const lowerSet = caseSensitive ? null : new Set(values.map((v) => v.toLowerCase()));
-
-    const violations: VocabularyViolation[] = [];
-
-    for (const row of rows) {
-      const value = String(row.value);
-      const rawRowNumbers = row.row_numbers;
-
-      let rowNumbers: number[] = [];
-      if (Array.isArray(rawRowNumbers)) {
-        rowNumbers = rawRowNumbers.map((n) => Number(n));
-      } else if (
-        rawRowNumbers && typeof rawRowNumbers === "object" &&
-        "items" in rawRowNumbers
-      ) {
-        rowNumbers = (rawRowNumbers as { items: unknown[] }).items.map((n) => Number(n));
-      }
-
-      const isValid = caseSensitive ? values.includes(value) : lowerSet!.has(value.toLowerCase());
-
-      if (!isValid) {
-        for (const rowNum of rowNumbers) {
-          violations.push(
-            new VocabularyViolation({
-              enforcement,
-              severity,
-              fieldName,
-              targetName: specField.name,
-              rowNumber: Number(rowNum),
-              value,
-              csvValue: value,
-              errorMessage: `Invalid vocabulary value: "${value}"`,
-              validatorType: "vocabulary",
-            }),
-          );
-        }
-      }
-    }
-
-    if (violations.length > 0) {
-      return yield* _(Effect.fail(violations));
-    }
-
-    return validField(fieldName, specField.name);
-  });
-}
-
-/**
- * Find vocabulary constraint violations for a single vocabulary constraint.
- *
- * Matches the signature expected by validateConstraintsByType.
- */
-export function findVocabularyConstraintViolations(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  constraint: Constraint & { type: "vocabulary" },
-  specField: FieldDefinition,
-  _maxViolations = 100,
-): Effect.Effect<ValidField, VocabularyViolation[]> {
-  const { values, caseSensitive = false, strictness = "recommended" } = constraint;
-  return findVocabularyViolations(
-    connection,
-    tableName,
-    fieldName,
-    values,
-    specField,
-    strictness,
-    caseSensitive,
-  );
-}
-
-/**
- * Validate controlled vocabulary for a field.
- *
- * All vocabulary constraints are checked (tightening semantics). If spec
- * defines a vocabulary at "recommended" and config adds one at "required",
- * both are validated — a bad value produces violations at both severity levels.
- *
- * Optional enforcement flows through with info severity (no early skip),
- * matching the behavior of range, format, pattern, and length validators.
- */
-export function validateVocabulary(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  specField: FieldDefinition,
-  maxViolations = 100,
-): Effect.Effect<ValidField, FieldViolation[]> {
-  return validateConstraintsByType(
-    "vocabulary",
-    findVocabularyConstraintViolations,
     connection,
     tableName,
     fieldName,
@@ -913,15 +773,6 @@ export function validateField(
       validatePatternConstraints(connection, tableName, fieldName, specField, maxViolations),
       validateLengthConstraints(connection, tableName, fieldName, specField, maxViolations),
     ];
-
-    // Vocabulary validation — runs when spec defines a vocabulary for the field
-    const hasVocabularyConstraint = specField.constraints?.some((c) => c.type === "vocabulary") ??
-      false;
-    if (hasVocabularyConstraint) {
-      validators.push(
-        validateVocabulary(connection, tableName, fieldName, specField, maxViolations),
-      );
-    }
 
     // Uniqueness validation — skip when DuckDB enforces via PRIMARY KEY
     const hasUniqueConstraint = specField.constraints?.some((c) => c.type === "unique") ?? false;

@@ -45,9 +45,8 @@ export interface PartitionedViolations<T> {
  * These schema fields are used to construct all violation types.
  *
  * **enforcement** records the rule's strictness level as metadata (not configuration).
- * - For RequiredFieldViolation and VocabularyViolation, enforcement varies by constraint
- *   (e.g., "required", "recommended", or "optional" for presence checks;
- *   "strict" vs "recommended" mapped to enforcement for vocabulary checks).
+ * - For RequiredFieldViolation, enforcement varies by constraint
+ *   (e.g., "required", "recommended", or "optional" for presence checks).
  * - For value violations (Range, Format, Pattern, Length, Unique), enforcement is
  *   always "required" because value validity is unconditional — invalid values are
  *   always errors regardless of the field's requirement level.
@@ -88,16 +87,6 @@ export class RangeViolation extends Schema.TaggedClass<RangeViolation>()("RangeV
     }),
   ),
 }) {}
-
-/**
- * Vocabulary validation violation (controlled vocabulary constraints)
- */
-export class VocabularyViolation
-  extends Schema.TaggedClass<VocabularyViolation>()("VocabularyViolation", {
-    ...baseViolationFields,
-    suggestedValues: Schema.optional(Schema.Array(Schema.String)),
-    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
-  }) {}
 
 /**
  * Uniqueness validation violation (duplicate identifier constraints)
@@ -233,12 +222,10 @@ export interface ValidField {
  * @example Type guard filtering
  * ```typescript
  * const rangeErrors = violations.filter(isRangeViolation);
- * const vocabErrors = violations.filter(isVocabularyViolation);
  * ```
  */
 export type FieldViolation =
   | RangeViolation
-  | VocabularyViolation
   | UniquenessViolation
   | CrossDatasetViolation
   | PrimaryKeyViolation
@@ -287,13 +274,6 @@ export function isPrimaryKeyViolation(v: FieldViolation): v is PrimaryKeyViolati
  */
 export function isEnumViolation(v: FieldViolation): v is EnumViolation {
   return v._tag === "EnumViolation";
-}
-
-/**
- * Type guard helper for VocabularyViolation
- */
-export function isVocabularyViolation(v: FieldViolation): v is VocabularyViolation {
-  return v._tag === "VocabularyViolation";
 }
 
 /**
