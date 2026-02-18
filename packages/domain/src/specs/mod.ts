@@ -2,9 +2,6 @@
  * @dwkt/domain/specs - Darwin Core specifications, profiles, and vocabularies
  */
 
-// Darwin Core field definitions and barrel exports
-export * from "./dwc/mod.ts";
-
 // Field normalization
 export * from "./field-definition.ts";
 
