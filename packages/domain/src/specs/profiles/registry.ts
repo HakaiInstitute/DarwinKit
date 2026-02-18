@@ -57,7 +57,6 @@ function mergeFieldOverrides(
         constraints: childOverride.constraints
           ? mergeConstraints(parentOverride.constraints || [], childOverride.constraints)
           : parentOverride.constraints,
-        enforcement: childOverride.enforcement ?? parentOverride.enforcement,
       };
     }
   }

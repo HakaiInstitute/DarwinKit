@@ -29,7 +29,6 @@ export const fieldRequirementLevelSchema = S.Union(
 export const fieldOverrideSchema = S.Struct({
   requirement: S.optional(fieldRequirementLevelSchema),
   constraints: S.optional(S.Array(Constraint)),
-  enforcement: S.optional(S.Literal("required", "recommended", "optional")),
 });
 
 // Field schema for transform use (raw field metadata from JSON schema)

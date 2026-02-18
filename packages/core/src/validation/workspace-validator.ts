@@ -20,12 +20,7 @@ import type {
 } from "@dwkt/domain/schemas";
 import { deriveProfileId, FieldRequirementLevel, parseSpecIdentifier } from "@dwkt/domain/schemas";
 import type { EnforcementLevel, FieldDefinition } from "@dwkt/domain/specs";
-import {
-  getPreset,
-  getPresetNames,
-  getValidationProfile,
-  hasControlledVocabulary,
-} from "@dwkt/domain/specs";
+import { getPreset, getPresetNames, getValidationProfile } from "@dwkt/domain/specs";
 import type {
   CrossDatasetValidationResult,
   DatasetValidationResult,
@@ -55,6 +50,7 @@ import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
 import { resolveSchemaTableName } from "./summary.ts";
 
+import type { ResolutionDiagnostic } from "./field-resolution.ts";
 import {
   applyResolvedConstraints,
   deriveRequirementFromConstraints,
@@ -419,11 +415,21 @@ function validateDataset(
     // spec (obligations) → profile (fieldOverrides) → config (additive-only)
     const activeStandard = resolveActiveStandard(profile);
     const configFieldMappings = dataset?.fieldMappings || [];
+    const resolutionDiagnostics: ResolutionDiagnostic[] | undefined = validationSettings?.debug
+      ? []
+      : undefined;
     const schemaColumnsObj = resolveFieldDefinitions(
       schemaProfile,
       activeStandard,
       configFieldMappings,
+      resolutionDiagnostics,
     );
+
+    if (resolutionDiagnostics?.length) {
+      for (const diag of resolutionDiagnostics) {
+        console.debug(`[${dataset.name}] ${diag.message}`);
+      }
+    }
 
     // Detect field mapping issues
     const mappedOriginFields = configFieldMappings.map((m) => m.originName);
@@ -736,7 +742,10 @@ function validateDataset(
 
       // Add field validation effect to the list (will be run in parallel later)
       if (specField) {
+        // Determine if DuckDB schema already enforces uniqueness
         const rawField = profile.fields?.[mapping.targetName];
+        const isDbPrimaryKey = mapping.targetName === schemaTableName + "ID" ||
+          (mapping.targetName.endsWith("ID") && String(rawField?.unique) === "true");
 
         fieldValidationEffects.push(
           validateField(
@@ -746,9 +755,7 @@ function validateDataset(
             mapping.targetName,
             specField,
             {
-              rawField,
-              schemaTableName,
-              hasControlledVocabulary: hasControlledVocabulary(specField),
+              isDbPrimaryKey,
               maxViolations: validationSettings?.maxViolationsPerField,
             },
           ),

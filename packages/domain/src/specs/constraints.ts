@@ -62,7 +62,6 @@ export const RangeConstraint = S.Struct({
   min: S.optional(S.Number),
   max: S.optional(S.Number),
   inclusive: S.optionalWith(S.Boolean, { default: () => true }),
-  enforcement: EnforcementLevel,
   message: S.optional(S.String),
 });
 
@@ -86,7 +85,6 @@ export type RequiredConstraint = S.Schema.Type<typeof RequiredConstraint>;
  */
 export const UniqueConstraint = S.Struct({
   type: S.Literal("unique"),
-  enforcement: EnforcementLevel,
   message: S.optional(S.String),
 });
 
@@ -99,7 +97,6 @@ export const PatternConstraint = S.Struct({
   type: S.Literal("pattern"),
   pattern: S.String,
   flags: S.optional(S.String),
-  enforcement: EnforcementLevel,
   message: S.optional(S.String),
 });
 
@@ -112,7 +109,6 @@ export const LengthConstraint = S.Struct({
   type: S.Literal("length"),
   minLength: S.optional(S.Number),
   maxLength: S.optional(S.Number),
-  enforcement: EnforcementLevel,
   message: S.optional(S.String),
 });
 
@@ -131,7 +127,6 @@ export const FormatConstraint = S.Struct({
     "decimal-degrees",
     "integer",
   ),
-  enforcement: EnforcementLevel,
   message: S.optional(S.String),
 });
 
@@ -144,10 +139,11 @@ export type FormatConstraint = S.Schema.Type<typeof FormatConstraint>;
  */
 export const VocabularyConstraint = S.Struct({
   type: S.Literal("vocabulary"),
-  vocabularyKey: S.String,
+  values: S.Array(S.String),
   caseSensitive: S.optionalWith(S.Boolean, { default: () => false }),
-  enforcement: EnforcementLevel,
-  message: S.optional(S.String),
+  strictness: S.optionalWith(S.Literal("strict", "recommended"), {
+    default: () => "recommended" as const,
+  }),
 });
 
 export type VocabularyConstraint = S.Schema.Type<typeof VocabularyConstraint>;
@@ -227,8 +223,9 @@ export function obligationToEnforcement(
     case "required":
       return "required";
     case "strongly recommended":
-    case "recommended":
       return "recommended";
+    case "recommended":
+      return "optional";
     case "optional":
     case "optional (required for imaging data)":
     case "required (if exists)":

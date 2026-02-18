@@ -22,9 +22,6 @@
 import * as S from "effect/Schema";
 import type { Field } from "../schemas/validation-profile.ts";
 import { Constraint, FieldDataType, type Obligation, ObligationsMap } from "./constraints.ts";
-import { vocabularyEnforcementToStandard } from "./vocabulary-utils.ts";
-import type { VocabularyEnforcement } from "./vocabularies/config.ts";
-import type { VocabularyKey } from "./vocabularies/registry.ts";
 
 export const FieldDefinitionSchema = S.Struct({
   name: S.String,
@@ -96,11 +93,10 @@ export function normalizeField(jsonField: Field): FieldDefinition {
         const obj = v as Record<string, unknown>;
         const params = (obj.params as Record<string, unknown>) || {};
 
-        // Flatten params into the object and apply defaults per type
+        // Flatten params into the object
         const raw: Record<string, unknown> = {
           ...params,
           ...obj,
-          enforcement: obj.enforcement || "required",
         };
         // Remove nested params — fields are now at top level
         delete raw.params;
@@ -109,11 +105,20 @@ export function normalizeField(jsonField: Field): FieldDefinition {
         if (raw.type === "required") {
           raw.allowEmpty ??= false;
           raw.allowWhitespace ??= false;
+          raw.enforcement ??= "required";
+        } else {
+          // Value constraints no longer have enforcement — strip if present
+          if (raw.enforcement !== undefined) {
+            console.warn(
+              `Stripping "enforcement" from ${raw.type} constraint on field "${jsonField.name}" — only "required" constraints support enforcement`,
+            );
+          }
+          delete raw.enforcement;
         }
         if (raw.type === "vocabulary") {
-          raw.vocabularyKey ??= "";
+          raw.values ??= [];
           raw.caseSensitive ??= false;
-          raw.enforcement ??= "recommended";
+          raw.strictness ??= "recommended";
         }
 
         try {
@@ -135,7 +140,6 @@ export function normalizeField(jsonField: Field): FieldDefinition {
           case "unique":
             constraints.push({
               type: "unique" as const,
-              enforcement: "required" as const,
             });
             break;
           case "required":
@@ -151,22 +155,16 @@ export function normalizeField(jsonField: Field): FieldDefinition {
               type: "required" as const,
               allowEmpty: false,
               allowWhitespace: false,
-              enforcement: "recommended" as const,
+              enforcement: "optional" as const,
             });
             break;
           case "optional":
-            constraints.push({
-              type: "required" as const,
-              allowEmpty: false,
-              allowWhitespace: false,
-              enforcement: "optional" as const,
-            });
+            // No constraint emitted — matches requirementToConstraint() behavior
             break;
           case "integer":
             constraints.push({
               type: "format" as const,
               format: "integer" as const,
-              enforcement: "optional" as const,
             });
             break;
           case "date":
@@ -174,21 +172,18 @@ export function normalizeField(jsonField: Field): FieldDefinition {
             constraints.push({
               type: "format" as const,
               format: "iso8601" as const,
-              enforcement: "optional" as const,
             });
             break;
           case "url":
             constraints.push({
               type: "format" as const,
               format: "url" as const,
-              enforcement: "optional" as const,
             });
             break;
           case "decimal":
             constraints.push({
               type: "format" as const,
               format: "decimal-degrees" as const,
-              enforcement: "optional" as const,
             });
             break;
           default:
@@ -206,12 +201,12 @@ export function normalizeField(jsonField: Field): FieldDefinition {
     jsonField.values && typeof jsonField.values === "object" &&
     Object.keys(jsonField.values).length > 0
   ) {
-    const vocabEnforcement = deriveVocabularyEnforcement(jsonField);
+    const vocabStrictness = deriveVocabularyStrictness(jsonField);
     constraints.push({
       type: "vocabulary" as const,
-      vocabularyKey: deriveVocabularyKey(jsonField),
+      values: Object.keys(jsonField.values),
       caseSensitive: false,
-      enforcement: vocabularyEnforcementToStandard(vocabEnforcement),
+      strictness: vocabStrictness,
     });
   }
 
@@ -243,53 +238,16 @@ export function normalizeField(jsonField: Field): FieldDefinition {
 }
 
 /**
- * Derive vocabulary key from field
+ * Derive vocabulary strictness from field metadata.
  *
- * Maps Darwin Core field names to their vocabulary keys.
+ * Maps obligation-level metadata to vocabulary strictness:
+ * - required / strongly recommended / gbif required → "strict" (errors)
+ * - everything else → "recommended" (warnings, default)
  */
-function deriveVocabularyKey(field: Field): VocabularyKey {
-  const vocabularyMap: Record<string, string> = {
-    "type": "dctype",
-    "basisOfRecord": "basisOfRecord",
-    "occurrenceStatus": "occurrenceStatus",
-    "establishmentMeans": "establishmentMeans",
-    "degreeOfEstablishment": "degreeOfEstablishment",
-    "pathway": "pathway",
-    "reproductiveCondition": "reproductiveCondition",
-    "sex": "sex",
-    "lifeStage": "lifeStage",
-    "behavior": "behavior",
-    "vitality": "vitality",
-    "typeStatus": "typeStatus",
-    "disposition": "disposition",
-    "preparations": "preparations",
-    "georeferenceProtocol": "georeferenceProtocol",
-    "geodeticDatum": "geodeticDatum",
-    "identificationQualifier": "identificationQualifier",
-    "measurementType": "measurementType",
-    "measurementUnit": "measurementUnit",
-    "measurementMethod": "measurementMethod",
-  };
-
-  return (vocabularyMap[field.name] || field.name) as VocabularyKey;
-}
-
-/**
- * Derive vocabulary enforcement level from field metadata
- */
-function deriveVocabularyEnforcement(field: Field): VocabularyEnforcement {
-  const obisRequired = field.obis_required;
-  const gbifRequired = field.gbif_required;
-
-  if (obisRequired === "required" || obisRequired === "strongly recommended") {
-    return "strict";
-  }
-  if (obisRequired === "recommended") {
-    return "recommended";
-  }
-  if (gbifRequired === "true") {
-    return "strict";
-  }
-
-  return "loose";
+function deriveVocabularyStrictness(_field: Field): "strict" | "recommended" {
+  // Darwin Core treats all controlled vocabularies as "recommended best practice"
+  // — none are strictly enforced at the standard level. Obligation level governs
+  // field *presence*, not vocabulary value strictness. Users/profiles can override
+  // to "strict" in their configuration.
+  return "recommended";
 }

@@ -63,7 +63,6 @@ interface OBISChecklistRow {
 
 interface RangeValidator {
   type: "range";
-  enforcement: string;
   params: { min: number; max: number };
   message: string;
 }
@@ -344,14 +343,6 @@ function assignValidators(schemaJson: SchemaJson): void {
         validators.push("required");
       }
 
-      // Recommended validators
-      if (
-        field.obis_required === "recommended" ||
-        field.obis_required === "strongly recommended"
-      ) {
-        validators.push("recommended");
-      }
-
       // Type-based validators
       if (field.unique === "true") validators.push("uniqueIdentifier");
       if (field.type === "integer") validators.push("integer");
@@ -366,7 +357,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "decimalLatitude") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: -90, max: 90 },
           message: "Latitude must be between -90 and +90 degrees",
         });
@@ -374,7 +364,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "decimalLongitude") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: -180, max: 180 },
           message: "Longitude must be between -180 and +180 degrees",
         });
@@ -382,7 +371,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "year") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: 1600, max: currentYear },
           message: "Year must be between 1600 and current year",
         });
@@ -390,7 +378,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "month") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: 1, max: 12 },
           message: "Month must be between 1 and 12",
         });
@@ -398,7 +385,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "day") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: 1, max: 31 },
           message: "Day must be between 1 and 31",
         });

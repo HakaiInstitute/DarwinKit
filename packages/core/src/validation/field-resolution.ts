@@ -52,11 +52,18 @@ export function obligationForStandard(
   return obligationToEnforcement(obligation);
 }
 
+const ENFORCEMENT_STRICTNESS: Record<string, number> = {
+  required: 2,
+  recommended: 1,
+  optional: 0,
+};
+
 /**
  * Derive FieldRequirementLevel from a field's constraint array.
  *
- * Reads the last RequiredConstraint and maps its enforcement to FieldRequirementLevel.
- * This is the single derivation path for missing-field detection.
+ * Picks the strictest RequiredConstraint and maps its enforcement to
+ * FieldRequirementLevel. This matches the validator's takeStrictest
+ * behavior so missing-field detection uses the same effective level.
  */
 export function deriveRequirementFromConstraints(
   constraints: readonly Constraint[] | undefined,
@@ -64,14 +71,19 @@ export function deriveRequirementFromConstraints(
   if (!constraints) return undefined;
   const requiredConstraints = constraints.filter((c) => c.type === "required");
   if (requiredConstraints.length === 0) return undefined;
-  const last = requiredConstraints[requiredConstraints.length - 1];
-  switch (last.enforcement) {
+  const strictest = requiredConstraints.reduce((a, b) =>
+    (ENFORCEMENT_STRICTNESS[a.enforcement] ?? 0) >=
+        (ENFORCEMENT_STRICTNESS[b.enforcement] ?? 0)
+      ? a
+      : b
+  );
+  switch (strictest.enforcement) {
     case "required":
       return FieldRequirementLevel.Required;
     case "recommended":
       return FieldRequirementLevel.StronglyRecommended;
     case "optional":
-      return undefined; // optional required = field not needed
+      return FieldRequirementLevel.Recommended;
   }
 }
 
@@ -101,6 +113,12 @@ export function requirementToConstraint(
         allowWhitespace: false,
       };
     case FieldRequirementLevel.Recommended:
+      return {
+        type: "required",
+        enforcement: "optional",
+        allowEmpty: false,
+        allowWhitespace: false,
+      };
     case FieldRequirementLevel.Optional:
     case FieldRequirementLevel.RequiredIfExists:
       return undefined;
@@ -114,22 +132,41 @@ export function requirementToConstraint(
 // =============================================================================
 
 /**
- * Additive-only merge: config can add constraint types not already present.
- * Constraint types already in `existing` are preserved; `additions` with
- * conflicting types are silently ignored.
+ * Additive constraint merge: config constraints are appended to existing ones.
+ * Multiple constraints of the same type are allowed — validators check all of
+ * them, so the data must satisfy every constraint (natural intersection/tightening).
+ * When `diagnostics` is provided, overlapping types are recorded as informational.
  */
 export function addConstraints(
   existing: readonly Constraint[],
   additions: readonly Constraint[],
+  diagnostics?: { fieldName: string; overlapping: string[] },
 ): Constraint[] {
-  const existingTypes = new Set(existing.map((c) => c.type));
-  const newConstraints = additions.filter((c) => !existingTypes.has(c.type));
-  return [...existing, ...newConstraints];
+  if (diagnostics) {
+    const existingTypes = new Set(existing.map((c) => c.type));
+    for (const c of additions) {
+      if (existingTypes.has(c.type)) {
+        diagnostics.overlapping.push(c.type);
+      }
+    }
+  }
+  return [...existing, ...additions];
 }
 
 // =============================================================================
 // Field Resolution Pipeline
 // =============================================================================
+
+/**
+ * Diagnostic message from constraint resolution.
+ * Produced when a config-level constraint overlaps with a
+ * spec/profile constraint of the same type (both are kept).
+ */
+export interface ResolutionDiagnostic {
+  readonly fieldName: string;
+  readonly overlappingTypes: readonly string[];
+  readonly message: string;
+}
 
 /**
  * Resolve all field definitions for a dataset through the 3-tier merge pipeline.
@@ -141,11 +178,16 @@ export function addConstraints(
  *
  * Returns a map of targetName → WorkspaceFieldMapping with fully resolved constraints.
  * The constraints on each mapping are the final merged result from all three tiers.
+ * Config constraints that share a type with spec/profile constraints are kept — validators
+ * check all constraints of a given type, so data must satisfy every one (tightening).
+ *
+ * When `diagnostics` is provided, overlapping config constraint types are recorded.
  */
 export function resolveFieldDefinitions(
   schemaProfile: ValidationProfile,
   activeStandard: "obis" | "gbif" | "custom",
   configMappings: readonly WorkspaceFieldMapping[],
+  diagnostics?: ResolutionDiagnostic[],
 ): Record<string, WorkspaceFieldMapping> {
   // --- Tier 1: Spec fields with obligation-derived constraints ---
   const result: Record<string, WorkspaceFieldMapping> = {};
@@ -213,25 +255,42 @@ export function resolveFieldDefinitions(
     const existing = result[configMapping.targetName];
     let constraints = existing?.constraints ?? [];
 
-    // Resolve preset to constraints and add (additive-only)
+    // Track overlapping constraint types when diagnostics are requested
+    const tracker = diagnostics
+      ? { fieldName: configMapping.targetName, overlapping: [] as string[] }
+      : undefined;
+
+    // Resolve preset to constraints and add
     if (configMapping.preset) {
       const presetConstraints = getPreset(configMapping.preset);
       if (presetConstraints) {
-        constraints = addConstraints(constraints, presetConstraints);
+        constraints = addConstraints(constraints, presetConstraints, tracker);
       }
     }
 
-    // Config explicit constraints (additive-only)
+    // Config explicit constraints
     if (configMapping.constraints) {
-      constraints = addConstraints(constraints, configMapping.constraints);
+      constraints = addConstraints(constraints, configMapping.constraints, tracker);
     }
 
-    // Config requirement → constraint (additive-only)
+    // Config requirement → constraint
     if (configMapping.requirement) {
       const reqConstraint = requirementToConstraint(configMapping.requirement);
       if (reqConstraint) {
-        constraints = addConstraints(constraints, [reqConstraint]);
+        constraints = addConstraints(constraints, [reqConstraint], tracker);
       }
+    }
+
+    // Record diagnostics for overlapping constraint types
+    if (tracker && tracker.overlapping.length > 0) {
+      const unique = [...new Set(tracker.overlapping)];
+      diagnostics!.push({
+        fieldName: configMapping.targetName,
+        overlappingTypes: unique,
+        message: `Config adds additional '${
+          unique.join("', '")
+        }' constraint(s) for field '${configMapping.targetName}' — data must satisfy both the spec/profile constraint and the config constraint`,
+      });
     }
 
     // Apply config's originName/targetName, preserve resolved constraints

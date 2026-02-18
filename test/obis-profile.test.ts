@@ -8,8 +8,75 @@ import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
+import { getValidationProfile } from "../packages/domain/src/specs/profiles/registry.ts";
 import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
 import { prepareConfigForYaml } from "./helpers/config-utils.ts";
+
+// =============================================================================
+// Profile Inheritance Chain Tests
+// =============================================================================
+
+Deno.test("Profile inheritance - obis-event resolves with Event base fields", () => {
+  const profile = getValidationProfile("obis-event");
+  assertExists(profile, "obis-event profile should resolve");
+
+  // Should have normalizedFields inherited from Event (JSON base)
+  assertExists(profile.normalizedFields, "Should have normalizedFields from Event base");
+
+  // Event base defines eventID, eventDate, decimalLatitude, etc.
+  assert(
+    "eventID" in profile.normalizedFields!,
+    "Should inherit eventID from Event base",
+  );
+  assert(
+    "eventDate" in profile.normalizedFields!,
+    "Should inherit eventDate from Event base",
+  );
+});
+
+Deno.test("Profile inheritance - obis-event field overrides take precedence over Event base", () => {
+  const profile = getValidationProfile("obis-event");
+  assertExists(profile);
+
+  // decimalLatitude is defined in Event base AND overridden by OBIS base profile.
+  // The OBIS override should win (adds range constraint + required requirement).
+  const latOverride = profile.fieldOverrides?.["decimalLatitude"];
+  assertExists(latOverride, "decimalLatitude should have an override from OBIS");
+  assertExists(latOverride.constraints, "Override should include constraints");
+  const rangeConstraints = latOverride.constraints!.filter((c) => c.type === "range");
+  assertEquals(rangeConstraints.length, 1, "Should have exactly one range constraint");
+  if (rangeConstraints[0].type === "range") {
+    assertEquals(rangeConstraints[0].min, -90);
+    assertEquals(rangeConstraints[0].max, 90);
+  }
+});
+
+Deno.test("Profile inheritance - obis-event preserves non-overlapping fields from all ancestors", () => {
+  const profile = getValidationProfile("obis-event");
+  assertExists(profile);
+
+  // eventID override comes from obis-event (not in obis base or Event base overrides)
+  const eventIdOverride = profile.fieldOverrides?.["eventID"];
+  assertExists(eventIdOverride, "eventID override from obis-event should be present");
+
+  // geodeticDatum override comes from obis base (not overridden by obis-event)
+  const geodeticOverride = profile.fieldOverrides?.["geodeticDatum"];
+  assertExists(geodeticOverride, "geodeticDatum override from obis base should be preserved");
+
+  // samplingProtocol comes from obis-event only
+  const samplingOverride = profile.fieldOverrides?.["samplingProtocol"];
+  assertExists(samplingOverride, "samplingProtocol override from obis-event should be present");
+});
+
+Deno.test("Profile inheritance - obis resolves with Event base normalizedFields", () => {
+  const profile = getValidationProfile("obis");
+  assertExists(profile, "obis profile should resolve");
+  assertExists(profile.normalizedFields, "obis should inherit normalizedFields from Event");
+
+  // Verify Event base fields are present
+  assert("eventID" in profile.normalizedFields!, "Should have eventID from Event");
+  assert("decimalLatitude" in profile.normalizedFields!, "Should have decimalLatitude from Event");
+});
 
 Deno.test({
   name: "OBIS Profile - validates required fields",
@@ -187,12 +254,12 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
               {
                 originName: "minimumDepthInMeters",
                 targetName: "minimumDepthInMeters",
-                constraints: [{ type: "range", min: 0, max: 11000, enforcement: "recommended" }],
+                constraints: [{ type: "range", min: 0, max: 11000 }],
               },
               {
                 originName: "maximumDepthInMeters",
                 targetName: "maximumDepthInMeters",
-                constraints: [{ type: "range", min: 0, max: 11000, enforcement: "recommended" }],
+                constraints: [{ type: "range", min: 0, max: 11000 }],
               },
             ],
           },
@@ -218,7 +285,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     const eventsResult = result.datasetResults[0];
 
     // Should have constraint violations for depths > 11000m
-    // Depth constraints are "recommended" enforcement, so they appear in warnings
+    // Depth violations are always errors (value validity is unconditional)
     const depthViolations = [
       ...eventsResult.fieldViolations.errors,
       ...eventsResult.fieldViolations.warnings,

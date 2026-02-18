@@ -36,7 +36,6 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "range",
-          enforcement: "required",
           min: -90,
           max: 90,
           inclusive: true,
@@ -50,7 +49,6 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "range",
-          enforcement: "required",
           min: -180,
           max: 180,
           inclusive: true,
@@ -77,7 +75,6 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "range",
-          enforcement: "recommended",
           min: 0,
           inclusive: true,
           message: "Coordinate uncertainty should be a positive number",
@@ -91,7 +88,6 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "format",
-          enforcement: "required",
           format: "iso8601",
           message:
             "OBIS requires eventDate in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD)",
@@ -130,7 +126,6 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "format",
-          enforcement: "recommended",
           format: "url",
           message: "Scientific name ID should be a valid URI (e.g., WoRMS LSID)",
         },
@@ -156,7 +151,6 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "range",
-          enforcement: "recommended",
           min: 0,
           max: 11000,
           inclusive: true,
@@ -170,7 +164,6 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "range",
-          enforcement: "recommended",
           min: 0,
           max: 11000,
           inclusive: true,

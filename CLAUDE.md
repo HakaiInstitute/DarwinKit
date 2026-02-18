@@ -22,7 +22,7 @@ DarwinKit is a modular TypeScript application organized as a Deno workspace for 
 
 - **Runtime**: Deno 2.0+ with workspace support
 - **CLI**: Cliffy CLI with Effect for data, schema, and error handling
-- **Validation**: Effect Data and Schema with custom biodiversity validators
+- **Validation**: Effect Data and Schema with typed constraint system
 - **Data Processing**: DuckDB for CSV parsing, schema inference, and validation operations
 - **Testing**: Deno test runner
 - **Error Handling**: Effect library for functional error handling
@@ -93,7 +93,7 @@ DarwinKit uses a hybrid specification system combining external JSON schemas wit
 The foundation of DarwinKit's validation system comes from official Darwin Core schemas:
 - Generated from Darwin Core XML schemas via `deno task cli import` (or `import_schema()` from `@dwkt/core/import`)
 - Contains 6 standard profiles: `Event`, `Occurrence`, `Taxon`, `ExtendedMeasurementOrFact`, `dnaDerivedData`, `ResourceRelationship`
-- Provides canonical field definitions with types, descriptions, OBIS requirements, and range validators
+- Provides canonical field definitions with types, descriptions, OBIS requirements, and constraints
 - Imported as JSON into `packages/domain/src/specs/profiles/registry.ts`
 - **Gitignored** — must be regenerated before running tests (CI does this automatically)
 
@@ -107,25 +107,42 @@ TypeScript-defined profiles extend base Darwin Core with community-specific requ
 
 **Two-Tier Profile Resolution:**
 
-The profile registry in `registry.ts` implements a sophisticated resolution system:
+The profile registry in `registry.ts` implements a resolution system:
 
 1. **TypeScript Profile Priority**: Check TypeScript profile registry first (OBIS, GBIF, etc.)
 2. **JSON Fallback**: If not found, look up profile in imported `dwcSchema.json`
 3. **Inheritance Resolution**: Recursively resolve parent profiles via `extends` property
-4. **Normalization**: Convert JSON validators to `ValidatorConfig` objects via `normalizeField()`
-5. **Profile Merging**: Combine parent and child profiles with child taking precedence
+4. **Normalization**: Convert JSON validators to typed `Constraint` objects via `normalizeField()`
+5. **Profile Merging**: Combine parent and child profiles using `mergeConstraints()` (replacement by type)
+
+**Constraint System:**
+
+Validation uses a discriminated union of typed constraints (`Constraint` in `constraints.ts`):
+- `RangeConstraint`, `RequiredConstraint`, `UniqueConstraint`, `PatternConstraint`, `LengthConstraint`, `FormatConstraint`, `VocabularyConstraint`
+- Each constraint carries its own typed fields flat (no nested params)
+- Only `RequiredConstraint` has `enforcement`: `"required"` (ERROR) | `"recommended"` (WARNING) | `"optional"` (INFO) — controls *presence* severity
+- Value constraints (Range, Pattern, Format, Length, Unique) have no enforcement — value validity is unconditional (always ERROR)
+- `VocabularyConstraint` has `strictness`: `"strict"` (ERROR) | `"recommended"` (WARNING, default) — DWC treats all vocabularies as "recommended best practice"
+- Obligation mapping: `required` → enforcement `"required"`, `strongly recommended` → `"recommended"`, `recommended` → `"optional"`, `optional` → no constraint
 
 **Field Normalization:**
 
 JSON schemas use different field formats than TypeScript profiles, requiring normalization:
 - `normalizeJsonProfile()` converts raw JSON profiles to `ValidationProfile` format
-- `normalizeField()` (in `field-definition.ts`) transforms JSON validators:
-  - String validators: `"date"`, `"url"`, `"coordinate"` → `ValidatorConfig` objects
-  - Type definitions: Maps JSON types to Effect schema validators
-  - Controlled vocabularies: Links to vocabulary registry
+- `normalizeField()` (in `field-definition.ts`) transforms JSON validators to typed `Constraint` objects:
+  - String validators: `"date"`, `"url"`, `"unique"` → typed `Constraint` objects
+  - Controlled vocabularies: Converted to `VocabularyConstraint` in constraints array
+  - Obligations: `obis_required`/`gbif_required` → `ObligationsMap` on `FieldDefinition`
 - **Dual-purpose storage**:
   - `fields`: Raw JSON format (used for SQL DDL generation)
-  - `normalizedFields`: Processed format (used for validation logic)
+  - `normalizedFields`: Processed format with `Constraint[]` (used for validation logic)
+
+**3-Tier Constraint Resolution (packages/core/src/validation/field-resolution.ts):**
+
+At validation time, constraints are resolved through a 3-tier merge pipeline:
+1. **Spec** (normalizedFields + obligations): Base constraints from the Darwin Core schema, plus obligation-derived `RequiredConstraint`s
+2. **Profile** (fieldOverrides): Community-specific overrides using `mergeConstraints()` — full replacement by constraint type (trusted, curated)
+3. **Config** (fieldMappings): User config using `addConstraints()` — additive only, cannot weaken spec/profile constraints
 
 **Profile Inheritance Example:**
 
@@ -134,11 +151,13 @@ JSON schemas use different field formats than TypeScript profiles, requiring nor
 {
   id: "obis-event",
   extends: "Event",  // Inherits all Event fields
-  fields: {
-    // Additional OBIS-specific requirements
-    decimalLatitude: { required: true },
-    decimalLongitude: { required: true },
-    eventDate: { required: true }
+  fieldOverrides: {
+    decimalLatitude: {
+      requirement: FieldRequirementLevel.Required,
+      constraints: [
+        { type: "range", min: -90, max: 90, inclusive: true }
+      ]
+    }
   }
 }
 ```
@@ -151,14 +170,18 @@ When Darwin Core standards are updated, regenerate the base schemas:
 deno task cli import
 ```
 
-This fetches the latest Darwin Core XML schemas and OBIS checklist, then generates `dwcSchema.json` with all standard profiles, field definitions, OBIS requirements, and range validators. The integration test `test/schema-generation.test.ts` validates the generated output.
+This fetches the latest Darwin Core XML schemas and OBIS checklist, then generates `dwcSchema.json` with all standard profiles, field definitions, OBIS requirements, and constraints. The integration test `test/schema-generation.test.ts` validates the generated output.
 
 **Key Files:**
 - `packages/domain/src/specs/generated/dwcSchema.json` - Generated Darwin Core specifications (gitignored)
 - `packages/core/src/import/get_dwc_schema.ts` - Schema generation logic
+- `packages/domain/src/specs/constraints.ts` - Constraint discriminated union and merge logic
+- `packages/domain/src/specs/constraint-presets.ts` - Named constraint bundles for YAML configs
+- `packages/domain/src/specs/field-definition.ts` - JSON field normalization to `FieldDefinition`
 - `packages/domain/src/specs/profiles/registry.ts` - Profile resolution and merging
-- `packages/domain/src/specs/field-definition.ts` - JSON field normalization
 - `packages/domain/src/specs/vocabularies/registry.ts` - Controlled vocabularies
+- `packages/core/src/validation/field-resolution.ts` - 3-tier constraint merge pipeline
+- `packages/core/src/validation/field-validators.ts` - Constraint-dispatched SQL validation
 
 ### Key Development Patterns
 

@@ -185,18 +185,10 @@ function handleEnumViolation(
 
     if (!specField || !rawField?.values) return [];
 
-    // Get enforcement from constraints: check required/unique constraints first
-    // (these represent the field's overall enforcement), fall back to vocabulary constraint
-    const fieldConstraint = specField.constraints?.find((c) =>
-      c.type === "required" || c.type === "unique"
-    );
+    // Derive severity from vocabulary constraint strictness if present,
+    // otherwise default to ERROR (DuckDB ENUM rejection = invalid value)
     const vocabConstraint = specField.constraints?.find((c) => c.type === "vocabulary");
-    const enforcement = fieldConstraint?.enforcement ?? vocabConstraint?.enforcement ?? "required";
-
-    // Skip violations for optional enforcement - any value is accepted
-    if (enforcement === "optional") {
-      return [];
-    }
+    const enforcement = vocabConstraint?.strictness === "recommended" ? "recommended" : "required";
 
     const allowedValues = Object.keys(rawField.values);
     const suggestedValue = ctx.enableSuggestions

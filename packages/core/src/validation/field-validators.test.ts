@@ -16,6 +16,7 @@ import {
   findPatternViolations,
   findRangeViolations,
   findRequiredViolations,
+  validateRequiredConstraints,
 } from "./field-validators.ts";
 
 // =============================================================================
@@ -70,7 +71,6 @@ Deno.test("findRangeViolations - detects values above max", async () => {
       min: -90,
       max: 90,
       inclusive: true,
-      enforcement: "required" as const,
     };
     const field = makeField("lat", [constraint]);
 
@@ -100,7 +100,6 @@ Deno.test("findRangeViolations - detects values below min", async () => {
       min: -90,
       max: 90,
       inclusive: true,
-      enforcement: "required" as const,
     };
     const field = makeField("lat", [constraint]);
 
@@ -129,7 +128,6 @@ Deno.test("findRangeViolations - only min specified", async () => {
       type: "range" as const,
       min: 0,
       inclusive: true,
-      enforcement: "required" as const,
     };
     const field = makeField("depth", [constraint]);
 
@@ -158,7 +156,6 @@ Deno.test("findRangeViolations - only max specified", async () => {
       type: "range" as const,
       max: 100,
       inclusive: true,
-      enforcement: "required" as const,
     };
     const field = makeField("val", [constraint]);
 
@@ -188,7 +185,6 @@ Deno.test("findRangeViolations - inclusive boundary passes", async () => {
       min: -90,
       max: 90,
       inclusive: true,
-      enforcement: "required" as const,
     };
     const field = makeField("lat", [constraint]);
 
@@ -211,7 +207,6 @@ Deno.test("findRangeViolations - exclusive boundary fails", async () => {
       min: -90,
       max: 90,
       inclusive: false,
-      enforcement: "required" as const,
     };
     const field = makeField("lat", [constraint]);
 
@@ -237,7 +232,6 @@ Deno.test("findPatternViolations - valid match passes", async () => {
     const constraint = {
       type: "pattern" as const,
       pattern: "^[A-Z]{2}$",
-      enforcement: "required" as const,
     };
     const field = makeField("code", [constraint]);
 
@@ -259,7 +253,6 @@ Deno.test("findPatternViolations - invalid match fails", async () => {
     const constraint = {
       type: "pattern" as const,
       pattern: "^[A-Z]{2}$",
-      enforcement: "required" as const,
     };
     const field = makeField("code", [constraint]);
 
@@ -291,7 +284,6 @@ Deno.test("findLengthViolations - at minLength passes", async () => {
       type: "length" as const,
       minLength: 3,
       maxLength: 100,
-      enforcement: "required" as const,
     };
     const field = makeField("name", [constraint]);
 
@@ -312,7 +304,6 @@ Deno.test("findLengthViolations - below minLength fails", async () => {
     const constraint = {
       type: "length" as const,
       minLength: 3,
-      enforcement: "required" as const,
     };
     const field = makeField("name", [constraint]);
 
@@ -339,7 +330,6 @@ Deno.test("findLengthViolations - above maxLength fails", async () => {
     const constraint = {
       type: "length" as const,
       maxLength: 10,
-      enforcement: "required" as const,
     };
     const field = makeField("name", [constraint]);
 
@@ -366,7 +356,6 @@ Deno.test("findFormatViolations - valid ISO 8601 date passes", async () => {
     const constraint = {
       type: "format" as const,
       format: "iso8601" as const,
-      enforcement: "required" as const,
     };
     const field = makeField("eventDate", [constraint]);
 
@@ -388,7 +377,6 @@ Deno.test("findFormatViolations - invalid date detected", async () => {
     const constraint = {
       type: "format" as const,
       format: "iso8601" as const,
-      enforcement: "required" as const,
     };
     const field = makeField("eventDate", [constraint]);
 
@@ -416,7 +404,6 @@ Deno.test("findFormatViolations - valid URL passes", async () => {
     const constraint = {
       type: "format" as const,
       format: "url" as const,
-      enforcement: "required" as const,
     };
     const field = makeField("url", [constraint]);
 
@@ -483,7 +470,7 @@ Deno.test("findRequiredViolations - NULL detected", async () => {
   });
 });
 
-Deno.test("findRequiredViolations - optional enforcement skips validation", async () => {
+Deno.test("findRequiredViolations - optional enforcement produces INFO violations", async () => {
   await withConnection(async (conn) => {
     await setupTable(conn, "country VARCHAR", [
       "1, ''",
@@ -502,7 +489,52 @@ Deno.test("findRequiredViolations - optional enforcement skips validation", asyn
       findRequiredViolations(conn, TABLE, "country", constraint, field),
     );
 
-    assert(result._tag === "Success");
+    // Optional enforcement now produces violations (INFO severity) instead of skipping
+    assert(result._tag === "Failure");
+    const violations = (result.cause as { error: unknown }).error as {
+      length: number;
+      0: { enforcement: string; severity: string };
+    };
+    assertEquals(violations.length, 2);
+    assertEquals(violations[0].enforcement, "optional");
+  });
+});
+
+Deno.test("validateRequiredConstraints - strictest enforcement wins over weaker config", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "country VARCHAR", [
+      "1, 'Canada'",
+      "2, NULL",
+    ]);
+
+    // Spec constraint is strict (required), config adds a weaker one (recommended).
+    // The strictest must win — NULL should be a required-level violation, not a warning.
+    const specConstraint = {
+      type: "required" as const,
+      allowEmpty: false,
+      allowWhitespace: false,
+      enforcement: "required" as const,
+    };
+    const configConstraint = {
+      type: "required" as const,
+      allowEmpty: false,
+      allowWhitespace: false,
+      enforcement: "recommended" as const,
+    };
+    const field = makeField("country", [specConstraint, configConstraint]);
+
+    const result = await Effect.runPromiseExit(
+      validateRequiredConstraints(conn, TABLE, "country", field),
+    );
+
+    assert(result._tag === "Failure");
+    const violations = (result.cause as { error: unknown }).error as {
+      length: number;
+      0: { enforcement: string };
+    };
+    assertEquals(violations.length, 1);
+    // The violation should carry the strictest enforcement level
+    assertEquals(violations[0].enforcement, "required");
   });
 });
 

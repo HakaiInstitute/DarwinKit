@@ -14,14 +14,7 @@ export * from "./constraints.ts";
 // Constraint Presets
 export * from "./constraint-presets.ts";
 
-// Vocabulary utilities
-export * from "./vocabulary-utils.ts";
-
 // Validation Profiles
 export { OBIS_EVENT_PROFILE } from "./profiles/obis-event.ts";
 export { OBIS_BASE_PROFILE } from "./profiles/obis.ts";
 export { getValidationProfile, VALIDATION_PROFILES } from "./profiles/registry.ts";
-
-// Vocabularies
-export * from "./vocabularies/config.ts";
-export * from "./vocabularies/registry.ts";

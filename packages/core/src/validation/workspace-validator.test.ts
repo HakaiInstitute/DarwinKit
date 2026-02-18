@@ -373,8 +373,9 @@ function assertEnumViolations(
   expectedRowNumber: number,
 ): void {
   const datasetResult = result.datasetResults[0];
+  // Vocabulary violations default to warnings (recommended strictness)
   const enumViolations = Array.filter(
-    datasetResult.fieldViolations.errors,
+    datasetResult.fieldViolations.warnings,
     isEnumViolation,
   );
 
@@ -600,6 +601,8 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
     const result = await validateWorkspace(tempDir);
 
+    // Overall status is "fail" because there are schema errors (unmapped required
+    // fields). The vocabulary violation itself is a warning (recommended strictness).
     assertEquals(result.overallStatus, "fail");
     assertEnumViolations(result, "basisOfRecord", "InvalidBasis", 2);
   });
@@ -733,7 +736,7 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
         {
           originName: "eventDate",
           targetName: "eventDate",
-          constraints: [{ type: "format", format: "iso8601", enforcement: "required" }],
+          constraints: [{ type: "format", format: "iso8601" }],
         },
         { originName: "decimalLatitude", targetName: "decimalLatitude" },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
@@ -783,7 +786,7 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
         {
           originName: "references",
           targetName: "references",
-          constraints: [{ type: "format", format: "url", enforcement: "required" }],
+          constraints: [{ type: "format", format: "url" }],
         },
       ],
       { profile: "Event", spec: "dwc-event" },
@@ -792,9 +795,9 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
     const result = await validateWorkspace(tempDir);
     const datasetResult = result.datasetResults[0];
 
-    // Config's format constraint is additive-only; `references` already has a format
-    // constraint from spec (enforcement: "optional"), so the spec's enforcement is preserved.
-    // Check all severity levels for the violation.
+    // Config's format constraint is additive (tightening): `references` already has a
+    // format constraint from spec, and config adds another. Both fire on "not-a-url",
+    // producing 2 violations (both at ERROR severity since value violations are always errors).
     const formatViolations = [
       ...Array.filter(datasetResult.fieldViolations.errors, isFormatViolation),
       ...Array.filter(datasetResult.fieldViolations.warnings, isFormatViolation),
@@ -802,8 +805,14 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
     ];
 
     const urlViolations = formatViolations.filter((v) => v.fieldName === "references");
-    assertEquals(urlViolations.length, 1, "Expected 1 URL format violation");
-    assertEquals(urlViolations[0].value, "not-a-url");
+    assertEquals(
+      urlViolations.length,
+      2,
+      "Expected 2 URL format violations (spec optional + config required)",
+    );
+    for (const v of urlViolations) {
+      assertEquals(v.value, "not-a-url");
+    }
   });
 });
 
@@ -826,7 +835,7 @@ Deno.test("WorkspaceValidator - Pattern Validation Tests", async (t) => {
           originName: "countryCode",
           targetName: "countryCode",
           constraints: [
-            { type: "pattern", pattern: "^[A-Z]{2}$", enforcement: "required" },
+            { type: "pattern", pattern: "^[A-Z]{2}$" },
           ],
         },
       ],
@@ -867,7 +876,7 @@ Deno.test("WorkspaceValidator - Length Validation Tests", async (t) => {
           originName: "locality",
           targetName: "locality",
           constraints: [
-            { type: "length", minLength: 3, maxLength: 100, enforcement: "required" },
+            { type: "length", minLength: 3, maxLength: 100 },
           ],
         },
       ],
@@ -922,8 +931,8 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
     const result = await validateWorkspace(tempDir);
     const datasetResult = result.datasetResults[0];
 
-    // Config's required constraint is additive-only; `country` already has a required
-    // constraint from spec (enforcement: "recommended"), so it appears as a warning.
+    // Config's required constraint is additive-only; `country` may already have a required
+    // constraint from spec with a different enforcement level.
     const requiredViolations = [
       ...Array.filter(datasetResult.fieldViolations.errors, isRequiredFieldViolation),
       ...Array.filter(datasetResult.fieldViolations.warnings, isRequiredFieldViolation),
@@ -936,9 +945,10 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
     );
   });
 
-  await t.step("config constraints are additive-only — cannot override spec range", async () => {
-    // Config attempts to narrow decimalLatitude range from spec's -90..90 to 49.0..49.9.
-    // With additive-only semantics, the spec's range is preserved and config's is ignored.
+  await t.step("config constraints tighten spec — narrower range catches violations", async () => {
+    // Config narrows decimalLatitude range from spec's -90..90 to 49.0..49.9.
+    // With additive (tightening) semantics, both constraints are checked:
+    // data must satisfy spec AND config ranges. 50.0 passes spec but fails config.
     const tempDir = await createTempDir("constraint_additive_only");
 
     await createSingleDatasetWorkspace(
@@ -960,8 +970,8 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
           originName: "decimalLatitude",
           targetName: "decimalLatitude",
           constraints: [
-            // Attempt to narrow the spec's range — should be silently ignored
-            { type: "range", min: 49.0, max: 49.9, inclusive: true, enforcement: "required" },
+            // Tighten the spec's range for this dataset
+            { type: "range", min: 49.0, max: 49.9, inclusive: true },
           ],
         },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
@@ -972,8 +982,7 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
     const result = await validateWorkspace(tempDir);
     const datasetResult = result.datasetResults[0];
 
-    // 50.0 is within the spec's -90..90 range, so no range violation should fire.
-    // The config's narrower 49.0..49.9 range is ignored (additive-only).
+    // 50.0 passes spec's -90..90 but fails config's 49.0..49.9 — expect 1 violation.
     const rangeViolations = [
       ...Array.filter(datasetResult.fieldViolations.errors, isRangeViolation),
       ...Array.filter(datasetResult.fieldViolations.warnings, isRangeViolation),
@@ -981,8 +990,8 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
     const latViolations = rangeViolations.filter((v) => v.fieldName === "decimalLatitude");
     assertEquals(
       latViolations.length,
-      0,
-      "Config cannot override spec range — no violations expected",
+      1,
+      "Config tightens spec range — 50.0 outside 49.0..49.9",
     );
   });
 });

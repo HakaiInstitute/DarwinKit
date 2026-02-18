@@ -23,13 +23,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
-import type {
-  Constraint,
-  EnforcementLevel,
-  FieldDefinition,
-  VocabularyKey,
-} from "@dwkt/domain/specs";
-import { getVocabularyValues } from "@dwkt/domain/specs";
+import type { Constraint, FieldDefinition } from "@dwkt/domain/specs";
 import type { FieldViolation, ValidField } from "@dwkt/domain/types";
 import {
   enforcementToSeverity,
@@ -111,8 +105,8 @@ export function findRangeViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new RangeViolation({
-          enforcement: constraint.enforcement,
-          severity: enforcementToSeverity(constraint.enforcement),
+          enforcement: "required",
+          severity: enforcementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -130,12 +124,20 @@ export function findRangeViolations(
   });
 }
 
+/** Strictness ordering for enforcement levels (higher = stricter). */
+const ENFORCEMENT_STRICTNESS: Record<string, number> = {
+  required: 2,
+  recommended: 1,
+  optional: 0,
+};
+
 /**
  * Generic helper for the filter-loop-collect pattern shared by constraint validators.
  *
  * Filters constraints by type, runs the provided `findViolations` function for each,
- * and accumulates violations. When `takeLast` is true, only the last matching constraint
- * is validated (used for `required` where child overrides parent after merge).
+ * and accumulates violations. When `takeStrictest` is true, only the constraint with
+ * the strictest enforcement level is validated (used for `required` where multiple
+ * constraints may exist after additive merge — prevents config from weakening spec).
  */
 function validateConstraintsByType<TType extends Constraint["type"]>(
   constraintType: TType,
@@ -152,7 +154,7 @@ function validateConstraintsByType<TType extends Constraint["type"]>(
   fieldName: string,
   specField: FieldDefinition,
   maxViolations: number,
-  options?: { takeLast?: boolean },
+  options?: { takeStrictest?: boolean },
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
     const filtered = (specField.constraints ?? []).filter(
@@ -162,7 +164,16 @@ function validateConstraintsByType<TType extends Constraint["type"]>(
       return validField(fieldName, specField.name);
     }
 
-    const toValidate = options?.takeLast ? [filtered[filtered.length - 1]] : filtered;
+    let toValidate = filtered;
+    if (options?.takeStrictest && filtered.length > 1) {
+      // takeStrictest is only used for "required" constraints which have enforcement
+      const strictest = filtered.reduce((a, b) => {
+        const aEnf = "enforcement" in a ? String(a.enforcement) : "";
+        const bEnf = "enforcement" in b ? String(b.enforcement) : "";
+        return (ENFORCEMENT_STRICTNESS[aEnf] ?? 0) >= (ENFORCEMENT_STRICTNESS[bEnf] ?? 0) ? a : b;
+      });
+      toValidate = [strictest];
+    }
 
     const violations: FieldViolation[] = [];
     for (const constraint of toValidate) {
@@ -204,7 +215,7 @@ export function validateRangeConstraints(
 }
 
 /**
- * Find vocabulary violations using vocabulary key
+ * Find vocabulary violations for a field against a set of valid values.
  *
  * Validates a field against a controlled vocabulary.
  */
@@ -212,11 +223,15 @@ export function findVocabularyViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  vocabularyKey: VocabularyKey,
+  values: readonly string[],
   specField: FieldDefinition,
-  enforcement: EnforcementLevel,
+  strictness: "strict" | "recommended" = "recommended",
   caseSensitive = false,
 ): Effect.Effect<ValidField, VocabularyViolation[]> {
+  // strict → ERROR, recommended → WARNING
+  const enforcement = strictness === "strict" ? "required" : "recommended";
+  const severity = enforcementToSeverity(enforcement);
+
   return Effect.gen(function* (_) {
     // Get distinct values from the field with ordered row numbers
     const query = `
@@ -236,6 +251,10 @@ export function findVocabularyViolations(
     );
 
     const rows = result.getRowObjects();
+
+    // For case-insensitive matching, pre-compute lowercase set
+    const lowerSet = caseSensitive ? null : new Set(values.map((v) => v.toLowerCase()));
+
     const violations: VocabularyViolation[] = [];
 
     for (const row of rows) {
@@ -252,54 +271,14 @@ export function findVocabularyViolations(
         rowNumbers = (rawRowNumbers as { items: unknown[] }).items.map((n) => Number(n));
       }
 
-      // Check if value is valid in vocabulary
-      let isValid = false;
-      if (caseSensitive) {
-        // getVocabularyValues validates key existence — if key is invalid, fail with one clear error
-        const vocabResult = yield* _(Effect.either(getVocabularyValues(vocabularyKey)));
-        if (vocabResult._tag === "Left") {
-          return yield* _(Effect.fail([
-            new VocabularyViolation({
-              enforcement,
-              severity: enforcementToSeverity(enforcement),
-              fieldName,
-              targetName: specField.name,
-              rowNumber: 0,
-              value: "",
-              errorMessage: `Unknown vocabulary key "${vocabularyKey}" — cannot validate field`,
-              validatorType: "vocabulary",
-            }),
-          ]));
-        }
-        isValid = (vocabResult.right as readonly string[]).includes(value);
-      } else {
-        const vocabResult = yield* _(Effect.either(getVocabularyValues(vocabularyKey)));
-        if (vocabResult._tag === "Left") {
-          return yield* _(Effect.fail([
-            new VocabularyViolation({
-              enforcement,
-              severity: enforcementToSeverity(enforcement),
-              fieldName,
-              targetName: specField.name,
-              rowNumber: 0,
-              value: "",
-              errorMessage: `Unknown vocabulary key "${vocabularyKey}" — cannot validate field`,
-              validatorType: "vocabulary",
-            }),
-          ]));
-        }
-        const vocabValues = vocabResult.right as readonly string[];
-        const lowerValue = value.toLowerCase();
-        isValid = vocabValues.some((v) => v.toLowerCase() === lowerValue);
-      }
+      const isValid = caseSensitive ? values.includes(value) : lowerSet!.has(value.toLowerCase());
 
       if (!isValid) {
-        // Add violation for each row with this invalid value
         for (const rowNum of rowNumbers) {
           violations.push(
             new VocabularyViolation({
               enforcement,
-              severity: enforcementToSeverity(enforcement),
+              severity,
               fieldName,
               targetName: specField.name,
               rowNumber: Number(rowNum),
@@ -334,14 +313,14 @@ export function findVocabularyConstraintViolations(
   specField: FieldDefinition,
   _maxViolations = 100,
 ): Effect.Effect<ValidField, VocabularyViolation[]> {
-  const { vocabularyKey, caseSensitive = false, enforcement } = constraint;
+  const { values, caseSensitive = false, strictness = "recommended" } = constraint;
   return findVocabularyViolations(
     connection,
     tableName,
     fieldName,
-    vocabularyKey as VocabularyKey,
+    values,
     specField,
-    enforcement,
+    strictness,
     caseSensitive,
   );
 }
@@ -349,8 +328,9 @@ export function findVocabularyConstraintViolations(
 /**
  * Validate controlled vocabulary for a field.
  *
- * Uses validateConstraintsByType with takeLast — after merge, only the
- * last vocabulary constraint is validated (child overrides parent).
+ * All vocabulary constraints are checked (tightening semantics). If spec
+ * defines a vocabulary at "recommended" and config adds one at "required",
+ * both are validated — a bad value produces violations at both severity levels.
  *
  * Optional enforcement flows through with info severity (no early skip),
  * matching the behavior of range, format, pattern, and length validators.
@@ -370,7 +350,6 @@ export function validateVocabulary(
     fieldName,
     specField,
     maxViolations,
-    { takeLast: true },
   );
 }
 
@@ -386,7 +365,6 @@ export function findUniquenessViolations(
   tableName: string,
   fieldName: string,
   specField: FieldDefinition,
-  enforcement: EnforcementLevel,
   maxViolations = 100,
 ): Effect.Effect<ValidField, UniquenessViolation[]> {
   return Effect.gen(function* (_) {
@@ -427,12 +405,12 @@ export function findUniquenessViolations(
         affectedRows = (raw as { items: unknown[] }).items.map((n) => Number(n));
       }
 
-      // Create one violation per affected row
+      // Create one violation per affected row — uniqueness is always an error
       for (const rowNum of affectedRows) {
         violations.push(
           new UniquenessViolation({
-            enforcement,
-            severity: enforcementToSeverity(enforcement),
+            enforcement: "required",
+            severity: enforcementToSeverity("required"),
             fieldName,
             targetName: specField.name,
             rowNumber: Number(rowNum),
@@ -454,9 +432,32 @@ export function findUniquenessViolations(
 }
 
 /**
- * Validate uniqueness for a field
+ * Find uniqueness constraint violations for a single unique constraint.
  *
- * Checks for UniqueConstraint in the constraints array.
+ * Matches the signature expected by validateConstraintsByType.
+ */
+function findUniquenessConstraintViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  _constraint: Constraint & { type: "unique" },
+  specField: FieldDefinition,
+  maxViolations = 100,
+): Effect.Effect<ValidField, UniquenessViolation[]> {
+  return findUniquenessViolations(
+    connection,
+    tableName,
+    fieldName,
+    specField,
+    maxViolations,
+  );
+}
+
+/**
+ * Validate uniqueness for a field.
+ *
+ * All unique constraints are checked via validateConstraintsByType,
+ * consistent with the tightening semantics used by other constraint types.
  */
 export function validateUniqueness(
   connection: DuckDBConnection,
@@ -465,23 +466,15 @@ export function validateUniqueness(
   specField: FieldDefinition,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  return Effect.gen(function* (_) {
-    // Check if field has explicit uniqueness constraint
-    const uniqueConstraint = specField.constraints?.find((c) => c.type === "unique");
-    const enforcement = uniqueConstraint?.enforcement ?? "required";
-
-    // findUniquenessViolations fails with violations or succeeds with ValidField
-    return yield* _(
-      findUniquenessViolations(
-        connection,
-        tableName,
-        fieldName,
-        specField,
-        enforcement,
-        maxViolations,
-      ),
-    );
-  });
+  return validateConstraintsByType(
+    "unique",
+    findUniquenessConstraintViolations,
+    connection,
+    tableName,
+    fieldName,
+    specField,
+    maxViolations,
+  );
 }
 
 // =============================================================================
@@ -568,8 +561,8 @@ export function findFormatViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new FormatViolation({
-          enforcement: constraint.enforcement,
-          severity: enforcementToSeverity(constraint.enforcement),
+          enforcement: "required",
+          severity: enforcementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -648,8 +641,8 @@ export function findPatternViolations(
         : String(queryResult.left);
       return yield* _(Effect.fail([
         new PatternViolation({
-          enforcement: constraint.enforcement,
-          severity: enforcementToSeverity(constraint.enforcement),
+          enforcement: "required",
+          severity: enforcementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: 0,
@@ -666,8 +659,8 @@ export function findPatternViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new PatternViolation({
-          enforcement: constraint.enforcement,
-          severity: enforcementToSeverity(constraint.enforcement),
+          enforcement: "required",
+          severity: enforcementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -755,8 +748,8 @@ export function findLengthViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new LengthViolation({
-          enforcement: constraint.enforcement,
-          severity: enforcementToSeverity(constraint.enforcement),
+          enforcement: "required",
+          severity: enforcementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -818,11 +811,6 @@ export function findRequiredViolations(
   maxViolations = 100,
 ): Effect.Effect<ValidField, RequiredFieldViolation[]> {
   return Effect.gen(function* (_) {
-    // Skip validation for optional enforcement
-    if (constraint.enforcement === "optional") {
-      return validField(fieldName, specField.name);
-    }
-
     // CAST to VARCHAR because raw table may have auto-detected non-string types
     const asText = `CAST("${fieldName}" AS VARCHAR)`;
     const conditions: string[] = [`"${fieldName}" IS NULL`];
@@ -868,7 +856,8 @@ export function findRequiredViolations(
 
 /**
  * Validate required constraints for a field.
- * Uses takeLast — after merge, there should be at most one required constraint.
+ * Uses takeStrictest — after additive merge, multiple required constraints may
+ * exist (spec + config). We validate the strictest one so config cannot weaken spec.
  */
 export function validateRequiredConstraints(
   connection: DuckDBConnection,
@@ -885,7 +874,7 @@ export function validateRequiredConstraints(
     fieldName,
     specField,
     maxViolations,
-    { takeLast: true },
+    { takeStrictest: true },
   );
 }
 
@@ -893,16 +882,8 @@ export function validateRequiredConstraints(
  * Context for field validation decisions
  */
 export interface FieldValidationContext {
-  /** Raw field definition from profile (for hasEnumConstraint check) */
-  readonly rawField?: {
-    readonly type?: string;
-    readonly values?: unknown;
-    readonly unique?: string;
-  };
-  /** Schema table name (for isPrimaryKeyField check) */
-  readonly schemaTableName: string;
-  /** Whether the field has a controlled vocabulary */
-  readonly hasControlledVocabulary: boolean;
+  /** Whether DuckDB enforces uniqueness via PRIMARY KEY (skip software validation) */
+  readonly isDbPrimaryKey: boolean;
   /** Maximum violations per field (default: 100) */
   readonly maxViolations?: number;
 }
@@ -933,22 +914,18 @@ export function validateField(
       validateLengthConstraints(connection, tableName, fieldName, specField, maxViolations),
     ];
 
-    // Vocabulary validation — skip if already validated as ENUM constraint
-    const hasEnumConstraint = context.rawField?.type === "controlled-vocabulary" &&
-      context.rawField?.values;
-    if (context.hasControlledVocabulary && !hasEnumConstraint) {
+    // Vocabulary validation — runs when spec defines a vocabulary for the field
+    const hasVocabularyConstraint = specField.constraints?.some((c) => c.type === "vocabulary") ??
+      false;
+    if (hasVocabularyConstraint) {
       validators.push(
         validateVocabulary(connection, tableName, fieldName, specField, maxViolations),
       );
     }
 
-    // Uniqueness validation — skip PKs (handled by DB PRIMARY KEY constraint)
-    const isPrimaryKeyField = targetName === context.schemaTableName + "ID" ||
-      (targetName.endsWith("ID") && context.rawField?.unique === "true");
-    const hasUniqueConstraint = specField.constraints
-      ? specField.constraints.some((c) => c.type === "unique")
-      : false;
-    if (hasUniqueConstraint && !isPrimaryKeyField) {
+    // Uniqueness validation — skip when DuckDB enforces via PRIMARY KEY
+    const hasUniqueConstraint = specField.constraints?.some((c) => c.type === "unique") ?? false;
+    if (hasUniqueConstraint && !context.isDbPrimaryKey) {
       validators.push(
         validateUniqueness(connection, tableName, fieldName, specField, maxViolations),
       );

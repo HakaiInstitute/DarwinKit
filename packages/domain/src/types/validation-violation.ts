@@ -43,6 +43,17 @@ export interface PartitionedViolations<T> {
  * Base fields shared by all field violations
  *
  * These schema fields are used to construct all violation types.
+ *
+ * **enforcement** records the rule's strictness level as metadata (not configuration).
+ * - For RequiredFieldViolation and VocabularyViolation, enforcement varies by constraint
+ *   (e.g., "required", "recommended", or "optional" for presence checks;
+ *   "strict" vs "recommended" mapped to enforcement for vocabulary checks).
+ * - For value violations (Range, Format, Pattern, Length, Unique), enforcement is
+ *   always "required" because value validity is unconditional — invalid values are
+ *   always errors regardless of the field's requirement level.
+ *
+ * **severity** is derived from enforcement via `enforcementToSeverity()`:
+ *   "required" → ERROR, "recommended" → WARNING, "optional" → INFO.
  */
 const baseViolationFields = {
   enforcement: Schema.Union(
