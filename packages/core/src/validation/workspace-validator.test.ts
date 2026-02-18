@@ -1130,6 +1130,39 @@ Deno.test("WorkspaceValidator - Obligation-Based Requirement", async (t) => {
   });
 });
 
+Deno.test("WorkspaceValidator - Vocabulary Strictness Tests", async (t) => {
+  await t.step(
+    "recommended strictness produces WARNING severity",
+    async () => {
+      const tempDir = await createTempDir("vocab_recommended_strictness");
+
+      await createSingleDatasetWorkspace(
+        tempDir,
+        "occurrences",
+        TEST_DATA.OCCURRENCES_WITH_INVALID_BASIS,
+        [
+          { originName: "occurrenceID", targetName: "occurrenceID" },
+          { originName: "basisOfRecord", targetName: "basisOfRecord" },
+          { originName: "scientificName", targetName: "scientificName" },
+        ],
+        { profile: "Occurrence", spec: "dwc-occurrence" },
+      );
+
+      const result = await validateWorkspace(tempDir);
+      const datasetResult = result.datasetResults[0];
+
+      // basisOfRecord has a controlled vocabulary with default strictness "recommended"
+      const enumWarnings = Array.filter(
+        datasetResult.fieldViolations.warnings,
+        isEnumViolation,
+      );
+      assert(enumWarnings.length > 0, "Should have at least one enum violation warning");
+      assertEquals(enumWarnings[0].severity, "warning");
+      assertEquals(enumWarnings[0].enforcement, "recommended");
+    },
+  );
+});
+
 Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
   await t.step("YAML preset: latitude applies range and format constraints", async () => {
     const tempDir = await createTempDir("preset_latitude");

@@ -16,6 +16,7 @@ import {
   findPatternViolations,
   findRangeViolations,
   findRequiredViolations,
+  findUniquenessViolations,
   validateRequiredConstraints,
 } from "./field-validators.ts";
 
@@ -559,5 +560,165 @@ Deno.test("findRequiredViolations - allowEmpty permits empty strings", async () 
 
     // allowEmpty + allowWhitespace means only NULL triggers a violation
     assert(result._tag === "Success");
+  });
+});
+
+// =============================================================================
+// Invariant: Value constraint violations always produce ERROR severity
+// =============================================================================
+
+Deno.test("Value violations always produce ERROR severity", async (t) => {
+  await t.step("range violation has severity=error and enforcement=required", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "lat DOUBLE", ["1, 999.0"]);
+
+      const constraint = { type: "range" as const, min: -90, max: 90, inclusive: true };
+      const field = makeField("lat", [constraint]);
+
+      const result = await Effect.runPromiseExit(
+        findRangeViolations(conn, TABLE, "lat", constraint, field),
+      );
+
+      assert(result._tag === "Failure");
+      const violations = (result.cause as { error: unknown }).error as Array<
+        { severity: string; enforcement: string }
+      >;
+      assertEquals(violations[0].severity, "error");
+      assertEquals(violations[0].enforcement, "required");
+    });
+  });
+
+  await t.step("format violation has severity=error and enforcement=required", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "eventDate VARCHAR", ["1, 'not-a-date'"]);
+
+      const constraint = { type: "format" as const, format: "iso8601" as const };
+      const field = makeField("eventDate", [constraint]);
+
+      const result = await Effect.runPromiseExit(
+        findFormatViolations(conn, TABLE, "eventDate", constraint, field),
+      );
+
+      assert(result._tag === "Failure");
+      const violations = (result.cause as { error: unknown }).error as Array<
+        { severity: string; enforcement: string }
+      >;
+      assertEquals(violations[0].severity, "error");
+      assertEquals(violations[0].enforcement, "required");
+    });
+  });
+
+  await t.step("pattern violation has severity=error and enforcement=required", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "countryCode VARCHAR", ["1, 'USA'"]);
+
+      const constraint = { type: "pattern" as const, pattern: "^[A-Z]{2}$" };
+      const field = makeField("countryCode", [constraint]);
+
+      const result = await Effect.runPromiseExit(
+        findPatternViolations(conn, TABLE, "countryCode", constraint, field),
+      );
+
+      assert(result._tag === "Failure");
+      const violations = (result.cause as { error: unknown }).error as Array<
+        { severity: string; enforcement: string }
+      >;
+      assertEquals(violations[0].severity, "error");
+      assertEquals(violations[0].enforcement, "required");
+    });
+  });
+
+  await t.step("length violation has severity=error and enforcement=required", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "name VARCHAR", ["1, 'ab'"]);
+
+      const constraint = { type: "length" as const, minLength: 5 };
+      const field = makeField("name", [constraint]);
+
+      const result = await Effect.runPromiseExit(
+        findLengthViolations(conn, TABLE, "name", constraint, field),
+      );
+
+      assert(result._tag === "Failure");
+      const violations = (result.cause as { error: unknown }).error as Array<
+        { severity: string; enforcement: string }
+      >;
+      assertEquals(violations[0].severity, "error");
+      assertEquals(violations[0].enforcement, "required");
+    });
+  });
+});
+
+// =============================================================================
+// Uniqueness Constraint Tests
+// =============================================================================
+
+Deno.test("Uniqueness constraint violations", async (t) => {
+  await t.step("detects duplicate values with correct row numbers", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "eventID VARCHAR", [
+        "1, 'E1'",
+        "2, 'E2'",
+        "3, 'E1'",
+        "4, 'E3'",
+        "5, 'E2'",
+      ]);
+
+      const field = makeField("eventID", [{ type: "unique" as const }]);
+
+      const result = await Effect.runPromiseExit(
+        findUniquenessViolations(conn, TABLE, "eventID", field),
+      );
+
+      assert(result._tag === "Failure");
+      const violations = (result.cause as { error: unknown }).error as Array<
+        { value: string; rowNumber: number; severity: string; enforcement: string }
+      >;
+
+      // E1 appears in rows 1,3 and E2 in rows 2,5 — 4 violations total
+      assertEquals(violations.length, 4);
+
+      // All uniqueness violations are errors
+      for (const v of violations) {
+        assertEquals(v.severity, "error");
+        assertEquals(v.enforcement, "required");
+      }
+    });
+  });
+
+  await t.step("no violations when all values are unique", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "eventID VARCHAR", [
+        "1, 'E1'",
+        "2, 'E2'",
+        "3, 'E3'",
+      ]);
+
+      const field = makeField("eventID", [{ type: "unique" as const }]);
+
+      const result = await Effect.runPromiseExit(
+        findUniquenessViolations(conn, TABLE, "eventID", field),
+      );
+
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("null values are excluded from uniqueness check", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "eventID VARCHAR", [
+        "1, NULL",
+        "2, NULL",
+        "3, 'E1'",
+      ]);
+
+      const field = makeField("eventID", [{ type: "unique" as const }]);
+
+      const result = await Effect.runPromiseExit(
+        findUniquenessViolations(conn, TABLE, "eventID", field),
+      );
+
+      assert(result._tag === "Success");
+    });
   });
 });

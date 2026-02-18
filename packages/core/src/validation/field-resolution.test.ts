@@ -693,3 +693,49 @@ Deno.test("applyResolvedConstraints - returns base field when mapping is undefin
   const result = applyResolvedConstraints(baseField, undefined);
   assertEquals(result, baseField);
 });
+
+// =============================================================================
+// Invariant: Config cannot weaken spec/profile constraints
+// =============================================================================
+
+Deno.test("Config cannot weaken spec/profile constraints", async (t) => {
+  await t.step(
+    "config optional requirement does not weaken spec required — strictest wins",
+    () => {
+      const specConstraints: Constraint[] = [
+        { type: "required", enforcement: "required", allowEmpty: false, allowWhitespace: false },
+      ];
+
+      const configConstraints: Constraint[] = [
+        { type: "required", enforcement: "optional", allowEmpty: false, allowWhitespace: false },
+      ];
+
+      const merged = addConstraints(specConstraints, configConstraints);
+
+      // Both constraints are kept (additive)
+      const requiredConstraints = merged.filter(
+        (c): c is Constraint & { type: "required" } => c.type === "required",
+      );
+      assertEquals(requiredConstraints.length, 2);
+
+      // deriveRequirementFromConstraints picks the strictest
+      const derived = deriveRequirementFromConstraints(merged);
+      assertEquals(derived, FieldRequirementLevel.Required);
+    },
+  );
+
+  await t.step("config range is additive — both spec and config ranges enforced", () => {
+    const specConstraints: Constraint[] = [
+      { type: "range", min: -90, max: 90, inclusive: true },
+    ];
+
+    const configConstraints: Constraint[] = [
+      { type: "range", min: 0, max: 50, inclusive: true },
+    ];
+
+    const merged = addConstraints(specConstraints, configConstraints);
+
+    const rangeConstraints = merged.filter((c) => c.type === "range");
+    assertEquals(rangeConstraints.length, 2, "Both ranges should be present (additive)");
+  });
+});
