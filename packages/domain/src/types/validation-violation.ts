@@ -25,18 +25,18 @@
 
 import { Schema } from "effect";
 import { ErrorSeverity } from "../errors/severity.ts";
-import type { EnforcementLevel } from "../specs/constraints.ts";
+import type { RequirementLevel } from "../specs/constraints.ts";
 
 /**
  * Partitioned violations by severity level
  *
  * Generic interface for grouping violations into errors, warnings, and info
- * based on their enforcement level.
+ * based on their severity.
  */
 export interface PartitionedViolations<T> {
-  readonly errors: ReadonlyArray<T>; // enforcement: "required"
-  readonly warnings: ReadonlyArray<T>; // enforcement: "recommended"
-  readonly info: ReadonlyArray<T>; // enforcement: "optional"
+  readonly errors: ReadonlyArray<T>; // severity: "error"
+  readonly warnings: ReadonlyArray<T>; // severity: "warning"
+  readonly info: ReadonlyArray<T>; // severity: "info"
 }
 
 /**
@@ -44,22 +44,12 @@ export interface PartitionedViolations<T> {
  *
  * These schema fields are used to construct all violation types.
  *
- * **enforcement** records the rule's strictness level as metadata (not configuration).
- * - For RequiredFieldViolation, enforcement varies by constraint
- *   (e.g., "required", "recommended", or "optional" for presence checks).
- * - For value violations (Range, Format, Pattern, Length, Unique), enforcement is
- *   always "required" because value validity is unconditional — invalid values are
- *   always errors regardless of the field's requirement level.
- *
- * **severity** is derived from enforcement via `enforcementToSeverity()`:
- *   "required" → ERROR, "recommended" → WARNING, "optional" → INFO.
+ * **severity** is the sole behavioral field — it determines how the violation
+ * is reported (error, warning, or info). Derived from requirement level via
+ * `requirementToSeverity()`: "required" → ERROR, "recommended" → WARNING,
+ * "optional" → INFO.
  */
 const baseViolationFields = {
-  enforcement: Schema.Union(
-    Schema.Literal("required"),
-    Schema.Literal("recommended"),
-    Schema.Literal("optional"),
-  ),
   severity: Schema.Union(
     Schema.Literal("error"),
     Schema.Literal("warning"),
@@ -333,23 +323,23 @@ export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldV
 }
 
 /**
- * Convert enforcement level to severity
+ * Convert requirement level to severity
  *
- * Maps validation domain enforcement levels to error severity
+ * Maps validation domain requirement levels to error severity
  * for consistent error handling across the system.
  *
- * @param enforcement - The enforcement level from validator config
+ * @param requirement - The requirement level from constraint config
  * @returns The corresponding error severity
  *
  * @example
  * ```typescript
- * enforcementToSeverity("required")    // => ErrorSeverity.ERROR
- * enforcementToSeverity("recommended") // => ErrorSeverity.WARNING
- * enforcementToSeverity("optional")    // => ErrorSeverity.INFO
+ * requirementToSeverity("required")    // => ErrorSeverity.ERROR
+ * requirementToSeverity("recommended") // => ErrorSeverity.WARNING
+ * requirementToSeverity("optional")    // => ErrorSeverity.INFO
  * ```
  */
-export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSeverity {
-  switch (enforcement) {
+export function requirementToSeverity(requirement: RequirementLevel): ErrorSeverity {
+  switch (requirement) {
     case "required":
       return ErrorSeverity.ERROR;
     case "recommended":
@@ -363,9 +353,7 @@ export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSever
  * Partition field violations by severity level
  *
  * Groups violations into errors, warnings, and info based on their
- * severity level. This is more semantically correct than partitioning
- * by enforcement since severity is the actual categorization used
- * for reporting.
+ * severity level.
  *
  * @param violations - Array of violations to partition
  * @returns Partitioned violations object

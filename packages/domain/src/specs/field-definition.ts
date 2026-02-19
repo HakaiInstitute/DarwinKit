@@ -23,11 +23,11 @@ import * as S from "effect/Schema";
 import type { Field } from "../schemas/validation-profile.ts";
 import {
   Constraint,
-  type EnforcementLevel,
   FieldDataType,
   type Obligation,
   ObligationsMap,
-  obligationToEnforcement,
+  obligationToRequirement,
+  type RequirementLevel,
 } from "./constraints.ts";
 
 export const FieldDefinitionSchema = S.Struct({
@@ -46,15 +46,15 @@ export type FieldDefinition = S.Schema.Type<typeof FieldDefinitionSchema>;
  * Result of looking up a field's obligation for a given standard.
  *
  * Returns both the raw obligation (for conditional logic like "required (if exists)")
- * and the derived enforcement level (for constraint generation).
+ * and the derived requirement level (for constraint generation).
  */
 export interface ObligationResult {
   readonly obligation: Obligation;
-  readonly enforcement: EnforcementLevel | undefined;
+  readonly requirement: RequirementLevel | undefined;
 }
 
 /**
- * Get the obligation and derived enforcement level for a field, given the active standard.
+ * Get the obligation and derived requirement level for a field, given the active standard.
  */
 export function obligationForStandard(
   field: FieldDefinition,
@@ -67,7 +67,7 @@ export function obligationForStandard(
     ? field.obligations.gbif
     : undefined;
   if (!obligation) return undefined;
-  return { obligation, enforcement: obligationToEnforcement(obligation) };
+  return { obligation, requirement: obligationToRequirement(obligation) };
 }
 
 /**
@@ -140,15 +140,15 @@ export function normalizeField(jsonField: Field): FieldDefinition {
         if (raw.type === "required") {
           raw.allowEmpty ??= false;
           raw.allowWhitespace ??= false;
-          raw.enforcement ??= "required";
+          raw.requirement ??= "required";
         } else {
-          // Value constraints no longer have enforcement — strip if present
-          if (raw.enforcement !== undefined) {
+          // Value constraints no longer have requirement — strip if present
+          if (raw.requirement !== undefined) {
             console.warn(
-              `Stripping "enforcement" from ${raw.type} constraint on field "${jsonField.name}" — only "required" constraints support enforcement`,
+              `Stripping "requirement" from ${raw.type} constraint on field "${jsonField.name}" — only "required" constraints support requirement`,
             );
           }
-          delete raw.enforcement;
+          delete raw.requirement;
         }
         try {
           constraints.push(S.decodeUnknownSync(Constraint)(raw));
@@ -176,7 +176,7 @@ export function normalizeField(jsonField: Field): FieldDefinition {
               type: "required" as const,
               allowEmpty: false,
               allowWhitespace: false,
-              enforcement: "required" as const,
+              requirement: "required" as const,
             });
             break;
           case "recommended":
@@ -184,7 +184,7 @@ export function normalizeField(jsonField: Field): FieldDefinition {
               type: "required" as const,
               allowEmpty: false,
               allowWhitespace: false,
-              enforcement: "optional" as const,
+              requirement: "optional" as const,
             });
             break;
           case "optional":

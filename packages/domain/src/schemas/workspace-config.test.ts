@@ -112,7 +112,7 @@ Deno.test("makeWorkspaceConfig", async (t) => {
 });
 
 Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
-  await t.step("requirement field accepts valid enforcement levels", () => {
+  await t.step("requirement field accepts valid requirement levels", () => {
     const config = makeWorkspaceConfig({
       validation: {
         datasets: [{

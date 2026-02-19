@@ -20,11 +20,6 @@ import type { PartitionedViolations } from "./validation-violation.ts";
  * Note: No rowNumber since schema violations are structural, not row-level.
  */
 const baseSchemaViolationFields = {
-  enforcement: Schema.Union(
-    Schema.Literal("required"),
-    Schema.Literal("recommended"),
-    Schema.Literal("optional"),
-  ),
   severity: Schema.Union(
     Schema.Literal("error"),
     Schema.Literal("warning"),
@@ -137,8 +132,7 @@ export function isMissingMappingViolation(v: SchemaViolation): v is MissingMappi
  * Partition schema violations by severity level
  *
  * Groups violations into errors, warnings, and info based on their
- * severity level. Uses severity (not enforcement) to match
- * partitionFieldViolations — both partition for reporting purposes.
+ * severity level.
  *
  * @param violations - Array of violations to partition
  * @returns Partitioned violations object

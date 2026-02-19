@@ -11,7 +11,7 @@ import {
   mergeConstraints,
   Obligation,
   ObligationsMap,
-  obligationToEnforcement,
+  obligationToRequirement,
   RangeConstraint,
 } from "./constraints.ts";
 import { normalizeField } from "./field-definition.ts";
@@ -53,7 +53,7 @@ Deno.test("RangeConstraint - rejects non-numeric min", () => {
 Deno.test("RequiredConstraint - decodes valid input", () => {
   const result = decodeConstraint({
     type: "required",
-    enforcement: "required",
+    requirement: "required",
     message: "Field is required",
   });
   assertEquals(result.type, "required");
@@ -113,7 +113,7 @@ Deno.test("Constraint union - discriminates by type field", () => {
   });
   assertEquals(range.type, "range");
 
-  const required = decodeConstraint({ type: "required", enforcement: "required" });
+  const required = decodeConstraint({ type: "required", requirement: "required" });
   assertEquals(required.type, "required");
 });
 
@@ -151,7 +151,7 @@ Deno.test("mergeConstraints - child range replaces parent range", () => {
 Deno.test("mergeConstraints - non-overlapping types preserved", () => {
   const parent: Constraint[] = [
     { type: "range", min: 0, max: 100, inclusive: true },
-    { type: "required", allowEmpty: false, allowWhitespace: false, enforcement: "required" },
+    { type: "required", allowEmpty: false, allowWhitespace: false, requirement: "required" },
   ];
   const child: Constraint[] = [
     { type: "format", format: "iso8601" },
@@ -193,7 +193,7 @@ Deno.test("mergeConstraints - empty arrays handled", () => {
       type: "required" as const,
       allowEmpty: false,
       allowWhitespace: false,
-      enforcement: "required" as const,
+      requirement: "required" as const,
     },
   ];
   assertEquals(mergeConstraints(withParent, child).length, 1);
@@ -310,51 +310,51 @@ Deno.test("normalizeField - omits obligations when no values present", () => {
 });
 
 // =============================================================================
-// obligationToEnforcement Tests
+// obligationToRequirement Tests
 // =============================================================================
 
-Deno.test("obligationToEnforcement - maps 'required' to 'required'", () => {
-  assertEquals(obligationToEnforcement("required"), "required");
+Deno.test("obligationToRequirement - maps 'required' to 'required'", () => {
+  assertEquals(obligationToRequirement("required"), "required");
 });
 
-Deno.test("obligationToEnforcement - maps 'strongly recommended' to 'recommended'", () => {
-  assertEquals(obligationToEnforcement("strongly recommended"), "recommended");
+Deno.test("obligationToRequirement - maps 'strongly recommended' to 'recommended'", () => {
+  assertEquals(obligationToRequirement("strongly recommended"), "recommended");
 });
 
-Deno.test("obligationToEnforcement - maps 'recommended' to 'optional'", () => {
-  assertEquals(obligationToEnforcement("recommended"), "optional");
+Deno.test("obligationToRequirement - maps 'recommended' to 'optional'", () => {
+  assertEquals(obligationToRequirement("recommended"), "optional");
 });
 
-Deno.test("obligationToEnforcement - returns undefined for 'optional'", () => {
-  assertEquals(obligationToEnforcement("optional"), undefined);
+Deno.test("obligationToRequirement - returns undefined for 'optional'", () => {
+  assertEquals(obligationToRequirement("optional"), undefined);
 });
 
-Deno.test("obligationToEnforcement - returns undefined for 'optional (required for imaging data)'", () => {
-  assertEquals(obligationToEnforcement("optional (required for imaging data)"), undefined);
+Deno.test("obligationToRequirement - returns undefined for 'optional (required for imaging data)'", () => {
+  assertEquals(obligationToRequirement("optional (required for imaging data)"), undefined);
 });
 
-Deno.test("obligationToEnforcement - returns undefined for 'required (if exists)'", () => {
-  assertEquals(obligationToEnforcement("required (if exists)"), undefined);
+Deno.test("obligationToRequirement - returns undefined for 'required (if exists)'", () => {
+  assertEquals(obligationToRequirement("required (if exists)"), undefined);
 });
 
 // =============================================================================
 // normalizeField String-to-Constraint Tests
 // =============================================================================
 
-Deno.test("normalizeField - string 'required' → RequiredConstraint enforcement:required", () => {
+Deno.test("normalizeField - string 'required' → RequiredConstraint requirement:required", () => {
   const field = makeTestField({ name: "test", validators: ["required"] });
   const result = normalizeField(field);
   const required = result.constraints.filter((c) => c.type === "required");
   assertEquals(required.length, 1);
-  assertEquals(required[0].enforcement, "required");
+  assertEquals(required[0].requirement, "required");
 });
 
-Deno.test("normalizeField - string 'recommended' → RequiredConstraint enforcement:optional (INFO for absence)", () => {
+Deno.test("normalizeField - string 'recommended' → RequiredConstraint requirement:optional (INFO for absence)", () => {
   const field = makeTestField({ name: "test", validators: ["recommended"] });
   const result = normalizeField(field);
   const required = result.constraints.filter((c) => c.type === "required");
   assertEquals(required.length, 1);
-  assertEquals(required[0].enforcement, "optional");
+  assertEquals(required[0].requirement, "optional");
 });
 
 Deno.test("normalizeField - string 'optional' → no constraint emitted", () => {
@@ -434,7 +434,7 @@ Deno.test("normalizeField - unknown string validator is skipped with warning", (
   assertEquals(result.constraints.length, 0);
 });
 
-Deno.test("normalizeField - warns when enforcement is stripped from value constraint", () => {
+Deno.test("normalizeField - warns when requirement is stripped from value constraint", () => {
   const warnings: string[] = [];
   const originalWarn = console.warn;
   console.warn = (msg: string) => warnings.push(msg);
@@ -442,7 +442,7 @@ Deno.test("normalizeField - warns when enforcement is stripped from value constr
     const field = makeTestField({
       name: "decimalLatitude",
       validators: [
-        { type: "range", params: { min: -90, max: 90 }, enforcement: "optional" },
+        { type: "range", params: { min: -90, max: 90 }, requirement: "optional" },
       ],
     });
     const result = normalizeField(field);
@@ -457,7 +457,7 @@ Deno.test("normalizeField - warns when enforcement is stripped from value constr
   }
 });
 
-Deno.test("normalizeField - no warning when value constraint has no enforcement", () => {
+Deno.test("normalizeField - no warning when value constraint has no requirement", () => {
   const warnings: string[] = [];
   const originalWarn = console.warn;
   console.warn = (msg: string) => warnings.push(msg);

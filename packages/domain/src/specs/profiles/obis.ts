@@ -61,7 +61,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "required",
-          enforcement: "required",
+          requirement: "required",
           allowEmpty: false,
           allowWhitespace: false,
           message: "OBIS requires geodeticDatum (e.g., WGS84, EPSG:4326)",
@@ -112,7 +112,7 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
       constraints: [
         {
           type: "required",
-          enforcement: "recommended",
+          requirement: "recommended",
           allowEmpty: false,
           allowWhitespace: false,
           message: "Scientific name is strongly recommended for taxonomic identification",

@@ -6,7 +6,7 @@
  */
 
 import * as S from "effect/Schema";
-import { Constraint, EnforcementLevel } from "../specs/constraints.ts";
+import { Constraint, RequirementLevel } from "../specs/constraints.ts";
 
 // =============================================================================
 // Default Values
@@ -34,7 +34,7 @@ const DEFAULT_OUTPUT_DIR = "./output";
 export const workspaceFieldMappingSchema = S.Struct({
   originName: S.String.annotations({ description: "Source column name in the CSV file." }),
   targetName: S.String.annotations({ description: "Target Darwin Core field name." }),
-  requirement: S.optional(EnforcementLevel),
+  requirement: S.optional(RequirementLevel),
   constraints: S.optional(S.Array(Constraint)),
   preset: S.optional(S.String),
 });
@@ -51,7 +51,7 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
   sourceField: S.String.annotations({ description: "Field name in the source dataset." }),
   targetDataset: S.String.annotations({ description: "Name of the target dataset." }),
   targetField: S.String.annotations({ description: "Field name in the target dataset." }),
-  enforcement: S.optional(EnforcementLevel),
+  requirement: S.optional(RequirementLevel),
   description: S.optional(S.String),
 }).annotations({
   title: "Cross-Dataset Rule",
@@ -286,7 +286,7 @@ export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
  */
 export type ForeignKeyRuleMatch =
   & Pick<WorkspaceCrossDatasetRule, "targetDataset" | "targetField">
-  & Required<Pick<WorkspaceCrossDatasetRule, "enforcement">>;
+  & Required<Pick<WorkspaceCrossDatasetRule, "requirement">>;
 
 /** Config with validation settings guaranteed present */
 export type ConfigWithValidation = WorkspaceConfig & { validation: ValidationSettings };

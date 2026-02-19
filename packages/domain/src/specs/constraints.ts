@@ -15,13 +15,13 @@
 import * as S from "effect/Schema";
 
 // =============================================================================
-// Enforcement Level (shared infrastructure, moved from validators.ts)
+// Requirement Level (shared infrastructure, moved from validators.ts)
 // =============================================================================
 
 /**
- * Enforcement levels determine how strictly constraints are applied
+ * Requirement levels determine how strictly constraints are applied
  */
-export const EnforcementLevel: S.Literal<[
+export const RequirementLevel: S.Literal<[
   "required",
   "recommended",
   "optional",
@@ -31,10 +31,10 @@ export const EnforcementLevel: S.Literal<[
   "optional",
 );
 
-export type EnforcementLevel = S.Schema.Type<typeof EnforcementLevel>;
+export type RequirementLevel = S.Schema.Type<typeof RequirementLevel>;
 
-/** Strictness ordering for enforcement levels (higher = stricter). */
-export const ENFORCEMENT_STRICTNESS: Record<EnforcementLevel, number> = {
+/** Strictness ordering for requirement levels (higher = stricter). */
+export const REQUIREMENT_STRICTNESS: Record<RequirementLevel, number> = {
   required: 2,
   recommended: 1,
   optional: 0,
@@ -81,7 +81,7 @@ export const RequiredConstraint = S.Struct({
   type: S.Literal("required"),
   allowEmpty: S.optionalWith(S.Boolean, { default: () => false }),
   allowWhitespace: S.optionalWith(S.Boolean, { default: () => false }),
-  enforcement: EnforcementLevel,
+  requirement: RequirementLevel,
   message: S.optional(S.String),
 });
 
@@ -197,11 +197,11 @@ export type ObligationsMap = S.Schema.Type<typeof ObligationsMap>;
 // =============================================================================
 
 /**
- * Map an Obligation (external standard metadata) to an EnforcementLevel for constraints.
+ * Map an Obligation (external standard metadata) to a RequirementLevel for constraints.
  *
  * **Terminology chain:**
  * - **Obligation**: External metadata from biodiversity standards (dwcSchema.json). Per-standard, per-field.
- * - **EnforcementLevel**: Per-constraint severity. The single mechanism for all validation strictness.
+ * - **RequirementLevel**: Per-constraint severity. The single mechanism for all validation strictness.
  *
  * Returns undefined for obligations that do not unconditionally generate a required constraint
  * ("optional", "optional (required for imaging data)", "required (if exists)").
@@ -209,9 +209,9 @@ export type ObligationsMap = S.Schema.Type<typeof ObligationsMap>;
  * Note: "required (if exists)" is handled separately in resolveFieldDefinitions() —
  * it emits a WARNING-level constraint only when the field is actually mapped in the dataset.
  */
-export function obligationToEnforcement(
+export function obligationToRequirement(
   obligation: Obligation,
-): EnforcementLevel | undefined {
+): RequirementLevel | undefined {
   switch (obligation) {
     case "required":
       return "required";

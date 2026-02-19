@@ -51,14 +51,14 @@ export const CONSTRAINT_PRESETS: Record<string, ConstraintPreset> = {
   uniqueId: {
     description: "Unique identifier (non-null, unique within dataset)",
     constraints: [
-      { type: "required", allowEmpty: false, allowWhitespace: false, enforcement: "required" },
+      { type: "required", allowEmpty: false, allowWhitespace: false, requirement: "required" },
       { type: "unique" },
     ],
   },
   requiredText: {
     description: "Required non-empty text field",
     constraints: [
-      { type: "required", allowEmpty: false, allowWhitespace: false, enforcement: "required" },
+      { type: "required", allowEmpty: false, allowWhitespace: false, requirement: "required" },
     ],
   },
   url: {

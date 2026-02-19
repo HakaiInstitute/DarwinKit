@@ -3,11 +3,11 @@
  */
 
 import * as S from "effect/Schema";
-import { Constraint, EnforcementLevel } from "../specs/constraints.ts";
+import { Constraint, RequirementLevel } from "../specs/constraints.ts";
 
 // Field override schema
 export const fieldOverrideSchema = S.Struct({
-  requirement: S.optional(EnforcementLevel),
+  requirement: S.optional(RequirementLevel),
   constraints: S.optional(S.Array(Constraint)),
 });
 

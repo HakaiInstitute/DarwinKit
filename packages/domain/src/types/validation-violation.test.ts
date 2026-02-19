@@ -4,9 +4,9 @@
 
 import { assertEquals } from "@std/assert";
 import {
-  enforcementToSeverity,
   partitionFieldViolations,
   RequiredFieldViolation,
+  requirementToSeverity,
 } from "./validation-violation.ts";
 import {
   MissingFieldViolation,
@@ -16,19 +16,19 @@ import {
 import { ErrorSeverity } from "../errors/severity.ts";
 
 // =============================================================================
-// enforcementToSeverity Tests
+// requirementToSeverity Tests
 // =============================================================================
 
-Deno.test("enforcementToSeverity - maps required to ERROR", () => {
-  assertEquals(enforcementToSeverity("required"), ErrorSeverity.ERROR);
+Deno.test("requirementToSeverity - maps required to ERROR", () => {
+  assertEquals(requirementToSeverity("required"), ErrorSeverity.ERROR);
 });
 
-Deno.test("enforcementToSeverity - maps recommended to WARNING", () => {
-  assertEquals(enforcementToSeverity("recommended"), ErrorSeverity.WARNING);
+Deno.test("requirementToSeverity - maps recommended to WARNING", () => {
+  assertEquals(requirementToSeverity("recommended"), ErrorSeverity.WARNING);
 });
 
-Deno.test("enforcementToSeverity - maps optional to INFO", () => {
-  assertEquals(enforcementToSeverity("optional"), ErrorSeverity.INFO);
+Deno.test("requirementToSeverity - maps optional to INFO", () => {
+  assertEquals(requirementToSeverity("optional"), ErrorSeverity.INFO);
 });
 
 // =============================================================================
@@ -37,7 +37,6 @@ Deno.test("enforcementToSeverity - maps optional to INFO", () => {
 
 Deno.test("partitionFieldViolations - groups violations by severity", () => {
   const errorViolation = new RequiredFieldViolation({
-    enforcement: "required",
     severity: "error",
     fieldName: "eventID",
     targetName: "eventID",
@@ -48,7 +47,6 @@ Deno.test("partitionFieldViolations - groups violations by severity", () => {
   });
 
   const warningViolation = new RequiredFieldViolation({
-    enforcement: "recommended",
     severity: "warning",
     fieldName: "scientificName",
     targetName: "scientificName",
@@ -59,7 +57,6 @@ Deno.test("partitionFieldViolations - groups violations by severity", () => {
   });
 
   const infoViolation = new RequiredFieldViolation({
-    enforcement: "optional",
     severity: "info",
     fieldName: "kingdom",
     targetName: "kingdom",
@@ -92,7 +89,6 @@ Deno.test("partitionFieldViolations - empty input returns empty partitions", () 
 
 Deno.test("partitionSchemaViolations - groups violations by severity", () => {
   const errorViolation = new MissingFieldViolation({
-    enforcement: "required",
     severity: "error",
     fieldName: "eventID",
     targetName: "eventID",
@@ -102,7 +98,6 @@ Deno.test("partitionSchemaViolations - groups violations by severity", () => {
   });
 
   const warningViolation = new MissingFieldViolation({
-    enforcement: "recommended",
     severity: "warning",
     fieldName: "scientificName",
     targetName: "scientificName",
@@ -112,7 +107,6 @@ Deno.test("partitionSchemaViolations - groups violations by severity", () => {
   });
 
   const infoViolation = new UnmappedColumnViolation({
-    enforcement: "optional",
     severity: "info",
     fieldName: "extraColumn",
     targetName: "extraColumn",

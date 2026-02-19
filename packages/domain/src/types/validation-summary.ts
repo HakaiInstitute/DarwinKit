@@ -61,18 +61,18 @@ export function calculateSummary(
     }
   }
 
-  // Count cross-dataset violations by enforcement level
+  // Count cross-dataset violations by severity
   if (crossDatasetResults) {
     for (const result of crossDatasetResults) {
       for (const violation of result.violations) {
-        switch (violation.enforcement) {
-          case "required":
+        switch (violation.severity) {
+          case "error":
             totalErrors++;
             break;
-          case "recommended":
+          case "warning":
             totalWarnings++;
             break;
-          case "optional":
+          case "info":
             totalInfo++;
             break;
         }
