@@ -170,17 +170,16 @@ function handleNotNullViolation(
 /**
  * Handle enum violation
  *
- * Vocabulary enforcement follows the field's obligation level in the active standard:
- * - required → ERROR (invalid vocabulary value in a required field)
- * - strongly recommended → WARNING
- * - recommended / optional / no obligation → skip (no violation emitted)
+ * ENUMs are only created for fields whose obligation warrants enforcement
+ * (see `shouldEnforceVocabulary` in schema.ts). If DuckDB rejected a row
+ * due to an ENUM constraint, the violation is always worth reporting.
+ * Severity is derived from the field's obligation in the active standard.
  */
 function handleEnumViolation(
   parsed: ParsedErrorInfo,
   ctx: ViolationContext,
 ): Effect.Effect<FieldViolation[]> {
   return Effect.sync(() => {
-    // Find the field that caused the ENUM violation
     const enumMapping = ctx.columnMappings.find((m) =>
       m.origin === parsed.fieldName || m.target === parsed.fieldName
     );
@@ -192,13 +191,11 @@ function handleEnumViolation(
 
     if (!specField || !rawField?.values) return [];
 
-    // Derive vocabulary enforcement from the field's obligation in the active standard.
-    // Fields without an obligation or with optional/recommended obligations produce no
-    // vocabulary violation — the spec doesn't consider the vocabulary important enough.
+    // Derive severity from obligation. Default to "recommended" (WARNING) since the
+    // ENUM's existence already implies the field has sufficient obligation.
     const obligationResult = obligationForStandard(specField, ctx.activeStandard);
-    if (!obligationResult?.enforcement) return [];
+    const enforcement = obligationResult?.enforcement ?? "recommended";
 
-    const enforcement = obligationResult.enforcement;
     const allowedValues = Object.keys(rawField.values);
     const suggestedValue = ctx.enableSuggestions
       ? findSuggestedValue(parsed.value, allowedValues)

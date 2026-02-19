@@ -1,10 +1,11 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
-import type { WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
+import type { ValidationProfile, WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
 import { deriveProfileId } from "@dwkt/domain/schemas";
-import { getValidationProfile } from "@dwkt/domain/specs";
+import { getValidationProfile, obligationForStandard } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
 import { findForeignKeyRule, sanitizeTableName } from "./sql.ts";
+import { resolveActiveStandard } from "../validation/field-resolution.ts";
 
 /**
  * Minimal dataset interface for schema import
@@ -74,6 +75,23 @@ type DatasetWithProfile = {
  *   for the SQL dialect in use, that may need additional handling.
  */
 
+/**
+ * Determine whether a controlled vocabulary field should have a DuckDB ENUM created.
+ *
+ * Only fields with "required" or "recommended" obligation in the active standard
+ * get ENUM enforcement. Optional/unmapped fields accept any value as TEXT.
+ */
+function shouldEnforceVocabulary(
+  spec: ValidationProfile,
+  fieldName: string,
+  activeStandard: "obis" | "gbif" | "custom",
+): boolean {
+  const normalizedField = spec.normalizedFields?.[fieldName];
+  if (!normalizedField) return false;
+  const result = obligationForStandard(normalizedField, activeStandard);
+  return result?.enforcement === "required" || result?.enforcement === "recommended";
+}
+
 export function importSchema(
   connection: DuckDBConnection,
   dataset: DatasetWithProfile,
@@ -100,13 +118,17 @@ export function importSchema(
     }
     // Convert profile name to valid SQL table name using sanitizeTableName
     const tableName = sanitizeTableName(spec.name).toLowerCase();
+    const activeStandard = resolveActiveStandard(spec);
 
-    // 1. Create ENUM types for controlled vocabularies
+    // 1. Create ENUM types for controlled vocabularies (only for fields with sufficient obligation)
+    const enumFields = new Set<string>();
     const enums = Object.entries(spec.fields || {}).map(
       ([fieldName, field]) => {
-        // Check if this is a controlled vocabulary field
-        // Profile fields use `type === "controlled-vocabulary"` and may have `values`
         if (field.type === "controlled-vocabulary" && field.values) {
+          if (!shouldEnforceVocabulary(spec, fieldName, activeStandard)) {
+            return null;
+          }
+          enumFields.add(fieldName);
           const enumName = `${tableName}_${fieldName.toLowerCase()}_enum`;
           const enumValues = Object.keys(field.values).map((v: string) => `'${v}'`).join(", ");
           return `CREATE TYPE IF NOT EXISTS ${enumName} AS ENUM (${enumValues});`;
@@ -123,7 +145,7 @@ export function importSchema(
         .replace("IDENTIFIER", "TEXT")
         .replace(
           "CONTROLLED-VOCABULARY",
-          `${tableName}_${fieldName.toLowerCase()}_enum`,
+          enumFields.has(fieldName) ? `${tableName}_${fieldName.toLowerCase()}_enum` : "TEXT",
         )
         .replace("URI", "TEXT");
       let fieldStr = `"${fieldName}" ${fieldType}`;
