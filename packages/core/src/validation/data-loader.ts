@@ -22,11 +22,11 @@ import type {
 } from "@dwkt/domain/schemas";
 import type { FieldViolation } from "@dwkt/domain/types";
 import {
-  enforcementToSeverity,
   EnumViolation,
   ForeignKeyViolation,
   NotNullViolation,
   PrimaryKeyViolation,
+  requirementToSeverity,
 } from "@dwkt/domain/types";
 import { obligationForStandard } from "@dwkt/domain/specs";
 
@@ -114,8 +114,7 @@ function handlePrimaryKeyViolation(
 
       violations.push(
         new PrimaryKeyViolation({
-          enforcement: "required",
-          severity: enforcementToSeverity("required"),
+          severity: requirementToSeverity("required"),
           fieldName: pkMapping.origin,
           targetName: pkMapping.target,
           rowNumber: dupRowNum,
@@ -153,8 +152,7 @@ function handleNotNullViolation(
 
     return [
       new NotNullViolation({
-        enforcement: "required",
-        severity: enforcementToSeverity("required"),
+        severity: requirementToSeverity("required"),
         fieldName: notNullMapping.origin,
         targetName: notNullMapping.target,
         rowNumber: ctx.rowNum,
@@ -194,7 +192,7 @@ function handleEnumViolation(
     // Derive severity from obligation. Default to "recommended" (WARNING) since the
     // ENUM's existence already implies the field has sufficient obligation.
     const obligationResult = obligationForStandard(specField, ctx.activeStandard);
-    const enforcement = obligationResult?.enforcement ?? "recommended";
+    const requirement = obligationResult?.requirement ?? "recommended";
 
     const allowedValues = Object.keys(rawField.values);
     const suggestedValue = ctx.enableSuggestions
@@ -203,8 +201,7 @@ function handleEnumViolation(
 
     return [
       new EnumViolation({
-        enforcement,
-        severity: enforcementToSeverity(enforcement),
+        severity: requirementToSeverity(requirement),
         fieldName: enumMapping.origin,
         targetName: enumMapping.target,
         rowNumber: ctx.rowNum,
@@ -257,8 +254,8 @@ function handleForeignKeyViolation(
         ? yield* _(getCsvValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum))
         : "");
 
-    // Determine enforcement and referenced table/field from rule or parsed info
-    const enforcement = fkRule?.enforcement ?? "required";
+    // Determine requirement and referenced table/field from rule or parsed info
+    const requirement = fkRule?.requirement ?? "required";
     const referencedTable = fkRule?.targetDataset ?? parsed.referencedTable ?? "unknown";
     const referencedField = fkRule?.targetField ?? parsed.referencedField ?? targetField;
 
@@ -276,8 +273,7 @@ function handleForeignKeyViolation(
 
     return [
       new ForeignKeyViolation({
-        enforcement,
-        severity: enforcementToSeverity(enforcement),
+        severity: requirementToSeverity(requirement),
         fieldName: originField,
         targetName: targetField,
         rowNumber: ctx.rowNum,

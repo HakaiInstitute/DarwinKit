@@ -711,7 +711,7 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
   await t.step("detects ISO 8601 date format violations", async () => {
     const tempDir = await createTempDir("format_iso8601");
 
-    // Use explicit format constraint with "required" enforcement so violations are errors
+    // Use explicit format constraint so violations are errors
     await createSingleDatasetWorkspace(
       tempDir,
       "events",
@@ -920,7 +920,7 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
               type: "required",
               allowEmpty: false,
               allowWhitespace: false,
-              enforcement: "required",
+              requirement: "required",
             },
           ],
         },
@@ -932,7 +932,7 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
     const datasetResult = result.datasetResults[0];
 
     // Config's required constraint is additive-only; `country` may already have a required
-    // constraint from spec with a different enforcement level.
+    // constraint from spec with a different requirement level.
     const requiredViolations = [
       ...Array.filter(datasetResult.fieldViolations.errors, isRequiredFieldViolation),
       ...Array.filter(datasetResult.fieldViolations.warnings, isRequiredFieldViolation),
@@ -1158,7 +1158,6 @@ Deno.test("WorkspaceValidator - Vocabulary Strictness Tests", async (t) => {
       );
       assert(enumErrors.length > 0, "Should have at least one enum violation error");
       assertEquals(enumErrors[0].severity, "error");
-      assertEquals(enumErrors[0].enforcement, "required");
     },
   );
 });

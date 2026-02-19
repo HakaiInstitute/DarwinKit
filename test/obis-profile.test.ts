@@ -207,7 +207,7 @@ E2,2022-09-16,49.9012,-125.4789`;
         (v) =>
           isMissingFieldViolation(v) &&
           v.fieldName === "geodeticDatum" &&
-          v.enforcement === "required",
+          v.severity === "error",
       );
       assert(
         missingGeodeticDatum,

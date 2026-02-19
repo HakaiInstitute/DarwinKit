@@ -93,7 +93,7 @@ Deno.test("Schema generation", async (t) => {
     assertEquals(lat.validators!.includes("required"), true, "required fields get 'required'");
     // "recommended" string validator is no longer emitted — presence checking
     // for strongly recommended fields is handled by the obligation system
-    // via obligationToEnforcement() in the resolution pipeline
+    // via obligationToRequirement() in the resolution pipeline
     const year = schema.Event.fields.year;
     assertEquals(
       year.obis_required,

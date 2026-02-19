@@ -19,7 +19,7 @@ import type {
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
 import { deriveProfileId, parseSpecIdentifier } from "@dwkt/domain/schemas";
-import type { EnforcementLevel, FieldDefinition } from "@dwkt/domain/specs";
+import type { FieldDefinition, RequirementLevel } from "@dwkt/domain/specs";
 import { getPreset, getPresetNames, getValidationProfile } from "@dwkt/domain/specs";
 import type {
   CrossDatasetValidationResult,
@@ -31,11 +31,11 @@ import type {
 import {
   calculateSummary,
   CrossDatasetViolation,
-  enforcementToSeverity,
   MissingFieldViolation,
   MissingMappingViolation,
   partitionFieldViolations,
   partitionSchemaViolations,
+  requirementToSeverity,
   UnknownFieldViolation,
   UnknownProfileViolation,
   UnmappedColumnViolation,
@@ -53,7 +53,7 @@ import { resolveSchemaTableName } from "./summary.ts";
 import type { ResolutionDiagnostic } from "./field-resolution.ts";
 import {
   applyResolvedConstraints,
-  deriveEnforcementFromConstraints,
+  deriveRequirementFromConstraints,
   resolveActiveStandard,
   resolveFieldDefinitions,
 } from "./field-resolution.ts";
@@ -471,8 +471,7 @@ function validateDataset(
         const suggestionMsg = suggestion ? ` Did you mean "${suggestion}"?` : "";
         schemaViolations.push(
           new MissingMappingViolation({
-            enforcement: "required",
-            severity: enforcementToSeverity("required"),
+            severity: requirementToSeverity("required"),
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
@@ -544,8 +543,7 @@ function validateDataset(
         : "";
       schemaViolations.push(
         new MissingMappingViolation({
-          enforcement: "required",
-          severity: enforcementToSeverity("required"),
+          severity: requirementToSeverity("required"),
           fieldName: missingSourceField.fieldName,
           targetName: mapping?.targetName ?? missingSourceField.fieldName,
           errorMessage:
@@ -565,8 +563,7 @@ function validateDataset(
         : "";
       schemaViolations.push(
         new UnmappedColumnViolation({
-          enforcement: "optional",
-          severity: enforcementToSeverity("optional"),
+          severity: requirementToSeverity("optional"),
           fieldName: unmappedSourceColumn.fieldName,
           targetName: unmappedSourceColumn.fieldName,
           errorMessage:
@@ -604,8 +601,7 @@ function validateDataset(
           // Config-specified field missing from CSV is always an error
           schemaViolations.push(
             new MissingFieldViolation({
-              enforcement: "required",
-              severity: enforcementToSeverity("required"),
+              severity: requirementToSeverity("required"),
               fieldName,
               targetName: fieldName,
               errorMessage:
@@ -617,23 +613,22 @@ function validateDataset(
           continue;
         }
 
-        // Derive enforcement from constraints (single source of truth)
-        const enforcement = deriveEnforcementFromConstraints(fieldMapping.constraints);
-        if (!enforcement) {
+        // Derive requirement from constraints (single source of truth)
+        const requirement = deriveRequirementFromConstraints(fieldMapping.constraints);
+        if (!requirement) {
           // No requirement constraint — skip silently
           continue;
         }
 
-        const messageVerb = enforcement === "required"
+        const messageVerb = requirement === "required"
           ? "requires"
-          : enforcement === "recommended"
+          : requirement === "recommended"
           ? "strongly recommends"
           : "recommends";
 
         schemaViolations.push(
           new MissingFieldViolation({
-            enforcement,
-            severity: enforcementToSeverity(enforcement),
+            severity: requirementToSeverity(requirement),
             fieldName,
             targetName: fieldName,
             errorMessage:
@@ -657,8 +652,7 @@ function validateDataset(
       if (!profile?.normalizedFields) {
         schemaViolations.push(
           new UnknownProfileViolation({
-            enforcement: "required",
-            severity: enforcementToSeverity("required"),
+            severity: requirementToSeverity("required"),
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
@@ -682,8 +676,7 @@ function validateDataset(
         // Unknown field in profile
         schemaViolations.push(
           new UnknownFieldViolation({
-            enforcement: "required",
-            severity: enforcementToSeverity("required"),
+            severity: requirementToSeverity("required"),
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
@@ -718,8 +711,7 @@ function validateDataset(
       if (!fieldExists) {
         schemaViolations.push(
           new MissingFieldViolation({
-            enforcement: "required",
-            severity: enforcementToSeverity("required"),
+            severity: requirementToSeverity("required"),
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
@@ -770,7 +762,7 @@ function validateDataset(
 
     const processingTimeMs = Date.now() - startTime;
 
-    // Partition violations by enforcement level
+    // Partition violations by severity
     const partitionedSchemaViolations = partitionSchemaViolations(schemaViolations);
     const partitionedFieldViolations = partitionFieldViolations(allFieldViolations);
 
@@ -798,7 +790,7 @@ function validateDataset(
       processingTimeMs,
       status,
 
-      // Partitioned violations by enforcement level
+      // Partitioned violations by severity
       schemaViolations: partitionedSchemaViolations,
       fieldViolations: partitionedFieldViolations,
     };
@@ -820,7 +812,7 @@ function findCrossDatasetViolations(
     sourceField: string;
     targetDataset: string;
     targetField: string;
-    enforcement?: EnforcementLevel;
+    requirement?: RequirementLevel;
   },
   datasets: readonly DatasetConfig[],
 ): Effect.Effect<void, CrossDatasetViolation[]> {
@@ -854,13 +846,12 @@ function findCrossDatasetViolations(
       return;
     }
 
-    const enforcement = rule.enforcement ?? "required";
+    const requirement = rule.requirement ?? "required";
 
     // Build CrossDatasetViolation objects and fail with them
     const violations = rows.map((row) =>
       new CrossDatasetViolation({
-        enforcement,
-        severity: enforcementToSeverity(enforcement),
+        severity: requirementToSeverity(requirement),
         fieldName: rule.sourceField,
         targetName: rule.targetField,
         rowNumber: Number(row._row_number),
@@ -893,16 +884,16 @@ function validateCrossDatasetRule(
     sourceField: string;
     targetDataset: string;
     targetField: string;
-    enforcement?: string;
+    requirement?: string;
     description?: string;
   },
   datasets: readonly DatasetConfig[],
 ): Effect.Effect<CrossDatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
-    // Map string enforcement to EnforcementLevel
-    const enforcement: EnforcementLevel = rule.enforcement === "recommended"
+    // Map string requirement to RequirementLevel
+    const requirement: RequirementLevel = rule.requirement === "recommended"
       ? "recommended"
-      : rule.enforcement === "optional"
+      : rule.requirement === "optional"
       ? "optional"
       : "required";
 
@@ -911,7 +902,7 @@ function validateCrossDatasetRule(
     yield* _(
       findCrossDatasetViolations(
         connection,
-        { ...rule, enforcement },
+        { ...rule, requirement },
         datasets,
       ).pipe(
         Effect.catchAll((v) => {

@@ -89,7 +89,7 @@ function shouldEnforceVocabulary(
   const normalizedField = spec.normalizedFields?.[fieldName];
   if (!normalizedField) return false;
   const result = obligationForStandard(normalizedField, activeStandard);
-  return result?.enforcement === "required" || result?.enforcement === "recommended";
+  return result?.requirement === "required" || result?.requirement === "recommended";
 }
 
 export function importSchema(

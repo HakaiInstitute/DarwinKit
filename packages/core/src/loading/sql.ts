@@ -75,7 +75,7 @@ export function formatNullValues(nullValues: readonly string[]): string {
  * ```typescript
  * const rules = [{ sourceDataset: "occurrence", sourceField: "eventID", targetDataset: "event", targetField: "eventID", ruleType: "foreignKey" }];
  * findForeignKeyRule("occurrence", "eventID", rules)
- * // { targetDataset: "event", targetField: "eventID", enforcement: "required" }
+ * // { targetDataset: "event", targetField: "eventID", requirement: "required" }
  * ```
  */
 export function findForeignKeyRule(
@@ -97,7 +97,7 @@ export function findForeignKeyRule(
   return {
     targetDataset: rule.targetDataset,
     targetField: rule.targetField,
-    enforcement: rule.enforcement ?? "required",
+    requirement: rule.requirement ?? "required",
   };
 }
 

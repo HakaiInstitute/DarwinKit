@@ -177,7 +177,7 @@ const sampleRules: WorkspaceCrossDatasetRule[] = [
     sourceField: "eventID",
     targetDataset: "event",
     targetField: "eventID",
-    enforcement: "required",
+    requirement: "required",
   },
   {
     ruleType: "foreignKey",
@@ -185,7 +185,7 @@ const sampleRules: WorkspaceCrossDatasetRule[] = [
     sourceField: "occurrenceID",
     targetDataset: "occurrence",
     targetField: "occurrenceID",
-    enforcement: "recommended",
+    requirement: "recommended",
   },
   {
     ruleType: "referentialIntegrity",
@@ -201,13 +201,13 @@ Deno.test("findForeignKeyRule - finds matching rule", () => {
 
   assertEquals(result?.targetDataset, "event");
   assertEquals(result?.targetField, "eventID");
-  assertEquals(result?.enforcement, "required");
+  assertEquals(result?.requirement, "required");
 });
 
-Deno.test("findForeignKeyRule - returns enforcement from rule", () => {
+Deno.test("findForeignKeyRule - returns requirement from rule", () => {
   const result = findForeignKeyRule("measurement", "occurrenceID", sampleRules);
 
-  assertEquals(result?.enforcement, "recommended");
+  assertEquals(result?.requirement, "recommended");
 });
 
 Deno.test("findForeignKeyRule - returns undefined for non-matching dataset", () => {
@@ -240,8 +240,8 @@ Deno.test("findForeignKeyRule - returns undefined when rules are empty", () => {
   assertEquals(result, undefined);
 });
 
-Deno.test("findForeignKeyRule - defaults enforcement to required", () => {
-  const rulesWithoutEnforcement: WorkspaceCrossDatasetRule[] = [
+Deno.test("findForeignKeyRule - defaults requirement to required", () => {
+  const rulesWithoutRequirement: WorkspaceCrossDatasetRule[] = [
     {
       ruleType: "foreignKey",
       sourceDataset: "test",
@@ -251,7 +251,7 @@ Deno.test("findForeignKeyRule - defaults enforcement to required", () => {
     },
   ];
 
-  const result = findForeignKeyRule("test", "refID", rulesWithoutEnforcement);
+  const result = findForeignKeyRule("test", "refID", rulesWithoutRequirement);
 
-  assertEquals(result?.enforcement, "required");
+  assertEquals(result?.requirement, "required");
 });

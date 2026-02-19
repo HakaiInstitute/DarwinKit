@@ -12,7 +12,7 @@
  * 4. Complex nested structures - Creating schemas would add complexity without benefit
  *
  * The types aggregate results from multiple validators and datasets, providing
- * a comprehensive view of validation outcomes partitioned by enforcement level
+ * a comprehensive view of validation outcomes partitioned by severity
  * (errors, warnings, info).
  */
 
@@ -47,7 +47,7 @@ export interface DatasetValidationResult {
  * Uses CrossDatasetViolation[] directly for violations, which includes:
  * - rowNumber, value, errorMessage (from ViolationBase)
  * - params.sourceDataset, params.targetDataset, params.targetField
- * - enforcement and severity for consistent handling with other violations
+ * - severity for consistent handling with other violations
  */
 export interface CrossDatasetValidationResult {
   readonly ruleType: "foreignKey" | "referentialIntegrity";

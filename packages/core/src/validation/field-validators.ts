@@ -24,15 +24,15 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
 import type { Constraint, FieldDefinition } from "@dwkt/domain/specs";
-import { ENFORCEMENT_STRICTNESS } from "@dwkt/domain/specs";
+import { REQUIREMENT_STRICTNESS } from "@dwkt/domain/specs";
 import type { FieldViolation, ValidField } from "@dwkt/domain/types";
 import {
-  enforcementToSeverity,
   FormatViolation,
   LengthViolation,
   PatternViolation,
   RangeViolation,
   RequiredFieldViolation,
+  requirementToSeverity,
   UniquenessViolation,
 } from "@dwkt/domain/types";
 
@@ -105,8 +105,7 @@ export function findRangeViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new RangeViolation({
-          enforcement: "required",
-          severity: enforcementToSeverity("required"),
+          severity: requirementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -129,7 +128,7 @@ export function findRangeViolations(
  *
  * Filters constraints by type, runs the provided `findViolations` function for each,
  * and accumulates violations. When `takeStrictest` is true, only the constraint with
- * the strictest enforcement level is validated (used for `required` where multiple
+ * the strictest requirement level is validated (used for `required` where multiple
  * constraints may exist after additive merge — prevents config from weakening spec).
  */
 function validateConstraintsByType<TType extends Constraint["type"]>(
@@ -159,15 +158,15 @@ function validateConstraintsByType<TType extends Constraint["type"]>(
 
     let toValidate = filtered;
     if (options?.takeStrictest && filtered.length > 1) {
-      // takeStrictest is only used for "required" constraints which have enforcement
+      // takeStrictest is only used for "required" constraints which have requirement
       const strictest = filtered.reduce((a, b) => {
-        const aEnf = "enforcement" in a
-          ? (a.enforcement as keyof typeof ENFORCEMENT_STRICTNESS)
+        const aEnf = "requirement" in a
+          ? (a.requirement as keyof typeof REQUIREMENT_STRICTNESS)
           : undefined;
-        const bEnf = "enforcement" in b
-          ? (b.enforcement as keyof typeof ENFORCEMENT_STRICTNESS)
+        const bEnf = "requirement" in b
+          ? (b.requirement as keyof typeof REQUIREMENT_STRICTNESS)
           : undefined;
-        return (ENFORCEMENT_STRICTNESS[aEnf!] ?? 0) >= (ENFORCEMENT_STRICTNESS[bEnf!] ?? 0) ? a : b;
+        return (REQUIREMENT_STRICTNESS[aEnf!] ?? 0) >= (REQUIREMENT_STRICTNESS[bEnf!] ?? 0) ? a : b;
       });
       toValidate = [strictest];
     }
@@ -267,8 +266,7 @@ export function findUniquenessViolations(
       for (const rowNum of affectedRows) {
         violations.push(
           new UniquenessViolation({
-            enforcement: "required",
-            severity: enforcementToSeverity("required"),
+            severity: requirementToSeverity("required"),
             fieldName,
             targetName: specField.name,
             rowNumber: Number(rowNum),
@@ -419,8 +417,7 @@ export function findFormatViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new FormatViolation({
-          enforcement: "required",
-          severity: enforcementToSeverity("required"),
+          severity: requirementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -499,8 +496,7 @@ export function findPatternViolations(
         : String(queryResult.left);
       return yield* _(Effect.fail([
         new PatternViolation({
-          enforcement: "required",
-          severity: enforcementToSeverity("required"),
+          severity: requirementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: 0,
@@ -517,8 +513,7 @@ export function findPatternViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new PatternViolation({
-          enforcement: "required",
-          severity: enforcementToSeverity("required"),
+          severity: requirementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -606,8 +601,7 @@ export function findLengthViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new LengthViolation({
-          enforcement: "required",
-          severity: enforcementToSeverity("required"),
+          severity: requirementToSeverity("required"),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -694,8 +688,7 @@ export function findRequiredViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new RequiredFieldViolation({
-          enforcement: constraint.enforcement,
-          severity: enforcementToSeverity(constraint.enforcement),
+          severity: requirementToSeverity(constraint.requirement),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),

@@ -432,7 +432,7 @@ Deno.test("findRequiredViolations - empty string detected", async () => {
       type: "required" as const,
       allowEmpty: false,
       allowWhitespace: false,
-      enforcement: "required" as const,
+      requirement: "required" as const,
     };
     const field = makeField("country", [constraint]);
 
@@ -457,7 +457,7 @@ Deno.test("findRequiredViolations - NULL detected", async () => {
       type: "required" as const,
       allowEmpty: false,
       allowWhitespace: false,
-      enforcement: "required" as const,
+      requirement: "required" as const,
     };
     const field = makeField("country", [constraint]);
 
@@ -471,7 +471,7 @@ Deno.test("findRequiredViolations - NULL detected", async () => {
   });
 });
 
-Deno.test("findRequiredViolations - optional enforcement produces INFO violations", async () => {
+Deno.test("findRequiredViolations - optional requirement produces INFO violations", async () => {
   await withConnection(async (conn) => {
     await setupTable(conn, "country VARCHAR", [
       "1, ''",
@@ -482,7 +482,7 @@ Deno.test("findRequiredViolations - optional enforcement produces INFO violation
       type: "required" as const,
       allowEmpty: false,
       allowWhitespace: false,
-      enforcement: "optional" as const,
+      requirement: "optional" as const,
     };
     const field = makeField("country", [constraint]);
 
@@ -490,18 +490,17 @@ Deno.test("findRequiredViolations - optional enforcement produces INFO violation
       findRequiredViolations(conn, TABLE, "country", constraint, field),
     );
 
-    // Optional enforcement now produces violations (INFO severity) instead of skipping
+    // Optional requirement now produces violations (INFO severity) instead of skipping
     assert(result._tag === "Failure");
     const violations = (result.cause as { error: unknown }).error as {
       length: number;
-      0: { enforcement: string; severity: string };
+      0: { severity: string };
     };
     assertEquals(violations.length, 2);
-    assertEquals(violations[0].enforcement, "optional");
   });
 });
 
-Deno.test("validateRequiredConstraints - strictest enforcement wins over weaker config", async () => {
+Deno.test("validateRequiredConstraints - strictest requirement wins over weaker config", async () => {
   await withConnection(async (conn) => {
     await setupTable(conn, "country VARCHAR", [
       "1, 'Canada'",
@@ -514,13 +513,13 @@ Deno.test("validateRequiredConstraints - strictest enforcement wins over weaker 
       type: "required" as const,
       allowEmpty: false,
       allowWhitespace: false,
-      enforcement: "required" as const,
+      requirement: "required" as const,
     };
     const configConstraint = {
       type: "required" as const,
       allowEmpty: false,
       allowWhitespace: false,
-      enforcement: "recommended" as const,
+      requirement: "recommended" as const,
     };
     const field = makeField("country", [specConstraint, configConstraint]);
 
@@ -531,11 +530,11 @@ Deno.test("validateRequiredConstraints - strictest enforcement wins over weaker 
     assert(result._tag === "Failure");
     const violations = (result.cause as { error: unknown }).error as {
       length: number;
-      0: { enforcement: string };
+      0: { severity: string };
     };
     assertEquals(violations.length, 1);
-    // The violation should carry the strictest enforcement level
-    assertEquals(violations[0].enforcement, "required");
+    // The violation should carry the severity of the strictest requirement level
+    assertEquals(violations[0].severity, "error");
   });
 });
 
@@ -550,7 +549,7 @@ Deno.test("findRequiredViolations - allowEmpty permits empty strings", async () 
       type: "required" as const,
       allowEmpty: true,
       allowWhitespace: true,
-      enforcement: "required" as const,
+      requirement: "required" as const,
     };
     const field = makeField("notes", [constraint]);
 
@@ -568,7 +567,7 @@ Deno.test("findRequiredViolations - allowEmpty permits empty strings", async () 
 // =============================================================================
 
 Deno.test("Value violations always produce ERROR severity", async (t) => {
-  await t.step("range violation has severity=error and enforcement=required", async () => {
+  await t.step("range violation has severity=error", async () => {
     await withConnection(async (conn) => {
       await setupTable(conn, "lat DOUBLE", ["1, 999.0"]);
 
@@ -581,14 +580,13 @@ Deno.test("Value violations always produce ERROR severity", async (t) => {
 
       assert(result._tag === "Failure");
       const violations = (result.cause as { error: unknown }).error as Array<
-        { severity: string; enforcement: string }
+        { severity: string }
       >;
       assertEquals(violations[0].severity, "error");
-      assertEquals(violations[0].enforcement, "required");
     });
   });
 
-  await t.step("format violation has severity=error and enforcement=required", async () => {
+  await t.step("format violation has severity=error", async () => {
     await withConnection(async (conn) => {
       await setupTable(conn, "eventDate VARCHAR", ["1, 'not-a-date'"]);
 
@@ -601,14 +599,13 @@ Deno.test("Value violations always produce ERROR severity", async (t) => {
 
       assert(result._tag === "Failure");
       const violations = (result.cause as { error: unknown }).error as Array<
-        { severity: string; enforcement: string }
+        { severity: string }
       >;
       assertEquals(violations[0].severity, "error");
-      assertEquals(violations[0].enforcement, "required");
     });
   });
 
-  await t.step("pattern violation has severity=error and enforcement=required", async () => {
+  await t.step("pattern violation has severity=error", async () => {
     await withConnection(async (conn) => {
       await setupTable(conn, "countryCode VARCHAR", ["1, 'USA'"]);
 
@@ -621,14 +618,13 @@ Deno.test("Value violations always produce ERROR severity", async (t) => {
 
       assert(result._tag === "Failure");
       const violations = (result.cause as { error: unknown }).error as Array<
-        { severity: string; enforcement: string }
+        { severity: string }
       >;
       assertEquals(violations[0].severity, "error");
-      assertEquals(violations[0].enforcement, "required");
     });
   });
 
-  await t.step("length violation has severity=error and enforcement=required", async () => {
+  await t.step("length violation has severity=error", async () => {
     await withConnection(async (conn) => {
       await setupTable(conn, "name VARCHAR", ["1, 'ab'"]);
 
@@ -641,10 +637,9 @@ Deno.test("Value violations always produce ERROR severity", async (t) => {
 
       assert(result._tag === "Failure");
       const violations = (result.cause as { error: unknown }).error as Array<
-        { severity: string; enforcement: string }
+        { severity: string }
       >;
       assertEquals(violations[0].severity, "error");
-      assertEquals(violations[0].enforcement, "required");
     });
   });
 });
@@ -672,7 +667,7 @@ Deno.test("Uniqueness constraint violations", async (t) => {
 
       assert(result._tag === "Failure");
       const violations = (result.cause as { error: unknown }).error as Array<
-        { value: string; rowNumber: number; severity: string; enforcement: string }
+        { value: string; rowNumber: number; severity: string }
       >;
 
       // E1 appears in rows 1,3 and E2 in rows 2,5 — 4 violations total
@@ -681,7 +676,6 @@ Deno.test("Uniqueness constraint violations", async (t) => {
       // All uniqueness violations are errors
       for (const v of violations) {
         assertEquals(v.severity, "error");
-        assertEquals(v.enforcement, "required");
       }
     });
   });

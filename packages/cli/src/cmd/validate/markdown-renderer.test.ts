@@ -16,12 +16,10 @@ function makeFieldViolation(overrides: Partial<{
   value: string;
   errorMessage: string;
   validatorType: string;
-  enforcement: 'required' | 'recommended' | 'optional';
   severity: 'error' | 'warning' | 'info';
 }> = {}) {
   return {
     _tag: 'RangeViolation' as const,
-    enforcement: overrides.enforcement ?? 'required',
     severity: overrides.severity ?? 'error',
     fieldName: overrides.fieldName ?? 'decimalLatitude',
     targetName: overrides.targetName ?? 'decimalLatitude',
@@ -36,11 +34,9 @@ function makeSchemaViolation(overrides: Partial<{
   fieldName: string;
   targetName: string;
   errorMessage: string;
-  enforcement: 'required' | 'recommended' | 'optional';
   severity: 'error' | 'warning' | 'info';
 }> = {}) {
   return new MissingFieldViolation({
-    enforcement: overrides.enforcement ?? 'required',
     severity: overrides.severity ?? 'error',
     fieldName: overrides.fieldName ?? 'eventDate',
     targetName: overrides.targetName ?? 'eventDate',
@@ -95,7 +91,6 @@ function makeResults(
 
 function makeCrossDatasetViolation(rowNumber: number, value: string) {
   return new CrossDatasetViolation({
-    enforcement: 'required',
     severity: 'error',
     fieldName: 'eventID',
     targetName: 'eventID',
@@ -147,8 +142,8 @@ Deno.test('violations - renders all severity sections with grouped field errors'
         makeFieldViolation({ fieldName: 'lat', rowNumber: 1, errorMessage: 'bad lat row 1' }),
         makeFieldViolation({ fieldName: 'lat', rowNumber: 2, errorMessage: 'bad lat row 2' }),
       ],
-      warnings: [makeFieldViolation({ enforcement: 'recommended', severity: 'warning' })],
-      info: [makeFieldViolation({ enforcement: 'optional', severity: 'info' })],
+      warnings: [makeFieldViolation({ severity: 'warning' })],
+      info: [makeFieldViolation({ severity: 'info' })],
     },
   });
   const result = renderValidationMarkdown(makeResults({

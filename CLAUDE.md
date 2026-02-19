@@ -120,10 +120,10 @@ The profile registry in `registry.ts` implements a resolution system:
 Validation uses a discriminated union of typed constraints (`Constraint` in `constraints.ts`):
 - `RangeConstraint`, `RequiredConstraint`, `UniqueConstraint`, `PatternConstraint`, `LengthConstraint`, `FormatConstraint`
 - Each constraint carries its own typed fields flat (no nested params)
-- Only `RequiredConstraint` has `enforcement`: `"required"` (ERROR) | `"recommended"` (WARNING) | `"optional"` (INFO) — controls *presence* severity
-- Value constraints (Range, Pattern, Format, Length, Unique) have no enforcement — value validity is unconditional (always ERROR)
+- Only `RequiredConstraint` has `requirement`: `"required"` (ERROR) | `"recommended"` (WARNING) | `"optional"` (INFO) — controls *presence* severity
+- Value constraints (Range, Pattern, Format, Length, Unique) have no requirement level — value validity is unconditional (always ERROR)
 - Controlled vocabularies are enforced at the DuckDB schema level via ENUM types, only for fields with "required" or "recommended" obligation in the active standard. Optional vocabulary fields use TEXT columns and accept any value.
-- Obligation mapping: `required` → enforcement `"required"`, `strongly recommended` → `"recommended"`, `recommended` → `"optional"`, `optional` → no constraint
+- Obligation mapping: `required` → requirement `"required"`, `strongly recommended` → `"recommended"`, `recommended` → `"optional"`, `optional` → no constraint
 
 **Field Normalization:**
 

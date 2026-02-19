@@ -12,12 +12,12 @@
  */
 
 import type { ValidationProfile, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
-import type { Constraint, EnforcementLevel, FieldDefinition } from "@dwkt/domain/specs";
+import type { Constraint, FieldDefinition, RequirementLevel } from "@dwkt/domain/specs";
 import {
-  ENFORCEMENT_STRICTNESS,
   getPreset,
   mergeConstraints,
   obligationForStandard,
+  REQUIREMENT_STRICTNESS,
 } from "@dwkt/domain/specs";
 
 // =============================================================================
@@ -44,40 +44,40 @@ export function resolveActiveStandard(
 }
 
 /**
- * Derive the strictest enforcement level from a field's constraint array.
+ * Derive the strictest requirement level from a field's constraint array.
  *
- * Picks the strictest RequiredConstraint's enforcement level.
+ * Picks the strictest RequiredConstraint's requirement level.
  * This matches the validator's takeStrictest behavior so missing-field
  * detection uses the same effective level.
  */
-export function deriveEnforcementFromConstraints(
+export function deriveRequirementFromConstraints(
   constraints: readonly Constraint[] | undefined,
-): EnforcementLevel | undefined {
+): RequirementLevel | undefined {
   if (!constraints) return undefined;
   const requiredConstraints = constraints.filter((c) => c.type === "required");
   if (requiredConstraints.length === 0) return undefined;
   const strictest = requiredConstraints.reduce((a, b) =>
-    (ENFORCEMENT_STRICTNESS[a.enforcement] ?? 0) >=
-        (ENFORCEMENT_STRICTNESS[b.enforcement] ?? 0)
+    (REQUIREMENT_STRICTNESS[a.requirement] ?? 0) >=
+        (REQUIREMENT_STRICTNESS[b.requirement] ?? 0)
       ? a
       : b
   );
-  return strictest.enforcement;
+  return strictest.requirement;
 }
 
 /**
- * Compile an enforcement level into a RequiredConstraint.
+ * Compile a requirement level into a RequiredConstraint.
  *
- * Every enforcement level produces a constraint — the enforcement
+ * Every requirement level produces a constraint — the requirement
  * value controls the severity (required → ERROR, recommended → WARNING,
  * optional → INFO).
  */
 export function requirementToConstraint(
-  requirement: EnforcementLevel,
+  requirement: RequirementLevel,
 ): Constraint {
   return {
     type: "required",
-    enforcement: requirement,
+    requirement,
     allowEmpty: false,
     allowWhitespace: false,
   };
@@ -163,11 +163,11 @@ export function resolveFieldDefinitions(
 
     // Add obligation-derived constraint
     const obligationResult = obligationForStandard(field, activeStandard);
-    if (obligationResult?.enforcement) {
+    if (obligationResult?.requirement) {
       // Obligation → RequiredConstraint merged via replacement (spec-level, trusted)
       constraints = mergeConstraints(constraints, [{
         type: "required" as const,
-        enforcement: obligationResult.enforcement,
+        requirement: obligationResult.requirement,
         allowEmpty: false,
         allowWhitespace: false,
       }]);
@@ -182,7 +182,7 @@ export function resolveFieldDefinitions(
       const label = field.label ?? fieldName;
       constraints = mergeConstraints(constraints, [{
         type: "required" as const,
-        enforcement: "recommended" as const,
+        requirement: "recommended" as const,
         allowEmpty: false,
         allowWhitespace: false,
         message: `"${label}" is included in your dataset and is required when applicable. ` +

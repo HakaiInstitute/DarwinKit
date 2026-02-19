@@ -19,12 +19,12 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
   // NOTE: This test uses real-world marine survey data (FC2022) which contains values
   // that aren't in Darwin Core controlled vocabularies (e.g., 'Species' in taxonRank).
   // With row-by-row insertion fallback, ENUM constraint violations are collected as
-  // EnumViolations with enforcement level based on the field's vocabulary enforcement.
+  // EnumViolations with severity based on the field's vocabulary requirement.
   //
   // The bulk INSERT fails due to ENUM constraints, then falls back to row-by-row
   // insertion which collects detailed violations for each invalid value.
   //
-  // taxonRank uses "recommended" enforcement in Darwin Core, so violations are
+  // taxonRank uses "recommended" requirement in Darwin Core, so violations are
   // collected as warnings rather than errors.
   const result = await Effect.runPromise(
     validator.validateFromConfig(join(TEST_CONFIG_DIR, "example-config")),
@@ -63,7 +63,6 @@ Deno.test("Example config - validates FC2022 dataset", async () => {
 
   // Verify violation structure
   const firstViolation = taxonRankViolations[0];
-  assertEquals(firstViolation.enforcement, "recommended", "Should have recommended enforcement");
   assertEquals(firstViolation.severity, "warning", "Should have warning severity");
   assertMatch(firstViolation.errorMessage, /Species|Genus/, "Should mention invalid value");
 });
