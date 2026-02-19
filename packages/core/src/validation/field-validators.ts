@@ -24,6 +24,7 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
 import type { Constraint, FieldDefinition } from "@dwkt/domain/specs";
+import { ENFORCEMENT_STRICTNESS } from "@dwkt/domain/specs";
 import type { FieldViolation, ValidField } from "@dwkt/domain/types";
 import {
   enforcementToSeverity,
@@ -123,13 +124,6 @@ export function findRangeViolations(
   });
 }
 
-/** Strictness ordering for enforcement levels (higher = stricter). */
-const ENFORCEMENT_STRICTNESS: Record<string, number> = {
-  required: 2,
-  recommended: 1,
-  optional: 0,
-};
-
 /**
  * Generic helper for the filter-loop-collect pattern shared by constraint validators.
  *
@@ -167,9 +161,13 @@ function validateConstraintsByType<TType extends Constraint["type"]>(
     if (options?.takeStrictest && filtered.length > 1) {
       // takeStrictest is only used for "required" constraints which have enforcement
       const strictest = filtered.reduce((a, b) => {
-        const aEnf = "enforcement" in a ? String(a.enforcement) : "";
-        const bEnf = "enforcement" in b ? String(b.enforcement) : "";
-        return (ENFORCEMENT_STRICTNESS[aEnf] ?? 0) >= (ENFORCEMENT_STRICTNESS[bEnf] ?? 0) ? a : b;
+        const aEnf = "enforcement" in a
+          ? (a.enforcement as keyof typeof ENFORCEMENT_STRICTNESS)
+          : undefined;
+        const bEnf = "enforcement" in b
+          ? (b.enforcement as keyof typeof ENFORCEMENT_STRICTNESS)
+          : undefined;
+        return (ENFORCEMENT_STRICTNESS[aEnf!] ?? 0) >= (ENFORCEMENT_STRICTNESS[bEnf!] ?? 0) ? a : b;
       });
       toValidate = [strictest];
     }

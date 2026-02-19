@@ -33,6 +33,13 @@ export const EnforcementLevel: S.Literal<[
 
 export type EnforcementLevel = S.Schema.Type<typeof EnforcementLevel>;
 
+/** Strictness ordering for enforcement levels (higher = stricter). */
+export const ENFORCEMENT_STRICTNESS: Record<EnforcementLevel, number> = {
+  required: 2,
+  recommended: 1,
+  optional: 0,
+};
+
 // =============================================================================
 // Field Data Types (for registry discoverability)
 // =============================================================================
@@ -132,22 +139,6 @@ export const FormatConstraint = S.Struct({
 
 export type FormatConstraint = S.Schema.Type<typeof FormatConstraint>;
 
-/**
- * Vocabulary constraint - validates against a controlled vocabulary
- *
- * Replaces the separate vocabulary property on FieldDefinition.
- */
-export const VocabularyConstraint = S.Struct({
-  type: S.Literal("vocabulary"),
-  values: S.Array(S.String),
-  caseSensitive: S.optionalWith(S.Boolean, { default: () => false }),
-  strictness: S.optionalWith(S.Literal("strict", "recommended"), {
-    default: () => "recommended" as const,
-  }),
-});
-
-export type VocabularyConstraint = S.Schema.Type<typeof VocabularyConstraint>;
-
 // =============================================================================
 // Discriminated Union
 // =============================================================================
@@ -163,7 +154,6 @@ export const Constraint = S.Union(
   PatternConstraint,
   LengthConstraint,
   FormatConstraint,
-  VocabularyConstraint,
 );
 
 export type Constraint = S.Schema.Type<typeof Constraint>;
@@ -213,8 +203,11 @@ export type ObligationsMap = S.Schema.Type<typeof ObligationsMap>;
  * - **Obligation**: External metadata from biodiversity standards (dwcSchema.json). Per-standard, per-field.
  * - **EnforcementLevel**: Per-constraint severity. The single mechanism for all validation strictness.
  *
- * Returns undefined for obligations that should not generate a required constraint
+ * Returns undefined for obligations that do not unconditionally generate a required constraint
  * ("optional", "optional (required for imaging data)", "required (if exists)").
+ *
+ * Note: "required (if exists)" is handled separately in resolveFieldDefinitions() —
+ * it emits a WARNING-level constraint only when the field is actually mapped in the dataset.
  */
 export function obligationToEnforcement(
   obligation: Obligation,

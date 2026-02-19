@@ -3,6 +3,8 @@
  */
 
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import * as S from "effect/Schema";
+import type { Field } from "../schemas/validation-profile.ts";
 import {
   type Constraint,
   Constraint as ConstraintSchema,
@@ -12,9 +14,7 @@ import {
   obligationToEnforcement,
   RangeConstraint,
 } from "./constraints.ts";
-import type { Field } from "../schemas/validation-profile.ts";
 import { normalizeField } from "./field-definition.ts";
-import * as S from "effect/Schema";
 
 // Helper to decode unknown values into Constraint
 function decodeConstraint(raw: unknown): Constraint {
@@ -100,30 +100,6 @@ Deno.test("FormatConstraint - decodes valid input", () => {
   }
 });
 
-Deno.test("VocabularyConstraint - decodes valid input with default strictness", () => {
-  const result = decodeConstraint({
-    type: "vocabulary",
-    values: ["PreservedSpecimen", "FossilSpecimen", "HumanObservation"],
-  });
-  assertEquals(result.type, "vocabulary");
-  if (result.type === "vocabulary") {
-    assertEquals(result.values, ["PreservedSpecimen", "FossilSpecimen", "HumanObservation"]);
-    assertEquals(result.caseSensitive, false); // default
-    assertEquals(result.strictness, "recommended"); // default
-  }
-});
-
-Deno.test("VocabularyConstraint - accepts strict strictness", () => {
-  const result = decodeConstraint({
-    type: "vocabulary",
-    values: ["PreservedSpecimen", "FossilSpecimen", "HumanObservation"],
-    strictness: "strict",
-  });
-  if (result.type === "vocabulary") {
-    assertEquals(result.strictness, "strict");
-  }
-});
-
 // =============================================================================
 // Constraint Union Tests
 // =============================================================================
@@ -157,32 +133,6 @@ Deno.test("Constraint union - rejects missing type field", () => {
 // mergeConstraints Tests
 // =============================================================================
 
-Deno.test("mergeConstraints - child vocabulary replaces parent vocabulary", () => {
-  const parent: Constraint[] = [
-    {
-      type: "vocabulary",
-      values: ["PreservedSpecimen", "FossilSpecimen", "HumanObservation"],
-      caseSensitive: false,
-      strictness: "recommended",
-    },
-  ];
-  const child: Constraint[] = [
-    {
-      type: "vocabulary",
-      values: ["PreservedSpecimen", "FossilSpecimen", "HumanObservation"],
-      caseSensitive: true,
-      strictness: "strict",
-    },
-  ];
-  const merged = mergeConstraints(parent, child);
-  assertEquals(merged.length, 1);
-  assertEquals(merged[0].type, "vocabulary");
-  if (merged[0].type === "vocabulary") {
-    assertEquals(merged[0].strictness, "strict");
-    assertEquals(merged[0].caseSensitive, true);
-  }
-});
-
 Deno.test("mergeConstraints - child range replaces parent range", () => {
   const parent: Constraint[] = [
     { type: "range", min: 0, max: 100, inclusive: true },
@@ -204,19 +154,14 @@ Deno.test("mergeConstraints - non-overlapping types preserved", () => {
     { type: "required", allowEmpty: false, allowWhitespace: false, enforcement: "required" },
   ];
   const child: Constraint[] = [
-    {
-      type: "vocabulary",
-      values: ["PreservedSpecimen", "FossilSpecimen", "HumanObservation"],
-      caseSensitive: false,
-      strictness: "recommended",
-    },
+    { type: "format", format: "iso8601" },
   ];
   const merged = mergeConstraints(parent, child);
   assertEquals(merged.length, 3);
   const types = merged.map((c) => c.type);
   assert(types.includes("range"));
   assert(types.includes("required"));
-  assert(types.includes("vocabulary"));
+  assert(types.includes("format"));
 });
 
 Deno.test("mergeConstraints - child with multiple same-type constraints replaces parent batch", () => {

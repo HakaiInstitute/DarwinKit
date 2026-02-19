@@ -134,10 +134,11 @@ export function isMissingMappingViolation(v: SchemaViolation): v is MissingMappi
 }
 
 /**
- * Partition schema violations by enforcement level
+ * Partition schema violations by severity level
  *
- * Groups violations into errors (required), warnings (recommended),
- * and info (optional) based on their enforcement level.
+ * Groups violations into errors, warnings, and info based on their
+ * severity level. Uses severity (not enforcement) to match
+ * partitionFieldViolations — both partition for reporting purposes.
  *
  * @param violations - Array of violations to partition
  * @returns Partitioned violations object
@@ -150,14 +151,14 @@ export function partitionSchemaViolations(
   const info: SchemaViolation[] = [];
 
   for (const violation of violations) {
-    switch (violation.enforcement) {
-      case "required":
+    switch (violation.severity) {
+      case "error":
         errors.push(violation);
         break;
-      case "recommended":
+      case "warning":
         warnings.push(violation);
         break;
-      case "optional":
+      case "info":
         info.push(violation);
         break;
     }

@@ -371,11 +371,11 @@ function assertEnumViolations(
   fieldName: string,
   expectedValue: string,
   expectedRowNumber: number,
+  partition: "errors" | "warnings" = "errors",
 ): void {
   const datasetResult = result.datasetResults[0];
-  // Vocabulary violations default to warnings (recommended strictness)
   const enumViolations = Array.filter(
-    datasetResult.fieldViolations.warnings,
+    datasetResult.fieldViolations[partition],
     isEnumViolation,
   );
 
@@ -1132,9 +1132,9 @@ Deno.test("WorkspaceValidator - Obligation-Based Requirement", async (t) => {
 
 Deno.test("WorkspaceValidator - Vocabulary Strictness Tests", async (t) => {
   await t.step(
-    "recommended strictness produces WARNING severity",
+    "required field vocabulary violation produces ERROR severity",
     async () => {
-      const tempDir = await createTempDir("vocab_recommended_strictness");
+      const tempDir = await createTempDir("vocab_required_strictness");
 
       await createSingleDatasetWorkspace(
         tempDir,
@@ -1151,14 +1151,14 @@ Deno.test("WorkspaceValidator - Vocabulary Strictness Tests", async (t) => {
       const result = await validateWorkspace(tempDir);
       const datasetResult = result.datasetResults[0];
 
-      // basisOfRecord has a controlled vocabulary with default strictness "recommended"
-      const enumWarnings = Array.filter(
-        datasetResult.fieldViolations.warnings,
+      // basisOfRecord is obis_required: "required" — vocabulary violation is an ERROR
+      const enumErrors = Array.filter(
+        datasetResult.fieldViolations.errors,
         isEnumViolation,
       );
-      assert(enumWarnings.length > 0, "Should have at least one enum violation warning");
-      assertEquals(enumWarnings[0].severity, "warning");
-      assertEquals(enumWarnings[0].enforcement, "recommended");
+      assert(enumErrors.length > 0, "Should have at least one enum violation error");
+      assertEquals(enumErrors[0].severity, "error");
+      assertEquals(enumErrors[0].enforcement, "required");
     },
   );
 });

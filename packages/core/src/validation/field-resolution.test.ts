@@ -4,14 +4,20 @@
 
 import { assert, assertEquals } from "@std/assert";
 import type { ValidationProfile, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
-import { FieldRequirementLevel } from "@dwkt/domain/schemas";
 import type { Constraint, FieldDefinition } from "@dwkt/domain/specs";
+import { obligationForStandard, obligationToEnforcement } from "@dwkt/domain/specs";
+import {
+  enforcementToSeverity,
+  MissingFieldViolation,
+  partitionFieldViolations,
+  partitionSchemaViolations,
+  RequiredFieldViolation,
+} from "@dwkt/domain/types";
 import type { ResolutionDiagnostic } from "./field-resolution.ts";
 import {
   addConstraints,
   applyResolvedConstraints,
-  deriveRequirementFromConstraints,
-  obligationForStandard,
+  deriveEnforcementFromConstraints,
   requirementToConstraint,
   resolveActiveStandard,
   resolveFieldDefinitions,
@@ -74,22 +80,26 @@ Deno.test("resolveActiveStandard - defaults to obis when no targetSchema", () =>
 // obligationForStandard Tests
 // =============================================================================
 
-Deno.test("obligationForStandard - returns enforcement for OBIS required", () => {
+Deno.test("obligationForStandard - returns obligation and enforcement for OBIS required", () => {
   const field: FieldDefinition = {
     name: "eventDate",
     constraints: [],
     obligations: { obis: "required" },
   };
-  assertEquals(obligationForStandard(field, "obis"), "required");
+  const result = obligationForStandard(field, "obis");
+  assertEquals(result?.obligation, "required");
+  assertEquals(result?.enforcement, "required");
 });
 
-Deno.test("obligationForStandard - returns recommended for GBIF required", () => {
+Deno.test("obligationForStandard - returns obligation and enforcement for GBIF required", () => {
   const field: FieldDefinition = {
     name: "eventDate",
     constraints: [],
     obligations: { gbif: "required" },
   };
-  assertEquals(obligationForStandard(field, "gbif"), "required");
+  const result = obligationForStandard(field, "gbif");
+  assertEquals(result?.obligation, "required");
+  assertEquals(result?.enforcement, "required");
 });
 
 Deno.test("obligationForStandard - returns undefined for custom standard", () => {
@@ -106,67 +116,67 @@ Deno.test("obligationForStandard - returns undefined when no obligations", () =>
   assertEquals(obligationForStandard(field, "obis"), undefined);
 });
 
+Deno.test("obligationForStandard - returns raw obligation for 'required (if exists)'", () => {
+  const field: FieldDefinition = {
+    name: "parentEventID",
+    constraints: [],
+    obligations: { obis: "required (if exists)" },
+  };
+  const result = obligationForStandard(field, "obis");
+  assertEquals(result?.obligation, "required (if exists)");
+  assertEquals(result?.enforcement, undefined);
+});
+
 // =============================================================================
-// deriveRequirementFromConstraints Tests
+// deriveEnforcementFromConstraints Tests
 // =============================================================================
 
-Deno.test("deriveRequirementFromConstraints - required enforcement → Required", () => {
+Deno.test("deriveEnforcementFromConstraints - required enforcement → 'required'", () => {
   assertEquals(
-    deriveRequirementFromConstraints([requiredConstraint("required")]),
-    FieldRequirementLevel.Required,
+    deriveEnforcementFromConstraints([requiredConstraint("required")]),
+    "required",
   );
 });
 
-Deno.test("deriveRequirementFromConstraints - recommended enforcement → StronglyRecommended", () => {
+Deno.test("deriveEnforcementFromConstraints - recommended enforcement → 'recommended'", () => {
   assertEquals(
-    deriveRequirementFromConstraints([requiredConstraint("recommended")]),
-    FieldRequirementLevel.StronglyRecommended,
+    deriveEnforcementFromConstraints([requiredConstraint("recommended")]),
+    "recommended",
   );
 });
 
-Deno.test("deriveRequirementFromConstraints - optional enforcement → Recommended", () => {
+Deno.test("deriveEnforcementFromConstraints - optional enforcement → 'optional'", () => {
   assertEquals(
-    deriveRequirementFromConstraints([requiredConstraint("optional")]),
-    FieldRequirementLevel.Recommended,
+    deriveEnforcementFromConstraints([requiredConstraint("optional")]),
+    "optional",
   );
 });
 
-Deno.test("deriveRequirementFromConstraints - no required constraints → undefined", () => {
-  assertEquals(deriveRequirementFromConstraints([rangeConstraint(-90, 90)]), undefined);
-  assertEquals(deriveRequirementFromConstraints(undefined), undefined);
+Deno.test("deriveEnforcementFromConstraints - no required constraints → undefined", () => {
+  assertEquals(deriveEnforcementFromConstraints([rangeConstraint(-90, 90)]), undefined);
+  assertEquals(deriveEnforcementFromConstraints(undefined), undefined);
 });
 
 // =============================================================================
 // requirementToConstraint Tests
 // =============================================================================
 
-Deno.test("requirementToConstraint - Required produces required constraint", () => {
-  const result = requirementToConstraint(FieldRequirementLevel.Required);
-  assert(result !== undefined);
+Deno.test("requirementToConstraint - 'required' produces required constraint", () => {
+  const result = requirementToConstraint("required");
   assert(result.type === "required");
   assertEquals(result.enforcement, "required");
 });
 
-Deno.test("requirementToConstraint - StronglyRecommended produces recommended constraint", () => {
-  const result = requirementToConstraint(FieldRequirementLevel.StronglyRecommended);
-  assert(result !== undefined);
+Deno.test("requirementToConstraint - 'recommended' produces recommended constraint", () => {
+  const result = requirementToConstraint("recommended");
   assert(result.type === "required");
   assertEquals(result.enforcement, "recommended");
 });
 
-Deno.test("requirementToConstraint - Recommended returns constraint with enforcement optional", () => {
-  const result = requirementToConstraint(FieldRequirementLevel.Recommended);
-  assert(result !== undefined);
+Deno.test("requirementToConstraint - 'optional' produces optional enforcement constraint", () => {
+  const result = requirementToConstraint("optional");
   assert(result.type === "required");
   assertEquals(result.enforcement, "optional");
-});
-
-Deno.test("requirementToConstraint - Optional returns undefined", () => {
-  assertEquals(requirementToConstraint(FieldRequirementLevel.Optional), undefined);
-});
-
-Deno.test("requirementToConstraint - RequiredIfExists returns undefined", () => {
-  assertEquals(requirementToConstraint(FieldRequirementLevel.RequiredIfExists), undefined);
 });
 
 // =============================================================================
@@ -456,7 +466,7 @@ Deno.test("resolveFieldDefinitions - config requirement compiled to constraint",
   const configMappings: WorkspaceFieldMapping[] = [{
     originName: "locality",
     targetName: "locality",
-    requirement: FieldRequirementLevel.Required,
+    requirement: "required",
   }];
 
   const result = resolveFieldDefinitions(profile, "obis", configMappings);
@@ -480,7 +490,7 @@ Deno.test("resolveFieldDefinitions - config requirement 'recommended' produces o
   const configMappings: WorkspaceFieldMapping[] = [{
     originName: "locality",
     targetName: "locality",
-    requirement: FieldRequirementLevel.Recommended,
+    requirement: "optional",
   }];
 
   const result = resolveFieldDefinitions(profile, "obis", configMappings);
@@ -551,7 +561,7 @@ Deno.test("resolveFieldDefinitions - field only in profile overrides gets synthe
     normalizedFields: {},
     fieldOverrides: {
       customField: {
-        requirement: FieldRequirementLevel.Required,
+        requirement: "required",
         constraints: [patternConstraint("^[A-Z]+$")],
       },
     },
@@ -584,7 +594,7 @@ Deno.test("resolveFieldDefinitions - triple config-tier: preset + explicit + req
     targetName: "locality",
     preset: "requiredText",
     constraints: [patternConstraint("^[A-Za-z ]+$")],
-    requirement: FieldRequirementLevel.Required,
+    requirement: "required",
   }];
 
   // "requiredText" preset adds a required constraint; explicit config adds a
@@ -599,7 +609,7 @@ Deno.test("resolveFieldDefinitions - triple config-tier: preset + explicit + req
 
 Deno.test("resolveFieldDefinitions - profile replacement produces single required constraint", () => {
   // Tier 2 uses mergeConstraints (replacement), so only one required constraint
-  // remains. deriveRequirementFromConstraints picks the strictest, which is the
+  // remains. deriveEnforcementFromConstraints picks the strictest, which is the
   // same as the only one after replacement.
   const profile = makeProfile({
     normalizedFields: {
@@ -627,25 +637,25 @@ Deno.test("resolveFieldDefinitions - profile replacement produces single require
   );
 });
 
-Deno.test("deriveRequirementFromConstraints - picks strictest when multiple required constraints exist", () => {
+Deno.test("deriveEnforcementFromConstraints - picks strictest when multiple required constraints exist", () => {
   // After additive merge (Tier 3), a field may have multiple RequiredConstraints.
-  // deriveRequirementFromConstraints must pick the strictest, matching the
+  // deriveEnforcementFromConstraints must pick the strictest, matching the
   // validator's takeStrictest behavior.
   assertEquals(
-    deriveRequirementFromConstraints([
+    deriveEnforcementFromConstraints([
       requiredConstraint("required"),
       requiredConstraint("optional"), // weaker, added by config
     ]),
-    FieldRequirementLevel.Required,
+    "required",
     "strictest (required) should win even when weaker constraint comes last",
   );
 
   assertEquals(
-    deriveRequirementFromConstraints([
+    deriveEnforcementFromConstraints([
       requiredConstraint("optional"),
       requiredConstraint("recommended"),
     ]),
-    FieldRequirementLevel.StronglyRecommended,
+    "recommended",
     "recommended is stricter than optional",
   );
 });
@@ -718,9 +728,9 @@ Deno.test("Config cannot weaken spec/profile constraints", async (t) => {
       );
       assertEquals(requiredConstraints.length, 2);
 
-      // deriveRequirementFromConstraints picks the strictest
-      const derived = deriveRequirementFromConstraints(merged);
-      assertEquals(derived, FieldRequirementLevel.Required);
+      // deriveEnforcementFromConstraints picks the strictest
+      const derived = deriveEnforcementFromConstraints(merged);
+      assertEquals(derived, "required");
     },
   );
 
@@ -738,4 +748,375 @@ Deno.test("Config cannot weaken spec/profile constraints", async (t) => {
     const rangeConstraints = merged.filter((c) => c.type === "range");
     assertEquals(rangeConstraints.length, 2, "Both ranges should be present (additive)");
   });
+});
+
+// =============================================================================
+// End-to-end enforcement chain tests
+//
+// These tests verify the full operational chain:
+//   obligation → enforcement → constraint → deriveEnforcement → severity → partition
+//
+// Each test traces one enforcement level through every link in the chain
+// to prove that the application reliably does what the enforcement level promises.
+// =============================================================================
+
+Deno.test("End-to-end enforcement chain", async (t) => {
+  // Table-driven: each row is one enforcement path through the system
+  const cases = [
+    {
+      label: "required obligation → ERROR partition",
+      obligation: "required" as const,
+      expectedEnforcement: "required" as const,
+      expectedSeverity: "error" as const,
+      expectedPartitionBucket: "errors" as const,
+    },
+    {
+      label: "strongly recommended obligation → WARNING partition",
+      obligation: "strongly recommended" as const,
+      expectedEnforcement: "recommended" as const,
+      expectedSeverity: "warning" as const,
+      expectedPartitionBucket: "warnings" as const,
+    },
+    {
+      label: "recommended obligation → INFO partition",
+      obligation: "recommended" as const,
+      expectedEnforcement: "optional" as const,
+      expectedSeverity: "info" as const,
+      expectedPartitionBucket: "info" as const,
+    },
+  ] as const;
+
+  for (const tc of cases) {
+    await t.step(tc.label, () => {
+      // Link 1: Obligation → EnforcementLevel
+      const enforcement = obligationToEnforcement(tc.obligation);
+      assertEquals(enforcement, tc.expectedEnforcement);
+
+      // Link 2: EnforcementLevel → RequiredConstraint (via field resolution)
+      const constraint = requirementToConstraint(enforcement!);
+      assertEquals(constraint.type, "required");
+      assert(constraint.type === "required");
+      assertEquals(constraint.enforcement, tc.expectedEnforcement);
+
+      // Link 3: Constraints → deriveEnforcementFromConstraints (round-trip check)
+      const derived = deriveEnforcementFromConstraints([constraint]);
+      assertEquals(derived, tc.expectedEnforcement);
+
+      // Link 4: EnforcementLevel → Severity
+      const severity = enforcementToSeverity(tc.expectedEnforcement);
+      assertEquals(severity, tc.expectedSeverity);
+
+      // Link 5: Field violation constructed with enforcement → partitions correctly
+      const fieldViolation = new RequiredFieldViolation({
+        enforcement: tc.expectedEnforcement,
+        severity: enforcementToSeverity(tc.expectedEnforcement),
+        fieldName: "testField",
+        targetName: "testField",
+        rowNumber: 1,
+        value: "",
+        errorMessage: "test",
+        validatorType: "required",
+      });
+
+      const fieldPartition = partitionFieldViolations([fieldViolation]);
+      assertEquals(
+        fieldPartition[tc.expectedPartitionBucket].length,
+        1,
+        `field violation should land in ${tc.expectedPartitionBucket}`,
+      );
+
+      // Link 6: Schema violation constructed with enforcement → partitions correctly
+      const schemaViolation = new MissingFieldViolation({
+        enforcement: tc.expectedEnforcement,
+        severity: enforcementToSeverity(tc.expectedEnforcement),
+        fieldName: "testField",
+        targetName: "testField",
+        errorMessage: "test",
+        validatorType: "schema",
+        reason: "not_mapped",
+      });
+
+      const schemaPartition = partitionSchemaViolations([schemaViolation]);
+      assertEquals(
+        schemaPartition[tc.expectedPartitionBucket].length,
+        1,
+        `schema violation should land in ${tc.expectedPartitionBucket}`,
+      );
+    });
+  }
+});
+
+Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to correct enforcement", async (t) => {
+  await t.step("OBIS required obligation → required enforcement on resolved field", () => {
+    const profile = makeProfile({
+      normalizedFields: {
+        eventDate: {
+          name: "eventDate",
+          constraints: [],
+          obligations: { obis: "required" },
+        },
+      },
+    });
+
+    const resolved = resolveFieldDefinitions(profile, "obis", []);
+    const enforcement = deriveEnforcementFromConstraints(resolved["eventDate"]?.constraints);
+    assertEquals(enforcement, "required");
+  });
+
+  await t.step(
+    "OBIS strongly recommended obligation → recommended enforcement on resolved field",
+    () => {
+      const profile = makeProfile({
+        normalizedFields: {
+          scientificName: {
+            name: "scientificName",
+            constraints: [],
+            obligations: { obis: "strongly recommended" },
+          },
+        },
+      });
+
+      const resolved = resolveFieldDefinitions(profile, "obis", []);
+      const enforcement = deriveEnforcementFromConstraints(resolved["scientificName"]?.constraints);
+      assertEquals(enforcement, "recommended");
+    },
+  );
+
+  await t.step("OBIS recommended obligation → optional enforcement on resolved field", () => {
+    const profile = makeProfile({
+      normalizedFields: {
+        kingdom: {
+          name: "kingdom",
+          constraints: [],
+          obligations: { obis: "recommended" },
+        },
+      },
+    });
+
+    const resolved = resolveFieldDefinitions(profile, "obis", []);
+    const enforcement = deriveEnforcementFromConstraints(resolved["kingdom"]?.constraints);
+    assertEquals(enforcement, "optional");
+  });
+
+  await t.step("OBIS optional obligation → no enforcement constraint on resolved field", () => {
+    const profile = makeProfile({
+      normalizedFields: {
+        fieldNotes: {
+          name: "fieldNotes",
+          constraints: [],
+          obligations: { obis: "optional" },
+        },
+      },
+    });
+
+    const resolved = resolveFieldDefinitions(profile, "obis", []);
+    const enforcement = deriveEnforcementFromConstraints(resolved["fieldNotes"]?.constraints);
+    assertEquals(enforcement, undefined);
+  });
+
+  await t.step(
+    "OBIS 'required (if exists)' obligation → recommended enforcement when field is mapped",
+    () => {
+      const profile = makeProfile({
+        normalizedFields: {
+          parentEventID: {
+            name: "parentEventID",
+            label: "Parent Event ID",
+            constraints: [],
+            obligations: { obis: "required (if exists)" },
+          },
+        },
+      });
+
+      const configMappings: WorkspaceFieldMapping[] = [{
+        originName: "parentEventID",
+        targetName: "parentEventID",
+      }];
+
+      const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+      const enforcement = deriveEnforcementFromConstraints(
+        resolved["parentEventID"]?.constraints,
+      );
+      assertEquals(enforcement, "recommended");
+    },
+  );
+
+  await t.step(
+    "OBIS 'required (if exists)' obligation → no constraint when field is NOT mapped",
+    () => {
+      const profile = makeProfile({
+        normalizedFields: {
+          parentEventID: {
+            name: "parentEventID",
+            label: "Parent Event ID",
+            constraints: [],
+            obligations: { obis: "required (if exists)" },
+          },
+        },
+      });
+
+      const resolved = resolveFieldDefinitions(profile, "obis", []);
+      const enforcement = deriveEnforcementFromConstraints(
+        resolved["parentEventID"]?.constraints,
+      );
+      assertEquals(enforcement, undefined);
+    },
+  );
+});
+
+Deno.test("End-to-end: profile requirement override flows to correct enforcement", async (t) => {
+  await t.step("profile 'required' override strengthens spec optional obligation", () => {
+    const profile = makeProfile({
+      normalizedFields: {
+        locality: {
+          name: "locality",
+          constraints: [],
+          obligations: { obis: "optional" },
+        },
+      },
+      fieldOverrides: {
+        locality: { requirement: "required" },
+      },
+    });
+
+    const resolved = resolveFieldDefinitions(profile, "obis", []);
+    const enforcement = deriveEnforcementFromConstraints(resolved["locality"]?.constraints);
+    assertEquals(enforcement, "required");
+  });
+
+  await t.step("config 'required' requirement adds enforcement alongside spec", () => {
+    const profile = makeProfile({
+      normalizedFields: {
+        locality: {
+          name: "locality",
+          constraints: [],
+          obligations: { obis: "recommended" },
+        },
+      },
+    });
+
+    const configMappings: WorkspaceFieldMapping[] = [{
+      originName: "locality",
+      targetName: "locality",
+      requirement: "required",
+    }];
+
+    const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+    // Config adds additively, so both optional (from obligation) and required (from config) exist.
+    // deriveEnforcementFromConstraints picks the strictest.
+    const enforcement = deriveEnforcementFromConstraints(resolved["locality"]?.constraints);
+    assertEquals(enforcement, "required");
+  });
+});
+
+// =============================================================================
+// "Required (if exists)" Conditional Obligation Tests
+// =============================================================================
+
+Deno.test("Required-if-exists: emits WARNING constraint when field is mapped", () => {
+  const profile = makeProfile({
+    normalizedFields: {
+      parentEventID: {
+        name: "parentEventID",
+        label: "Parent Event ID",
+        constraints: [],
+        obligations: { obis: "required (if exists)" },
+      },
+    },
+  });
+
+  const configMappings: WorkspaceFieldMapping[] = [{
+    originName: "parentEventID",
+    targetName: "parentEventID",
+  }];
+
+  const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+  const constraints = resolved["parentEventID"]?.constraints ?? [];
+  const requiredConstraints = constraints.filter((c) => c.type === "required");
+
+  assertEquals(requiredConstraints.length, 1, "should emit one required constraint");
+  assert(requiredConstraints[0].type === "required");
+  assertEquals(requiredConstraints[0].enforcement, "recommended");
+  assert(
+    requiredConstraints[0].message?.includes("Parent Event ID"),
+    "message should reference the field label",
+  );
+  assert(
+    requiredConstraints[0].message?.includes("verify that blanks are intentional"),
+    "message should explain the conditional nature",
+  );
+});
+
+Deno.test("Required-if-exists: no constraint when field is NOT mapped", () => {
+  const profile = makeProfile({
+    normalizedFields: {
+      parentEventID: {
+        name: "parentEventID",
+        label: "Parent Event ID",
+        constraints: [],
+        obligations: { obis: "required (if exists)" },
+      },
+    },
+  });
+
+  // No config mapping for parentEventID
+  const resolved = resolveFieldDefinitions(profile, "obis", []);
+  const constraints = resolved["parentEventID"]?.constraints ?? [];
+  const requiredConstraints = constraints.filter((c) => c.type === "required");
+
+  assertEquals(requiredConstraints.length, 0, "should not emit a required constraint");
+});
+
+Deno.test("Required-if-exists: uses fieldName as fallback when label is absent", () => {
+  const profile = makeProfile({
+    normalizedFields: {
+      parentEventID: {
+        name: "parentEventID",
+        // no label
+        constraints: [],
+        obligations: { obis: "required (if exists)" },
+      },
+    },
+  });
+
+  const configMappings: WorkspaceFieldMapping[] = [{
+    originName: "parentEventID",
+    targetName: "parentEventID",
+  }];
+
+  const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+  const constraints = resolved["parentEventID"]?.constraints ?? [];
+  const req = constraints.find((c) => c.type === "required");
+  assert(req?.type === "required");
+  assert(
+    req.message?.includes("parentEventID"),
+    "message should fall back to field name",
+  );
+});
+
+Deno.test("Required-if-exists: profile override can strengthen to required (ERROR)", () => {
+  const profile = makeProfile({
+    normalizedFields: {
+      parentEventID: {
+        name: "parentEventID",
+        label: "Parent Event ID",
+        constraints: [],
+        obligations: { obis: "required (if exists)" },
+      },
+    },
+    fieldOverrides: {
+      parentEventID: { requirement: "required" },
+    },
+  });
+
+  const configMappings: WorkspaceFieldMapping[] = [{
+    originName: "parentEventID",
+    targetName: "parentEventID",
+  }];
+
+  const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+  // Profile override uses mergeConstraints (replacement), so the WARNING-level
+  // "required (if exists)" constraint should be replaced by the ERROR-level one.
+  const enforcement = deriveEnforcementFromConstraints(resolved["parentEventID"]?.constraints);
+  assertEquals(enforcement, "required");
 });

@@ -3,31 +3,11 @@
  */
 
 import * as S from "effect/Schema";
-import { Constraint } from "../specs/constraints.ts";
-
-// Field requirement level schema
-// Accepts both "strongly recommended" (canonical) and "strongly-recommended" (legacy alias)
-export const fieldRequirementLevelSchema = S.Union(
-  S.Literal(
-    "required",
-    "strongly recommended",
-    "recommended",
-    "required-if-exists",
-    "optional",
-  ),
-  S.transform(
-    S.Literal("strongly-recommended"),
-    S.Literal("strongly recommended"),
-    {
-      decode: () => "strongly recommended" as const,
-      encode: () => "strongly-recommended" as const,
-    },
-  ),
-);
+import { Constraint, EnforcementLevel } from "../specs/constraints.ts";
 
 // Field override schema
 export const fieldOverrideSchema = S.Struct({
-  requirement: S.optional(fieldRequirementLevelSchema),
+  requirement: S.optional(EnforcementLevel),
   constraints: S.optional(S.Array(Constraint)),
 });
 
@@ -71,28 +51,6 @@ export const validationProfileRegistrySchema = S.Record({
   key: S.String,
   value: validationProfileSchema,
 });
-
-/**
- * Field requirement levels for validation profiles
- *
- * Defines the strength of a field requirement in a validation profile.
- */
-export enum FieldRequirementLevel {
-  /** Field must be present and contain a non-null value (fails validation if missing/null) */
-  Required = "required",
-
-  /** Field should be present; generates warning if missing but doesn't fail validation */
-  StronglyRecommended = "strongly recommended",
-
-  /** Field is recommended but not critical; generates info message if missing */
-  Recommended = "recommended",
-
-  /** Field doesn't need to be present, but if it is, it must be valid */
-  RequiredIfExists = "required-if-exists",
-
-  /** Field is completely optional; no validation requirements */
-  Optional = "optional",
-}
 
 /**
  * Raw field definition from JSON schema

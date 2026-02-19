@@ -18,7 +18,7 @@ import type {
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
-import { deriveProfileId, FieldRequirementLevel, parseSpecIdentifier } from "@dwkt/domain/schemas";
+import { deriveProfileId, parseSpecIdentifier } from "@dwkt/domain/schemas";
 import type { EnforcementLevel, FieldDefinition } from "@dwkt/domain/specs";
 import { getPreset, getPresetNames, getValidationProfile } from "@dwkt/domain/specs";
 import type {
@@ -53,7 +53,7 @@ import { resolveSchemaTableName } from "./summary.ts";
 import type { ResolutionDiagnostic } from "./field-resolution.ts";
 import {
   applyResolvedConstraints,
-  deriveRequirementFromConstraints,
+  deriveEnforcementFromConstraints,
   resolveActiveStandard,
   resolveFieldDefinitions,
 } from "./field-resolution.ts";
@@ -519,6 +519,7 @@ function validateDataset(
             schemaTableName,
             columnMappings,
             profile,
+            activeStandard,
             dataset.name,
             crossDatasetRules ?? [],
             validationSettings,
@@ -616,41 +617,31 @@ function validateDataset(
           continue;
         }
 
-        // Derive requirement from constraints (single source of truth)
-        const requirement = deriveRequirementFromConstraints(fieldMapping.constraints);
-        if (!requirement) {
+        // Derive enforcement from constraints (single source of truth)
+        const enforcement = deriveEnforcementFromConstraints(fieldMapping.constraints);
+        if (!enforcement) {
           // No requirement constraint — skip silently
           continue;
         }
 
-        if (requirement === FieldRequirementLevel.Required) {
-          schemaViolations.push(
-            new MissingFieldViolation({
-              enforcement: "required",
-              severity: enforcementToSeverity("required"),
-              fieldName,
-              targetName: fieldName,
-              errorMessage:
-                `Profile '${profile.name}' requires field '${fieldName}' but it is not mapped in the dataset`,
-              validatorType: "schema",
-              reason: "not_mapped",
-            }),
-          );
-        } else if (requirement === FieldRequirementLevel.StronglyRecommended) {
-          schemaViolations.push(
-            new MissingFieldViolation({
-              enforcement: "recommended",
-              severity: enforcementToSeverity("recommended"),
-              fieldName,
-              targetName: fieldName,
-              errorMessage:
-                `Profile '${profile.name}' strongly recommends field '${fieldName}' but it is not mapped`,
-              validatorType: "schema",
-              reason: "not_mapped",
-            }),
-          );
-        }
-        // Optional/no constraint → suppressed when missing
+        const messageVerb = enforcement === "required"
+          ? "requires"
+          : enforcement === "recommended"
+          ? "strongly recommends"
+          : "recommends";
+
+        schemaViolations.push(
+          new MissingFieldViolation({
+            enforcement,
+            severity: enforcementToSeverity(enforcement),
+            fieldName,
+            targetName: fieldName,
+            errorMessage:
+              `Profile '${profile.name}' ${messageVerb} field '${fieldName}' but it is not mapped in the dataset`,
+            validatorType: "schema",
+            reason: "not_mapped",
+          }),
+        );
       }
     }
 

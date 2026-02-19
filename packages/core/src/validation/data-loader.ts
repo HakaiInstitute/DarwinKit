@@ -28,6 +28,7 @@ import {
   NotNullViolation,
   PrimaryKeyViolation,
 } from "@dwkt/domain/types";
+import { obligationForStandard } from "@dwkt/domain/specs";
 
 import { getCsvValue } from "../loading/csv-import.ts";
 import type { ParsedErrorInfo } from "../loading/sql.ts";
@@ -51,6 +52,7 @@ interface ViolationContext {
   readonly schemaTableName: string;
   readonly columnMappings: ColumnMapping[];
   readonly profile: ValidationProfile;
+  readonly activeStandard: "obis" | "gbif" | "custom";
   readonly enableSuggestions: boolean;
   readonly rowNum: number;
   readonly processedDuplicates: Set<string>;
@@ -167,6 +169,11 @@ function handleNotNullViolation(
 
 /**
  * Handle enum violation
+ *
+ * Vocabulary enforcement follows the field's obligation level in the active standard:
+ * - required → ERROR (invalid vocabulary value in a required field)
+ * - strongly recommended → WARNING
+ * - recommended / optional / no obligation → skip (no violation emitted)
  */
 function handleEnumViolation(
   parsed: ParsedErrorInfo,
@@ -185,11 +192,13 @@ function handleEnumViolation(
 
     if (!specField || !rawField?.values) return [];
 
-    // Derive severity from vocabulary constraint strictness if present,
-    // otherwise default to ERROR (DuckDB ENUM rejection = invalid value)
-    const vocabConstraint = specField.constraints?.find((c) => c.type === "vocabulary");
-    const enforcement = vocabConstraint?.strictness === "recommended" ? "recommended" : "required";
+    // Derive vocabulary enforcement from the field's obligation in the active standard.
+    // Fields without an obligation or with optional/recommended obligations produce no
+    // vocabulary violation — the spec doesn't consider the vocabulary important enough.
+    const obligationResult = obligationForStandard(specField, ctx.activeStandard);
+    if (!obligationResult?.enforcement) return [];
 
+    const enforcement = obligationResult.enforcement;
     const allowedValues = Object.keys(rawField.values);
     const suggestedValue = ctx.enableSuggestions
       ? findSuggestedValue(parsed.value, allowedValues)
@@ -339,6 +348,7 @@ export function insertRowByRow(
   schemaTableName: string,
   columnMappings: ColumnMapping[],
   profile: ValidationProfile,
+  activeStandard: "obis" | "gbif" | "custom",
   currentDataset: string,
   crossDatasetRules: readonly WorkspaceCrossDatasetRule[],
   validationSettings?: ValidationSettings,
@@ -395,6 +405,7 @@ export function insertRowByRow(
         schemaTableName,
         columnMappings,
         profile,
+        activeStandard,
         enableSuggestions,
         rowNum,
         processedDuplicates,

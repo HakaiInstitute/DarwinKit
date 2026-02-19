@@ -8,7 +8,7 @@
  *
  * FieldDefinition provides a unified representation for validation by:
  * - Converting string validators -> typed Constraint objects
- * - Converting values object -> VocabularyConstraint in constraints array
+ * - Preserving values for DuckDB ENUM creation (via raw `fields`)
  * - Providing consistent property names and structure
  *
  * ## Usage
@@ -21,7 +21,14 @@
 
 import * as S from "effect/Schema";
 import type { Field } from "../schemas/validation-profile.ts";
-import { Constraint, FieldDataType, type Obligation, ObligationsMap } from "./constraints.ts";
+import {
+  Constraint,
+  type EnforcementLevel,
+  FieldDataType,
+  type Obligation,
+  ObligationsMap,
+  obligationToEnforcement,
+} from "./constraints.ts";
 
 export const FieldDefinitionSchema = S.Struct({
   name: S.String,
@@ -34,6 +41,34 @@ export const FieldDefinitionSchema = S.Struct({
 });
 
 export type FieldDefinition = S.Schema.Type<typeof FieldDefinitionSchema>;
+
+/**
+ * Result of looking up a field's obligation for a given standard.
+ *
+ * Returns both the raw obligation (for conditional logic like "required (if exists)")
+ * and the derived enforcement level (for constraint generation).
+ */
+export interface ObligationResult {
+  readonly obligation: Obligation;
+  readonly enforcement: EnforcementLevel | undefined;
+}
+
+/**
+ * Get the obligation and derived enforcement level for a field, given the active standard.
+ */
+export function obligationForStandard(
+  field: FieldDefinition,
+  standard: "obis" | "gbif" | "custom",
+): ObligationResult | undefined {
+  if (!field.obligations) return undefined;
+  const obligation = standard === "obis"
+    ? field.obligations.obis
+    : standard === "gbif"
+    ? field.obligations.gbif
+    : undefined;
+  if (!obligation) return undefined;
+  return { obligation, enforcement: obligationToEnforcement(obligation) };
+}
 
 /**
  * Map JSON schema type strings to FieldDataType values.
@@ -67,7 +102,7 @@ export function mapJsonTypeToFieldDataType(
  *
  * Converts:
  * - validators: string[] -> Constraint[]
- * - values: Record<string, unknown> -> VocabularyConstraint in constraints
+ * - values: Preserved in raw `fields` for DuckDB ENUM creation (not in constraints)
  */
 const VALID_OBLIGATIONS: ReadonlySet<string> = new Set([
   "required",
@@ -115,12 +150,6 @@ export function normalizeField(jsonField: Field): FieldDefinition {
           }
           delete raw.enforcement;
         }
-        if (raw.type === "vocabulary") {
-          raw.values ??= [];
-          raw.caseSensitive ??= false;
-          raw.strictness ??= "recommended";
-        }
-
         try {
           constraints.push(S.decodeUnknownSync(Constraint)(raw));
         } catch (error) {
@@ -196,20 +225,6 @@ export function normalizeField(jsonField: Field): FieldDefinition {
     }
   }
 
-  // Convert values object to VocabularyConstraint
-  if (
-    jsonField.values && typeof jsonField.values === "object" &&
-    Object.keys(jsonField.values).length > 0
-  ) {
-    const vocabStrictness = deriveVocabularyStrictness(jsonField);
-    constraints.push({
-      type: "vocabulary" as const,
-      values: Object.keys(jsonField.values),
-      caseSensitive: false,
-      strictness: vocabStrictness,
-    });
-  }
-
   // Build obligations map from raw JSON field metadata
   const obligations: { obis?: Obligation; gbif?: Obligation } = {};
   if (jsonField.obis_required && isValidObligation(jsonField.obis_required)) {
@@ -235,19 +250,4 @@ export function normalizeField(jsonField: Field): FieldDefinition {
     comments: jsonField.comments,
     examples: jsonField.examples,
   };
-}
-
-/**
- * Derive vocabulary strictness from field metadata.
- *
- * Maps obligation-level metadata to vocabulary strictness:
- * - required / strongly recommended / gbif required → "strict" (errors)
- * - everything else → "recommended" (warnings, default)
- */
-function deriveVocabularyStrictness(_field: Field): "strict" | "recommended" {
-  // Darwin Core treats all controlled vocabularies as "recommended best practice"
-  // — none are strictly enforced at the standard level. Obligation level governs
-  // field *presence*, not vocabulary value strictness. Users/profiles can override
-  // to "strict" in their configuration.
-  return "recommended";
 }

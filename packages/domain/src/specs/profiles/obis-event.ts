@@ -10,7 +10,7 @@
  * Version: 2024
  */
 
-import { FieldRequirementLevel, type ValidationProfile } from "../../schemas/validation-profile.ts";
+import type { ValidationProfile } from "../../schemas/validation-profile.ts";
 
 /**
  * OBIS Event Core Profile
@@ -37,73 +37,73 @@ export const OBIS_EVENT_PROFILE: ValidationProfile = {
 
     // eventID: Required for Event core
     eventID: {
-      requirement: FieldRequirementLevel.Required,
+      requirement: "required",
     },
 
     // parentEventID: Strongly recommended for hierarchical events
     parentEventID: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "recommended",
     },
 
     // Event type and metadata
     eventType: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     eventRemarks: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     // === Location Fields (Event-specific recommendations) ===
 
     locationID: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     locationRemarks: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     verbatimCoordinates: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     verbatimDepth: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     footprintWKT: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     stateProvince: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     island: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     islandGroup: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     // === Sampling Protocol (Event-specific) ===
 
     samplingProtocol: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "recommended",
     },
 
     sampleSizeValue: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     sampleSizeUnit: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     samplingEffort: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
   },
 

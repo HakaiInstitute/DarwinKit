@@ -153,7 +153,7 @@ At validation time, constraints are resolved through a 3-tier merge pipeline:
   extends: "Event",  // Inherits all Event fields
   fieldOverrides: {
     decimalLatitude: {
-      requirement: FieldRequirementLevel.Required,
+      requirement: "required",
       constraints: [
         { type: "range", min: -90, max: 90, inclusive: true }
       ]

@@ -111,10 +111,8 @@ Deno.test("makeWorkspaceConfig", async (t) => {
   });
 });
 
-Deno.test("makeWorkspaceConfig - isRequired is not accepted", async (t) => {
-  await t.step("isRequired is no longer a valid field mapping property", () => {
-    // isRequired was removed in favour of requirement/constraints.
-    // Configs using isRequired should be updated to use `requirement` instead.
+Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
+  await t.step("requirement field accepts valid enforcement levels", () => {
     const config = makeWorkspaceConfig({
       validation: {
         datasets: [{
@@ -133,6 +131,28 @@ Deno.test("makeWorkspaceConfig - isRequired is not accepted", async (t) => {
     const mapping = config.validation?.datasets[0]?.fieldMappings?.[0];
     assertEquals(mapping?.originName, "eventID");
     assertEquals(mapping?.requirement, "required");
+  });
+
+  await t.step("unknown properties on field mappings are stripped by schema", () => {
+    const config = makeWorkspaceConfig({
+      validation: {
+        datasets: [{
+          name: "events",
+          spec: "dwc-event",
+          path: "./events.csv",
+          fieldMappings: [{
+            originName: "eventID",
+            targetName: "eventID",
+            // @ts-expect-error — intentionally passing unknown property to verify schema strips it
+            bogusProperty: true,
+          }],
+        }],
+      },
+    });
+
+    const mapping = config.validation?.datasets[0]?.fieldMappings?.[0];
+    assertEquals(mapping?.originName, "eventID");
+    assertEquals("bogusProperty" in (mapping ?? {}), false);
   });
 });
 

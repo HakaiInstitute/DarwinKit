@@ -12,9 +12,13 @@
  */
 
 import type { ValidationProfile, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
-import { FieldRequirementLevel } from "@dwkt/domain/schemas";
 import type { Constraint, EnforcementLevel, FieldDefinition } from "@dwkt/domain/specs";
-import { getPreset, mergeConstraints, obligationToEnforcement } from "@dwkt/domain/specs";
+import {
+  ENFORCEMENT_STRICTNESS,
+  getPreset,
+  mergeConstraints,
+  obligationForStandard,
+} from "@dwkt/domain/specs";
 
 // =============================================================================
 // Helper Functions (moved from workspace-validator.ts)
@@ -27,6 +31,10 @@ import { getPreset, mergeConstraints, obligationToEnforcement } from "@dwkt/doma
  * JSON base profiles (Event, Occurrence, etc.) have `targetSchema: undefined`
  * since they come from dwcSchema.json. Default to "obis" for these since
  * the JSON schema contains OBIS requirement metadata.
+ *
+ * TODO: Revisit the "obis" default when GBIF profiles are actively used.
+ * Users selecting a GBIF profile will need their own obligation metadata
+ * to drive requirement resolution rather than falling back to OBIS.
  */
 export function resolveActiveStandard(
   profile: ValidationProfile | undefined,
@@ -36,38 +44,15 @@ export function resolveActiveStandard(
 }
 
 /**
- * Get the obligation-derived enforcement level for a field, given the active standard.
- */
-export function obligationForStandard(
-  field: FieldDefinition,
-  standard: "obis" | "gbif" | "custom",
-): EnforcementLevel | undefined {
-  if (!field.obligations) return undefined;
-  const obligation = standard === "obis"
-    ? field.obligations.obis
-    : standard === "gbif"
-    ? field.obligations.gbif
-    : undefined;
-  if (!obligation) return undefined;
-  return obligationToEnforcement(obligation);
-}
-
-const ENFORCEMENT_STRICTNESS: Record<string, number> = {
-  required: 2,
-  recommended: 1,
-  optional: 0,
-};
-
-/**
- * Derive FieldRequirementLevel from a field's constraint array.
+ * Derive the strictest enforcement level from a field's constraint array.
  *
- * Picks the strictest RequiredConstraint and maps its enforcement to
- * FieldRequirementLevel. This matches the validator's takeStrictest
- * behavior so missing-field detection uses the same effective level.
+ * Picks the strictest RequiredConstraint's enforcement level.
+ * This matches the validator's takeStrictest behavior so missing-field
+ * detection uses the same effective level.
  */
-export function deriveRequirementFromConstraints(
+export function deriveEnforcementFromConstraints(
   constraints: readonly Constraint[] | undefined,
-): FieldRequirementLevel | undefined {
+): EnforcementLevel | undefined {
   if (!constraints) return undefined;
   const requiredConstraints = constraints.filter((c) => c.type === "required");
   if (requiredConstraints.length === 0) return undefined;
@@ -77,54 +62,25 @@ export function deriveRequirementFromConstraints(
       ? a
       : b
   );
-  switch (strictest.enforcement) {
-    case "required":
-      return FieldRequirementLevel.Required;
-    case "recommended":
-      return FieldRequirementLevel.StronglyRecommended;
-    case "optional":
-      return FieldRequirementLevel.Recommended;
-  }
+  return strictest.enforcement;
 }
 
 /**
- * Compile a requirement string into a RequiredConstraint.
+ * Compile an enforcement level into a RequiredConstraint.
  *
- * Only Required and StronglyRecommended produce constraints.
- * Recommended, Optional, and RequiredIfExists return undefined
- * to avoid phantom constraints.
+ * Every enforcement level produces a constraint — the enforcement
+ * value controls the severity (required → ERROR, recommended → WARNING,
+ * optional → INFO).
  */
 export function requirementToConstraint(
-  requirement: string,
-): Constraint | undefined {
-  switch (requirement) {
-    case FieldRequirementLevel.Required:
-      return {
-        type: "required",
-        enforcement: "required",
-        allowEmpty: false,
-        allowWhitespace: false,
-      };
-    case FieldRequirementLevel.StronglyRecommended:
-      return {
-        type: "required",
-        enforcement: "recommended",
-        allowEmpty: false,
-        allowWhitespace: false,
-      };
-    case FieldRequirementLevel.Recommended:
-      return {
-        type: "required",
-        enforcement: "optional",
-        allowEmpty: false,
-        allowWhitespace: false,
-      };
-    case FieldRequirementLevel.Optional:
-    case FieldRequirementLevel.RequiredIfExists:
-      return undefined;
-    default:
-      return undefined;
-  }
+  requirement: EnforcementLevel,
+): Constraint {
+  return {
+    type: "required",
+    enforcement: requirement,
+    allowEmpty: false,
+    allowWhitespace: false,
+  };
 }
 
 // =============================================================================
@@ -136,6 +92,12 @@ export function requirementToConstraint(
  * Multiple constraints of the same type are allowed — validators check all of
  * them, so the data must satisfy every constraint (natural intersection/tightening).
  * When `diagnostics` is provided, overlapping types are recorded as informational.
+ *
+ * **Known limitation:** No type-compatibility validation is performed. Config can
+ * add constraints that don't make sense for the field's data type (e.g. `range` on
+ * a string field). Validators will run and produce confusing-but-diagnosable errors.
+ * This is acceptable because config authors are the data owners and FieldDataType
+ * is not reliably present on all field definitions.
  */
 export function addConstraints(
   existing: readonly Constraint[],
@@ -192,19 +154,40 @@ export function resolveFieldDefinitions(
   // --- Tier 1: Spec fields with obligation-derived constraints ---
   const result: Record<string, WorkspaceFieldMapping> = {};
 
+  // Fields explicitly mapped by the user's config (needed for conditional obligations)
+  const mappedFieldNames = new Set(configMappings.map((m) => m.targetName));
+
   for (const [fieldName, field] of Object.entries(schemaProfile.normalizedFields || {})) {
     // Start with the spec's own constraints
     let constraints: Constraint[] = [...(field.constraints ?? [])];
 
     // Add obligation-derived constraint
-    const enforcement = obligationForStandard(field, activeStandard);
-    if (enforcement) {
+    const obligationResult = obligationForStandard(field, activeStandard);
+    if (obligationResult?.enforcement) {
       // Obligation → RequiredConstraint merged via replacement (spec-level, trusted)
       constraints = mergeConstraints(constraints, [{
         type: "required" as const,
-        enforcement,
+        enforcement: obligationResult.enforcement,
         allowEmpty: false,
         allowWhitespace: false,
+      }]);
+    } else if (
+      obligationResult?.obligation === "required (if exists)" &&
+      mappedFieldNames.has(fieldName)
+    ) {
+      // "Required (if exists)" — the field is not required to be in the dataset,
+      // but when the user has mapped it, empty values are likely an error.
+      // Emit a WARNING-level constraint with a descriptive message so users
+      // can verify the blanks are intentional.
+      const label = field.label ?? fieldName;
+      constraints = mergeConstraints(constraints, [{
+        type: "required" as const,
+        enforcement: "recommended" as const,
+        allowEmpty: false,
+        allowWhitespace: false,
+        message: `"${label}" is included in your dataset and is required when applicable. ` +
+          `Empty values will be flagged — verify that blanks are intentional ` +
+          `(e.g. rows where no ${label.toLowerCase()} applies).`,
       }]);
     }
 
@@ -228,10 +211,9 @@ export function resolveFieldDefinitions(
 
       // Profile requirement → constraint (replacement semantics, profile-level)
       if (override.requirement) {
-        const reqConstraint = requirementToConstraint(override.requirement);
-        if (reqConstraint) {
-          constraints = mergeConstraints(constraints, [reqConstraint]);
-        }
+        constraints = mergeConstraints(constraints, [
+          requirementToConstraint(override.requirement),
+        ]);
       }
 
       if (existing) {
@@ -275,10 +257,11 @@ export function resolveFieldDefinitions(
 
     // Config requirement → constraint
     if (configMapping.requirement) {
-      const reqConstraint = requirementToConstraint(configMapping.requirement);
-      if (reqConstraint) {
-        constraints = addConstraints(constraints, [reqConstraint], tracker);
-      }
+      constraints = addConstraints(
+        constraints,
+        [requirementToConstraint(configMapping.requirement)],
+        tracker,
+      );
     }
 
     // Record diagnostics for overlapping constraint types
