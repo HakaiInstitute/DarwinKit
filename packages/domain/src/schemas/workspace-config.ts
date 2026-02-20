@@ -45,8 +45,8 @@ export const workspaceFieldMappingSchema = S.Struct({
 // Cross-dataset rules drive DuckDB FK constraint creation in importSchema().
 // FK violations are caught at INSERT time, not via post-insert queries.
 export const workspaceCrossDatasetRuleSchema = S.Struct({
-  ruleType: S.Literal("foreignKey", "referentialIntegrity").annotations({
-    description: "Type of cross-dataset rule: foreignKey or referentialIntegrity.",
+  ruleType: S.Literal("foreignKey").annotations({
+    description: "Type of cross-dataset rule.",
   }),
   sourceDataset: S.String.annotations({ description: "Name of the source dataset." }),
   sourceField: S.String.annotations({ description: "Field name in the source dataset." }),
@@ -69,9 +69,9 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
  */
 export const datasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this dataset." }),
-  type: S.String.annotations({
+  class: S.String.annotations({
     description:
-      "Darwin Core core type: event, occurrence, extendedMeasurementOrFact, dnaDerivedData, resourceRelationship.",
+      "Darwin Core class: event, occurrence, extendedMeasurementOrFact, dnaDerivedData, resourceRelationship.",
   }),
   path: S.String.annotations({ description: "File path to the CSV data file." }),
   description: S.optional(S.String),
@@ -91,8 +91,8 @@ export const datasetConfigSchema = S.Struct({
  */
 export const transformDatasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this transform dataset." }),
-  type: S.String.annotations({
-    description: "Darwin Core core type for the transform output.",
+  class: S.String.annotations({
+    description: "Darwin Core class for the transform output.",
   }),
   // TODO: Define proper S.Struct shapes for source and fields to improve JSON Schema output
   source: S.optional(S.Object),
@@ -327,7 +327,7 @@ export type WorkspaceConfigInput = S.Schema.Encoded<typeof workspaceConfigSchema
  * ```typescript
  * const config = makeWorkspaceConfig({
  *   validation: {
- *     datasets: [{ name: "events", type: "event", path: "./events.csv", fieldMappings: [] }]
+ *     datasets: [{ name: "events", class: "event", path: "./events.csv", fieldMappings: [] }]
  *   }
  * });
  * // id, name, version, standard, createdAt, updatedAt are auto-generated
@@ -353,9 +353,9 @@ export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig =>
 // =============================================================================
 
 /**
- * Valid Darwin Core core types (lowercase).
+ * Valid Darwin Core classes (lowercase).
  */
-export const DARWIN_CORE_TYPES = [
+export const DARWIN_CORE_CLASSES = [
   "event",
   "occurrence",
   "extendedMeasurementOrFact",
@@ -363,13 +363,13 @@ export const DARWIN_CORE_TYPES = [
   "resourceRelationship",
 ] as const;
 
-export type DarwinCoreType = typeof DARWIN_CORE_TYPES[number];
+export type DarwinCoreClass = typeof DARWIN_CORE_CLASSES[number];
 
 /**
- * Normalize a dataset type to a profile registry key.
+ * Normalize a dataset class to a profile registry key.
  *
  * Capitalizes the first letter to match registry keys (e.g., "event" → "Event").
  */
-export function typeToProfileKey(type: string): string {
-  return type.charAt(0).toUpperCase() + type.slice(1);
+export function classToProfileKey(dwcClass: string): string {
+  return dwcClass.charAt(0).toUpperCase() + dwcClass.slice(1);
 }

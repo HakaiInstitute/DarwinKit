@@ -15,7 +15,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: occurrence_data
-      type: occurrence
+      class: occurrence
       path: data/invalid_occ.csv
       description: Occurrence data with problematic NA values that should fail validation
       fieldMappings:

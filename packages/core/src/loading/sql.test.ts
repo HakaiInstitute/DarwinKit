@@ -187,13 +187,6 @@ const sampleRules: WorkspaceCrossDatasetRule[] = [
     targetField: "occurrenceID",
     requirement: "recommended",
   },
-  {
-    ruleType: "referentialIntegrity",
-    sourceDataset: "event",
-    sourceField: "eventID",
-    targetDataset: "event",
-    targetField: "eventID",
-  },
 ];
 
 Deno.test("findForeignKeyRule - finds matching rule", () => {
@@ -218,12 +211,6 @@ Deno.test("findForeignKeyRule - returns undefined for non-matching dataset", () 
 
 Deno.test("findForeignKeyRule - returns undefined for non-matching field", () => {
   const result = findForeignKeyRule("occurrence", "nonexistentID", sampleRules);
-
-  assertEquals(result, undefined);
-});
-
-Deno.test("findForeignKeyRule - ignores referentialIntegrity rules", () => {
-  const result = findForeignKeyRule("event", "eventID", sampleRules);
 
   assertEquals(result, undefined);
 });

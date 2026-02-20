@@ -30,7 +30,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
       datasets: [
         {
           name: "Event",
-          type: "Event",
+          class: "Event",
           source: {
             "source_events": "source_events",
           },
@@ -42,7 +42,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
         },
         {
           name: "Occurrence",
-          type: "Occurrence",
+          class: "Occurrence",
           source: {
             "source_occurrences": "source_occurrences",
           },

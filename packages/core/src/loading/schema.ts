@@ -5,7 +5,7 @@ import type {
   WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
 import type { Standard } from "@dwkt/domain/schemas";
-import { typeToProfileKey } from "@dwkt/domain/schemas";
+import { classToProfileKey } from "@dwkt/domain/schemas";
 import { getValidationProfile, obligationForStandard } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
@@ -16,16 +16,16 @@ import { findForeignKeyRule, sanitizeTableName } from "./sql.ts";
  * Minimal dataset interface for schema import
  * Works with both validation and transform dataset configs
  */
-type DatasetWithType = {
+type DatasetWithClass = {
   readonly name: string;
-  readonly type: string;
+  readonly class: string;
 };
 
 /**
  * Generates and applies a database schema for a dataset based on its validation profile.
  *
  * This function:
- * - Loads a validation profile for `dataset` using `getValidationProfile(typeToProfileKey(dataset.type))`.
+ * - Loads a validation profile for `dataset` using `getValidationProfile(classToProfileKey(dataset.class))`.
  *   If no profile is found the function returns early (no DB changes).
  * - Derives a table name from the profile's `name` (lowercased).
  * - Creates ENUM types for any profile fields declared as controlled vocabularies
@@ -119,8 +119,8 @@ function isFieldRequired(
 
 export function importSchema(
   connection: DuckDBConnection,
-  dataset: DatasetWithType,
-  datasets: readonly DatasetWithType[],
+  dataset: DatasetWithClass,
+  datasets: readonly DatasetWithClass[],
   standard: Standard,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   resolvedFields?: Record<string, WorkspaceFieldMapping>,
@@ -128,7 +128,7 @@ export function importSchema(
   return Effect.gen(function* (_) {
     // Load base validation profile for DDL generation
     // Uses base type profile (not standard-specific) to ensure consistent table naming
-    const profileId = typeToProfileKey(dataset.type);
+    const profileId = classToProfileKey(dataset.class);
     const spec = getValidationProfile(profileId);
     if (!spec) {
       // No validation profile found - skip table creation
@@ -190,7 +190,7 @@ export function importSchema(
         // Resolve target dataset name to table name via its profile
         const targetDataset = datasets.find((ds) => ds.name === fkRule.targetDataset);
         if (targetDataset) {
-          const targetProfileId = typeToProfileKey(targetDataset.type);
+          const targetProfileId = classToProfileKey(targetDataset.class);
           const targetProfile = targetProfileId ? getValidationProfile(targetProfileId) : undefined;
           if (targetProfile) {
             const referencedTable = sanitizeTableName(targetProfile.name).toLowerCase();

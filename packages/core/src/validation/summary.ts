@@ -7,7 +7,7 @@
  */
 
 import type { DatasetConfig } from "@dwkt/domain/schemas";
-import { typeToProfileKey } from "@dwkt/domain/schemas";
+import { classToProfileKey } from "@dwkt/domain/schemas";
 import { getValidationProfile } from "@dwkt/domain/specs";
 import { sanitizeTableName } from "../loading/sql.ts";
 
@@ -30,7 +30,7 @@ export function resolveSchemaTableName(
     return sanitizeTableName(datasetName).toLowerCase();
   }
 
-  const profileId = typeToProfileKey(dataset.type);
+  const profileId = classToProfileKey(dataset.class);
 
   if (profileId) {
     const profile = getValidationProfile(profileId);

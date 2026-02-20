@@ -55,13 +55,13 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
       datasets: [
         {
           name: "Event",
-          type: "Event",
+          class: "Event",
           source: { test: "" },
           fields: {},
         },
         {
           name: "Occurrence",
-          type: "Occurrence",
+          class: "Occurrence",
           source: { test: "" },
           fields: {},
         },
@@ -179,11 +179,11 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", type: "Event", source: { test: "" }, fields: {} },
-        { name: "Occurrence", type: "Occurrence", source: { test: "" }, fields: {} },
+        { name: "Event", class: "Event", source: { test: "" }, fields: {} },
+        { name: "Occurrence", class: "Occurrence", source: { test: "" }, fields: {} },
         {
           name: "MeasurementOrFact",
-          type: "ExtendedMeasurementOrFact",
+          class: "ExtendedMeasurementOrFact",
           source: { test: "" },
           fields: {},
         },
@@ -257,8 +257,8 @@ Deno.test("createTableFromSchema - no FK constraints without crossDatasetRules",
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", type: "Event", source: { test: "" }, fields: {} },
-        { name: "Occurrence", type: "Occurrence", source: { test: "" }, fields: {} },
+        { name: "Event", class: "Event", source: { test: "" }, fields: {} },
+        { name: "Occurrence", class: "Occurrence", source: { test: "" }, fields: {} },
       ],
       output: {
         outputDir: "",

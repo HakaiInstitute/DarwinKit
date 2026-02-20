@@ -17,16 +17,16 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: events
-      type: event
+      class: event
       path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/event.csv
       description: Marine sampling events for OBIS
 
     - name: occurrence
-      type: occurrence
+      class: occurrence
       path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/occurrence.csv
       description: Marine sampling occurrence for OBIS
 
     - name: extendedMeasurementOrFact
-      type: extendedMeasurementOrFact
+      class: extendedMeasurementOrFact
       path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/eMoF.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS

@@ -127,27 +127,27 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
 }
 
 /**
- * Resolve a validation profile using standard + type combination.
+ * Resolve a validation profile using standard + class combination.
  *
  * Resolution order:
- * 1. Try `"${standard}-${type}"` in TypeScript registry (e.g., "obis-event")
- * 2. Fall back to base JSON profile using capitalized type key (e.g., "Event")
+ * 1. Try `"${standard}-${dwcClass}"` in TypeScript registry (e.g., "obis-event")
+ * 2. Fall back to base JSON profile using capitalized class key (e.g., "Event")
  *
- * This allows `standard: "obis"` + `type: "event"` to automatically load
+ * This allows `standard: "obis"` + `class: "event"` to automatically load
  * the OBIS-Event TypeScript profile with its field overrides.
  */
 export function resolveProfile(
   standard: string | undefined,
-  type: string,
+  dwcClass: string,
 ): ValidationProfile | undefined {
   if (standard) {
-    const compositeKey = `${standard}-${type.toLowerCase()}`;
+    const compositeKey = `${standard}-${dwcClass.toLowerCase()}`;
     const tsProfile = getValidationProfile(compositeKey);
     if (tsProfile) return tsProfile;
   }
 
-  // Fall back to base profile using capitalized type key
-  const baseKey = type.charAt(0).toUpperCase() + type.slice(1);
+  // Fall back to base profile using capitalized class key
+  const baseKey = dwcClass.charAt(0).toUpperCase() + dwcClass.slice(1);
   return getValidationProfile(baseKey);
 }
 

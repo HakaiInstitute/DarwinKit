@@ -28,7 +28,7 @@ import type { SchemaViolation } from "./schema-violation.ts";
  */
 export interface DatasetValidationResult {
   readonly datasetName: string;
-  readonly type: string;
+  readonly class: string;
   readonly filePath: string;
   readonly rowsProcessed: number;
   readonly processingTimeMs: number;
@@ -50,7 +50,7 @@ export interface DatasetValidationResult {
  * - severity for consistent handling with other violations
  */
 export interface CrossDatasetValidationResult {
-  readonly ruleType: "foreignKey" | "referentialIntegrity";
+  readonly ruleType: "foreignKey";
   readonly sourceDataset: string;
   readonly sourceField: string;
   readonly targetDataset: string;

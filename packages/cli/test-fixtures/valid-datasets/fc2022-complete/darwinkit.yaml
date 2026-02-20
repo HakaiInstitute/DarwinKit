@@ -16,7 +16,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: event_data
-      type: event
+      class: event
       path: data/FC2022_event.csv
       description: Event data containing sampling locations and metadata
       fieldMappings:
@@ -83,7 +83,7 @@ validation:
         - originName: eventRemarks
           targetName: eventRemarks
     - name: occurrence_data
-      type: occurrence
+      class: occurrence
       path: data/FC2022_occ.csv
       description: Species occurrence records from eDNA analysis
       fieldMappings:
@@ -154,7 +154,7 @@ validation:
         - originName: recordedBy
           targetName: recordedBy
     - name: emof_data
-      type: extendedMeasurementOrFact
+      class: extendedMeasurementOrFact
       path: data/FC2022_eMOF.csv
       description: Extended measurement or fact data
       fieldMappings:

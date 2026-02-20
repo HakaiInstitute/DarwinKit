@@ -55,7 +55,7 @@ function makeCleanDataset(
 ): DatasetValidationResult {
   return {
     datasetName: overrides.datasetName ?? 'events',
-    type: overrides.type ?? 'dwc-event',
+    class: overrides.class ?? 'dwc-event',
     filePath: overrides.filePath ?? './data/events.csv',
     rowsProcessed: overrides.rowsProcessed ?? 100,
     processingTimeMs: overrides.processingTimeMs ?? 50,

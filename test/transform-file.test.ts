@@ -37,7 +37,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
       datasets: [
         {
           name: "Event",
-          type: "Event",
+          class: "Event",
           source: { "source_data": "source_data" },
           fields: {
             "eventID": "source_data.event_id",
@@ -46,7 +46,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
         },
         {
           name: "Occurrence",
-          type: "Occurrence",
+          class: "Occurrence",
           source: { "source_data": "source_data" },
           fields: {
             "occurrenceID": "source_data.occ_id",

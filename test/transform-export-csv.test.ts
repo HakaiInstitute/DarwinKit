@@ -29,8 +29,8 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", type: "Event", source: {}, fields: {} },
-        { name: "Occurrence", type: "Occurrence", source: {}, fields: {} },
+        { name: "Event", class: "Event", source: {}, fields: {} },
+        { name: "Occurrence", class: "Occurrence", source: {}, fields: {} },
       ],
       output: {
         outputDir: outputDir,
@@ -88,7 +88,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
       nullValues: [],
       inputs: {},
       postImportTransforms: [],
-      datasets: [{ name: "Event", type: "Event", source: {}, fields: {} }],
+      datasets: [{ name: "Event", class: "Event", source: {}, fields: {} }],
       output: {
         outputDir: outputDir,
         outputFilesWithTimestamp: false,
@@ -153,7 +153,7 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
       inputs: {},
       postImportTransforms: [],
       nullValues: [],
-      datasets: [{ name: "Event", type: "Event", source: {}, fields: {} }],
+      datasets: [{ name: "Event", class: "Event", source: {}, fields: {} }],
       output: { outputDir: invalidOutputDir, exportDB: false },
     },
   };

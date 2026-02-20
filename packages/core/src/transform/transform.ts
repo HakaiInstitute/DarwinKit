@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 
 import { Workspace } from "../workspace/mod.ts";
 import type { WorkspaceConfig } from "@dwkt/domain/schemas";
-import { hasTransformationConfig, typeToProfileKey } from "@dwkt/domain/schemas";
+import { classToProfileKey, hasTransformationConfig } from "@dwkt/domain/schemas";
 import { getValidationProfile } from "@dwkt/domain/specs";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
@@ -182,12 +182,12 @@ export function populateSchemaFromDataTables( // Export for testing
 
       // TODO(#108): Transform should use resolveProfile(standard, type) to respect
       // standard-specific profiles. Currently ignores the standard field.
-      const transformProfile = getValidationProfile(typeToProfileKey(dataset.type));
+      const transformProfile = getValidationProfile(classToProfileKey(dataset.class));
       if (!transformProfile) {
         return yield* _(Effect.fail(
           new TransformationError({
             message:
-              `Validation profile for type '${dataset.type}' not found for dataset '${dataset.name}'`,
+              `Validation profile for class '${dataset.class}' not found for dataset '${dataset.name}'`,
           }),
         ));
       }
@@ -282,7 +282,7 @@ export function exportObisTablesToCSV(
 
     const withTimestamp = outputFilesWithTimestamp ?? true;
     const tables = [
-      ...new Set(datasets.map((ds) => typeToProfileKey(ds.type).toLowerCase())),
+      ...new Set(datasets.map((ds) => classToProfileKey(ds.class).toLowerCase())),
     ];
     const outputPath = output.outputDir;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -468,10 +468,10 @@ export function exportToPersistentDB(
     for (const dataset of config.transform.datasets) {
       // TODO(#108): Transform should use resolveProfile(standard, type) to respect
       // standard-specific profiles. Currently ignores the standard field.
-      const transformProfile = getValidationProfile(typeToProfileKey(dataset.type));
+      const transformProfile = getValidationProfile(classToProfileKey(dataset.class));
       if (!transformProfile) {
         console.warn(
-          `No validation profile found for type '${dataset.type}', skipping table export.`,
+          `No validation profile found for class '${dataset.class}', skipping table export.`,
         );
         continue;
       }

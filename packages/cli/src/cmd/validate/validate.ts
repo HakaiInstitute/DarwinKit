@@ -392,7 +392,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     table.push([
       dataset.datasetName,
-      dataset.type,
+      dataset.class,
       statusText,
       errorCount > 0 ? colors.red(errorCount.toString()) : errorCount.toString(),
       warningCount > 0 ? colors.yellow(warningCount.toString()) : warningCount.toString(),
@@ -416,7 +416,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     if (hasErrors || hasWarnings || hasInfo) {
       Output.blank();
-      Output.bold(`📊 ${dataset.datasetName} (${dataset.type})`);
+      Output.bold(`📊 ${dataset.datasetName} (${dataset.class})`);
       Output.blank();
     }
 

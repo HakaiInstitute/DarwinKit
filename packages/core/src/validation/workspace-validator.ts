@@ -19,7 +19,7 @@ import type {
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
-import { typeToProfileKey } from "@dwkt/domain/schemas";
+import { classToProfileKey } from "@dwkt/domain/schemas";
 import type { FieldDefinition } from "@dwkt/domain/specs";
 import {
   getPreset,
@@ -157,7 +157,7 @@ export class WorkspaceValidator {
       const activeStandard = resolveActiveStandard(standard);
       const resolvedFieldsMap = new Map<string, Record<string, WorkspaceFieldMapping>>();
       for (const dataset of datasets) {
-        const datasetProfile = resolveProfile(standard, dataset.type);
+        const datasetProfile = resolveProfile(standard, dataset.class);
         if (datasetProfile) {
           const configMappings = dataset.fieldMappings || [];
           const allResolved = resolveFieldDefinitions(
@@ -274,7 +274,7 @@ function _validateDatasetsCore(
     const datasetResults: DatasetValidationResult[] = [];
 
     for (const dataset of datasets) {
-      const datasetProfile = resolveProfile(standard, dataset.type);
+      const datasetProfile = resolveProfile(standard, dataset.class);
 
       const result = yield* _(
         validateDataset(connection, dataset, datasetProfile, standard, settings, crossDatasetRules),
@@ -369,7 +369,7 @@ function createWorkspaceFromConfig(
     const activeStandard = resolveActiveStandard(standard);
     const resolvedFieldsMap = new Map<string, Record<string, WorkspaceFieldMapping>>();
     for (const dataset of datasets) {
-      const datasetProfile = resolveProfile(standard, dataset.type);
+      const datasetProfile = resolveProfile(standard, dataset.class);
       if (datasetProfile) {
         const configMappings = dataset.fieldMappings || [];
         const allResolved = resolveFieldDefinitions(datasetProfile, activeStandard, configMappings);
@@ -455,7 +455,7 @@ function validateDataset(
       .filter((col) => col !== "_row_number");
 
     // Use base type profile for DuckDB table naming (matches importSchema which uses base profiles)
-    const baseProfileKey = typeToProfileKey(dataset.type);
+    const baseProfileKey = classToProfileKey(dataset.class);
     const baseProfile = getValidationProfile(baseProfileKey);
 
     const schemaTableName = baseProfile
@@ -715,9 +715,9 @@ function validateDataset(
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
-              `No validation profile specified for dataset '${dataset.name}'. Please add a 'type' property to the dataset configuration.`,
+              `No validation profile specified for dataset '${dataset.name}'. Please add a 'class' property to the dataset configuration.`,
             validatorType: "schema",
-            profileId: dataset.type ?? "unknown",
+            profileId: dataset.class ?? "unknown",
             reason: "not_found",
           }),
         );
@@ -843,7 +843,7 @@ function validateDataset(
 
     return {
       datasetName: dataset.name,
-      type: dataset.type,
+      class: dataset.class,
       filePath: dataset.path ?? "",
       rowsProcessed,
       processingTimeMs,

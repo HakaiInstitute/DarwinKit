@@ -52,7 +52,7 @@ function renderSummaryTable(
       dataset.fieldViolations.info.length;
 
     lines.push(
-      `| ${dataset.datasetName} | ${dataset.type} | ${statusText} | ${errorCount} | ${warningCount} | ${infoCount} |`,
+      `| ${dataset.datasetName} | ${dataset.class} | ${statusText} | ${errorCount} | ${warningCount} | ${infoCount} |`,
     );
   }
 
@@ -138,7 +138,7 @@ function renderDatasetDetails(
   }
 
   const sections = [
-    `## 📊 ${dataset.datasetName} (${dataset.type})`,
+    `## 📊 ${dataset.datasetName} (${dataset.class})`,
     '',
     renderViolationSection(
       'ERRORS',

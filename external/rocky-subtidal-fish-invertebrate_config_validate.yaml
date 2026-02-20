@@ -16,7 +16,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: events
-      type: event
+      class: event
       path: ../packages/cli/transform_results/event.csv
       description: Marine sampling events for OBIS
       fieldMappings:
@@ -85,7 +85,7 @@ validation:
             minValue: 0
             maxValue: 11000
     - name: occurrence
-      type: occurrence
+      class: occurrence
       path: ../packages/cli/transform_results/occurrence.csv
       description: Marine sampling occurrence for OBIS
       fieldMappings:
@@ -132,7 +132,7 @@ validation:
         - originName: occurrenceID
           targetName: occurrenceID
     - name: extendedMeasurementOrFact
-      type: extendedMeasurementOrFact
+      class: extendedMeasurementOrFact
       path: ../packages/cli/transform_results/extendedmeasurementorfact.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
       fieldMappings:
