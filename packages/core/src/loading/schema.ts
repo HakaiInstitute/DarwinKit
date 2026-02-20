@@ -65,7 +65,7 @@ type DatasetWithClass = {
  *
  * Parameters:
  * - connection: DuckDBConnection used to execute DDL statements.
- * - dataset: Dataset config with name and type (works with both validation and transform configs).
+ * - dataset: Dataset config with name and class (works with both validation and transform configs).
  * - datasets: All datasets, used to resolve target table names for FK constraints.
  * - crossDatasetRules: Explicit FK rules from configuration. Only rules with ruleType "foreignKey" are used.
  *
