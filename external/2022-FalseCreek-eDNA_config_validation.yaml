@@ -4,6 +4,7 @@ version: 1.0.0
 description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
 createdAt: '2024-10-06T00:00:00.000Z'
 updatedAt: '2024-10-06T00:00:00.000Z'
+standard: obis
 validation:
   nullValues:
     - NA
@@ -15,10 +16,9 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: events
-      spec: dwc-event
+      type: event
       path: ./2022-FalseCreek-eDNA/obis/FC2022_event.csv
       description: Marine sampling events for OBIS
-      profile: Event
       fieldMappings:
         - originName: eventID
           targetName: eventID
@@ -116,10 +116,9 @@ validation:
           targetName: verbatimDepth
 
     - name: occurrence
-      spec: dwc-occurrence
+      type: occurrence
       path: ./2022-FalseCreek-eDNA/obis/FC2022_occ.csv
       description: Marine sampling occurrence for OBIS
-      profile: Occurrence
       fieldMappings:
         - originName: scientificName
           targetName: scientificName
@@ -205,10 +204,9 @@ validation:
           targetName: organismRemarks
 
     - name: extendedMeasurementOrFact
-      spec: dwc-eMOF
+      type: extendedMeasurementOrFact
       path: ./2022-FalseCreek-eDNA/obis/FC2022_eMOF.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
-      profile: ExtendedMeasurementOrFact
       fieldMappings:
         - originName: eventID
           targetName: eventID
@@ -232,10 +230,9 @@ validation:
           targetName: measurementMethod
 
     - name: dnaDerivedData
-      spec: dwc-dna
+      type: dnaDerivedData
       path: ./2022-FalseCreek-eDNA/obis/FC2022_dna_ext.csv
       description: Dna dervied data for OBIS
-      profile: dnaDerivedData
       fieldMappings:
         - originName: eventID
           targetName: eventID
@@ -286,10 +283,9 @@ validation:
         #   targetName: materialSampleID
 
     - name: ResourceRelationship
-      spec: dwc-related
+      type: resourceRelationship
       path: ./2022-FalseCreek-eDNA/obis/FC2022_rr_ext.csv
       description: Dna dervied data for OBIS
-      profile: ResourceRelationship
       fieldMappings:
         - originName: resourceID
           targetName: resourceID

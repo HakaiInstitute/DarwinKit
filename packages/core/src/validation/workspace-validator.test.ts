@@ -235,7 +235,7 @@ async function createMultiDatasetWorkspace(
   const datasets = options?.datasets ?? [
     {
       name: "events",
-      spec: "dwc-event",
+      type: "event",
       path: "./events.csv",
       fieldMappings: [
         { originName: "eventID", targetName: "eventID" },
@@ -247,7 +247,7 @@ async function createMultiDatasetWorkspace(
     },
     {
       name: "occurrences",
-      spec: "dwc-occurrence",
+      type: "occurrence",
       path: "./occurrences.csv",
       fieldMappings: [
         { originName: "eventID", targetName: "eventID" },
@@ -289,7 +289,7 @@ async function createSingleDatasetWorkspace(
   datasetName: string,
   data: Array<Record<string, unknown>>,
   fieldMappings: WorkspaceFieldMapping[],
-  options?: { profile?: string; spec?: string },
+  options?: { type?: string },
 ): Promise<void> {
   await writeCSV(tempDir, datasetName, data);
 
@@ -300,9 +300,8 @@ async function createSingleDatasetWorkspace(
       datasets: [
         {
           name: datasetName,
-          spec: options?.spec ?? `dwc-${datasetName}`,
+          type: options?.type ?? datasetName,
           path: `./${datasetName}.csv`,
-          ...(options?.profile && { profile: options.profile }),
           fieldMappings,
         },
       ],
@@ -425,12 +424,9 @@ Deno.test("WorkspaceValidator - Basic Validation Tests", async (t) => {
 
     const result = await validateWorkspace(tempDir);
 
-    // Should have cross-dataset results
+    // Cross-dataset results are empty — FK violations are caught at INSERT time
     assertExists(result.crossDatasetResults);
-    assertEquals(result.crossDatasetResults.length, 1);
-
-    // All eventIDs in occurrences exist in events, so no violations
-    assertEquals(result.crossDatasetResults[0].violations.length, 0);
+    assertEquals(result.crossDatasetResults.length, 0);
   });
 });
 
@@ -453,7 +449,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         datasets: [
           {
             name: "events",
-            spec: "dwc-event",
+            type: "event",
             path: "./events.csv",
             fieldMappings: [
               { originName: "eventID", targetName: "eventID" },
@@ -461,7 +457,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
           },
           {
             name: "occurrences",
-            spec: "dwc-occurrence",
+            type: "occurrence",
             path: "./occurrences.csv",
             fieldMappings: [
               { originName: "eventID", targetName: "eventID" },
@@ -504,9 +500,8 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     assertEquals(params?.targetDataset, "events");
     assertEquals(params?.targetField, "eventID");
 
-    // Cross-dataset validation finds nothing (row was rejected at insert)
-    assertEquals(result.crossDatasetResults.length, 1);
-    assertEquals(result.crossDatasetResults[0].violations.length, 0);
+    // Cross-dataset results are empty — FK violations are caught at INSERT time
+    assertEquals(result.crossDatasetResults.length, 0);
   });
 
   await t.step("handles missing source fields with warning", async () => {
@@ -520,9 +515,8 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         datasets: [
           {
             name: "events",
-            spec: "dwc-event",
+            type: "event",
             path: "./events.csv",
-            profile: "Event",
             fieldMappings: [
               { originName: "eventID", targetName: "eventID" },
               { originName: "countryCode", targetName: "countryCode" },
@@ -576,7 +570,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         { originName: "decimalLatitude", targetName: "decimalLatitude" },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -596,7 +590,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         { originName: "basisOfRecord", targetName: "basisOfRecord" },
         { originName: "scientificName", targetName: "scientificName" },
       ],
-      { profile: "Occurrence", spec: "dwc-occurrence" },
+      { type: "occurrence" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -618,7 +612,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -640,7 +634,7 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -659,7 +653,7 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -678,7 +672,7 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result1 = await validateWorkspace(tempDir);
@@ -741,7 +735,7 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
         { originName: "decimalLatitude", targetName: "decimalLatitude" },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -789,7 +783,7 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
           constraints: [{ type: "format", format: "url" }],
         },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -839,7 +833,7 @@ Deno.test("WorkspaceValidator - Pattern Validation Tests", async (t) => {
           ],
         },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -880,7 +874,7 @@ Deno.test("WorkspaceValidator - Length Validation Tests", async (t) => {
           ],
         },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -925,7 +919,7 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
           ],
         },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -976,7 +970,7 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
         },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -1032,7 +1026,7 @@ Deno.test("WorkspaceValidator - Constraint Erasure Prevention", async (t) => {
           { originName: "decimalLongitude", targetName: "decimalLongitude" },
           { originName: "geodeticDatum", targetName: "geodeticDatum" },
         ],
-        { profile: "obis-event", spec: "dwc-event" },
+        { type: "event" },
       );
 
       const result = await validateWorkspace(tempDir);
@@ -1074,7 +1068,7 @@ Deno.test("WorkspaceValidator - Invalid Preset Detection", async (t) => {
         } as WorkspaceFieldMapping,
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -1113,7 +1107,7 @@ Deno.test("WorkspaceValidator - Obligation-Based Requirement", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { profile: "obis-event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -1145,7 +1139,7 @@ Deno.test("WorkspaceValidator - Vocabulary Strictness Tests", async (t) => {
           { originName: "basisOfRecord", targetName: "basisOfRecord" },
           { originName: "scientificName", targetName: "scientificName" },
         ],
-        { profile: "Occurrence", spec: "dwc-occurrence" },
+        { type: "occurrence" },
       );
 
       const result = await validateWorkspace(tempDir);
@@ -1188,7 +1182,7 @@ Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
         } as WorkspaceFieldMapping,
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { profile: "Event", spec: "dwc-event" },
+      { type: "event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -1205,4 +1199,45 @@ Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
       `Expected at least 1 range violation from latitude preset, got ${latViolations.length}`,
     );
   });
+});
+
+Deno.test("WorkspaceValidator - NOT NULL from Resolved Constraints", async (t) => {
+  await t.step(
+    "obligation-required mapped field gets NOT NULL enforcement at INSERT time",
+    async () => {
+      const tempDir = await createTempDir("not_null_obligation");
+
+      // eventDate is OBIS-required. Map it but provide empty values.
+      // With resolved constraints, eventDate should be NOT NULL in the schema,
+      // causing insert failures for rows with NULL eventDate.
+      await createSingleDatasetWorkspace(
+        tempDir,
+        "events",
+        [
+          { eventID: "E1", eventDate: "2022-01-01" },
+          { eventID: "E2", eventDate: "" }, // empty → NULL after nullValues processing
+        ],
+        [
+          { originName: "eventID", targetName: "eventID" },
+          { originName: "eventDate", targetName: "eventDate" },
+        ],
+        { type: "event" },
+      );
+
+      const result = await validateWorkspace(tempDir);
+      const datasetResult = result.datasetResults[0];
+
+      // eventDate is OBIS required — should produce a violation for the empty row
+      assertEquals(datasetResult.status, "fail");
+      const allErrors = [
+        ...datasetResult.fieldViolations.errors,
+        ...datasetResult.schemaViolations.errors,
+      ];
+      const eventDateErrors = allErrors.filter((v) => v.fieldName === "eventDate");
+      assert(
+        eventDateErrors.length >= 1,
+        `Expected at least 1 error for required empty eventDate, got ${eventDateErrors.length}`,
+      );
+    },
+  );
 });

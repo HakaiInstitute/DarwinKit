@@ -36,7 +36,7 @@ function renderSummaryTable(
   const lines: string[] = [
     '## Summary Table',
     '',
-    '| Dataset | Spec | Status | Errors | Warnings | Info |',
+    '| Dataset | Type | Status | Errors | Warnings | Info |',
     '|---------|------|--------|--------|----------|------|',
   ];
 
@@ -52,7 +52,7 @@ function renderSummaryTable(
       dataset.fieldViolations.info.length;
 
     lines.push(
-      `| ${dataset.datasetName} | ${dataset.spec} | ${statusText} | ${errorCount} | ${warningCount} | ${infoCount} |`,
+      `| ${dataset.datasetName} | ${dataset.type} | ${statusText} | ${errorCount} | ${warningCount} | ${infoCount} |`,
     );
   }
 
@@ -138,7 +138,7 @@ function renderDatasetDetails(
   }
 
   const sections = [
-    `## 📊 ${dataset.datasetName} (${dataset.spec})`,
+    `## 📊 ${dataset.datasetName} (${dataset.type})`,
     '',
     renderViolationSection(
       'ERRORS',

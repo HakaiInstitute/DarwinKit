@@ -246,3 +246,46 @@ export function mergeConstraints(
   // Append all child constraints (preserving duplicates within child)
   return [...kept, ...child];
 }
+
+/**
+ * Merge constraints for profile overrides (Tier 2).
+ *
+ * For RequiredConstraints: uses strictest-wins semantics — a profile
+ * cannot weaken a spec's requirement level.
+ * For all other constraint types: uses replacement semantics (same as mergeConstraints).
+ */
+export function mergeProfileConstraints(
+  parent: readonly Constraint[],
+  child: readonly Constraint[],
+): Constraint[] {
+  const childTypes = new Set(child.map((c) => c.type));
+
+  // Separate required constraints for strictest-wins handling
+  const parentRequired = parent.filter(
+    (c): c is Constraint & { type: "required" } => c.type === "required",
+  );
+  const childRequired = child.filter(
+    (c): c is Constraint & { type: "required" } => c.type === "required",
+  );
+
+  // For non-required types: standard replacement semantics
+  const keptNonRequired = parent.filter(
+    (c) => c.type !== "required" && !childTypes.has(c.type),
+  );
+  const childNonRequired = child.filter((c) => c.type !== "required");
+
+  // For required type: pick strictest from either side
+  let resolvedRequired: Constraint[] = [];
+  if (childRequired.length > 0 || parentRequired.length > 0) {
+    const allRequired = [...parentRequired, ...childRequired];
+    const strictest = allRequired.reduce((a, b) =>
+      (REQUIREMENT_STRICTNESS[a.requirement] ?? 0) >=
+          (REQUIREMENT_STRICTNESS[b.requirement] ?? 0)
+        ? a
+        : b
+    );
+    resolvedRequired = [strictest];
+  }
+
+  return [...keptNonRequired, ...childNonRequired, ...resolvedRequired];
+}

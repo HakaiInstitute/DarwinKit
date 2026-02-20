@@ -42,7 +42,8 @@ export const workspaceFieldMappingSchema = S.Struct({
 /**
  * Defines relationships between datasets
  */
-// TODO: this can likely be removed because all cross dataset rules are enforced in the database now.
+// Cross-dataset rules drive DuckDB FK constraint creation in importSchema().
+// FK violations are caught at INSERT time, not via post-insert queries.
 export const workspaceCrossDatasetRuleSchema = S.Struct({
   ruleType: S.Literal("foreignKey", "referentialIntegrity").annotations({
     description: "Type of cross-dataset rule: foreignKey or referentialIntegrity.",
@@ -68,15 +69,12 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
  */
 export const datasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this dataset." }),
-  spec: S.String.annotations({
+  type: S.String.annotations({
     description:
-      "Darwin Core specification identifier, e.g. 'dwc-event', 'dwc-occurrence', 'obis-event'.",
+      "Darwin Core core type: event, occurrence, extendedMeasurementOrFact, dnaDerivedData, resourceRelationship.",
   }),
   path: S.String.annotations({ description: "File path to the CSV data file." }),
   description: S.optional(S.String),
-  profile: S.optional(
-    S.String.annotations({ description: "Validation profile to apply to this dataset." }),
-  ),
   fieldMappings: S.optional(
     S.Array(workspaceFieldMappingSchema).annotations({
       description: "Mappings from CSV columns to Darwin Core fields.",
@@ -93,8 +91,8 @@ export const datasetConfigSchema = S.Struct({
  */
 export const transformDatasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this transform dataset." }),
-  profile: S.String.annotations({
-    description: "Darwin Core profile for the transform output.",
+  type: S.String.annotations({
+    description: "Darwin Core core type for the transform output.",
   }),
   // TODO: Define proper S.Struct shapes for source and fields to improve JSON Schema output
   source: S.optional(S.Object),
@@ -237,6 +235,13 @@ export const workspaceConfigSchema = S.Struct({
   description: S.optional(
     S.String.annotations({ description: "Human-readable workspace description." }),
   ),
+  standard: S.optionalWith(
+    S.Literal("obis", "gbif").annotations({
+      description:
+        "Target biodiversity standard. Determines which obligation metadata drives requirement levels. Default: 'obis'.",
+    }),
+    { default: () => "obis" as const },
+  ).pipe(S.withConstructorDefault(() => "obis" as const)),
   crossDatasetRules: S.optional(
     S.Array(workspaceCrossDatasetRuleSchema).annotations({
       description: "Rules enforcing referential integrity between datasets.",
@@ -280,6 +285,7 @@ export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSc
 export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
 export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
+export type Standard = "obis" | "gbif";
 
 /**
  * Result of looking up a foreign key rule
@@ -321,10 +327,10 @@ export type WorkspaceConfigInput = S.Schema.Encoded<typeof workspaceConfigSchema
  * ```typescript
  * const config = makeWorkspaceConfig({
  *   validation: {
- *     datasets: [{ name: "events", spec: "dwc-event", path: "./events.csv", fieldMappings: [] }]
+ *     datasets: [{ name: "events", type: "event", path: "./events.csv", fieldMappings: [] }]
  *   }
  * });
- * // id, name, version, createdAt, updatedAt are auto-generated
+ * // id, name, version, standard, createdAt, updatedAt are auto-generated
  * // validation.nullValues, failFast, debug, outputDir get defaults
  * ```
  */
@@ -347,43 +353,23 @@ export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig =>
 // =============================================================================
 
 /**
- * Parse spec identifier into spec name and type
+ * Valid Darwin Core core types (lowercase).
  */
-export function parseSpecIdentifier(
-  specId: string | undefined,
-): { spec: string; type: string } | null {
-  if (!specId) {
-    return null;
-  }
-  const parts = specId.split("-");
-  if (parts.length < 2) {
-    return null;
-  }
+export const DARWIN_CORE_TYPES = [
+  "event",
+  "occurrence",
+  "extendedMeasurementOrFact",
+  "dnaDerivedData",
+  "resourceRelationship",
+] as const;
 
-  const spec = parts[0];
-  const type = parts.slice(1).join("-");
-
-  return { spec, type };
-}
+export type DarwinCoreType = typeof DARWIN_CORE_TYPES[number];
 
 /**
- * Derive a profile ID from a dataset's profile or spec field.
+ * Normalize a dataset type to a profile registry key.
  *
- * Resolution order:
- * 1. Explicit `profile` field (returned as-is)
- * 2. Parsed from `spec` field (e.g. "dwc-event" → "Event")
- *
- * @returns The profile ID, or undefined if neither field yields one
+ * Capitalizes the first letter to match registry keys (e.g., "event" → "Event").
  */
-export function deriveProfileId(
-  dataset: { profile?: string; spec?: string },
-): string | undefined {
-  if (dataset.profile) return dataset.profile;
-  if (dataset.spec) {
-    const parsed = parseSpecIdentifier(dataset.spec);
-    if (parsed) {
-      return parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1);
-    }
-  }
-  return undefined;
+export function typeToProfileKey(type: string): string {
+  return type.charAt(0).toUpperCase() + type.slice(1);
 }

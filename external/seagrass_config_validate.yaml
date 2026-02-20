@@ -4,6 +4,7 @@ version: 1.0.0
 description: Seagrass Site Production OBIS Event validation profile
 createdAt: '2025-12-15T00:00:00.000Z'
 updatedAt: '2025-12-15T00:00:00.000Z'
+standard: obis
 validation:
   nullValues:
     - NA
@@ -15,10 +16,9 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: events
-      spec: dwc-event
+      type: event
       path: ./seagrass-site-production/obis/event.csv
       description: Marine sampling events for OBIS
-      profile: Event
       fieldMappings:
         - originName: eventID
           targetName: eventID
@@ -86,10 +86,9 @@ validation:
             maxValue: 11000
 
     - name: occurrence
-      spec: dwc-occurrence
+      type: occurrence
       path: ./seagrass-site-production/obis/occurrence.csv
       description: Marine sampling occurrence for OBIS
-      profile: Occurrence
       fieldMappings:
         - originName: scientificName
           targetName: scientificName
@@ -135,10 +134,9 @@ validation:
           targetName: occurrenceID
 
     - name: extendedMeasurementOrFact
-      spec: dwc-eMOF
+      type: extendedMeasurementOrFact
       path: ./seagrass-site-production/obis/extendedmeasurementorfact.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
-      profile: ExtendedMeasurementOrFact
       fieldMappings:
         - originName: eventID
           targetName: eventID

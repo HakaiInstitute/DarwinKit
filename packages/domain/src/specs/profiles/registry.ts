@@ -12,7 +12,7 @@ import type {
   ValidationProfile,
   ValidationProfileRegistry,
 } from "../../schemas/validation-profile.ts";
-import { mergeConstraints } from "../constraints.ts";
+import { mergeProfileConstraints } from "../constraints.ts";
 import { type FieldDefinition, normalizeField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
@@ -55,7 +55,7 @@ function mergeFieldOverrides(
       merged[fieldName] = {
         requirement: childOverride.requirement ?? parentOverride.requirement,
         constraints: childOverride.constraints
-          ? mergeConstraints(parentOverride.constraints || [], childOverride.constraints)
+          ? mergeProfileConstraints(parentOverride.constraints || [], childOverride.constraints)
           : parentOverride.constraints,
       };
     }
@@ -124,6 +124,31 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
     // Add normalized fields for validation
     normalizedFields: normalizedFields,
   } as ValidationProfile;
+}
+
+/**
+ * Resolve a validation profile using standard + type combination.
+ *
+ * Resolution order:
+ * 1. Try `"${standard}-${type}"` in TypeScript registry (e.g., "obis-event")
+ * 2. Fall back to base JSON profile using capitalized type key (e.g., "Event")
+ *
+ * This allows `standard: "obis"` + `type: "event"` to automatically load
+ * the OBIS-Event TypeScript profile with its field overrides.
+ */
+export function resolveProfile(
+  standard: string | undefined,
+  type: string,
+): ValidationProfile | undefined {
+  if (standard) {
+    const compositeKey = `${standard}-${type.toLowerCase()}`;
+    const tsProfile = getValidationProfile(compositeKey);
+    if (tsProfile) return tsProfile;
+  }
+
+  // Fall back to base profile using capitalized type key
+  const baseKey = type.charAt(0).toUpperCase() + type.slice(1);
+  return getValidationProfile(baseKey);
 }
 
 /**

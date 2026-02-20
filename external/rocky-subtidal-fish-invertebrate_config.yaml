@@ -4,6 +4,7 @@ version: 1.0.0
 description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
 createdAt: '2024-10-06T00:00:00.000Z'
 updatedAt: '2024-10-06T00:00:00.000Z'
+standard: obis
 validation:
   nullValues:
     - NA
@@ -16,20 +17,17 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: events
-      spec: dwc-event
+      type: event
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_event.csv
       description: Marine sampling events for OBIS
-      profile: Event
 
     - name: occurrence
-      spec: dwc-occurrence
+      type: occurrence
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_occ.csv
       description: Marine sampling occurrence for OBIS
-      profile: Occurrence
 
     - name: extendedMeasurementOrFact
-      spec: dwc-eMOF
+      type: extendedMeasurementOrFact
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_eMOF.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
-      profile: ExtendedMeasurementOrFact
 

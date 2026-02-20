@@ -52,7 +52,7 @@ interface ViolationContext {
   readonly schemaTableName: string;
   readonly columnMappings: ColumnMapping[];
   readonly profile: ValidationProfile;
-  readonly activeStandard: "obis" | "gbif" | "custom";
+  readonly activeStandard: "obis" | "gbif";
   readonly enableSuggestions: boolean;
   readonly rowNum: number;
   readonly processedDuplicates: Set<string>;
@@ -341,7 +341,7 @@ export function insertRowByRow(
   schemaTableName: string,
   columnMappings: ColumnMapping[],
   profile: ValidationProfile,
-  activeStandard: "obis" | "gbif" | "custom",
+  activeStandard: "obis" | "gbif",
   currentDataset: string,
   crossDatasetRules: readonly WorkspaceCrossDatasetRule[],
   validationSettings?: ValidationSettings,

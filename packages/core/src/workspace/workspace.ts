@@ -173,6 +173,7 @@ export class Workspace {
         datasets,
         settings,
         this.basePath,
+        this.config.standard ?? "obis",
         this.config.id,
         crossDatasetRules,
       ).pipe(

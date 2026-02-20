@@ -58,14 +58,10 @@ export interface ObligationResult {
  */
 export function obligationForStandard(
   field: FieldDefinition,
-  standard: "obis" | "gbif" | "custom",
+  standard: "obis" | "gbif",
 ): ObligationResult | undefined {
   if (!field.obligations) return undefined;
-  const obligation = standard === "obis"
-    ? field.obligations.obis
-    : standard === "gbif"
-    ? field.obligations.gbif
-    : undefined;
+  const obligation = standard === "obis" ? field.obligations.obis : field.obligations.gbif;
   if (!obligation) return undefined;
   return { obligation, requirement: obligationToRequirement(obligation) };
 }
@@ -121,6 +117,14 @@ export function normalizeField(jsonField: Field): FieldDefinition {
   const constraints: Constraint[] = [];
 
   // Convert validators to Constraint objects
+  //
+  // Terminology chain (JSON validator string → RequirementLevel → ErrorSeverity):
+  //   "required"    → "required"  → ERROR
+  //   "recommended" → "optional"  → INFO
+  //   "optional"    → (no constraint emitted)
+  //
+  // Note: Obligation "strongly recommended" → requirement "recommended" → WARNING
+  // is handled separately via obligationToRequirement(), not via validator strings.
   if (jsonField.validators) {
     for (const v of jsonField.validators) {
       // If already an object with type field, flatten params and decode via Constraint schema

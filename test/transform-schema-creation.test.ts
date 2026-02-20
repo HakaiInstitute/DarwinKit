@@ -39,6 +39,7 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
 
   const config: WorkspaceConfig = {
     version: "1",
+    standard: "obis",
     name: "",
     id: "",
     createdAt: new Date(),
@@ -54,13 +55,13 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
       datasets: [
         {
           name: "Event",
-          profile: "Event",
+          type: "Event",
           source: { test: "" },
           fields: {},
         },
         {
           name: "Occurrence",
-          profile: "Occurrence",
+          type: "Occurrence",
           source: { test: "" },
           fields: {},
         },
@@ -168,6 +169,7 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
 
   const config: WorkspaceConfig = {
     version: "1",
+    standard: "obis",
     name: "",
     id: "",
     createdAt: new Date(),
@@ -177,11 +179,11 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", profile: "Event", source: { test: "" }, fields: {} },
-        { name: "Occurrence", profile: "Occurrence", source: { test: "" }, fields: {} },
+        { name: "Event", type: "Event", source: { test: "" }, fields: {} },
+        { name: "Occurrence", type: "Occurrence", source: { test: "" }, fields: {} },
         {
           name: "MeasurementOrFact",
-          profile: "ExtendedMeasurementOrFact",
+          type: "ExtendedMeasurementOrFact",
           source: { test: "" },
           fields: {},
         },
@@ -245,6 +247,7 @@ Deno.test("createTableFromSchema - no FK constraints without crossDatasetRules",
 
   const config: WorkspaceConfig = {
     version: "1",
+    standard: "obis",
     name: "",
     id: "",
     createdAt: new Date(),
@@ -254,8 +257,8 @@ Deno.test("createTableFromSchema - no FK constraints without crossDatasetRules",
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", profile: "Event", source: { test: "" }, fields: {} },
-        { name: "Occurrence", profile: "Occurrence", source: { test: "" }, fields: {} },
+        { name: "Event", type: "Event", source: { test: "" }, fields: {} },
+        { name: "Occurrence", type: "Occurrence", source: { test: "" }, fields: {} },
       ],
       output: {
         outputDir: "",

@@ -14,13 +14,19 @@ import type { WorkspaceOperationError } from "@dwkt/domain/errors";
 import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
 import type {
   DatasetConfig,
+  Standard,
   ValidationProfile,
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
-import { deriveProfileId, parseSpecIdentifier } from "@dwkt/domain/schemas";
-import type { FieldDefinition, RequirementLevel } from "@dwkt/domain/specs";
-import { getPreset, getPresetNames, getValidationProfile } from "@dwkt/domain/specs";
+import { typeToProfileKey } from "@dwkt/domain/schemas";
+import type { FieldDefinition } from "@dwkt/domain/specs";
+import {
+  getPreset,
+  getPresetNames,
+  getValidationProfile,
+  resolveProfile,
+} from "@dwkt/domain/specs";
 import type {
   CrossDatasetValidationResult,
   DatasetValidationResult,
@@ -30,7 +36,6 @@ import type {
 } from "@dwkt/domain/types";
 import {
   calculateSummary,
-  CrossDatasetViolation,
   MissingFieldViolation,
   MissingMappingViolation,
   partitionFieldViolations,
@@ -48,16 +53,16 @@ import { Workspace } from "../workspace/workspace.ts";
 import { importSchema } from "../loading/schema.ts";
 import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
-import { resolveSchemaTableName } from "./summary.ts";
 
+import type { WorkspaceFieldMapping } from "@dwkt/domain/schemas";
+import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { ResolutionDiagnostic } from "./field-resolution.ts";
 import {
-  applyResolvedConstraints,
   deriveRequirementFromConstraints,
   resolveActiveStandard,
   resolveFieldDefinitions,
+  withResolvedConstraints,
 } from "./field-resolution.ts";
-import { findSuggestedValue } from "../validation/string-matching.ts";
 
 /** Deduplicate violations by validator type + field name composite key */
 function deduplicateByTypeAndField<T extends { validatorType: string; fieldName: string }>(
@@ -85,6 +90,7 @@ export class WorkspaceValidator {
     datasets: readonly DatasetConfig[],
     settings: ValidationSettings,
     basePath: string,
+    standard: Standard,
     workspaceId?: string,
     crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
@@ -98,13 +104,22 @@ export class WorkspaceValidator {
           datasets,
           settings,
           basePath,
+          standard,
           crossDatasetRules,
         ),
       );
 
       // Perform validation with guaranteed connection cleanup
       return yield* _(
-        _validateDatasetsCore(connection, datasets, settings, basePath, wsId, crossDatasetRules)
+        _validateDatasetsCore(
+          connection,
+          datasets,
+          settings,
+          basePath,
+          standard,
+          wsId,
+          crossDatasetRules,
+        )
           .pipe(
             Effect.ensuring(
               Effect.all([
@@ -129,11 +144,35 @@ export class WorkspaceValidator {
     datasets: readonly DatasetConfig[],
     settings: ValidationSettings,
     basePath: string,
+    standard: Standard,
     workspaceId?: string,
     crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
       const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
+
+      // Resolve constraints for all datasets upfront so importSchema can use them for NOT NULL.
+      // Only include fields with explicit config mappings — unmapped spec fields would cause
+      // spurious NOT NULL failures since their columns are created but no data is inserted.
+      const activeStandard = resolveActiveStandard(standard);
+      const resolvedFieldsMap = new Map<string, Record<string, WorkspaceFieldMapping>>();
+      for (const dataset of datasets) {
+        const datasetProfile = resolveProfile(standard, dataset.type);
+        if (datasetProfile) {
+          const configMappings = dataset.fieldMappings || [];
+          const allResolved = resolveFieldDefinitions(
+            datasetProfile,
+            activeStandard,
+            configMappings,
+          );
+          const mappedNames = new Set(configMappings.map((m) => m.targetName));
+          const mapped: Record<string, WorkspaceFieldMapping> = {};
+          for (const [name, field] of Object.entries(allResolved)) {
+            if (mappedNames.has(name)) mapped[name] = field;
+          }
+          resolvedFieldsMap.set(dataset.name, mapped);
+        }
+      }
 
       // Load each dataset into DuckDB (using the provided connection)
       for (const dataset of datasets) {
@@ -147,7 +186,16 @@ export class WorkspaceValidator {
             ),
           ),
         );
-        yield* _(importSchema(connection, dataset, datasets, crossDatasetRules));
+        yield* _(
+          importSchema(
+            connection,
+            dataset,
+            datasets,
+            standard,
+            crossDatasetRules,
+            resolvedFieldsMap.get(dataset.name),
+          ),
+        );
       }
 
       return yield* _(
@@ -156,6 +204,7 @@ export class WorkspaceValidator {
           datasets,
           settings,
           basePath,
+          standard,
           resolvedWorkspaceId,
           crossDatasetRules,
         ),
@@ -216,6 +265,7 @@ function _validateDatasetsCore(
   datasets: readonly DatasetConfig[],
   settings: ValidationSettings,
   basePath: string,
+  standard: Standard,
   workspaceId: string,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
@@ -224,11 +274,10 @@ function _validateDatasetsCore(
     const datasetResults: DatasetValidationResult[] = [];
 
     for (const dataset of datasets) {
-      const datasetProfileId = deriveProfileId(dataset);
-      const datasetProfile = datasetProfileId ? getValidationProfile(datasetProfileId) : undefined;
+      const datasetProfile = resolveProfile(standard, dataset.type);
 
       const result = yield* _(
-        validateDataset(connection, dataset, datasetProfile, settings, crossDatasetRules),
+        validateDataset(connection, dataset, datasetProfile, standard, settings, crossDatasetRules),
       );
 
       datasetResults.push(result);
@@ -256,14 +305,8 @@ function _validateDatasetsCore(
     }
 
     const crossDatasetResults: CrossDatasetValidationResult[] = [];
-    if (crossDatasetRules && !settings.failFast) {
-      for (const rule of crossDatasetRules) {
-        const result = yield* _(
-          validateCrossDatasetRule(connection, rule, datasets),
-        );
-        crossDatasetResults.push(result);
-      }
-    }
+    // FK violations are caught at INSERT time via DuckDB FK constraints.
+    // crossDatasetRules drives FK constraint creation in importSchema().
 
     const summary = calculateSummary(datasetResults, crossDatasetResults);
     const totalProcessingTimeMs = Date.now() - startTime;
@@ -296,6 +339,7 @@ function createWorkspaceFromConfig(
   datasets: readonly DatasetConfig[],
   validationSettings: ValidationSettings,
   basePath: string,
+  standard: Standard,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<
   {
@@ -319,10 +363,29 @@ function createWorkspaceFromConfig(
       Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie),
     );
 
+    // Resolve constraints for all datasets upfront so importSchema can use them for NOT NULL.
+    // Only include fields with explicit config mappings — unmapped spec fields would cause
+    // spurious NOT NULL failures since their columns are created but no data is inserted.
+    const activeStandard = resolveActiveStandard(standard);
+    const resolvedFieldsMap = new Map<string, Record<string, WorkspaceFieldMapping>>();
+    for (const dataset of datasets) {
+      const datasetProfile = resolveProfile(standard, dataset.type);
+      if (datasetProfile) {
+        const configMappings = dataset.fieldMappings || [];
+        const allResolved = resolveFieldDefinitions(datasetProfile, activeStandard, configMappings);
+        const mappedNames = new Set(configMappings.map((m) => m.targetName));
+        const mapped: Record<string, WorkspaceFieldMapping> = {};
+        for (const [name, field] of Object.entries(allResolved)) {
+          if (mappedNames.has(name)) mapped[name] = field;
+        }
+        resolvedFieldsMap.set(dataset.name, mapped);
+      }
+    }
+
     // Load each dataset into DuckDB
     for (const dataset of datasets) {
       const filePath = resolve(basePath, dataset.path);
-      // prepend'raw_' to table name because dataset.name and spec/profile can not be the same name otherwise the tables conflict
+      // prepend 'raw_' to table name because dataset.name and the schema table can not be the same name otherwise the tables conflict
       const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
       // Import CSV with row numbers
@@ -331,7 +394,16 @@ function createWorkspaceFromConfig(
           Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
         ),
       );
-      yield* _(importSchema(connection, dataset, datasets, crossDatasetRules));
+      yield* _(
+        importSchema(
+          connection,
+          dataset,
+          datasets,
+          standard,
+          crossDatasetRules,
+          resolvedFieldsMap.get(dataset.name),
+        ),
+      );
     }
 
     return { workspaceId, connection, instance };
@@ -344,7 +416,8 @@ function createWorkspaceFromConfig(
 function validateDataset(
   connection: DuckDBConnection,
   dataset: DatasetConfig,
-  profile?: ValidationProfile,
+  profile: ValidationProfile | undefined,
+  standard: Standard,
   validationSettings?: ValidationSettings,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {
@@ -361,18 +434,6 @@ function validateDataset(
 
     const rawCount = countResult.getRowObjects()[0].count;
     const rowsProcessed = typeof rawCount === "bigint" ? Number(rawCount) : rawCount as number;
-
-    // Parse spec identifier
-    const specInfo = parseSpecIdentifier(dataset.spec);
-    if (!specInfo) {
-      return yield* _(
-        Effect.fail(
-          new WorkspaceValidationError({
-            message: `Invalid spec identifier: ${dataset.spec}`,
-          }),
-        ),
-      );
-    }
 
     const originTableColumnsResult = yield* _(
       Effect.tryPromise({
@@ -393,33 +454,31 @@ function validateDataset(
       .map((row) => String(row.column_name))
       .filter((col) => col !== "_row_number");
 
-    // Derive profile ID for registry lookup and display name for DuckDB table
-    const profileId = profile?.id ?? deriveProfileId(dataset);
+    // Use base type profile for DuckDB table naming (matches importSchema which uses base profiles)
+    const baseProfileKey = typeToProfileKey(dataset.type);
+    const baseProfile = getValidationProfile(baseProfileKey);
 
-    const schemaProfile = getValidationProfile(profileId || "");
-
-    // Use the resolved profile's display name for DuckDB table (matches importSchema)
-    const schemaTableName = schemaProfile
-      ? sanitizeTableName(schemaProfile.name).toLowerCase()
+    const schemaTableName = baseProfile
+      ? sanitizeTableName(baseProfile.name).toLowerCase()
       : dataset.name.toLowerCase();
-    if (schemaProfile === undefined) {
+    if (baseProfile === undefined) {
       return yield* _(
         Effect.fail(
           new WorkspaceValidationError({
-            message: `Invalid profile identifier: ${profileId}`,
+            message: `Invalid profile identifier: ${baseProfileKey}`,
           }),
         ),
       );
     }
     // Resolve field definitions through 3-tier merge pipeline:
     // spec (obligations) → profile (fieldOverrides) → config (additive-only)
-    const activeStandard = resolveActiveStandard(profile);
+    const activeStandard = resolveActiveStandard(standard);
     const configFieldMappings = dataset?.fieldMappings || [];
     const resolutionDiagnostics: ResolutionDiagnostic[] | undefined = validationSettings?.debug
       ? []
       : undefined;
     const schemaColumnsObj = resolveFieldDefinitions(
-      schemaProfile,
+      profile ?? baseProfile,
       activeStandard,
       configFieldMappings,
       resolutionDiagnostics,
@@ -656,9 +715,9 @@ function validateDataset(
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
-              `No validation profile specified for dataset '${dataset.name}'. Please add a 'profile' property to the dataset configuration.`,
+              `No validation profile specified for dataset '${dataset.name}'. Please add a 'type' property to the dataset configuration.`,
             validatorType: "schema",
-            profileId: dataset.spec ?? "unknown",
+            profileId: dataset.type ?? "unknown",
             reason: "not_found",
           }),
         );
@@ -689,7 +748,7 @@ function validateDataset(
       }
 
       // Apply resolved constraints from the 3-tier merge pipeline
-      const specField = applyResolvedConstraints(baseField, mapping);
+      const specField = withResolvedConstraints(baseField, mapping);
 
       // Check if CSV field exists
       const fieldExistsQuery = `
@@ -784,7 +843,7 @@ function validateDataset(
 
     return {
       datasetName: dataset.name,
-      spec: dataset.spec ?? "",
+      type: dataset.type,
       filePath: dataset.path ?? "",
       rowsProcessed,
       processingTimeMs,
@@ -793,132 +852,6 @@ function validateDataset(
       // Partitioned violations by severity
       schemaViolations: partitionedSchemaViolations,
       fieldViolations: partitionedFieldViolations,
-    };
-  });
-}
-
-/**
- * Find cross-dataset foreign key violations
- *
- * Uses the error channel pattern for violations:
- * - Success: No foreign key violations found
- * - Failure: Contains array of CrossDatasetViolation objects
- */
-function findCrossDatasetViolations(
-  connection: DuckDBConnection,
-  rule: {
-    ruleType?: string;
-    sourceDataset: string;
-    sourceField: string;
-    targetDataset: string;
-    targetField: string;
-    requirement?: RequirementLevel;
-  },
-  datasets: readonly DatasetConfig[],
-): Effect.Effect<void, CrossDatasetViolation[]> {
-  return Effect.gen(function* (_) {
-    // Resolve dataset names to schema table names
-    const sourceTable = resolveSchemaTableName(rule.sourceDataset, datasets);
-    const targetTable = resolveSchemaTableName(rule.targetDataset, datasets);
-
-    // Find values in source that don't exist in target
-    const violationsQuery = `
-      SELECT
-        s._row_number,
-        s."${rule.sourceField}" as source_value
-      FROM ${sourceTable} s
-      LEFT JOIN ${targetTable} t ON s."${rule.sourceField}" = t."${rule.targetField}"
-      WHERE s."${rule.sourceField}" IS NOT NULL
-        AND t."${rule.targetField}" IS NULL
-    `;
-
-    // SQL query execution should work - query failure is a defect
-    const violationsResult = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(violationsQuery)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const rows = violationsResult.getRowObjects();
-
-    // No violations - succeed with void
-    if (rows.length === 0) {
-      return;
-    }
-
-    const requirement = rule.requirement ?? "required";
-
-    // Build CrossDatasetViolation objects and fail with them
-    const violations = rows.map((row) =>
-      new CrossDatasetViolation({
-        severity: requirementToSeverity(requirement),
-        fieldName: rule.sourceField,
-        targetName: rule.targetField,
-        rowNumber: Number(row._row_number),
-        value: String(row.source_value),
-        errorMessage:
-          `Value '${row.source_value}' in ${rule.sourceDataset}.${rule.sourceField} does not exist in ${rule.targetDataset}.${rule.targetField}`,
-        validatorType: rule.ruleType || "foreignKey",
-        params: {
-          sourceDataset: rule.sourceDataset,
-          targetDataset: rule.targetDataset,
-          targetField: rule.targetField,
-        },
-      })
-    );
-
-    return yield* _(Effect.fail(violations));
-  });
-}
-
-/**
- * Validate cross-dataset rule
- *
- * Returns cross-dataset validation result with any violations found.
- */
-function validateCrossDatasetRule(
-  connection: DuckDBConnection,
-  rule: {
-    ruleType: string;
-    sourceDataset: string;
-    sourceField: string;
-    targetDataset: string;
-    targetField: string;
-    requirement?: string;
-    description?: string;
-  },
-  datasets: readonly DatasetConfig[],
-): Effect.Effect<CrossDatasetValidationResult, WorkspaceValidationError> {
-  return Effect.gen(function* (_) {
-    // Map string requirement to RequirementLevel
-    const requirement: RequirementLevel = rule.requirement === "recommended"
-      ? "recommended"
-      : rule.requirement === "optional"
-      ? "optional"
-      : "required";
-
-    // findCrossDatasetViolations uses error channel - catch violations
-    let violations: CrossDatasetViolation[] = [];
-    yield* _(
-      findCrossDatasetViolations(
-        connection,
-        { ...rule, requirement },
-        datasets,
-      ).pipe(
-        Effect.catchAll((v) => {
-          violations = v;
-          return Effect.succeed(undefined);
-        }),
-      ),
-    );
-
-    return {
-      ruleType: rule.ruleType as "foreignKey" | "referentialIntegrity",
-      sourceDataset: rule.sourceDataset,
-      sourceField: rule.sourceField,
-      targetDataset: rule.targetDataset,
-      targetField: rule.targetField,
-      violations,
     };
   });
 }

@@ -18,6 +18,7 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
 
   const config: WorkspaceConfig = {
     version: "1",
+    standard: "obis",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -28,8 +29,8 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        { name: "Event", profile: "Event", source: {}, fields: {} },
-        { name: "Occurrence", profile: "Occurrence", source: {}, fields: {} },
+        { name: "Event", type: "Event", source: {}, fields: {} },
+        { name: "Occurrence", type: "Occurrence", source: {}, fields: {} },
       ],
       output: {
         outputDir: outputDir,
@@ -77,6 +78,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 
   const config: WorkspaceConfig = {
     version: "1",
+    standard: "obis",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -86,7 +88,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
       nullValues: [],
       inputs: {},
       postImportTransforms: [],
-      datasets: [{ name: "Event", profile: "Event", source: {}, fields: {} }],
+      datasets: [{ name: "Event", type: "Event", source: {}, fields: {} }],
       output: {
         outputDir: outputDir,
         outputFilesWithTimestamp: false,
@@ -141,6 +143,7 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
 
   const config: WorkspaceConfig = {
     version: "1",
+    standard: "obis",
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -150,7 +153,7 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
       inputs: {},
       postImportTransforms: [],
       nullValues: [],
-      datasets: [{ name: "Event", profile: "Event", source: {}, fields: {} }],
+      datasets: [{ name: "Event", type: "Event", source: {}, fields: {} }],
       output: { outputDir: invalidOutputDir, exportDB: false },
     },
   };

@@ -55,7 +55,7 @@ function makeCleanDataset(
 ): DatasetValidationResult {
   return {
     datasetName: overrides.datasetName ?? 'events',
-    spec: overrides.spec ?? 'dwc-event',
+    type: overrides.type ?? 'dwc-event',
     filePath: overrides.filePath ?? './data/events.csv',
     rowsProcessed: overrides.rowsProcessed ?? 100,
     processingTimeMs: overrides.processingTimeMs ?? 50,
@@ -130,7 +130,7 @@ Deno.test('clean results - renders header, summary table, and overall summary', 
 Deno.test('violations - renders all severity sections with grouped field errors', () => {
   const dataset = makeCleanDataset({
     datasetName: 'occurrences',
-    spec: 'dwc-occurrence',
+    type: 'dwc-occurrence',
     status: 'fail',
     schemaViolations: {
       errors: [makeSchemaViolation({ fieldName: 'eventDate' })],

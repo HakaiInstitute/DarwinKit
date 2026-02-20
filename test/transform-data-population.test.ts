@@ -18,6 +18,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
 
   const config: WorkspaceConfig = {
     version: "1",
+    standard: "obis",
     name: "Data Population Test Workspace",
     id: "data-population-test-workspace",
     createdAt: new Date(),
@@ -29,7 +30,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
       datasets: [
         {
           name: "Event",
-          profile: "Event",
+          type: "Event",
           source: {
             "source_events": "source_events",
           },
@@ -41,7 +42,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
         },
         {
           name: "Occurrence",
-          profile: "Occurrence",
+          type: "Occurrence",
           source: {
             "source_occurrences": "source_occurrences",
           },

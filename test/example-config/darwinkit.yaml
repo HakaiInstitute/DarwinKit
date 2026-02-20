@@ -15,10 +15,9 @@ validation:
   outputDir: "./test-validation-results"
   datasets:
     - name: events
-      spec: dwc-event
+      type: event
       path: "../data/FC2022_event.csv"
       description: Sampling event data containing locations and metadata
-      profile: Event
       fieldMappings:
         - originName: eventID
           targetName: eventID
@@ -81,10 +80,9 @@ validation:
         - originName: eventRemarks
           targetName: eventRemarks
     - name: occurrences
-      spec: dwc-occurrence
+      type: occurrence
       path: "../data/FC2022_occ.csv"
       description: Species occurrence records from eDNA analysis
-      profile: Occurrence
       fieldMappings:
         - originName: eventID
           targetName: eventID

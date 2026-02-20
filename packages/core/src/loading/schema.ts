@@ -1,28 +1,32 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
-import type { ValidationProfile, WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
-import { deriveProfileId } from "@dwkt/domain/schemas";
+import type {
+  ValidationProfile,
+  WorkspaceCrossDatasetRule,
+  WorkspaceFieldMapping,
+} from "@dwkt/domain/schemas";
+import type { Standard } from "@dwkt/domain/schemas";
+import { typeToProfileKey } from "@dwkt/domain/schemas";
 import { getValidationProfile, obligationForStandard } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
+import { deriveRequirementFromConstraints } from "../validation/field-resolution.ts";
 import { findForeignKeyRule, sanitizeTableName } from "./sql.ts";
-import { resolveActiveStandard } from "../validation/field-resolution.ts";
 
 /**
  * Minimal dataset interface for schema import
  * Works with both validation and transform dataset configs
  */
-type DatasetWithProfile = {
+type DatasetWithType = {
   readonly name: string;
-  readonly profile?: string;
-  readonly spec?: string;
+  readonly type: string;
 };
 
 /**
  * Generates and applies a database schema for a dataset based on its validation profile.
  *
  * This function:
- * - Loads a validation profile for `dataset` using `getValidationProfile(dataset.profile)`.
- *   If no profile is found the function logs a warning and returns early (no DB changes).
+ * - Loads a validation profile for `dataset` using `getValidationProfile(typeToProfileKey(dataset.type))`.
+ *   If no profile is found the function returns early (no DB changes).
  * - Derives a table name from the profile's `name` (lowercased).
  * - Creates ENUM types for any profile fields declared as controlled vocabularies
  *   (profile field shape: `type === "controlled-vocabulary"` and having `values`).
@@ -39,7 +43,9 @@ type DatasetWithProfile = {
  *   - A column is marked PRIMARY KEY when either:
  *     - its name equals `${tableName}ID`, or
  *     - it ends with `ID` and the profile field has `unique === "true"`.
- *   - A column is marked NOT NULL if `spec.fieldOverrides?.[fieldName]?.requirement === "required"`.
+ *   - A column is marked NOT NULL if the fully resolved constraints contain a RequiredConstraint
+ *     with `requirement === "required"`. Falls back to checking `spec.fieldOverrides` when
+ *     resolved fields aren't provided.
  *   - Foreign key constraints:
  *     - Created based on explicit `crossDatasetRules` from configuration.
  *     - Only adds FK constraints when a rule with `ruleType === "foreignKey"` exists
@@ -59,7 +65,7 @@ type DatasetWithProfile = {
  *
  * Parameters:
  * - connection: DuckDBConnection used to execute DDL statements.
- * - dataset: Dataset config with name and profile/spec (works with both validation and transform configs).
+ * - dataset: Dataset config with name and type (works with both validation and transform configs).
  * - datasets: All datasets, used to resolve target table names for FK constraints.
  * - crossDatasetRules: Explicit FK rules from configuration. Only rules with ruleType "foreignKey" are used.
  *
@@ -84,7 +90,7 @@ type DatasetWithProfile = {
 function shouldEnforceVocabulary(
   spec: ValidationProfile,
   fieldName: string,
-  activeStandard: "obis" | "gbif" | "custom",
+  activeStandard: "obis" | "gbif",
 ): boolean {
   const normalizedField = spec.normalizedFields?.[fieldName];
   if (!normalizedField) return false;
@@ -92,23 +98,37 @@ function shouldEnforceVocabulary(
   return result?.requirement === "required" || result?.requirement === "recommended";
 }
 
+/**
+ * Determine whether a field should be NOT NULL in the DuckDB table.
+ *
+ * When resolved fields are available (from the 3-tier constraint pipeline),
+ * uses them to derive NOT NULL from RequiredConstraints. Falls back to
+ * checking profile fieldOverrides when resolved fields aren't provided.
+ */
+function isFieldRequired(
+  resolvedFields: Record<string, WorkspaceFieldMapping> | undefined,
+  spec: ValidationProfile,
+  fieldName: string,
+): boolean {
+  if (resolvedFields) {
+    const resolved = resolvedFields[fieldName];
+    return deriveRequirementFromConstraints(resolved?.constraints) === "required";
+  }
+  return spec.fieldOverrides?.[fieldName]?.requirement === "required";
+}
+
 export function importSchema(
   connection: DuckDBConnection,
-  dataset: DatasetWithProfile,
-  datasets: readonly DatasetWithProfile[],
+  dataset: DatasetWithType,
+  datasets: readonly DatasetWithType[],
+  standard: Standard,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+  resolvedFields?: Record<string, WorkspaceFieldMapping>,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
-    // Load validation profile - use profile if specified, otherwise derive from spec
-    const profileId = deriveProfileId(dataset);
-
-    if (!profileId) {
-      // No profile or spec specified - skip table creation
-      // TODO: When implementing issue #63 (https://github.com/HakaiInstitute/DarwinKit/issues/63):
-      // See about surfacing this state as some form of a recoverable schema violation (warning)
-      return;
-    }
-
+    // Load base validation profile for DDL generation
+    // Uses base type profile (not standard-specific) to ensure consistent table naming
+    const profileId = typeToProfileKey(dataset.type);
     const spec = getValidationProfile(profileId);
     if (!spec) {
       // No validation profile found - skip table creation
@@ -118,7 +138,7 @@ export function importSchema(
     }
     // Convert profile name to valid SQL table name using sanitizeTableName
     const tableName = sanitizeTableName(spec.name).toLowerCase();
-    const activeStandard = resolveActiveStandard(spec);
+    const activeStandard = standard;
 
     // 1. Create ENUM types for controlled vocabularies (only for fields with sufficient obligation)
     const enumFields = new Set<string>();
@@ -137,7 +157,9 @@ export function importSchema(
       },
     );
 
-    // TODO: Add CHECK constraints for config fieldMapping min/max — see fieldMapping.constraints
+    // NOTE: Range/format constraints are validated post-insert via SQL queries in
+    // field-validators.ts, not via DuckDB CHECK constraints.
+    // See #110 for potential CHECK constraint support in the future.
     // 2. Generate Column Definition SQL
     const columns = Object.keys(spec.fields || {}).map((fieldName) => {
       const field = spec.fields![fieldName];
@@ -159,10 +181,7 @@ export function importSchema(
         (fieldName.endsWith("ID") && isUniqueIdentifier)
       ) {
         fieldStr += " PRIMARY KEY";
-      } else if (
-        spec.fieldOverrides?.[fieldName]?.requirement === "required"
-      ) {
-        // Only apply NOT NULL if this specific profile marks the field as required
+      } else if (isFieldRequired(resolvedFields, spec, fieldName)) {
         fieldStr += " NOT NULL";
       }
       // Add foreign key constraint if an explicit rule exists in config
@@ -171,7 +190,7 @@ export function importSchema(
         // Resolve target dataset name to table name via its profile
         const targetDataset = datasets.find((ds) => ds.name === fkRule.targetDataset);
         if (targetDataset) {
-          const targetProfileId = deriveProfileId(targetDataset);
+          const targetProfileId = typeToProfileKey(targetDataset.type);
           const targetProfile = targetProfileId ? getValidationProfile(targetProfileId) : undefined;
           if (targetProfile) {
             const referencedTable = sanitizeTableName(targetProfile.name).toLowerCase();

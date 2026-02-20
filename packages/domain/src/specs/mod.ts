@@ -14,4 +14,4 @@ export * from "./constraint-presets.ts";
 // Validation Profiles
 export { OBIS_EVENT_PROFILE } from "./profiles/obis-event.ts";
 export { OBIS_BASE_PROFILE } from "./profiles/obis.ts";
-export { getValidationProfile, VALIDATION_PROFILES } from "./profiles/registry.ts";
+export { getValidationProfile, resolveProfile, VALIDATION_PROFILES } from "./profiles/registry.ts";

@@ -117,7 +117,7 @@ Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
       validation: {
         datasets: [{
           name: "events",
-          spec: "dwc-event",
+          type: "event",
           path: "./events.csv",
           fieldMappings: [{
             originName: "eventID",
@@ -138,7 +138,7 @@ Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
       validation: {
         datasets: [{
           name: "events",
-          spec: "dwc-event",
+          type: "event",
           path: "./events.csv",
           fieldMappings: [{
             originName: "eventID",
@@ -173,5 +173,53 @@ Deno.test("makeWorkspaceConfig - invalid input", async (t) => {
     );
 
     assertThrows(() => makeWorkspaceConfig({ transform: {} as unknown } as WorkspaceConfigInput));
+  });
+});
+
+Deno.test("makeWorkspaceConfig - standard field", async (t) => {
+  await t.step("defaults standard to obis when omitted", () => {
+    const config = makeWorkspaceConfig({ validation: {} });
+    assertEquals(config.standard, "obis");
+  });
+
+  await t.step("accepts explicit standard values", () => {
+    const obis = makeWorkspaceConfig({ standard: "obis", validation: {} });
+    const gbif = makeWorkspaceConfig({ standard: "gbif", validation: {} });
+    assertEquals(obis.standard, "obis");
+    assertEquals(gbif.standard, "gbif");
+  });
+
+  await t.step("rejects invalid standard values", () => {
+    assertThrows(
+      () =>
+        makeWorkspaceConfig(
+          { standard: "invalid", validation: {} } as unknown as WorkspaceConfigInput,
+        ),
+    );
+  });
+});
+
+Deno.test("makeWorkspaceConfig - type field replaces spec/profile", async (t) => {
+  await t.step("accepts type field on validation datasets", () => {
+    const config = makeWorkspaceConfig({
+      validation: {
+        datasets: [{
+          name: "events",
+          type: "event",
+          path: "./events.csv",
+        }],
+      },
+    });
+    assertEquals(config.validation?.datasets[0]?.type, "event");
+  });
+
+  await t.step("rejects dataset without type field", () => {
+    assertThrows(() =>
+      makeWorkspaceConfig({
+        validation: {
+          datasets: [{ name: "events", path: "./events.csv" } as unknown],
+        },
+      } as WorkspaceConfigInput)
+    );
   });
 });

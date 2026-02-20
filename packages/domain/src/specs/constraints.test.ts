@@ -9,6 +9,7 @@ import {
   type Constraint,
   Constraint as ConstraintSchema,
   mergeConstraints,
+  mergeProfileConstraints,
   Obligation,
   ObligationsMap,
   obligationToRequirement,
@@ -455,6 +456,99 @@ Deno.test("normalizeField - warns when requirement is stripped from value constr
   } finally {
     console.warn = originalWarn;
   }
+});
+
+// =============================================================================
+// mergeProfileConstraints Tests
+// =============================================================================
+
+Deno.test("mergeProfileConstraints - keeps strictest required constraint", () => {
+  const parent = [{
+    type: "required" as const,
+    requirement: "required" as const,
+    allowEmpty: false,
+    allowWhitespace: false,
+  }];
+  const child = [{
+    type: "required" as const,
+    requirement: "recommended" as const,
+    allowEmpty: false,
+    allowWhitespace: false,
+  }];
+  const result = mergeProfileConstraints(parent, child);
+  const required = result.filter((c) => c.type === "required");
+  assertEquals(required.length, 1);
+  assertEquals(required[0].requirement, "required");
+});
+
+Deno.test("mergeProfileConstraints - allows strengthening required", () => {
+  const parent = [{
+    type: "required" as const,
+    requirement: "recommended" as const,
+    allowEmpty: false,
+    allowWhitespace: false,
+  }];
+  const child = [{
+    type: "required" as const,
+    requirement: "required" as const,
+    allowEmpty: false,
+    allowWhitespace: false,
+  }];
+  const result = mergeProfileConstraints(parent, child);
+  const required = result.filter((c) => c.type === "required");
+  assertEquals(required.length, 1);
+  assertEquals(required[0].requirement, "required");
+});
+
+Deno.test("mergeProfileConstraints - replaces value constraints normally", () => {
+  const parent = [{ type: "range" as const, min: -90, max: 90, inclusive: true }];
+  const child = [{ type: "range" as const, min: -45, max: 45, inclusive: true }];
+  const result = mergeProfileConstraints(parent, child);
+  assertEquals(result.length, 1);
+  assert(result[0].type === "range");
+  assertEquals(result[0].min, -45);
+});
+
+Deno.test("mergeProfileConstraints - child introduces RequiredConstraint where parent has none", () => {
+  const parent: Constraint[] = [
+    { type: "range", min: -90, max: 90, inclusive: true },
+  ];
+  const child: Constraint[] = [
+    {
+      type: "required",
+      requirement: "required" as const,
+      allowEmpty: false,
+      allowWhitespace: false,
+    },
+  ];
+  const result = mergeProfileConstraints(parent, child);
+  assertEquals(result.length, 2);
+  const required = result.filter((c) => c.type === "required");
+  assertEquals(required.length, 1);
+  assertEquals(required[0].requirement, "required");
+});
+
+Deno.test("mergeProfileConstraints - child cannot weaken parent's required", () => {
+  const parent: Constraint[] = [
+    {
+      type: "required",
+      requirement: "required" as const,
+      allowEmpty: false,
+      allowWhitespace: false,
+    },
+  ];
+  const child: Constraint[] = [
+    {
+      type: "required",
+      requirement: "optional" as const,
+      allowEmpty: false,
+      allowWhitespace: false,
+    },
+  ];
+  const result = mergeProfileConstraints(parent, child);
+  const required = result.filter((c) => c.type === "required");
+  assertEquals(required.length, 1);
+  assertEquals(required[0].requirement, "required");
 });
 
 Deno.test("normalizeField - no warning when value constraint has no requirement", () => {

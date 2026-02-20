@@ -16,6 +16,7 @@ import type { Constraint, FieldDefinition, RequirementLevel } from "@dwkt/domain
 import {
   getPreset,
   mergeConstraints,
+  mergeProfileConstraints,
   obligationForStandard,
   REQUIREMENT_STRICTNESS,
 } from "@dwkt/domain/specs";
@@ -25,22 +26,15 @@ import {
 // =============================================================================
 
 /**
- * Resolve the active standard for a profile.
+ * Resolve the active standard for obligation lookup.
  *
- * TypeScript profiles (obis, obis-event) have an explicit `targetSchema`.
- * JSON base profiles (Event, Occurrence, etc.) have `targetSchema: undefined`
- * since they come from dwcSchema.json. Default to "obis" for these since
- * the JSON schema contains OBIS requirement metadata.
- *
- * TODO: Revisit the "obis" default when GBIF profiles are actively used.
- * Users selecting a GBIF profile will need their own obligation metadata
- * to drive requirement resolution rather than falling back to OBIS.
+ * Takes the `standard` value from the workspace config.
+ * Defaults to "obis" when not specified.
  */
 export function resolveActiveStandard(
-  profile: ValidationProfile | undefined,
-): "obis" | "gbif" | "custom" {
-  if (profile?.targetSchema) return profile.targetSchema;
-  return "obis";
+  standard: "obis" | "gbif" | undefined,
+): "obis" | "gbif" {
+  return standard ?? "obis";
 }
 
 /**
@@ -91,6 +85,11 @@ export function requirementToConstraint(
  * Additive constraint merge: config constraints are appended to existing ones.
  * Multiple constraints of the same type are allowed — validators check all of
  * them, so the data must satisfy every constraint (natural intersection/tightening).
+ *
+ * **Exception:** RequiredConstraints that are weaker than an existing one are
+ * filtered out (they would be meaningless since deriveRequirementFromConstraints
+ * picks the strictest). A diagnostic is emitted when this happens.
+ *
  * When `diagnostics` is provided, overlapping types are recorded as informational.
  *
  * **Known limitation:** No type-compatibility validation is performed. Config can
@@ -102,17 +101,47 @@ export function requirementToConstraint(
 export function addConstraints(
   existing: readonly Constraint[],
   additions: readonly Constraint[],
-  diagnostics?: { fieldName: string; overlapping: string[] },
+  diagnostics?: { fieldName: string; overlapping: string[]; filtered: string[] },
 ): Constraint[] {
-  if (diagnostics) {
-    const existingTypes = new Set(existing.map((c) => c.type));
-    for (const c of additions) {
-      if (existingTypes.has(c.type)) {
-        diagnostics.overlapping.push(c.type);
+  const existingTypes = new Set(existing.map((c) => c.type));
+
+  // Find the strictest existing RequiredConstraint (if any)
+  const existingRequired = existing.filter(
+    (c): c is Constraint & { type: "required" } => c.type === "required",
+  );
+  const strictestExisting = existingRequired.length > 0
+    ? existingRequired.reduce((a, b) =>
+      (REQUIREMENT_STRICTNESS[a.requirement] ?? 0) >=
+          (REQUIREMENT_STRICTNESS[b.requirement] ?? 0)
+        ? a
+        : b
+    )
+    : undefined;
+
+  const kept: Constraint[] = [];
+  for (const c of additions) {
+    if (diagnostics && existingTypes.has(c.type)) {
+      diagnostics.overlapping.push(c.type);
+    }
+
+    // Filter out RequiredConstraints weaker than the existing strictest
+    if (c.type === "required" && strictestExisting) {
+      if (
+        (REQUIREMENT_STRICTNESS[c.requirement] ?? 0) <
+          (REQUIREMENT_STRICTNESS[strictestExisting.requirement] ?? 0)
+      ) {
+        if (diagnostics) {
+          diagnostics.filtered.push(
+            `Config '${c.requirement}' requirement ignored — spec/profile requires '${strictestExisting.requirement}'`,
+          );
+        }
+        continue;
       }
     }
+    kept.push(c);
   }
-  return [...existing, ...additions];
+
+  return [...existing, ...kept];
 }
 
 // =============================================================================
@@ -122,11 +151,13 @@ export function addConstraints(
 /**
  * Diagnostic message from constraint resolution.
  * Produced when a config-level constraint overlaps with a
- * spec/profile constraint of the same type (both are kept).
+ * spec/profile constraint of the same type (both are kept),
+ * or when a weaker RequiredConstraint is filtered out.
  */
 export interface ResolutionDiagnostic {
   readonly fieldName: string;
   readonly overlappingTypes: readonly string[];
+  readonly filteredMessages: readonly string[];
   readonly message: string;
 }
 
@@ -147,7 +178,7 @@ export interface ResolutionDiagnostic {
  */
 export function resolveFieldDefinitions(
   schemaProfile: ValidationProfile,
-  activeStandard: "obis" | "gbif" | "custom",
+  activeStandard: "obis" | "gbif",
   configMappings: readonly WorkspaceFieldMapping[],
   diagnostics?: ResolutionDiagnostic[],
 ): Record<string, WorkspaceFieldMapping> {
@@ -203,15 +234,15 @@ export function resolveFieldDefinitions(
     for (const [fieldName, override] of Object.entries(schemaProfile.fieldOverrides)) {
       const existing = result[fieldName];
 
-      // Merge profile override constraints (replacement semantics)
+      // Merge profile override constraints (replacement for values, strictest-wins for required)
       let constraints = existing?.constraints ?? [];
       if (override.constraints) {
-        constraints = mergeConstraints(constraints, override.constraints);
+        constraints = mergeProfileConstraints(constraints, override.constraints);
       }
 
-      // Profile requirement → constraint (replacement semantics, profile-level)
+      // Profile requirement → constraint (strictest-wins for required)
       if (override.requirement) {
-        constraints = mergeConstraints(constraints, [
+        constraints = mergeProfileConstraints(constraints, [
           requirementToConstraint(override.requirement),
         ]);
       }
@@ -239,7 +270,11 @@ export function resolveFieldDefinitions(
 
     // Track overlapping constraint types when diagnostics are requested
     const tracker = diagnostics
-      ? { fieldName: configMapping.targetName, overlapping: [] as string[] }
+      ? {
+        fieldName: configMapping.targetName,
+        overlapping: [] as string[],
+        filtered: [] as string[],
+      }
       : undefined;
 
     // Resolve preset to constraints and add
@@ -264,15 +299,25 @@ export function resolveFieldDefinitions(
       );
     }
 
-    // Record diagnostics for overlapping constraint types
-    if (tracker && tracker.overlapping.length > 0) {
+    // Record diagnostics for overlapping constraint types and filtered constraints
+    if (tracker && (tracker.overlapping.length > 0 || tracker.filtered.length > 0)) {
       const unique = [...new Set(tracker.overlapping)];
+      const parts: string[] = [];
+      if (unique.length > 0) {
+        parts.push(
+          `Config adds additional '${
+            unique.join("', '")
+          }' constraint(s) for field '${configMapping.targetName}' — data must satisfy both the spec/profile constraint and the config constraint`,
+        );
+      }
+      for (const msg of tracker.filtered) {
+        parts.push(`Field '${configMapping.targetName}': ${msg}`);
+      }
       diagnostics!.push({
         fieldName: configMapping.targetName,
         overlappingTypes: unique,
-        message: `Config adds additional '${
-          unique.join("', '")
-        }' constraint(s) for field '${configMapping.targetName}' — data must satisfy both the spec/profile constraint and the config constraint`,
+        filteredMessages: tracker.filtered,
+        message: parts.join(". "),
       });
     }
 
@@ -289,14 +334,14 @@ export function resolveFieldDefinitions(
 }
 
 /**
- * Build a FieldDefinition for validation by applying resolved constraints
- * to the base field definition from the spec.
+ * Build a FieldDefinition for validation by combining base field metadata
+ * (name, label, data type) with the fully-resolved constraints from
+ * resolveFieldDefinitions().
  *
- * Replaces the old `mergeFieldDefinition()` function. Since all constraint
- * resolution is now done in `resolveFieldDefinitions()`, this simply applies
- * the resolved constraints to the base FieldDefinition.
+ * The resolved constraints already include all spec, profile, and config
+ * constraints — this function simply applies them to the base definition.
  */
-export function applyResolvedConstraints(
+export function withResolvedConstraints(
   baseField: FieldDefinition,
   resolvedMapping: WorkspaceFieldMapping | undefined,
 ): FieldDefinition {

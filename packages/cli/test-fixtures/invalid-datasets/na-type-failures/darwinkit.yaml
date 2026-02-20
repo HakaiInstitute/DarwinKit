@@ -4,6 +4,7 @@ version: 1.0.0
 description: Test dataset with NA values that should cause validation failures (NA intentionally not in nullValues list)
 createdAt: '2024-01-01T00:00:00.000Z'
 updatedAt: '2025-01-22T00:00:00.000Z'
+standard: obis
 validation:
   # NA intentionally excluded from nullValues to trigger validation failures
   nullValues:
@@ -14,7 +15,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: occurrence_data
-      spec: dwc-occurrence
+      type: occurrence
       path: data/invalid_occ.csv
       description: Occurrence data with problematic NA values that should fail validation
       fieldMappings:

@@ -28,7 +28,7 @@ import type { SchemaViolation } from "./schema-violation.ts";
  */
 export interface DatasetValidationResult {
   readonly datasetName: string;
-  readonly spec: string;
+  readonly type: string;
   readonly filePath: string;
   readonly rowsProcessed: number;
   readonly processingTimeMs: number;

@@ -27,7 +27,7 @@ export const validationProfileSchema = S.Struct({
   id: S.String,
   name: S.String,
   description: S.String,
-  targetSchema: S.optional(S.Literal("obis", "gbif", "custom")),
+  targetSchema: S.optional(S.Literal("obis", "gbif")),
   extends: S.optional(S.String),
   fieldOverrides: S.Record({ key: S.String, value: fieldOverrideSchema }),
 

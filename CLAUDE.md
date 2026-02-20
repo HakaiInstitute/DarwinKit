@@ -105,15 +105,17 @@ TypeScript-defined profiles extend base Darwin Core with community-specific requ
 - Custom profiles can add fields, strengthen validation rules, or mark additional fields as required
 - Support profile inheritance via `extends` property for composition
 
-**Two-Tier Profile Resolution:**
+**Standard + Type Profile Resolution:**
 
-The profile registry in `registry.ts` implements a resolution system:
+The config uses `standard` (root-level, e.g., `"obis"`) and `type` (per-dataset, e.g., `"event"`) to drive profile resolution. The registry in `registry.ts` implements `resolveProfile(standard, type)`:
 
-1. **TypeScript Profile Priority**: Check TypeScript profile registry first (OBIS, GBIF, etc.)
-2. **JSON Fallback**: If not found, look up profile in imported `dwcSchema.json`
-3. **Inheritance Resolution**: Recursively resolve parent profiles via `extends` property
-4. **Normalization**: Convert JSON validators to typed `Constraint` objects via `normalizeField()`
-5. **Profile Merging**: Combine parent and child profiles using `mergeConstraints()` (replacement by type)
+1. **Composite Key**: Try `"${standard}-${type}"` in TypeScript registry (e.g., `"obis-event"` → OBIS_EVENT_PROFILE)
+2. **Base Profile Fallback**: If no composite match, look up base profile using capitalized type key (e.g., `"Event"`)
+3. **TypeScript Profile Priority**: Check TypeScript profile registry first (OBIS, GBIF, etc.)
+4. **JSON Fallback**: If not found in TypeScript registry, look up in imported `dwcSchema.json`
+5. **Inheritance Resolution**: Recursively resolve parent profiles via `extends` property
+6. **Normalization**: Convert JSON validators to typed `Constraint` objects via `normalizeField()`
+7. **Profile Merging**: Combine parent and child profiles using `mergeConstraints()` (replacement by type)
 
 **Constraint System:**
 
@@ -122,7 +124,7 @@ Validation uses a discriminated union of typed constraints (`Constraint` in `con
 - Each constraint carries its own typed fields flat (no nested params)
 - Only `RequiredConstraint` has `requirement`: `"required"` (ERROR) | `"recommended"` (WARNING) | `"optional"` (INFO) — controls *presence* severity
 - Value constraints (Range, Pattern, Format, Length, Unique) have no requirement level — value validity is unconditional (always ERROR)
-- Controlled vocabularies are enforced at the DuckDB schema level via ENUM types, only for fields with "required" or "recommended" obligation in the active standard. Optional vocabulary fields use TEXT columns and accept any value.
+- Controlled vocabularies are enforced at the DuckDB schema level via ENUM types, only for fields with "required" or "strongly recommended" obligation in the active standard. Optional vocabulary fields use TEXT columns and accept any value.
 - Obligation mapping: `required` → requirement `"required"`, `strongly recommended` → `"recommended"`, `recommended` → `"optional"`, `optional` → no constraint
 
 **Field Normalization:**
@@ -236,6 +238,7 @@ DarwinKit supports configuration-driven validation for multi-dataset projects us
 name: Marine Biodiversity Dataset
 version: 1.0.0
 description: Survey data validation configuration
+standard: obis  # Target standard: obis, gbif, or custom (default: obis)
 
 validation:
   nullValues:
@@ -248,7 +251,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: event_data
-      spec: dwc-event
+      type: event
       path: ../data/FC2022_event.csv
       description: Sampling events
       fieldMappings:
@@ -369,6 +372,9 @@ The following enhancements are under consideration:
 - **Additional validation profiles** - Support for more biodiversity data standards (GBIF, iNaturalist, etc.)
 - **Data transformation pipelines** - Advanced transformation capabilities for complex data workflows
 - **Performance optimizations** - Caching and incremental validation for large datasets
+- **Transform workflow config migration** - Transform configs still use `profile:` instead of `type:`, and transform profile resolution ignores the `standard` field
+- **Constraint tightening warnings** - Warn users when config constraints are semantically meaningless (e.g. wider range than spec)
+- **DuckDB CHECK constraints** - Schema creation runs before constraint resolution; restructuring would allow range/format constraints to reject bad data at INSERT time
 
 ## Development Guidelines
 

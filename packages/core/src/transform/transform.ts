@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 
 import { Workspace } from "../workspace/mod.ts";
 import type { WorkspaceConfig } from "@dwkt/domain/schemas";
-import { hasTransformationConfig } from "@dwkt/domain/schemas";
+import { hasTransformationConfig, typeToProfileKey } from "@dwkt/domain/schemas";
 import { getValidationProfile } from "@dwkt/domain/specs";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
@@ -137,8 +137,15 @@ export function createTableFromSchema(
 
     for (const dataset of config.transform.datasets) {
       // Enforce structural integrity via FK constraints from crossDatasetRules
+      // Transform uses profile-override NOT NULL (no config field mappings to resolve)
       yield* _(
-        importSchema(connection, dataset, config.transform.datasets, config.crossDatasetRules),
+        importSchema(
+          connection,
+          dataset,
+          config.transform.datasets,
+          config.standard ?? "obis",
+          config.crossDatasetRules,
+        ),
       );
     }
   });
@@ -173,12 +180,14 @@ export function populateSchemaFromDataTables( // Export for testing
       const columnCalculations = Object.entries(dataset.fields)
         .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
 
-      const transformProfile = getValidationProfile(dataset.profile);
+      // TODO(#108): Transform should use resolveProfile(standard, type) to respect
+      // standard-specific profiles. Currently ignores the standard field.
+      const transformProfile = getValidationProfile(typeToProfileKey(dataset.type));
       if (!transformProfile) {
         return yield* _(Effect.fail(
           new TransformationError({
             message:
-              `Validation profile '${dataset.profile}' not found for dataset '${dataset.name}'`,
+              `Validation profile for type '${dataset.type}' not found for dataset '${dataset.name}'`,
           }),
         ));
       }
@@ -239,7 +248,7 @@ export function populateSchemaFromDataTables( // Export for testing
  * ```typescript
  * const connection = yield* createConnection();
  * const settings = {
- *   datasets: [{ name: "events", profile: "Event", ... }],
+ *   datasets: [{ name: "events", type: "Event", ... }],
  *   output: { dir: "./output", outputFilesWithTimestamp: true, dropNullColumns: false }
  * };
  * yield* exportObisTablesToCSV(connection, settings);
@@ -273,7 +282,7 @@ export function exportObisTablesToCSV(
 
     const withTimestamp = outputFilesWithTimestamp ?? true;
     const tables = [
-      ...new Set(datasets.map((ds) => ds.profile.toLowerCase())),
+      ...new Set(datasets.map((ds) => typeToProfileKey(ds.type).toLowerCase())),
     ];
     const outputPath = output.outputDir;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -457,11 +466,12 @@ export function exportToPersistentDB(
     // Export the in-memory database to a persistent DuckDB file. This will create the file if it doesn't exist.
     // We cant use COPY TO DATABASE directly, as it creates constraint violations when tables are copied out of order.
     for (const dataset of config.transform.datasets) {
-      // Load validation profile if specified
-      const transformProfile = getValidationProfile(dataset.profile);
+      // TODO(#108): Transform should use resolveProfile(standard, type) to respect
+      // standard-specific profiles. Currently ignores the standard field.
+      const transformProfile = getValidationProfile(typeToProfileKey(dataset.type));
       if (!transformProfile) {
         console.warn(
-          `No validation profile found for ${dataset.profile}, skipping table export.`,
+          `No validation profile found for type '${dataset.type}', skipping table export.`,
         );
         continue;
       }

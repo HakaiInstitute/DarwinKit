@@ -373,7 +373,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
   // Create summary table
   const table = new Table()
-    .header(['Dataset', 'Spec', 'Status', 'Errors', 'Warnings', 'Info'])
+    .header(['Dataset', 'Type', 'Status', 'Errors', 'Warnings', 'Info'])
     .border(true);
 
   for (const dataset of results.datasetResults) {
@@ -392,7 +392,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     table.push([
       dataset.datasetName,
-      dataset.spec,
+      dataset.type,
       statusText,
       errorCount > 0 ? colors.red(errorCount.toString()) : errorCount.toString(),
       warningCount > 0 ? colors.yellow(warningCount.toString()) : warningCount.toString(),
@@ -416,7 +416,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     if (hasErrors || hasWarnings || hasInfo) {
       Output.blank();
-      Output.bold(`📊 ${dataset.datasetName} (${dataset.spec})`);
+      Output.bold(`📊 ${dataset.datasetName} (${dataset.type})`);
       Output.blank();
     }
 
