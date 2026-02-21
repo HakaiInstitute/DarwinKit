@@ -20,7 +20,7 @@ import type {
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
 import { classToProfileKey } from "@dwkt/domain/schemas";
-import type { FieldDefinition } from "@dwkt/domain/specs";
+import type { SpecField } from "@dwkt/domain/specs";
 import {
   getPreset,
   getPresetNames,
@@ -60,7 +60,7 @@ import type { ResolutionDiagnostic } from "./field-resolution.ts";
 import {
   deriveRequirementFromConstraints,
   resolveActiveStandard,
-  resolveFieldDefinitions,
+  resolveSpecFields,
   withResolvedConstraints,
 } from "./field-resolution.ts";
 
@@ -160,7 +160,7 @@ export class WorkspaceValidator {
         const datasetProfile = resolveProfile(standard, dataset.class);
         if (datasetProfile) {
           const configMappings = dataset.fieldMappings || [];
-          const allResolved = resolveFieldDefinitions(
+          const allResolved = resolveSpecFields(
             datasetProfile,
             activeStandard,
             configMappings,
@@ -372,7 +372,7 @@ function createWorkspaceFromConfig(
       const datasetProfile = resolveProfile(standard, dataset.class);
       if (datasetProfile) {
         const configMappings = dataset.fieldMappings || [];
-        const allResolved = resolveFieldDefinitions(datasetProfile, activeStandard, configMappings);
+        const allResolved = resolveSpecFields(datasetProfile, activeStandard, configMappings);
         const mappedNames = new Set(configMappings.map((m) => m.targetName));
         const mapped: Record<string, WorkspaceFieldMapping> = {};
         for (const [name, field] of Object.entries(allResolved)) {
@@ -477,7 +477,7 @@ function validateDataset(
     const resolutionDiagnostics: ResolutionDiagnostic[] | undefined = validationSettings?.debug
       ? []
       : undefined;
-    const schemaColumnsObj = resolveFieldDefinitions(
+    const schemaColumnsObj = resolveSpecFields(
       profile ?? baseProfile,
       activeStandard,
       configFieldMappings,
@@ -727,7 +727,7 @@ function validateDataset(
       // Get field from normalized profile (already normalized at load time)
       // Use normalizedFields for validation (keeps raw fields for transformation)
       const baseField = profile.normalizedFields?.[mapping.targetName] as
-        | FieldDefinition
+        | SpecField
         | undefined;
 
       // Validate that mapped fields exist in profile

@@ -12,12 +12,13 @@
  */
 
 import type { ValidationProfile, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
-import type { Constraint, FieldDefinition, RequirementLevel } from "@dwkt/domain/specs";
+import type { Constraint, RequirementLevel, SpecField } from "@dwkt/domain/specs";
 import {
   getPreset,
   mergeConstraints,
   mergeProfileConstraints,
   obligationForStandard,
+  RequiredConstraint,
   REQUIREMENT_STRICTNESS,
 } from "@dwkt/domain/specs";
 
@@ -40,7 +41,7 @@ export function resolveActiveStandard(
 /**
  * Derive the strictest requirement level from a field's constraint array.
  *
- * Picks the strictest RequiredConstraint's requirement level.
+ * Picks the strictest RequiredConstraint's level.
  * This matches the validator's takeStrictest behavior so missing-field
  * detection uses the same effective level.
  */
@@ -48,33 +49,34 @@ export function deriveRequirementFromConstraints(
   constraints: readonly Constraint[] | undefined,
 ): RequirementLevel | undefined {
   if (!constraints) return undefined;
-  const requiredConstraints = constraints.filter((c) => c.type === "required");
+  const requiredConstraints = constraints.filter(
+    (c): c is RequiredConstraint => c._tag === "required",
+  );
   if (requiredConstraints.length === 0) return undefined;
   const strictest = requiredConstraints.reduce((a, b) =>
-    (REQUIREMENT_STRICTNESS[a.requirement] ?? 0) >=
-        (REQUIREMENT_STRICTNESS[b.requirement] ?? 0)
+    (REQUIREMENT_STRICTNESS[a.level] ?? 0) >=
+        (REQUIREMENT_STRICTNESS[b.level] ?? 0)
       ? a
       : b
   );
-  return strictest.requirement;
+  return strictest.level;
 }
 
 /**
  * Compile a requirement level into a RequiredConstraint.
  *
- * Every requirement level produces a constraint — the requirement
+ * Every requirement level produces a constraint — the level
  * value controls the severity (required → ERROR, recommended → WARNING,
  * optional → INFO).
  */
 export function requirementToConstraint(
   requirement: RequirementLevel,
 ): Constraint {
-  return {
-    type: "required",
-    requirement,
+  return new RequiredConstraint({
+    level: requirement,
     allowEmpty: false,
     allowWhitespace: false,
-  };
+  });
 }
 
 // =============================================================================
@@ -103,16 +105,16 @@ export function addConstraints(
   additions: readonly Constraint[],
   diagnostics?: { fieldName: string; overlapping: string[]; filtered: string[] },
 ): Constraint[] {
-  const existingTypes = new Set(existing.map((c) => c.type));
+  const existingTypes = new Set(existing.map((c) => c._tag));
 
   // Find the strictest existing RequiredConstraint (if any)
   const existingRequired = existing.filter(
-    (c): c is Constraint & { type: "required" } => c.type === "required",
+    (c): c is RequiredConstraint => c._tag === "required",
   );
   const strictestExisting = existingRequired.length > 0
     ? existingRequired.reduce((a, b) =>
-      (REQUIREMENT_STRICTNESS[a.requirement] ?? 0) >=
-          (REQUIREMENT_STRICTNESS[b.requirement] ?? 0)
+      (REQUIREMENT_STRICTNESS[a.level] ?? 0) >=
+          (REQUIREMENT_STRICTNESS[b.level] ?? 0)
         ? a
         : b
     )
@@ -120,19 +122,20 @@ export function addConstraints(
 
   const kept: Constraint[] = [];
   for (const c of additions) {
-    if (diagnostics && existingTypes.has(c.type)) {
-      diagnostics.overlapping.push(c.type);
+    if (diagnostics && existingTypes.has(c._tag)) {
+      diagnostics.overlapping.push(c._tag);
     }
 
     // Filter out RequiredConstraints weaker than the existing strictest
-    if (c.type === "required" && strictestExisting) {
+    if (c._tag === "required" && strictestExisting) {
+      const rc = c as RequiredConstraint;
       if (
-        (REQUIREMENT_STRICTNESS[c.requirement] ?? 0) <
-          (REQUIREMENT_STRICTNESS[strictestExisting.requirement] ?? 0)
+        (REQUIREMENT_STRICTNESS[rc.level] ?? 0) <
+          (REQUIREMENT_STRICTNESS[strictestExisting.level] ?? 0)
       ) {
         if (diagnostics) {
           diagnostics.filtered.push(
-            `Config '${c.requirement}' requirement ignored — spec/profile requires '${strictestExisting.requirement}'`,
+            `Config '${rc.level}' requirement ignored — spec/profile requires '${strictestExisting.level}'`,
           );
         }
         continue;
@@ -176,7 +179,7 @@ export interface ResolutionDiagnostic {
  *
  * When `diagnostics` is provided, overlapping config constraint types are recorded.
  */
-export function resolveFieldDefinitions(
+export function resolveSpecFields(
   schemaProfile: ValidationProfile,
   activeStandard: "obis" | "gbif",
   configMappings: readonly WorkspaceFieldMapping[],
@@ -196,12 +199,13 @@ export function resolveFieldDefinitions(
     const obligationResult = obligationForStandard(field, activeStandard);
     if (obligationResult?.requirement) {
       // Obligation → RequiredConstraint merged via replacement (spec-level, trusted)
-      constraints = mergeConstraints(constraints, [{
-        type: "required" as const,
-        requirement: obligationResult.requirement,
-        allowEmpty: false,
-        allowWhitespace: false,
-      }]);
+      constraints = mergeConstraints(constraints, [
+        new RequiredConstraint({
+          level: obligationResult.requirement,
+          allowEmpty: false,
+          allowWhitespace: false,
+        }),
+      ]);
     } else if (
       obligationResult?.obligation === "required (if exists)" &&
       mappedFieldNames.has(fieldName)
@@ -211,15 +215,16 @@ export function resolveFieldDefinitions(
       // Emit a WARNING-level constraint with a descriptive message so users
       // can verify the blanks are intentional.
       const label = field.label ?? fieldName;
-      constraints = mergeConstraints(constraints, [{
-        type: "required" as const,
-        requirement: "recommended" as const,
-        allowEmpty: false,
-        allowWhitespace: false,
-        message: `"${label}" is included in your dataset and is required when applicable. ` +
-          `Empty values will be flagged — verify that blanks are intentional ` +
-          `(e.g. rows where no ${label.toLowerCase()} applies).`,
-      }]);
+      constraints = mergeConstraints(constraints, [
+        new RequiredConstraint({
+          level: "recommended",
+          allowEmpty: false,
+          allowWhitespace: false,
+          message: `"${label}" is included in your dataset and is required when applicable. ` +
+            `Empty values will be flagged — verify that blanks are intentional ` +
+            `(e.g. rows where no ${label.toLowerCase()} applies).`,
+        }),
+      ]);
     }
 
     result[fieldName] = {
@@ -334,17 +339,17 @@ export function resolveFieldDefinitions(
 }
 
 /**
- * Build a FieldDefinition for validation by combining base field metadata
+ * Build a SpecField for validation by combining base field metadata
  * (name, label, data type) with the fully-resolved constraints from
- * resolveFieldDefinitions().
+ * resolveSpecFields().
  *
  * The resolved constraints already include all spec, profile, and config
  * constraints — this function simply applies them to the base definition.
  */
 export function withResolvedConstraints(
-  baseField: FieldDefinition,
+  baseField: SpecField,
   resolvedMapping: WorkspaceFieldMapping | undefined,
-): FieldDefinition {
+): SpecField {
   if (!resolvedMapping?.constraints) {
     return baseField;
   }

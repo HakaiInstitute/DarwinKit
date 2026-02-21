@@ -3,12 +3,12 @@
  */
 
 import * as S from "effect/Schema";
-import { Constraint, RequirementLevel } from "../specs/constraints.ts";
+import { ConstraintSchema, RequirementLevel } from "../specs/constraints.ts";
 
 // Field override schema
 export const fieldOverrideSchema = S.Struct({
   requirement: S.optional(RequirementLevel),
-  constraints: S.optional(S.Array(Constraint)),
+  constraints: S.optional(S.Array(ConstraintSchema)),
 });
 
 // Field schema for transform use (raw field metadata from JSON schema)
@@ -19,8 +19,8 @@ export const transformFieldSchema = S.Struct({
   values: S.optional(S.Record({ key: S.String, value: S.Unknown })),
 });
 
-// Import FieldDefinition for validation use
-import { FieldDefinitionSchema } from "../specs/field-definition.ts";
+// Import SpecField for validation use
+import { SpecFieldSchema } from "../specs/field-definition.ts";
 
 // Validation profile schema
 export const validationProfileSchema = S.Struct({
@@ -35,7 +35,7 @@ export const validationProfileSchema = S.Struct({
   // - fields: Raw field metadata for SQL DDL generation (transform functionality)
   // - normalizedFields: Processed fields with structured validators for validation logic
   fields: S.optional(S.Record({ key: S.String, value: transformFieldSchema })),
-  normalizedFields: S.optional(S.Record({ key: S.String, value: FieldDefinitionSchema })),
+  normalizedFields: S.optional(S.Record({ key: S.String, value: SpecFieldSchema })),
 
   documentationUrl: S.optional(S.String),
   version: S.optional(S.String),
@@ -63,7 +63,7 @@ export const validationProfileRegistrySchema = S.Record({
  * Validators can be either strings (legacy format) or typed Constraint objects.
  * The lowercase naming indicates this is a raw format from JSON schema.
  */
-export interface Field {
+export interface RawField {
   readonly group: string;
   readonly name: string;
   readonly label: string;

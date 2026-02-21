@@ -1,10 +1,7 @@
-import {
-  type DatasetConfig,
-  makeWorkspaceConfig,
-  type ValidationSettingsInput,
-  type WorkspaceConfig,
-  type WorkspaceCrossDatasetRule,
-  type WorkspaceFieldMapping,
+import type {
+  DatasetConfig,
+  ValidationSettingsInput,
+  WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
 import {
   isEnumViolation,
@@ -192,17 +189,15 @@ async function removeTempDirs() {
   );
 }
 
-// Write a workspace configuration file to the temp directory
-async function writeConfig(tempDir: string, config: WorkspaceConfig) {
-  // Convert dates to ISO strings for YAML serialization
-  const configForYaml = {
-    ...config,
-    createdAt: config.createdAt instanceof Date ? config.createdAt.toISOString() : config.createdAt,
-    updatedAt: config.updatedAt instanceof Date ? config.updatedAt.toISOString() : config.updatedAt,
-  };
+// Write a workspace configuration file to the temp directory.
+// Accepts a raw config object for YAML serialization. The validator decodes from YAML.
+// deno-lint-ignore no-explicit-any
+async function writeConfig(tempDir: string, config: Record<string, any>) {
+  // Strip undefined values to avoid YAML serialization errors
+  const clean = JSON.parse(JSON.stringify(config));
   return await Deno.writeTextFile(
     join(tempDir, "darwinkit.yaml"),
-    stringifyYAML(configForYaml),
+    stringifyYAML(clean),
   );
 }
 
@@ -270,30 +265,35 @@ async function createMultiDatasetWorkspace(
     },
   ];
 
-  // Create config with defaults
-  const config = makeWorkspaceConfig({
+  // Write raw config object directly — the validator will decode from YAML.
+  const rawConfig = {
     name: "Test Workspace",
     validation: options?.validation ?? {
       nullValues: ["", "NA"],
       datasets,
     },
     crossDatasetRules,
-  });
+  };
 
-  await writeConfig(tempDir, config);
+  await writeConfig(tempDir, rawConfig);
 }
 
 // Create a workspace with a single dataset for testing
+// deno-lint-ignore no-explicit-any
+type RawFieldMapping = Record<string, any>;
+
 async function createSingleDatasetWorkspace(
   tempDir: string,
   datasetName: string,
   data: Array<Record<string, unknown>>,
-  fieldMappings: WorkspaceFieldMapping[],
+  fieldMappings: RawFieldMapping[],
   options?: { class?: string },
 ): Promise<void> {
   await writeCSV(tempDir, datasetName, data);
 
-  const config = makeWorkspaceConfig({
+  // Write raw config object directly — the validator will decode from YAML.
+  // This avoids decode/encode roundtrip issues with Data.TaggedClass constraints.
+  const rawConfig = {
     name: "Test Workspace",
     validation: {
       nullValues: [""],
@@ -306,9 +306,9 @@ async function createSingleDatasetWorkspace(
         },
       ],
     },
-  });
+  };
 
-  await writeConfig(tempDir, config);
+  await writeConfig(tempDir, rawConfig);
 }
 
 // Validate the workspace in the temp directory
@@ -441,8 +441,8 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF,
     );
 
-    // Create minimal config
-    const config = makeWorkspaceConfig({
+    // Write raw config — the validator decodes from YAML
+    await writeConfig(tempDir, {
       name: "Test Workspace",
       validation: {
         nullValues: [""],
@@ -477,8 +477,6 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
       ],
     });
 
-    await writeConfig(tempDir, config);
-
     const result = await validateWorkspace(tempDir);
 
     // FK violation is caught during insert via DuckDB FK constraint (not cross-dataset validation)
@@ -508,7 +506,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     const tempDir = await createTempDir("detect_missing_required_fields");
     await writeCSV(tempDir, "events", TEST_DATA.EVENTS_MISSING_COUNTRY_CODE);
 
-    const config = makeWorkspaceConfig({
+    await writeConfig(tempDir, {
       name: "Test Workspace",
       validation: {
         nullValues: [""],
@@ -526,8 +524,6 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         ],
       },
     });
-
-    await writeConfig(tempDir, config);
 
     const validator = new WorkspaceValidator();
 
@@ -1065,7 +1061,7 @@ Deno.test("WorkspaceValidator - Invalid Preset Detection", async (t) => {
           originName: "decimalLatitude",
           targetName: "decimalLatitude",
           preset: "latidude", // typo: should be "latitude"
-        } as WorkspaceFieldMapping,
+        } as RawFieldMapping,
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
       { class: "event" },
@@ -1179,7 +1175,7 @@ Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
           originName: "decimalLatitude",
           targetName: "decimalLatitude",
           preset: "latitude",
-        } as WorkspaceFieldMapping,
+        } as RawFieldMapping,
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
       { class: "event" },

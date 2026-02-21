@@ -2,16 +2,17 @@
  * Typed Constraint System
  *
  * Defines a discriminated union of constraint types for field validation.
- * Each constraint type has its own typed parameters, replacing the flat
- * "god bag" ValidatorParams approach.
+ * Each constraint type uses Data.TaggedClass for structural equality and
+ * immutability. The `_tag` field is the discriminator.
  *
  * "Constraint" is the config data (what to check), "validator" is the
  * runtime function (how to check it). This file defines the constraint
- * schemas, types, and a registry for programmatic discovery.
+ * classes, types, and merge logic.
  *
  * @module specs/constraints
  */
 
+import * as Data from "effect/Data";
 import * as S from "effect/Schema";
 
 // =============================================================================
@@ -58,86 +59,67 @@ export const FieldDataType = S.Literal(
 export type FieldDataType = S.Schema.Type<typeof FieldDataType>;
 
 // =============================================================================
-// Individual Constraint Schemas
+// Constraint Classes (Data.TaggedClass)
 // =============================================================================
 
 /**
  * Range constraint - validates numeric values within min/max bounds
  */
-export const RangeConstraint = S.Struct({
-  type: S.Literal("range"),
-  min: S.optional(S.Number),
-  max: S.optional(S.Number),
-  inclusive: S.optionalWith(S.Boolean, { default: () => true }),
-  message: S.optional(S.String),
-});
-
-export type RangeConstraint = S.Schema.Type<typeof RangeConstraint>;
+export class RangeConstraint extends Data.TaggedClass("range")<{
+  readonly min?: number;
+  readonly max?: number;
+  readonly inclusive?: boolean;
+  readonly message?: string;
+}> {}
 
 /**
  * Required constraint - field must have a non-null/non-empty value
  */
-export const RequiredConstraint = S.Struct({
-  type: S.Literal("required"),
-  allowEmpty: S.optionalWith(S.Boolean, { default: () => false }),
-  allowWhitespace: S.optionalWith(S.Boolean, { default: () => false }),
-  requirement: RequirementLevel,
-  message: S.optional(S.String),
-});
-
-export type RequiredConstraint = S.Schema.Type<typeof RequiredConstraint>;
+export class RequiredConstraint extends Data.TaggedClass("required")<{
+  readonly level: RequirementLevel;
+  readonly allowEmpty?: boolean;
+  readonly allowWhitespace?: boolean;
+  readonly message?: string;
+}> {}
 
 /**
  * Unique constraint - field value must be unique within the dataset
  */
-export const UniqueConstraint = S.Struct({
-  type: S.Literal("unique"),
-  message: S.optional(S.String),
-});
-
-export type UniqueConstraint = S.Schema.Type<typeof UniqueConstraint>;
+export class UniqueConstraint extends Data.TaggedClass("unique")<{
+  readonly message?: string;
+}> {}
 
 /**
  * Pattern constraint - field value must match a regular expression
  */
-export const PatternConstraint = S.Struct({
-  type: S.Literal("pattern"),
-  pattern: S.String,
-  flags: S.optional(S.String),
-  message: S.optional(S.String),
-});
-
-export type PatternConstraint = S.Schema.Type<typeof PatternConstraint>;
+export class PatternConstraint extends Data.TaggedClass("pattern")<{
+  readonly pattern: string;
+  readonly flags?: string;
+  readonly message?: string;
+}> {}
 
 /**
  * Length constraint - string field must meet length requirements
  */
-export const LengthConstraint = S.Struct({
-  type: S.Literal("length"),
-  minLength: S.optional(S.Number),
-  maxLength: S.optional(S.Number),
-  message: S.optional(S.String),
-});
-
-export type LengthConstraint = S.Schema.Type<typeof LengthConstraint>;
+export class LengthConstraint extends Data.TaggedClass("length")<{
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly message?: string;
+}> {}
 
 /**
  * Format constraint - field must conform to a specific format
  */
-export const FormatConstraint = S.Struct({
-  type: S.Literal("format"),
-  format: S.Literal(
-    "email",
-    "url",
-    "uuid",
-    "iso8601",
-    "decimal-degrees",
-    "integer",
-  ),
-  message: S.optional(S.String),
-});
-
-export type FormatConstraint = S.Schema.Type<typeof FormatConstraint>;
+export class FormatConstraint extends Data.TaggedClass("format")<{
+  readonly format:
+    | "email"
+    | "url"
+    | "uuid"
+    | "iso8601"
+    | "decimal-degrees"
+    | "integer";
+  readonly message?: string;
+}> {}
 
 // =============================================================================
 // Discriminated Union
@@ -145,18 +127,189 @@ export type FormatConstraint = S.Schema.Type<typeof FormatConstraint>;
 
 /**
  * The discriminated union of all constraint types.
- * Discriminated by the `type` field - YAML users write `type: range` naturally.
+ * Discriminated by the `_tag` field.
  */
-export const Constraint = S.Union(
-  RangeConstraint,
-  RequiredConstraint,
-  UniqueConstraint,
-  PatternConstraint,
-  LengthConstraint,
-  FormatConstraint,
+export type Constraint =
+  | RangeConstraint
+  | RequiredConstraint
+  | UniqueConstraint
+  | PatternConstraint
+  | LengthConstraint
+  | FormatConstraint;
+
+// =============================================================================
+// Effect Schema for Constraint (decode/encode from YAML/JSON)
+// =============================================================================
+
+/**
+ * Effect Schema that decodes YAML/JSON `{ type: "range", ... }` into
+ * Data.TaggedClass instances. Maps `type` → `_tag` and `requirement` → `level`
+ * at the parsing boundary.
+ */
+const RangeConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("range"),
+    min: S.optional(S.Number),
+    max: S.optional(S.Number),
+    inclusive: S.optional(S.Boolean),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(RangeConstraint)),
+  {
+    strict: true,
+    decode: (from) =>
+      new RangeConstraint({
+        min: from.min,
+        max: from.max,
+        inclusive: from.inclusive ?? true,
+        message: from.message,
+      }),
+    encode: (to) => ({
+      type: "range" as const,
+      min: to.min,
+      max: to.max,
+      inclusive: to.inclusive,
+      message: to.message,
+    }),
+  },
 );
 
-export type Constraint = S.Schema.Type<typeof Constraint>;
+const RequiredConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("required"),
+    requirement: S.optional(RequirementLevel),
+    level: S.optional(RequirementLevel),
+    allowEmpty: S.optional(S.Boolean),
+    allowWhitespace: S.optional(S.Boolean),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(RequiredConstraint)),
+  {
+    strict: true,
+    decode: (from) =>
+      new RequiredConstraint({
+        level: from.level ?? from.requirement ?? "required",
+        allowEmpty: from.allowEmpty ?? false,
+        allowWhitespace: from.allowWhitespace ?? false,
+        message: from.message,
+      }),
+    encode: (to) => ({
+      type: "required" as const,
+      requirement: to.level,
+      level: to.level,
+      allowEmpty: to.allowEmpty,
+      allowWhitespace: to.allowWhitespace,
+      message: to.message,
+    }),
+  },
+);
+
+const UniqueConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("unique"),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(UniqueConstraint)),
+  {
+    strict: true,
+    decode: (from) => new UniqueConstraint({ message: from.message }),
+    encode: (to) => ({ type: "unique" as const, message: to.message }),
+  },
+);
+
+const PatternConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("pattern"),
+    pattern: S.String,
+    flags: S.optional(S.String),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(PatternConstraint)),
+  {
+    strict: true,
+    decode: (from) =>
+      new PatternConstraint({
+        pattern: from.pattern,
+        flags: from.flags,
+        message: from.message,
+      }),
+    encode: (to) => ({
+      type: "pattern" as const,
+      pattern: to.pattern,
+      flags: to.flags,
+      message: to.message,
+    }),
+  },
+);
+
+const LengthConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("length"),
+    minLength: S.optional(S.Number),
+    maxLength: S.optional(S.Number),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(LengthConstraint)),
+  {
+    strict: true,
+    decode: (from) =>
+      new LengthConstraint({
+        minLength: from.minLength,
+        maxLength: from.maxLength,
+        message: from.message,
+      }),
+    encode: (to) => ({
+      type: "length" as const,
+      minLength: to.minLength,
+      maxLength: to.maxLength,
+      message: to.message,
+    }),
+  },
+);
+
+const FormatConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("format"),
+    format: S.Literal(
+      "email",
+      "url",
+      "uuid",
+      "iso8601",
+      "decimal-degrees",
+      "integer",
+    ),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(FormatConstraint)),
+  {
+    strict: true,
+    decode: (from) =>
+      new FormatConstraint({
+        format: from.format,
+        message: from.message,
+      }),
+    encode: (to) => ({
+      type: "format" as const,
+      format: to.format,
+      message: to.message,
+    }),
+  },
+);
+
+/**
+ * Effect Schema for the Constraint union.
+ *
+ * Decodes YAML/JSON with `type` discriminator into Data.TaggedClass instances.
+ * Used at the config parsing boundary (workspace-config.ts, validation-profile.ts).
+ */
+export const ConstraintSchema = S.Union(
+  RangeConstraintSchema,
+  RequiredConstraintSchema,
+  UniqueConstraintSchema,
+  PatternConstraintSchema,
+  LengthConstraintSchema,
+  FormatConstraintSchema,
+);
 
 // =============================================================================
 // Obligation System
@@ -238,10 +391,10 @@ export function mergeConstraints(
   child: readonly Constraint[],
 ): Constraint[] {
   // Collect the set of constraint types the child defines
-  const childTypes = new Set(child.map((c) => c.type));
+  const childTypes = new Set(child.map((c) => c._tag));
 
   // Keep parent constraints whose type is NOT overridden by child
-  const kept = parent.filter((c) => !childTypes.has(c.type));
+  const kept = parent.filter((c) => !childTypes.has(c._tag));
 
   // Append all child constraints (preserving duplicates within child)
   return [...kept, ...child];
@@ -258,29 +411,29 @@ export function mergeProfileConstraints(
   parent: readonly Constraint[],
   child: readonly Constraint[],
 ): Constraint[] {
-  const childTypes = new Set(child.map((c) => c.type));
+  const childTypes = new Set(child.map((c) => c._tag));
 
   // Separate required constraints for strictest-wins handling
   const parentRequired = parent.filter(
-    (c): c is Constraint & { type: "required" } => c.type === "required",
+    (c): c is RequiredConstraint => c._tag === "required",
   );
   const childRequired = child.filter(
-    (c): c is Constraint & { type: "required" } => c.type === "required",
+    (c): c is RequiredConstraint => c._tag === "required",
   );
 
   // For non-required types: standard replacement semantics
   const keptNonRequired = parent.filter(
-    (c) => c.type !== "required" && !childTypes.has(c.type),
+    (c) => c._tag !== "required" && !childTypes.has(c._tag),
   );
-  const childNonRequired = child.filter((c) => c.type !== "required");
+  const childNonRequired = child.filter((c) => c._tag !== "required");
 
   // For required type: pick strictest from either side
   let resolvedRequired: Constraint[] = [];
   if (childRequired.length > 0 || parentRequired.length > 0) {
     const allRequired = [...parentRequired, ...childRequired];
     const strictest = allRequired.reduce((a, b) =>
-      (REQUIREMENT_STRICTNESS[a.requirement] ?? 0) >=
-          (REQUIREMENT_STRICTNESS[b.requirement] ?? 0)
+      (REQUIREMENT_STRICTNESS[a.level] ?? 0) >=
+          (REQUIREMENT_STRICTNESS[b.level] ?? 0)
         ? a
         : b
     );

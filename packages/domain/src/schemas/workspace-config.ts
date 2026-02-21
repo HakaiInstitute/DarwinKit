@@ -6,7 +6,7 @@
  */
 
 import * as S from "effect/Schema";
-import { Constraint, RequirementLevel } from "../specs/constraints.ts";
+import { ConstraintSchema, RequirementLevel } from "../specs/constraints.ts";
 
 // =============================================================================
 // Default Values
@@ -35,7 +35,7 @@ export const workspaceFieldMappingSchema = S.Struct({
   originName: S.String.annotations({ description: "Source column name in the CSV file." }),
   targetName: S.String.annotations({ description: "Target Darwin Core field name." }),
   requirement: S.optional(RequirementLevel),
-  constraints: S.optional(S.Array(Constraint)),
+  constraints: S.optional(S.Array(ConstraintSchema)),
   preset: S.optional(S.String),
 });
 

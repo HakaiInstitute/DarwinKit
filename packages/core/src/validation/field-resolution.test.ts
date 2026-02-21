@@ -4,8 +4,15 @@
 
 import { assert, assertEquals } from "@std/assert";
 import type { ValidationProfile, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
-import type { Constraint, FieldDefinition } from "@dwkt/domain/specs";
-import { obligationForStandard, obligationToRequirement } from "@dwkt/domain/specs";
+import type { Constraint, SpecField } from "@dwkt/domain/specs";
+import {
+  FormatConstraint,
+  obligationForStandard,
+  obligationToRequirement,
+  PatternConstraint,
+  RangeConstraint,
+  RequiredConstraint,
+} from "@dwkt/domain/specs";
 import {
   MissingFieldViolation,
   partitionFieldViolations,
@@ -19,7 +26,7 @@ import {
   deriveRequirementFromConstraints,
   requirementToConstraint,
   resolveActiveStandard,
-  resolveFieldDefinitions,
+  resolveSpecFields,
   withResolvedConstraints,
 } from "./field-resolution.ts";
 
@@ -41,25 +48,25 @@ function rangeConstraint(
   min: number,
   max: number,
 ): Constraint {
-  return { type: "range", min, max, inclusive: true };
+  return new RangeConstraint({ min, max, inclusive: true });
 }
 
 function requiredConstraint(
-  requirement: "required" | "recommended" | "optional" = "required",
+  level: "required" | "recommended" | "optional" = "required",
 ): Constraint {
-  return { type: "required", allowEmpty: false, allowWhitespace: false, requirement };
+  return new RequiredConstraint({ level, allowEmpty: false, allowWhitespace: false });
 }
 
 function formatConstraint(
   format: "iso8601" | "url" | "decimal-degrees",
 ): Constraint {
-  return { type: "format", format };
+  return new FormatConstraint({ format });
 }
 
 function patternConstraint(
   pattern: string,
 ): Constraint {
-  return { type: "pattern", pattern };
+  return new PatternConstraint({ pattern });
 }
 
 // =============================================================================
@@ -80,7 +87,7 @@ Deno.test("resolveActiveStandard - defaults to obis when undefined", () => {
 // =============================================================================
 
 Deno.test("obligationForStandard - returns obligation and requirement for OBIS required", () => {
-  const field: FieldDefinition = {
+  const field: SpecField = {
     name: "eventDate",
     constraints: [],
     obligations: { obis: "required" },
@@ -91,7 +98,7 @@ Deno.test("obligationForStandard - returns obligation and requirement for OBIS r
 });
 
 Deno.test("obligationForStandard - returns obligation and requirement for GBIF required", () => {
-  const field: FieldDefinition = {
+  const field: SpecField = {
     name: "eventDate",
     constraints: [],
     obligations: { gbif: "required" },
@@ -102,12 +109,12 @@ Deno.test("obligationForStandard - returns obligation and requirement for GBIF r
 });
 
 Deno.test("obligationForStandard - returns undefined when no obligations", () => {
-  const field: FieldDefinition = { name: "eventDate", constraints: [] };
+  const field: SpecField = { name: "eventDate", constraints: [] };
   assertEquals(obligationForStandard(field, "obis"), undefined);
 });
 
 Deno.test("obligationForStandard - returns raw obligation for 'required (if exists)'", () => {
-  const field: FieldDefinition = {
+  const field: SpecField = {
     name: "parentEventID",
     constraints: [],
     obligations: { obis: "required (if exists)" },
@@ -121,21 +128,21 @@ Deno.test("obligationForStandard - returns raw obligation for 'required (if exis
 // deriveRequirementFromConstraints Tests
 // =============================================================================
 
-Deno.test("deriveRequirementFromConstraints - required requirement → 'required'", () => {
+Deno.test("deriveRequirementFromConstraints - required level → 'required'", () => {
   assertEquals(
     deriveRequirementFromConstraints([requiredConstraint("required")]),
     "required",
   );
 });
 
-Deno.test("deriveRequirementFromConstraints - recommended requirement → 'recommended'", () => {
+Deno.test("deriveRequirementFromConstraints - recommended level → 'recommended'", () => {
   assertEquals(
     deriveRequirementFromConstraints([requiredConstraint("recommended")]),
     "recommended",
   );
 });
 
-Deno.test("deriveRequirementFromConstraints - optional requirement → 'optional'", () => {
+Deno.test("deriveRequirementFromConstraints - optional level → 'optional'", () => {
   assertEquals(
     deriveRequirementFromConstraints([requiredConstraint("optional")]),
     "optional",
@@ -153,20 +160,23 @@ Deno.test("deriveRequirementFromConstraints - no required constraints → undefi
 
 Deno.test("requirementToConstraint - 'required' produces required constraint", () => {
   const result = requirementToConstraint("required");
-  assert(result.type === "required");
-  assertEquals(result.requirement, "required");
+  assert(result._tag === "required");
+  assert(result instanceof RequiredConstraint);
+  assertEquals(result.level, "required");
 });
 
 Deno.test("requirementToConstraint - 'recommended' produces recommended constraint", () => {
   const result = requirementToConstraint("recommended");
-  assert(result.type === "required");
-  assertEquals(result.requirement, "recommended");
+  assert(result._tag === "required");
+  assert(result instanceof RequiredConstraint);
+  assertEquals(result.level, "recommended");
 });
 
-Deno.test("requirementToConstraint - 'optional' produces optional requirement constraint", () => {
+Deno.test("requirementToConstraint - 'optional' produces optional level constraint", () => {
   const result = requirementToConstraint("optional");
-  assert(result.type === "required");
-  assertEquals(result.requirement, "optional");
+  assert(result._tag === "required");
+  assert(result instanceof RequiredConstraint);
+  assertEquals(result.level, "optional");
 });
 
 // =============================================================================
@@ -179,8 +189,8 @@ Deno.test("addConstraints - adds new constraint types", () => {
 
   const result = addConstraints(existing, additions);
   assertEquals(result.length, 2);
-  assertEquals(result[0].type, "range");
-  assertEquals(result[1].type, "required");
+  assertEquals(result[0]._tag, "range");
+  assertEquals(result[1]._tag, "required");
 });
 
 Deno.test("addConstraints - keeps both when same type added (tightening)", () => {
@@ -189,10 +199,10 @@ Deno.test("addConstraints - keeps both when same type added (tightening)", () =>
 
   const result = addConstraints(existing, additions);
   assertEquals(result.length, 2);
-  if (result[0].type === "range") {
+  if (result[0]._tag === "range") {
     assertEquals(result[0].min, -90); // original preserved
   }
-  if (result[1].type === "range") {
+  if (result[1]._tag === "range") {
     assertEquals(result[1].min, 0); // addition also present
   }
 });
@@ -240,9 +250,9 @@ Deno.test("addConstraints - filters weaker RequiredConstraint and emits diagnost
   const result = addConstraints(existing, additions, tracker);
   // Weaker 'optional' should be filtered out
   assertEquals(result.length, 1);
-  const required = result.filter((c) => c.type === "required");
+  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "required");
+  assertEquals(required[0].level, "required");
 
   // Diagnostic should record the filtering
   assertEquals(tracker.filtered.length, 1);
@@ -265,15 +275,15 @@ Deno.test("addConstraints - keeps stronger RequiredConstraint from config", () =
 
   const result = addConstraints(existing, additions);
   assertEquals(result.length, 2);
-  const required = result.filter((c) => c.type === "required");
+  const required = result.filter((c) => c._tag === "required");
   assertEquals(required.length, 2);
 });
 
 // =============================================================================
-// resolveFieldDefinitions Diagnostics Tests
+// resolveSpecFields Diagnostics Tests
 // =============================================================================
 
-Deno.test("resolveFieldDefinitions - diagnostics records overlapping config constraints", () => {
+Deno.test("resolveSpecFields - diagnostics records overlapping config constraints", () => {
   const profile = makeProfile({
     normalizedFields: {
       decimalLatitude: {
@@ -290,12 +300,12 @@ Deno.test("resolveFieldDefinitions - diagnostics records overlapping config cons
   }];
 
   const diagnostics: ResolutionDiagnostic[] = [];
-  const result = resolveFieldDefinitions(profile, "obis", configMappings, diagnostics);
+  const result = resolveSpecFields(profile, "obis", configMappings, diagnostics);
 
   // Both constraints kept
   const lat = result["decimalLatitude"];
   assert(lat?.constraints !== undefined);
-  assertEquals(lat.constraints.filter((c) => c.type === "range").length, 2);
+  assertEquals(lat.constraints.filter((c) => c._tag === "range").length, 2);
 
   // Diagnostic records the overlap
   assertEquals(diagnostics.length, 1);
@@ -305,7 +315,7 @@ Deno.test("resolveFieldDefinitions - diagnostics records overlapping config cons
   assert(diagnostics[0].message.includes("decimalLatitude"));
 });
 
-Deno.test("resolveFieldDefinitions - diagnostic message explains both constraints apply", () => {
+Deno.test("resolveSpecFields - diagnostic message explains both constraints apply", () => {
   const profile = makeProfile({
     normalizedFields: {
       decimalLatitude: {
@@ -322,7 +332,7 @@ Deno.test("resolveFieldDefinitions - diagnostic message explains both constraint
   }];
 
   const diagnostics: ResolutionDiagnostic[] = [];
-  resolveFieldDefinitions(profile, "obis", configMappings, diagnostics);
+  resolveSpecFields(profile, "obis", configMappings, diagnostics);
 
   assertEquals(diagnostics.length, 1);
   const msg = diagnostics[0].message;
@@ -335,7 +345,7 @@ Deno.test("resolveFieldDefinitions - diagnostic message explains both constraint
   );
 });
 
-Deno.test("resolveFieldDefinitions - no diagnostics when config adds new types", () => {
+Deno.test("resolveSpecFields - no diagnostics when config adds new types", () => {
   const profile = makeProfile({
     normalizedFields: {
       countryCode: {
@@ -352,12 +362,12 @@ Deno.test("resolveFieldDefinitions - no diagnostics when config adds new types",
   }];
 
   const diagnostics: ResolutionDiagnostic[] = [];
-  resolveFieldDefinitions(profile, "obis", configMappings, diagnostics);
+  resolveSpecFields(profile, "obis", configMappings, diagnostics);
 
   assertEquals(diagnostics.length, 0);
 });
 
-Deno.test("resolveFieldDefinitions - no diagnostics when array not provided", () => {
+Deno.test("resolveSpecFields - no diagnostics when array not provided", () => {
   const profile = makeProfile({
     normalizedFields: {
       decimalLatitude: {
@@ -374,15 +384,15 @@ Deno.test("resolveFieldDefinitions - no diagnostics when array not provided", ()
   }];
 
   // Should not throw when diagnostics is undefined
-  const result = resolveFieldDefinitions(profile, "obis", configMappings);
+  const result = resolveSpecFields(profile, "obis", configMappings);
   assert(result["decimalLatitude"] !== undefined);
 });
 
 // =============================================================================
-// resolveFieldDefinitions Tests
+// resolveSpecFields Tests
 // =============================================================================
 
-Deno.test("resolveFieldDefinitions - spec fields with obligations get required constraints", () => {
+Deno.test("resolveSpecFields - spec fields with obligations get required constraints", () => {
   const profile = makeProfile({
     normalizedFields: {
       eventDate: {
@@ -393,16 +403,18 @@ Deno.test("resolveFieldDefinitions - spec fields with obligations get required c
     },
   });
 
-  const result = resolveFieldDefinitions(profile, "obis", []);
+  const result = resolveSpecFields(profile, "obis", []);
   const eventDate = result["eventDate"];
   assert(eventDate !== undefined);
   assert(eventDate.constraints !== undefined);
-  const requiredConstraints = eventDate.constraints.filter((c) => c.type === "required");
+  const requiredConstraints = eventDate.constraints.filter((c) =>
+    c._tag === "required"
+  ) as RequiredConstraint[];
   assertEquals(requiredConstraints.length, 1);
-  assertEquals(requiredConstraints[0].requirement, "required");
+  assertEquals(requiredConstraints[0].level, "required");
 });
 
-Deno.test("resolveFieldDefinitions - profile override replaces spec constraint (replacement semantics)", () => {
+Deno.test("resolveSpecFields - profile override replaces spec constraint (replacement semantics)", () => {
   const profile = makeProfile({
     normalizedFields: {
       decimalLatitude: {
@@ -417,18 +429,18 @@ Deno.test("resolveFieldDefinitions - profile override replaces spec constraint (
     },
   });
 
-  const result = resolveFieldDefinitions(profile, "obis", []);
+  const result = resolveSpecFields(profile, "obis", []);
   const lat = result["decimalLatitude"];
   assert(lat?.constraints !== undefined);
-  const ranges = lat.constraints.filter((c) => c.type === "range");
+  const ranges = lat.constraints.filter((c) => c._tag === "range");
   assertEquals(ranges.length, 1);
-  if (ranges[0].type === "range") {
+  if (ranges[0]._tag === "range") {
     assertEquals(ranges[0].min, -45); // replaced
     assertEquals(ranges[0].max, 45);
   }
 });
 
-Deno.test("resolveFieldDefinitions - config constraint same type as spec → both kept (tightening)", () => {
+Deno.test("resolveSpecFields - config constraint same type as spec → both kept (tightening)", () => {
   const profile = makeProfile({
     normalizedFields: {
       decimalLatitude: {
@@ -444,22 +456,22 @@ Deno.test("resolveFieldDefinitions - config constraint same type as spec → bot
     constraints: [rangeConstraint(0, 50)], // tighter range added alongside spec
   }];
 
-  const result = resolveFieldDefinitions(profile, "obis", configMappings);
+  const result = resolveSpecFields(profile, "obis", configMappings);
   const lat = result["decimalLatitude"];
   assert(lat?.constraints !== undefined);
-  const ranges = lat.constraints.filter((c) => c.type === "range");
+  const ranges = lat.constraints.filter((c) => c._tag === "range");
   assertEquals(ranges.length, 2);
-  if (ranges[0].type === "range") {
+  if (ranges[0]._tag === "range") {
     assertEquals(ranges[0].min, -90); // spec's range preserved
     assertEquals(ranges[0].max, 90);
   }
-  if (ranges[1].type === "range") {
+  if (ranges[1]._tag === "range") {
     assertEquals(ranges[1].min, 0); // config's tighter range added
     assertEquals(ranges[1].max, 50);
   }
 });
 
-Deno.test("resolveFieldDefinitions - config adds new constraint type not in spec → accepted", () => {
+Deno.test("resolveSpecFields - config adds new constraint type not in spec → accepted", () => {
   const profile = makeProfile({
     normalizedFields: {
       countryCode: {
@@ -475,16 +487,16 @@ Deno.test("resolveFieldDefinitions - config adds new constraint type not in spec
     constraints: [patternConstraint("^[A-Z]{2}$")], // new type, accepted
   }];
 
-  const result = resolveFieldDefinitions(profile, "obis", configMappings);
+  const result = resolveSpecFields(profile, "obis", configMappings);
   const cc = result["countryCode"];
   assert(cc?.constraints !== undefined);
   assertEquals(cc.constraints.length, 2);
-  const types = cc.constraints.map((c) => c.type);
-  assert(types.includes("required"));
-  assert(types.includes("pattern"));
+  const tags = cc.constraints.map((c) => c._tag);
+  assert(tags.includes("required"));
+  assert(tags.includes("pattern"));
 });
 
-Deno.test("resolveFieldDefinitions - config requirement compiled to constraint", () => {
+Deno.test("resolveSpecFields - config requirement compiled to constraint", () => {
   const profile = makeProfile({
     normalizedFields: {
       locality: {
@@ -500,15 +512,17 @@ Deno.test("resolveFieldDefinitions - config requirement compiled to constraint",
     requirement: "required",
   }];
 
-  const result = resolveFieldDefinitions(profile, "obis", configMappings);
+  const result = resolveSpecFields(profile, "obis", configMappings);
   const locality = result["locality"];
   assert(locality?.constraints !== undefined);
-  const required = locality.constraints.filter((c) => c.type === "required");
+  const required = locality.constraints.filter((c) =>
+    c._tag === "required"
+  ) as RequiredConstraint[];
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "required");
+  assertEquals(required[0].level, "required");
 });
 
-Deno.test("resolveFieldDefinitions - config requirement 'recommended' produces optional requirement constraint", () => {
+Deno.test("resolveSpecFields - config requirement 'recommended' produces optional level constraint", () => {
   const profile = makeProfile({
     normalizedFields: {
       locality: {
@@ -524,15 +538,17 @@ Deno.test("resolveFieldDefinitions - config requirement 'recommended' produces o
     requirement: "optional",
   }];
 
-  const result = resolveFieldDefinitions(profile, "obis", configMappings);
+  const result = resolveSpecFields(profile, "obis", configMappings);
   const locality = result["locality"];
   assert(locality?.constraints !== undefined);
-  const required = locality.constraints.filter((c) => c.type === "required");
+  const required = locality.constraints.filter((c) =>
+    c._tag === "required"
+  ) as RequiredConstraint[];
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "optional");
+  assertEquals(required[0].level, "optional");
 });
 
-Deno.test("resolveFieldDefinitions - 3-tier chain preserves all non-overlapping types", () => {
+Deno.test("resolveSpecFields - 3-tier chain preserves all non-overlapping types", () => {
   const profile = makeProfile({
     normalizedFields: {
       decimalLatitude: {
@@ -553,16 +569,16 @@ Deno.test("resolveFieldDefinitions - 3-tier chain preserves all non-overlapping 
     constraints: [requiredConstraint()], // Tier 3: required (new type)
   }];
 
-  const result = resolveFieldDefinitions(profile, "obis", configMappings);
+  const result = resolveSpecFields(profile, "obis", configMappings);
   const lat = result["decimalLatitude"];
   assert(lat?.constraints !== undefined);
-  const types = lat.constraints.map((c) => c.type);
-  assert(types.includes("range"), "spec range preserved");
-  assert(types.includes("format"), "profile format added via replacement merge");
-  assert(types.includes("required"), "config required added via additive merge");
+  const tags = lat.constraints.map((c) => c._tag);
+  assert(tags.includes("range"), "spec range preserved");
+  assert(tags.includes("format"), "profile format added via replacement merge");
+  assert(tags.includes("required"), "config required added via additive merge");
 });
 
-Deno.test("resolveFieldDefinitions - config originName/targetName applied to mapping", () => {
+Deno.test("resolveSpecFields - config originName/targetName applied to mapping", () => {
   const profile = makeProfile({
     normalizedFields: {
       decimalLatitude: {
@@ -577,17 +593,17 @@ Deno.test("resolveFieldDefinitions - config originName/targetName applied to map
     targetName: "decimalLatitude",
   }];
 
-  const result = resolveFieldDefinitions(profile, "obis", configMappings);
+  const result = resolveSpecFields(profile, "obis", configMappings);
   const lat = result["decimalLatitude"];
   assertEquals(lat.originName, "lat");
   assertEquals(lat.targetName, "decimalLatitude");
 });
 
 // =============================================================================
-// resolveFieldDefinitions Edge Cases
+// resolveSpecFields Edge Cases
 // =============================================================================
 
-Deno.test("resolveFieldDefinitions - field only in profile overrides gets synthesized mapping", () => {
+Deno.test("resolveSpecFields - field only in profile overrides gets synthesized mapping", () => {
   const profile = makeProfile({
     normalizedFields: {},
     fieldOverrides: {
@@ -598,18 +614,18 @@ Deno.test("resolveFieldDefinitions - field only in profile overrides gets synthe
     },
   });
 
-  const result = resolveFieldDefinitions(profile, "obis", []);
+  const result = resolveSpecFields(profile, "obis", []);
   const custom = result["customField"];
   assert(custom !== undefined, "field from overrides should exist in result");
   assertEquals(custom.originName, "customField");
   assertEquals(custom.targetName, "customField");
   assert(custom.constraints !== undefined);
-  const types = custom.constraints.map((c) => c.type);
-  assert(types.includes("pattern"), "override pattern constraint present");
-  assert(types.includes("required"), "override requirement compiled to constraint");
+  const tags = custom.constraints.map((c) => c._tag);
+  assert(tags.includes("pattern"), "override pattern constraint present");
+  assert(tags.includes("required"), "override requirement compiled to constraint");
 });
 
-Deno.test("resolveFieldDefinitions - triple config-tier: preset + explicit + requirement on same field", () => {
+Deno.test("resolveSpecFields - triple config-tier: preset + explicit + requirement on same field", () => {
   const profile = makeProfile({
     normalizedFields: {
       locality: {
@@ -630,15 +646,15 @@ Deno.test("resolveFieldDefinitions - triple config-tier: preset + explicit + req
 
   // "requiredText" preset adds a required constraint; explicit config adds a
   // pattern; requirement compiles to another required. All three sources land.
-  const result = resolveFieldDefinitions(profile, "obis", configMappings);
+  const result = resolveSpecFields(profile, "obis", configMappings);
   const loc = result["locality"];
   assert(loc?.constraints !== undefined);
-  const types = loc.constraints.map((c) => c.type);
-  assert(types.includes("pattern"), "explicit config pattern added");
-  assert(types.includes("required"), "preset and/or requirement compiled to required");
+  const tags = loc.constraints.map((c) => c._tag);
+  assert(tags.includes("pattern"), "explicit config pattern added");
+  assert(tags.includes("required"), "preset and/or requirement compiled to required");
 });
 
-Deno.test("resolveFieldDefinitions - profile replacement produces single required constraint", () => {
+Deno.test("resolveSpecFields - profile replacement produces single required constraint", () => {
   // Tier 2 uses mergeConstraints (replacement), so only one required constraint
   // remains. deriveRequirementFromConstraints picks the strictest, which is the
   // same as the only one after replacement.
@@ -656,15 +672,17 @@ Deno.test("resolveFieldDefinitions - profile replacement produces single require
     },
   });
 
-  const result = resolveFieldDefinitions(profile, "obis", []);
+  const result = resolveSpecFields(profile, "obis", []);
   const eventDate = result["eventDate"];
   assert(eventDate?.constraints !== undefined);
-  const required = eventDate.constraints.filter((c) => c.type === "required");
+  const required = eventDate.constraints.filter((c) =>
+    c._tag === "required"
+  ) as RequiredConstraint[];
   assertEquals(required.length, 1, "merge should produce exactly one required constraint");
   assertEquals(
-    required[0].requirement,
+    required[0].level,
     "required",
-    "profile override should replace spec requirement",
+    "profile override should replace spec level",
   );
 });
 
@@ -696,7 +714,7 @@ Deno.test("deriveRequirementFromConstraints - picks strictest when multiple requ
 // =============================================================================
 
 Deno.test("withResolvedConstraints - applies resolved constraints to base field", () => {
-  const baseField: FieldDefinition = {
+  const baseField: SpecField = {
     name: "decimalLatitude",
     constraints: [rangeConstraint(-90, 90)],
   };
@@ -712,7 +730,7 @@ Deno.test("withResolvedConstraints - applies resolved constraints to base field"
 });
 
 Deno.test("withResolvedConstraints - returns base field when no resolved constraints", () => {
-  const baseField: FieldDefinition = {
+  const baseField: SpecField = {
     name: "eventDate",
     constraints: [formatConstraint("iso8601")],
   };
@@ -726,7 +744,7 @@ Deno.test("withResolvedConstraints - returns base field when no resolved constra
 });
 
 Deno.test("withResolvedConstraints - returns base field when mapping is undefined", () => {
-  const baseField: FieldDefinition = {
+  const baseField: SpecField = {
     name: "eventDate",
     constraints: [formatConstraint("iso8601")],
   };
@@ -741,21 +759,21 @@ Deno.test("withResolvedConstraints - returns base field when mapping is undefine
 
 Deno.test("Config cannot weaken spec/profile constraints", async (t) => {
   await t.step(
-    "config optional requirement does not weaken spec required — weaker filtered out",
+    "config optional level does not weaken spec required — weaker filtered out",
     () => {
       const specConstraints: Constraint[] = [
-        { type: "required", requirement: "required", allowEmpty: false, allowWhitespace: false },
+        new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
       ];
 
       const configConstraints: Constraint[] = [
-        { type: "required", requirement: "optional", allowEmpty: false, allowWhitespace: false },
+        new RequiredConstraint({ level: "optional", allowEmpty: false, allowWhitespace: false }),
       ];
 
       const merged = addConstraints(specConstraints, configConstraints);
 
       // Weaker constraint is filtered out
       const requiredConstraints = merged.filter(
-        (c): c is Constraint & { type: "required" } => c.type === "required",
+        (c): c is RequiredConstraint => c._tag === "required",
       );
       assertEquals(requiredConstraints.length, 1);
 
@@ -767,16 +785,16 @@ Deno.test("Config cannot weaken spec/profile constraints", async (t) => {
 
   await t.step("config range is additive — both spec and config ranges enforced", () => {
     const specConstraints: Constraint[] = [
-      { type: "range", min: -90, max: 90, inclusive: true },
+      new RangeConstraint({ min: -90, max: 90, inclusive: true }),
     ];
 
     const configConstraints: Constraint[] = [
-      { type: "range", min: 0, max: 50, inclusive: true },
+      new RangeConstraint({ min: 0, max: 50, inclusive: true }),
     ];
 
     const merged = addConstraints(specConstraints, configConstraints);
 
-    const rangeConstraints = merged.filter((c) => c.type === "range");
+    const rangeConstraints = merged.filter((c) => c._tag === "range");
     assertEquals(rangeConstraints.length, 2, "Both ranges should be present (additive)");
   });
 });
@@ -825,9 +843,10 @@ Deno.test("End-to-end requirement chain", async (t) => {
 
       // Link 2: RequirementLevel → RequiredConstraint (via field resolution)
       const constraint = requirementToConstraint(requirement!);
-      assertEquals(constraint.type, "required");
-      assert(constraint.type === "required");
-      assertEquals(constraint.requirement, tc.expectedRequirement);
+      assertEquals(constraint._tag, "required");
+      assert(constraint._tag === "required");
+      assert(constraint instanceof RequiredConstraint);
+      assertEquals(constraint.level, tc.expectedRequirement);
 
       // Link 3: Constraints → deriveRequirementFromConstraints (round-trip check)
       const derived = deriveRequirementFromConstraints([constraint]);
@@ -876,7 +895,7 @@ Deno.test("End-to-end requirement chain", async (t) => {
 });
 
 Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to correct requirement", async (t) => {
-  await t.step("OBIS required obligation → required requirement on resolved field", () => {
+  await t.step("OBIS required obligation → required level on resolved field", () => {
     const profile = makeProfile({
       normalizedFields: {
         eventDate: {
@@ -887,13 +906,13 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
       },
     });
 
-    const resolved = resolveFieldDefinitions(profile, "obis", []);
+    const resolved = resolveSpecFields(profile, "obis", []);
     const requirement = deriveRequirementFromConstraints(resolved["eventDate"]?.constraints);
     assertEquals(requirement, "required");
   });
 
   await t.step(
-    "OBIS strongly recommended obligation → recommended requirement on resolved field",
+    "OBIS strongly recommended obligation → recommended level on resolved field",
     () => {
       const profile = makeProfile({
         normalizedFields: {
@@ -905,13 +924,13 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
         },
       });
 
-      const resolved = resolveFieldDefinitions(profile, "obis", []);
+      const resolved = resolveSpecFields(profile, "obis", []);
       const requirement = deriveRequirementFromConstraints(resolved["scientificName"]?.constraints);
       assertEquals(requirement, "recommended");
     },
   );
 
-  await t.step("OBIS recommended obligation → optional requirement on resolved field", () => {
+  await t.step("OBIS recommended obligation → optional level on resolved field", () => {
     const profile = makeProfile({
       normalizedFields: {
         kingdom: {
@@ -922,7 +941,7 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
       },
     });
 
-    const resolved = resolveFieldDefinitions(profile, "obis", []);
+    const resolved = resolveSpecFields(profile, "obis", []);
     const requirement = deriveRequirementFromConstraints(resolved["kingdom"]?.constraints);
     assertEquals(requirement, "optional");
   });
@@ -938,13 +957,13 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
       },
     });
 
-    const resolved = resolveFieldDefinitions(profile, "obis", []);
+    const resolved = resolveSpecFields(profile, "obis", []);
     const requirement = deriveRequirementFromConstraints(resolved["fieldNotes"]?.constraints);
     assertEquals(requirement, undefined);
   });
 
   await t.step(
-    "OBIS 'required (if exists)' obligation → recommended requirement when field is mapped",
+    "OBIS 'required (if exists)' obligation → recommended level when field is mapped",
     () => {
       const profile = makeProfile({
         normalizedFields: {
@@ -962,7 +981,7 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
         targetName: "parentEventID",
       }];
 
-      const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+      const resolved = resolveSpecFields(profile, "obis", configMappings);
       const requirement = deriveRequirementFromConstraints(
         resolved["parentEventID"]?.constraints,
       );
@@ -984,7 +1003,7 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
         },
       });
 
-      const resolved = resolveFieldDefinitions(profile, "obis", []);
+      const resolved = resolveSpecFields(profile, "obis", []);
       const requirement = deriveRequirementFromConstraints(
         resolved["parentEventID"]?.constraints,
       );
@@ -1008,7 +1027,7 @@ Deno.test("End-to-end: profile requirement override flows to correct requirement
       },
     });
 
-    const resolved = resolveFieldDefinitions(profile, "obis", []);
+    const resolved = resolveSpecFields(profile, "obis", []);
     const requirement = deriveRequirementFromConstraints(resolved["locality"]?.constraints);
     assertEquals(requirement, "required");
   });
@@ -1030,7 +1049,7 @@ Deno.test("End-to-end: profile requirement override flows to correct requirement
       requirement: "required",
     }];
 
-    const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+    const resolved = resolveSpecFields(profile, "obis", configMappings);
     // Config adds additively, so both optional (from obligation) and required (from config) exist.
     // deriveRequirementFromConstraints picks the strictest.
     const requirement = deriveRequirementFromConstraints(resolved["locality"]?.constraints);
@@ -1042,7 +1061,7 @@ Deno.test("End-to-end: profile requirement override flows to correct requirement
 // Weaker RequiredConstraint Filtering Tests
 // =============================================================================
 
-Deno.test("resolveFieldDefinitions - weaker config requirement filtered with diagnostic", () => {
+Deno.test("resolveSpecFields - weaker config requirement filtered with diagnostic", () => {
   const profile = makeProfile({
     normalizedFields: {
       eventDate: {
@@ -1060,13 +1079,14 @@ Deno.test("resolveFieldDefinitions - weaker config requirement filtered with dia
   }];
 
   const diagnostics: ResolutionDiagnostic[] = [];
-  const result = resolveFieldDefinitions(profile, "obis", configMappings, diagnostics);
+  const result = resolveSpecFields(profile, "obis", configMappings, diagnostics);
 
   // Only the required constraint should remain (optional filtered out)
   const eventDate = result["eventDate"];
-  const required = eventDate?.constraints?.filter((c) => c.type === "required") ?? [];
+  const required =
+    eventDate?.constraints?.filter((c) => c._tag === "required") as RequiredConstraint[] ?? [];
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "required");
+  assertEquals(required[0].level, "required");
 
   // Diagnostic should explain the filtering
   assertEquals(diagnostics.length, 1);
@@ -1096,13 +1116,15 @@ Deno.test("Required-if-exists: emits WARNING constraint when field is mapped", (
     targetName: "parentEventID",
   }];
 
-  const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+  const resolved = resolveSpecFields(profile, "obis", configMappings);
   const constraints = resolved["parentEventID"]?.constraints ?? [];
-  const requiredConstraints = constraints.filter((c) => c.type === "required");
+  const requiredConstraints = constraints.filter((c) =>
+    c._tag === "required"
+  ) as RequiredConstraint[];
 
   assertEquals(requiredConstraints.length, 1, "should emit one required constraint");
-  assert(requiredConstraints[0].type === "required");
-  assertEquals(requiredConstraints[0].requirement, "recommended");
+  assert(requiredConstraints[0]._tag === "required");
+  assertEquals(requiredConstraints[0].level, "recommended");
   assert(
     requiredConstraints[0].message?.includes("Parent Event ID"),
     "message should reference the field label",
@@ -1126,9 +1148,9 @@ Deno.test("Required-if-exists: no constraint when field is NOT mapped", () => {
   });
 
   // No config mapping for parentEventID
-  const resolved = resolveFieldDefinitions(profile, "obis", []);
+  const resolved = resolveSpecFields(profile, "obis", []);
   const constraints = resolved["parentEventID"]?.constraints ?? [];
-  const requiredConstraints = constraints.filter((c) => c.type === "required");
+  const requiredConstraints = constraints.filter((c) => c._tag === "required");
 
   assertEquals(requiredConstraints.length, 0, "should not emit a required constraint");
 });
@@ -1150,10 +1172,10 @@ Deno.test("Required-if-exists: uses fieldName as fallback when label is absent",
     targetName: "parentEventID",
   }];
 
-  const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+  const resolved = resolveSpecFields(profile, "obis", configMappings);
   const constraints = resolved["parentEventID"]?.constraints ?? [];
-  const req = constraints.find((c) => c.type === "required");
-  assert(req?.type === "required");
+  const req = constraints.find((c) => c._tag === "required") as RequiredConstraint | undefined;
+  assert(req?._tag === "required");
   assert(
     req.message?.includes("parentEventID"),
     "message should fall back to field name",
@@ -1164,7 +1186,7 @@ Deno.test("Required-if-exists: uses fieldName as fallback when label is absent",
 // Profile Cannot Weaken Spec Requirements (Strictest-Wins for RequiredConstraint)
 // =============================================================================
 
-Deno.test("resolveFieldDefinitions - profile cannot weaken spec required to recommended", () => {
+Deno.test("resolveSpecFields - profile cannot weaken spec required to recommended", () => {
   const profile = makeProfile({
     normalizedFields: {
       eventDate: {
@@ -1180,15 +1202,17 @@ Deno.test("resolveFieldDefinitions - profile cannot weaken spec required to reco
     },
   });
 
-  const result = resolveFieldDefinitions(profile, "obis", []);
+  const result = resolveSpecFields(profile, "obis", []);
   const eventDate = result["eventDate"];
-  const required = eventDate?.constraints?.filter((c) => c.type === "required");
+  const required = eventDate?.constraints?.filter((c) =>
+    c._tag === "required"
+  ) as RequiredConstraint[];
 
   assertEquals(required?.length, 1);
-  assertEquals(required?.[0]?.requirement, "required");
+  assertEquals(required?.[0]?.level, "required");
 });
 
-Deno.test("resolveFieldDefinitions - profile can strengthen spec recommended to required", () => {
+Deno.test("resolveSpecFields - profile can strengthen spec recommended to required", () => {
   const profile = makeProfile({
     normalizedFields: {
       scientificName: {
@@ -1204,37 +1228,37 @@ Deno.test("resolveFieldDefinitions - profile can strengthen spec recommended to 
     },
   });
 
-  const result = resolveFieldDefinitions(profile, "obis", []);
+  const result = resolveSpecFields(profile, "obis", []);
   const field = result["scientificName"];
-  const required = field?.constraints?.filter((c) => c.type === "required");
+  const required = field?.constraints?.filter((c) => c._tag === "required") as RequiredConstraint[];
 
   assertEquals(required?.length, 1);
-  assertEquals(required?.[0]?.requirement, "required");
+  assertEquals(required?.[0]?.level, "required");
 });
 
-Deno.test("resolveFieldDefinitions - profile can still replace value constraints", () => {
+Deno.test("resolveSpecFields - profile can still replace value constraints", () => {
   const profile = makeProfile({
     normalizedFields: {
       decimalLatitude: {
         name: "decimalLatitude",
-        constraints: [{ type: "range", min: -90, max: 90, inclusive: true }],
+        constraints: [new RangeConstraint({ min: -90, max: 90, inclusive: true })],
         obligations: {},
       },
     },
     fieldOverrides: {
       decimalLatitude: {
-        constraints: [{ type: "range", min: -45, max: 45, inclusive: true }],
+        constraints: [new RangeConstraint({ min: -45, max: 45, inclusive: true })],
       },
     },
   });
 
-  const result = resolveFieldDefinitions(profile, "obis", []);
+  const result = resolveSpecFields(profile, "obis", []);
   const field = result["decimalLatitude"];
-  const ranges = field?.constraints?.filter((c) => c.type === "range");
+  const ranges = field?.constraints?.filter((c) => c._tag === "range");
 
   assertEquals(ranges?.length, 1);
-  assertEquals(ranges?.[0]?.min, -45);
-  assertEquals(ranges?.[0]?.max, 45);
+  assertEquals((ranges?.[0] as RangeConstraint)?.min, -45);
+  assertEquals((ranges?.[0] as RangeConstraint)?.max, 45);
 });
 
 Deno.test("Required-if-exists: profile override can strengthen to required (ERROR)", () => {
@@ -1257,7 +1281,7 @@ Deno.test("Required-if-exists: profile override can strengthen to required (ERRO
     targetName: "parentEventID",
   }];
 
-  const resolved = resolveFieldDefinitions(profile, "obis", configMappings);
+  const resolved = resolveSpecFields(profile, "obis", configMappings);
   // Profile override uses mergeConstraints (replacement), so the WARNING-level
   // "required (if exists)" constraint should be replaced by the ERROR-level one.
   const requirement = deriveRequirementFromConstraints(resolved["parentEventID"]?.constraints);

@@ -46,9 +46,9 @@ Deno.test("Profile inheritance - obis-event field overrides take precedence over
   const latOverride = profile.fieldOverrides?.["decimalLatitude"];
   assertExists(latOverride, "decimalLatitude should have an override from OBIS");
   assertExists(latOverride.constraints, "Override should include constraints");
-  const rangeConstraints = latOverride.constraints!.filter((c) => c.type === "range");
+  const rangeConstraints = latOverride.constraints!.filter((c) => c._tag === "range");
   assertEquals(rangeConstraints.length, 1, "Should have exactly one range constraint");
-  if (rangeConstraints[0].type === "range") {
+  if (rangeConstraints[0]._tag === "range") {
     assertEquals(rangeConstraints[0].min, -90);
     assertEquals(rangeConstraints[0].max, 90);
   }
@@ -287,8 +287,8 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
 
     Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
 
-    // Create config with OBIS profile
-    const config = makeWorkspaceConfig({
+    // Write raw config — the validator decodes from YAML
+    const rawConfig = {
       name: "OBIS Depth Validation Test",
       description: "Test OBIS depth range constraints",
       validation: {
@@ -318,11 +318,11 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
           },
         ],
       },
-    });
+    };
 
     Deno.writeTextFileSync(
       join(tempDir, "darwinkit.yaml"),
-      stringifyYAML(prepareConfigForYaml(config)),
+      stringifyYAML(rawConfig),
     );
 
     // Validate

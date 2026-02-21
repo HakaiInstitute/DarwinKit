@@ -23,7 +23,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
-import type { Constraint, FieldDefinition } from "@dwkt/domain/specs";
+import type { Constraint, SpecField } from "@dwkt/domain/specs";
 import { REQUIREMENT_STRICTNESS } from "@dwkt/domain/specs";
 import type { FieldViolation, ValidField } from "@dwkt/domain/types";
 import {
@@ -53,8 +53,8 @@ export function findRangeViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  constraint: Constraint & { type: "range" },
-  specField: FieldDefinition,
+  constraint: Constraint & { _tag: "range" },
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, RangeViolation[]> {
   return Effect.gen(function* (_) {
@@ -112,7 +112,7 @@ export function findRangeViolations(
           value: String(row.value),
           csvValue: String(row.value),
           errorMessage: constraint.message || `Value out of range`,
-          validatorType: constraint.type,
+          validatorType: constraint._tag,
           params: { min: constraint.min, max: constraint.max },
         })
       );
@@ -131,26 +131,26 @@ export function findRangeViolations(
  * the strictest requirement level is validated (used for `required` where multiple
  * constraints may exist after additive merge — prevents config from weakening spec).
  */
-function validateConstraintsByType<TType extends Constraint["type"]>(
+function validateConstraintsByType<TType extends Constraint["_tag"]>(
   constraintType: TType,
   findViolations: (
     connection: DuckDBConnection,
     tableName: string,
     fieldName: string,
-    constraint: Extract<Constraint, { type: TType }>,
-    specField: FieldDefinition,
+    constraint: Extract<Constraint, { _tag: TType }>,
+    specField: SpecField,
     maxViolations: number,
   ) => Effect.Effect<ValidField, FieldViolation[]>,
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   maxViolations: number,
   options?: { takeStrictest?: boolean },
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
     const filtered = (specField.constraints ?? []).filter(
-      (c): c is Extract<Constraint, { type: TType }> => c.type === constraintType,
+      (c): c is Extract<Constraint, { _tag: TType }> => c._tag === constraintType,
     );
     if (filtered.length === 0) {
       return validField(fieldName, specField.name);
@@ -158,14 +158,10 @@ function validateConstraintsByType<TType extends Constraint["type"]>(
 
     let toValidate = filtered;
     if (options?.takeStrictest && filtered.length > 1) {
-      // takeStrictest is only used for "required" constraints which have requirement
+      // takeStrictest is only used for "required" constraints which have level
       const strictest = filtered.reduce((a, b) => {
-        const aEnf = "requirement" in a
-          ? (a.requirement as keyof typeof REQUIREMENT_STRICTNESS)
-          : undefined;
-        const bEnf = "requirement" in b
-          ? (b.requirement as keyof typeof REQUIREMENT_STRICTNESS)
-          : undefined;
+        const aEnf = "level" in a ? (a.level as keyof typeof REQUIREMENT_STRICTNESS) : undefined;
+        const bEnf = "level" in b ? (b.level as keyof typeof REQUIREMENT_STRICTNESS) : undefined;
         return (REQUIREMENT_STRICTNESS[aEnf!] ?? 0) >= (REQUIREMENT_STRICTNESS[bEnf!] ?? 0) ? a : b;
       });
       toValidate = [strictest];
@@ -196,7 +192,7 @@ export function validateRangeConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
@@ -221,7 +217,7 @@ export function findUniquenessViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, UniquenessViolation[]> {
   return Effect.gen(function* (_) {
@@ -296,8 +292,8 @@ function findUniquenessConstraintViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  _constraint: Constraint & { type: "unique" },
-  specField: FieldDefinition,
+  _constraint: Constraint & { _tag: "unique" },
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, UniquenessViolation[]> {
   return findUniquenessViolations(
@@ -319,7 +315,7 @@ export function validateUniqueness(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
@@ -392,8 +388,8 @@ export function findFormatViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  constraint: Constraint & { type: "format" },
-  specField: FieldDefinition,
+  constraint: Constraint & { _tag: "format" },
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FormatViolation[]> {
   return Effect.gen(function* (_) {
@@ -443,7 +439,7 @@ export function validateFormatConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
@@ -468,8 +464,8 @@ export function findPatternViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  constraint: Constraint & { type: "pattern" },
-  specField: FieldDefinition,
+  constraint: Constraint & { _tag: "pattern" },
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, PatternViolation[]> {
   return Effect.gen(function* (_) {
@@ -540,7 +536,7 @@ export function validatePatternConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
@@ -565,8 +561,8 @@ export function findLengthViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  constraint: Constraint & { type: "length" },
-  specField: FieldDefinition,
+  constraint: Constraint & { _tag: "length" },
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, LengthViolation[]> {
   return Effect.gen(function* (_) {
@@ -633,7 +629,7 @@ export function validateLengthConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
@@ -658,8 +654,8 @@ export function findRequiredViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  constraint: Constraint & { type: "required" },
-  specField: FieldDefinition,
+  constraint: Constraint & { _tag: "required" },
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, RequiredFieldViolation[]> {
   return Effect.gen(function* (_) {
@@ -688,7 +684,7 @@ export function findRequiredViolations(
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new RequiredFieldViolation({
-          severity: requirementToSeverity(constraint.requirement),
+          severity: requirementToSeverity(constraint.level),
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -714,7 +710,7 @@ export function validateRequiredConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
@@ -750,7 +746,7 @@ export function validateField(
   tableName: string,
   fieldName: string,
   targetName: string,
-  specField: FieldDefinition,
+  specField: SpecField,
   context: FieldValidationContext,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
@@ -766,7 +762,7 @@ export function validateField(
     ];
 
     // Uniqueness validation — skip when DuckDB enforces via PRIMARY KEY
-    const hasUniqueConstraint = specField.constraints?.some((c) => c.type === "unique") ?? false;
+    const hasUniqueConstraint = specField.constraints?.some((c) => c._tag === "unique") ?? false;
     if (hasUniqueConstraint && !context.isDbPrimaryKey) {
       validators.push(
         validateUniqueness(connection, tableName, fieldName, specField, maxViolations),

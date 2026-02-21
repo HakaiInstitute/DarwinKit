@@ -12,6 +12,7 @@
  */
 
 import type { ValidationProfile } from "../../schemas/validation-profile.ts";
+import { FormatConstraint, RangeConstraint, RequiredConstraint } from "../constraints.ts";
 
 /**
  * OBIS Base Profile
@@ -33,51 +34,47 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     decimalLatitude: {
       requirement: "required",
       constraints: [
-        {
-          type: "range",
+        new RangeConstraint({
           min: -90,
           max: 90,
           inclusive: true,
           message: "Latitude must be between -90 and 90 degrees",
-        },
+        }),
       ],
     },
 
     decimalLongitude: {
       requirement: "required",
       constraints: [
-        {
-          type: "range",
+        new RangeConstraint({
           min: -180,
           max: 180,
           inclusive: true,
           message: "Longitude must be between -180 and 180 degrees",
-        },
+        }),
       ],
     },
 
     geodeticDatum: {
       requirement: "required",
       constraints: [
-        {
-          type: "required",
-          requirement: "required",
+        new RequiredConstraint({
+          level: "required",
           allowEmpty: false,
           allowWhitespace: false,
           message: "OBIS requires geodeticDatum (e.g., WGS84, EPSG:4326)",
-        },
+        }),
       ],
     },
 
     coordinateUncertaintyInMeters: {
       requirement: "recommended",
       constraints: [
-        {
-          type: "range",
+        new RangeConstraint({
           min: 0,
           inclusive: true,
           message: "Coordinate uncertainty should be a positive number",
-        },
+        }),
       ],
     },
 
@@ -85,12 +82,11 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     eventDate: {
       requirement: "required",
       constraints: [
-        {
-          type: "format",
+        new FormatConstraint({
           format: "iso8601",
           message:
             "OBIS requires eventDate in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD)",
-        },
+        }),
       ],
     },
 
@@ -110,24 +106,22 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     scientificName: {
       requirement: "recommended",
       constraints: [
-        {
-          type: "required",
-          requirement: "recommended",
+        new RequiredConstraint({
+          level: "recommended",
           allowEmpty: false,
           allowWhitespace: false,
           message: "Scientific name is strongly recommended for taxonomic identification",
-        },
+        }),
       ],
     },
 
     scientificNameID: {
       requirement: "recommended",
       constraints: [
-        {
-          type: "format",
+        new FormatConstraint({
           format: "url",
           message: "Scientific name ID should be a valid URI (e.g., WoRMS LSID)",
-        },
+        }),
       ],
     },
 
@@ -148,26 +142,24 @@ export const OBIS_BASE_PROFILE: ValidationProfile = {
     minimumDepthInMeters: {
       requirement: "optional",
       constraints: [
-        {
-          type: "range",
+        new RangeConstraint({
           min: 0,
           max: 11000,
           inclusive: true,
           message: "Depth should be between 0 and 11000 meters (Mariana Trench)",
-        },
+        }),
       ],
     },
 
     maximumDepthInMeters: {
       requirement: "optional",
       constraints: [
-        {
-          type: "range",
+        new RangeConstraint({
           min: 0,
           max: 11000,
           inclusive: true,
           message: "Depth should be between 0 and 11000 meters",
-        },
+        }),
       ],
     },
 

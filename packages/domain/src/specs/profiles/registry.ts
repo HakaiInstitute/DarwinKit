@@ -7,13 +7,13 @@
 
 import { join } from "@std/path";
 import type {
-  Field,
   FieldOverride,
+  RawField,
   ValidationProfile,
   ValidationProfileRegistry,
 } from "../../schemas/validation-profile.ts";
 import { mergeProfileConstraints } from "../constraints.ts";
-import { type FieldDefinition, normalizeField } from "../field-definition.ts";
+import { normalizeField, type SpecField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
 
@@ -96,7 +96,7 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
   const profile = jsonProfile as Record<string, unknown>;
 
   // Normalize fields if they exist
-  const normalizedFields: Record<string, FieldDefinition> = {};
+  const normalizedFields: Record<string, SpecField> = {};
 
   if (
     "fields" in profile &&
@@ -105,7 +105,7 @@ function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
   ) {
     for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
       try {
-        normalizedFields[fieldName] = normalizeField(fieldValue as Field);
+        normalizedFields[fieldName] = normalizeField(fieldValue as RawField);
       } catch {
         // Skip invalid fields rather than failing the entire profile
         // TODO: When imlementing issue #64 (https://github.com/HakaiInstitute/DarwinKit/issues/64):

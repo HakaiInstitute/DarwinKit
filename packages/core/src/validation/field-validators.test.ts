@@ -9,7 +9,15 @@ import { DuckDBInstance } from "@duckdb/node-api";
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { assert, assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
-import type { FieldDefinition } from "@dwkt/domain/specs";
+import type { SpecField } from "@dwkt/domain/specs";
+import {
+  FormatConstraint,
+  LengthConstraint,
+  PatternConstraint,
+  RangeConstraint,
+  RequiredConstraint,
+  UniqueConstraint,
+} from "@dwkt/domain/specs";
 import {
   findFormatViolations,
   findLengthViolations,
@@ -39,8 +47,8 @@ async function setupTable(
 
 function makeField(
   name: string,
-  constraints: FieldDefinition["constraints"],
-): FieldDefinition {
+  constraints: SpecField["constraints"],
+): SpecField {
   return { name, constraints };
 }
 
@@ -67,12 +75,7 @@ Deno.test("findRangeViolations - detects values above max", async () => {
       "3, -10.0",
     ]);
 
-    const constraint = {
-      type: "range" as const,
-      min: -90,
-      max: 90,
-      inclusive: true,
-    };
+    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
     const field = makeField("lat", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -96,12 +99,7 @@ Deno.test("findRangeViolations - detects values below min", async () => {
       "2, -95.0",
     ]);
 
-    const constraint = {
-      type: "range" as const,
-      min: -90,
-      max: 90,
-      inclusive: true,
-    };
+    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
     const field = makeField("lat", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -125,11 +123,7 @@ Deno.test("findRangeViolations - only min specified", async () => {
       "2, -5.0",
     ]);
 
-    const constraint = {
-      type: "range" as const,
-      min: 0,
-      inclusive: true,
-    };
+    const constraint = new RangeConstraint({ min: 0, inclusive: true });
     const field = makeField("depth", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -153,11 +147,7 @@ Deno.test("findRangeViolations - only max specified", async () => {
       "2, 150.0",
     ]);
 
-    const constraint = {
-      type: "range" as const,
-      max: 100,
-      inclusive: true,
-    };
+    const constraint = new RangeConstraint({ max: 100, inclusive: true });
     const field = makeField("val", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -181,12 +171,7 @@ Deno.test("findRangeViolations - inclusive boundary passes", async () => {
       "2, -90.0",
     ]);
 
-    const constraint = {
-      type: "range" as const,
-      min: -90,
-      max: 90,
-      inclusive: true,
-    };
+    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
     const field = makeField("lat", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -203,12 +188,7 @@ Deno.test("findRangeViolations - exclusive boundary fails", async () => {
       "1, 90.0",
     ]);
 
-    const constraint = {
-      type: "range" as const,
-      min: -90,
-      max: 90,
-      inclusive: false,
-    };
+    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: false });
     const field = makeField("lat", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -230,10 +210,7 @@ Deno.test("findPatternViolations - valid match passes", async () => {
       "2, 'GB'",
     ]);
 
-    const constraint = {
-      type: "pattern" as const,
-      pattern: "^[A-Z]{2}$",
-    };
+    const constraint = new PatternConstraint({ pattern: "^[A-Z]{2}$" });
     const field = makeField("code", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -251,10 +228,7 @@ Deno.test("findPatternViolations - invalid match fails", async () => {
       "2, 'USA'",
     ]);
 
-    const constraint = {
-      type: "pattern" as const,
-      pattern: "^[A-Z]{2}$",
-    };
+    const constraint = new PatternConstraint({ pattern: "^[A-Z]{2}$" });
     const field = makeField("code", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -281,11 +255,7 @@ Deno.test("findLengthViolations - at minLength passes", async () => {
       "1, 'abc'",
     ]);
 
-    const constraint = {
-      type: "length" as const,
-      minLength: 3,
-      maxLength: 100,
-    };
+    const constraint = new LengthConstraint({ minLength: 3, maxLength: 100 });
     const field = makeField("name", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -302,10 +272,7 @@ Deno.test("findLengthViolations - below minLength fails", async () => {
       "1, 'ab'",
     ]);
 
-    const constraint = {
-      type: "length" as const,
-      minLength: 3,
-    };
+    const constraint = new LengthConstraint({ minLength: 3 });
     const field = makeField("name", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -328,10 +295,7 @@ Deno.test("findLengthViolations - above maxLength fails", async () => {
       "1, 'a very long string that exceeds the limit'",
     ]);
 
-    const constraint = {
-      type: "length" as const,
-      maxLength: 10,
-    };
+    const constraint = new LengthConstraint({ maxLength: 10 });
     const field = makeField("name", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -354,10 +318,7 @@ Deno.test("findFormatViolations - valid ISO 8601 date passes", async () => {
       "3, '2022'",
     ]);
 
-    const constraint = {
-      type: "format" as const,
-      format: "iso8601" as const,
-    };
+    const constraint = new FormatConstraint({ format: "iso8601" });
     const field = makeField("eventDate", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -375,10 +336,7 @@ Deno.test("findFormatViolations - invalid date detected", async () => {
       "2, 'not-a-date'",
     ]);
 
-    const constraint = {
-      type: "format" as const,
-      format: "iso8601" as const,
-    };
+    const constraint = new FormatConstraint({ format: "iso8601" });
     const field = makeField("eventDate", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -402,10 +360,7 @@ Deno.test("findFormatViolations - valid URL passes", async () => {
       "2, 'http://test.org/path'",
     ]);
 
-    const constraint = {
-      type: "format" as const,
-      format: "url" as const,
-    };
+    const constraint = new FormatConstraint({ format: "url" });
     const field = makeField("url", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -428,12 +383,11 @@ Deno.test("findRequiredViolations - empty string detected", async () => {
       "3, 'USA'",
     ]);
 
-    const constraint = {
-      type: "required" as const,
+    const constraint = new RequiredConstraint({
+      level: "required",
       allowEmpty: false,
       allowWhitespace: false,
-      requirement: "required" as const,
-    };
+    });
     const field = makeField("country", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -453,12 +407,11 @@ Deno.test("findRequiredViolations - NULL detected", async () => {
       "2, NULL",
     ]);
 
-    const constraint = {
-      type: "required" as const,
+    const constraint = new RequiredConstraint({
+      level: "required",
       allowEmpty: false,
       allowWhitespace: false,
-      requirement: "required" as const,
-    };
+    });
     const field = makeField("country", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -471,26 +424,25 @@ Deno.test("findRequiredViolations - NULL detected", async () => {
   });
 });
 
-Deno.test("findRequiredViolations - optional requirement produces INFO violations", async () => {
+Deno.test("findRequiredViolations - optional level produces INFO violations", async () => {
   await withConnection(async (conn) => {
     await setupTable(conn, "country VARCHAR", [
       "1, ''",
       "2, NULL",
     ]);
 
-    const constraint = {
-      type: "required" as const,
+    const constraint = new RequiredConstraint({
+      level: "optional",
       allowEmpty: false,
       allowWhitespace: false,
-      requirement: "optional" as const,
-    };
+    });
     const field = makeField("country", [constraint]);
 
     const result = await Effect.runPromiseExit(
       findRequiredViolations(conn, TABLE, "country", constraint, field),
     );
 
-    // Optional requirement now produces violations (INFO severity) instead of skipping
+    // Optional level now produces violations (INFO severity) instead of skipping
     assert(result._tag === "Failure");
     const violations = (result.cause as { error: unknown }).error as {
       length: number;
@@ -500,7 +452,7 @@ Deno.test("findRequiredViolations - optional requirement produces INFO violation
   });
 });
 
-Deno.test("validateRequiredConstraints - strictest requirement wins over weaker config", async () => {
+Deno.test("validateRequiredConstraints - strictest level wins over weaker config", async () => {
   await withConnection(async (conn) => {
     await setupTable(conn, "country VARCHAR", [
       "1, 'Canada'",
@@ -509,18 +461,16 @@ Deno.test("validateRequiredConstraints - strictest requirement wins over weaker 
 
     // Spec constraint is strict (required), config adds a weaker one (recommended).
     // The strictest must win — NULL should be a required-level violation, not a warning.
-    const specConstraint = {
-      type: "required" as const,
+    const specConstraint = new RequiredConstraint({
+      level: "required",
       allowEmpty: false,
       allowWhitespace: false,
-      requirement: "required" as const,
-    };
-    const configConstraint = {
-      type: "required" as const,
+    });
+    const configConstraint = new RequiredConstraint({
+      level: "recommended",
       allowEmpty: false,
       allowWhitespace: false,
-      requirement: "recommended" as const,
-    };
+    });
     const field = makeField("country", [specConstraint, configConstraint]);
 
     const result = await Effect.runPromiseExit(
@@ -533,7 +483,7 @@ Deno.test("validateRequiredConstraints - strictest requirement wins over weaker 
       0: { severity: string };
     };
     assertEquals(violations.length, 1);
-    // The violation should carry the severity of the strictest requirement level
+    // The violation should carry the severity of the strictest level
     assertEquals(violations[0].severity, "error");
   });
 });
@@ -545,12 +495,11 @@ Deno.test("findRequiredViolations - allowEmpty permits empty strings", async () 
       "2, 'some text'",
     ]);
 
-    const constraint = {
-      type: "required" as const,
+    const constraint = new RequiredConstraint({
+      level: "required",
       allowEmpty: true,
       allowWhitespace: true,
-      requirement: "required" as const,
-    };
+    });
     const field = makeField("notes", [constraint]);
 
     const result = await Effect.runPromiseExit(
@@ -571,7 +520,7 @@ Deno.test("Value violations always produce ERROR severity", async (t) => {
     await withConnection(async (conn) => {
       await setupTable(conn, "lat DOUBLE", ["1, 999.0"]);
 
-      const constraint = { type: "range" as const, min: -90, max: 90, inclusive: true };
+      const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
       const field = makeField("lat", [constraint]);
 
       const result = await Effect.runPromiseExit(
@@ -590,7 +539,7 @@ Deno.test("Value violations always produce ERROR severity", async (t) => {
     await withConnection(async (conn) => {
       await setupTable(conn, "eventDate VARCHAR", ["1, 'not-a-date'"]);
 
-      const constraint = { type: "format" as const, format: "iso8601" as const };
+      const constraint = new FormatConstraint({ format: "iso8601" });
       const field = makeField("eventDate", [constraint]);
 
       const result = await Effect.runPromiseExit(
@@ -609,7 +558,7 @@ Deno.test("Value violations always produce ERROR severity", async (t) => {
     await withConnection(async (conn) => {
       await setupTable(conn, "countryCode VARCHAR", ["1, 'USA'"]);
 
-      const constraint = { type: "pattern" as const, pattern: "^[A-Z]{2}$" };
+      const constraint = new PatternConstraint({ pattern: "^[A-Z]{2}$" });
       const field = makeField("countryCode", [constraint]);
 
       const result = await Effect.runPromiseExit(
@@ -628,7 +577,7 @@ Deno.test("Value violations always produce ERROR severity", async (t) => {
     await withConnection(async (conn) => {
       await setupTable(conn, "name VARCHAR", ["1, 'ab'"]);
 
-      const constraint = { type: "length" as const, minLength: 5 };
+      const constraint = new LengthConstraint({ minLength: 5 });
       const field = makeField("name", [constraint]);
 
       const result = await Effect.runPromiseExit(
@@ -659,7 +608,7 @@ Deno.test("Uniqueness constraint violations", async (t) => {
         "5, 'E2'",
       ]);
 
-      const field = makeField("eventID", [{ type: "unique" as const }]);
+      const field = makeField("eventID", [new UniqueConstraint({})]);
 
       const result = await Effect.runPromiseExit(
         findUniquenessViolations(conn, TABLE, "eventID", field),
@@ -688,7 +637,7 @@ Deno.test("Uniqueness constraint violations", async (t) => {
         "3, 'E3'",
       ]);
 
-      const field = makeField("eventID", [{ type: "unique" as const }]);
+      const field = makeField("eventID", [new UniqueConstraint({})]);
 
       const result = await Effect.runPromiseExit(
         findUniquenessViolations(conn, TABLE, "eventID", field),
@@ -706,7 +655,7 @@ Deno.test("Uniqueness constraint violations", async (t) => {
         "3, 'E1'",
       ]);
 
-      const field = makeField("eventID", [{ type: "unique" as const }]);
+      const field = makeField("eventID", [new UniqueConstraint({})]);
 
       const result = await Effect.runPromiseExit(
         findUniquenessViolations(conn, TABLE, "eventID", field),

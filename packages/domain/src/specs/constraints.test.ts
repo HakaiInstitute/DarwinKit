@@ -4,16 +4,18 @@
 
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import * as S from "effect/Schema";
-import type { Field } from "../schemas/validation-profile.ts";
+import type { RawField } from "../schemas/validation-profile.ts";
 import {
   type Constraint,
-  Constraint as ConstraintSchema,
+  ConstraintSchema,
+  FormatConstraint,
   mergeConstraints,
   mergeProfileConstraints,
   Obligation,
   ObligationsMap,
   obligationToRequirement,
   RangeConstraint,
+  RequiredConstraint,
 } from "./constraints.ts";
 import { normalizeField } from "./field-definition.ts";
 
@@ -26,10 +28,11 @@ function decodeConstraint(raw: unknown): Constraint {
 // Individual Constraint Schema Tests
 // =============================================================================
 
-Deno.test("RangeConstraint - decodes valid input", () => {
+Deno.test("RangeConstraint - decodes valid input via ConstraintSchema", () => {
   const input = { type: "range", min: -90, max: 90 };
-  const result = S.decodeUnknownSync(RangeConstraint)(input);
-  assertEquals(result.type, "range");
+  const result = decodeConstraint(input);
+  assertEquals(result._tag, "range");
+  assert(result instanceof RangeConstraint);
   assertEquals(result.min, -90);
   assertEquals(result.max, 90);
   assertEquals(result.inclusive, true); // default
@@ -37,34 +40,47 @@ Deno.test("RangeConstraint - decodes valid input", () => {
 
 Deno.test("RangeConstraint - accepts optional min/max", () => {
   const input = { type: "range", min: 0 };
-  const result = S.decodeUnknownSync(RangeConstraint)(input);
+  const result = decodeConstraint(input);
+  assert(result instanceof RangeConstraint);
   assertEquals(result.min, 0);
   assertEquals(result.max, undefined);
 });
 
 Deno.test("RangeConstraint - rejects non-numeric min", () => {
   assertThrows(() => {
-    S.decodeUnknownSync(RangeConstraint)({
+    decodeConstraint({
       type: "range",
       min: "not-a-number",
     });
   });
 });
 
-Deno.test("RequiredConstraint - decodes valid input", () => {
+Deno.test("RequiredConstraint - decodes valid input with requirement field", () => {
   const result = decodeConstraint({
     type: "required",
     requirement: "required",
     message: "Field is required",
   });
-  assertEquals(result.type, "required");
+  assertEquals(result._tag, "required");
+  assert(result instanceof RequiredConstraint);
+  assertEquals(result.level, "required");
+});
+
+Deno.test("RequiredConstraint - decodes valid input with level field", () => {
+  const result = decodeConstraint({
+    type: "required",
+    level: "recommended",
+  });
+  assertEquals(result._tag, "required");
+  assert(result instanceof RequiredConstraint);
+  assertEquals(result.level, "recommended");
 });
 
 Deno.test("UniqueConstraint - decodes valid input", () => {
   const result = decodeConstraint({
     type: "unique",
   });
-  assertEquals(result.type, "unique");
+  assertEquals(result._tag, "unique");
 });
 
 Deno.test("PatternConstraint - decodes valid input", () => {
@@ -73,8 +89,8 @@ Deno.test("PatternConstraint - decodes valid input", () => {
     pattern: "^[A-Z]+$",
     flags: "i",
   });
-  assertEquals(result.type, "pattern");
-  if (result.type === "pattern") {
+  assertEquals(result._tag, "pattern");
+  if (result._tag === "pattern") {
     assertEquals(result.pattern, "^[A-Z]+$");
     assertEquals(result.flags, "i");
   }
@@ -86,7 +102,7 @@ Deno.test("LengthConstraint - decodes valid input", () => {
     minLength: 1,
     maxLength: 255,
   });
-  assertEquals(result.type, "length");
+  assertEquals(result._tag, "length");
 });
 
 Deno.test("FormatConstraint - decodes valid input", () => {
@@ -95,8 +111,8 @@ Deno.test("FormatConstraint - decodes valid input", () => {
     format: "iso8601",
     message: "Must be ISO 8601",
   });
-  assertEquals(result.type, "format");
-  if (result.type === "format") {
+  assertEquals(result._tag, "format");
+  if (result._tag === "format") {
     assertEquals(result.format, "iso8601");
   }
 });
@@ -105,17 +121,17 @@ Deno.test("FormatConstraint - decodes valid input", () => {
 // Constraint Union Tests
 // =============================================================================
 
-Deno.test("Constraint union - discriminates by type field", () => {
+Deno.test("Constraint union - discriminates by _tag field", () => {
   const range = decodeConstraint({
     type: "range",
     min: 0,
     max: 100,
     inclusive: true,
   });
-  assertEquals(range.type, "range");
+  assertEquals(range._tag, "range");
 
   const required = decodeConstraint({ type: "required", requirement: "required" });
-  assertEquals(required.type, "required");
+  assertEquals(required._tag, "required");
 });
 
 Deno.test("Constraint union - rejects unknown constraint types", () => {
@@ -136,14 +152,14 @@ Deno.test("Constraint union - rejects missing type field", () => {
 
 Deno.test("mergeConstraints - child range replaces parent range", () => {
   const parent: Constraint[] = [
-    { type: "range", min: 0, max: 100, inclusive: true },
+    new RangeConstraint({ min: 0, max: 100, inclusive: true }),
   ];
   const child: Constraint[] = [
-    { type: "range", min: -90, max: 90, inclusive: true },
+    new RangeConstraint({ min: -90, max: 90, inclusive: true }),
   ];
   const merged = mergeConstraints(parent, child);
   assertEquals(merged.length, 1);
-  if (merged[0].type === "range") {
+  if (merged[0]._tag === "range") {
     assertEquals(merged[0].min, -90);
     assertEquals(merged[0].max, 90);
   }
@@ -151,33 +167,33 @@ Deno.test("mergeConstraints - child range replaces parent range", () => {
 
 Deno.test("mergeConstraints - non-overlapping types preserved", () => {
   const parent: Constraint[] = [
-    { type: "range", min: 0, max: 100, inclusive: true },
-    { type: "required", allowEmpty: false, allowWhitespace: false, requirement: "required" },
+    new RangeConstraint({ min: 0, max: 100, inclusive: true }),
+    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
   ];
   const child: Constraint[] = [
-    { type: "format", format: "iso8601" },
+    new FormatConstraint({ format: "iso8601" }),
   ];
   const merged = mergeConstraints(parent, child);
   assertEquals(merged.length, 3);
-  const types = merged.map((c) => c.type);
-  assert(types.includes("range"));
-  assert(types.includes("required"));
-  assert(types.includes("format"));
+  const tags = merged.map((c) => c._tag);
+  assert(tags.includes("range"));
+  assert(tags.includes("required"));
+  assert(tags.includes("format"));
 });
 
 Deno.test("mergeConstraints - child with multiple same-type constraints replaces parent batch", () => {
   const parent: Constraint[] = [
-    { type: "range", min: 0, max: 100, inclusive: true },
+    new RangeConstraint({ min: 0, max: 100, inclusive: true }),
   ];
   const child: Constraint[] = [
-    { type: "range", min: -90, max: 90, inclusive: true },
-    { type: "range", min: 0, max: 11000, inclusive: true },
+    new RangeConstraint({ min: -90, max: 90, inclusive: true }),
+    new RangeConstraint({ min: 0, max: 11000, inclusive: true }),
   ];
   const merged = mergeConstraints(parent, child);
   // Both child range constraints kept, parent range replaced
-  const ranges = merged.filter((c) => c.type === "range");
+  const ranges = merged.filter((c) => c._tag === "range");
   assertEquals(ranges.length, 2);
-  if (ranges[0].type === "range" && ranges[1].type === "range") {
+  if (ranges[0]._tag === "range" && ranges[1]._tag === "range") {
     assertEquals(ranges[0].min, -90);
     assertEquals(ranges[1].min, 0);
     assertEquals(ranges[1].max, 11000);
@@ -190,12 +206,7 @@ Deno.test("mergeConstraints - empty arrays handled", () => {
   assertEquals(mergeConstraints(parent, child).length, 0);
 
   const withParent: Constraint[] = [
-    {
-      type: "required" as const,
-      allowEmpty: false,
-      allowWhitespace: false,
-      requirement: "required" as const,
-    },
+    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
   ];
   assertEquals(mergeConstraints(withParent, child).length, 1);
   assertEquals(mergeConstraints(parent, withParent).length, 1);
@@ -259,7 +270,7 @@ Deno.test("ObligationsMap - rejects invalid obligation values", () => {
 // normalizeField Obligations Tests
 // =============================================================================
 
-function makeTestField(overrides: Partial<Field>): Field {
+function makeTestField(overrides: Partial<RawField>): RawField {
   return {
     group: "test",
     name: "testField",
@@ -342,49 +353,51 @@ Deno.test("obligationToRequirement - returns undefined for 'required (if exists)
 // normalizeField String-to-Constraint Tests
 // =============================================================================
 
-Deno.test("normalizeField - string 'required' → RequiredConstraint requirement:required", () => {
+Deno.test("normalizeField - string 'required' → RequiredConstraint level:required", () => {
   const field = makeTestField({ name: "test", validators: ["required"] });
   const result = normalizeField(field);
-  const required = result.constraints.filter((c) => c.type === "required");
+  const required = result.constraints.filter((c) => c._tag === "required");
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "required");
+  assert(required[0] instanceof RequiredConstraint);
+  assertEquals(required[0].level, "required");
 });
 
-Deno.test("normalizeField - string 'recommended' → RequiredConstraint requirement:optional (INFO for absence)", () => {
+Deno.test("normalizeField - string 'recommended' → RequiredConstraint level:optional (INFO for absence)", () => {
   const field = makeTestField({ name: "test", validators: ["recommended"] });
   const result = normalizeField(field);
-  const required = result.constraints.filter((c) => c.type === "required");
+  const required = result.constraints.filter((c) => c._tag === "required");
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "optional");
+  assert(required[0] instanceof RequiredConstraint);
+  assertEquals(required[0].level, "optional");
 });
 
 Deno.test("normalizeField - string 'optional' → no constraint emitted", () => {
   const field = makeTestField({ name: "test", validators: ["optional"] });
   const result = normalizeField(field);
-  const required = result.constraints.filter((c) => c.type === "required");
+  const required = result.constraints.filter((c) => c._tag === "required");
   assertEquals(required.length, 0);
 });
 
 Deno.test("normalizeField - string 'unique' → UniqueConstraint", () => {
   const field = makeTestField({ name: "test", validators: ["unique"] });
   const result = normalizeField(field);
-  const unique = result.constraints.filter((c) => c.type === "unique");
+  const unique = result.constraints.filter((c) => c._tag === "unique");
   assertEquals(unique.length, 1);
 });
 
 Deno.test("normalizeField - string 'uniqueIdentifier' → UniqueConstraint", () => {
   const field = makeTestField({ name: "test", validators: ["uniqueIdentifier"] });
   const result = normalizeField(field);
-  const unique = result.constraints.filter((c) => c.type === "unique");
+  const unique = result.constraints.filter((c) => c._tag === "unique");
   assertEquals(unique.length, 1);
 });
 
 Deno.test("normalizeField - string 'date' → FormatConstraint iso8601", () => {
   const field = makeTestField({ name: "test", validators: ["date"] });
   const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c.type === "format");
+  const format = result.constraints.filter((c) => c._tag === "format");
   assertEquals(format.length, 1);
-  if (format[0].type === "format") {
+  if (format[0]._tag === "format") {
     assertEquals(format[0].format, "iso8601");
   }
 });
@@ -392,9 +405,9 @@ Deno.test("normalizeField - string 'date' → FormatConstraint iso8601", () => {
 Deno.test("normalizeField - string 'iso8601Date' → FormatConstraint iso8601", () => {
   const field = makeTestField({ name: "test", validators: ["iso8601Date"] });
   const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c.type === "format");
+  const format = result.constraints.filter((c) => c._tag === "format");
   assertEquals(format.length, 1);
-  if (format[0].type === "format") {
+  if (format[0]._tag === "format") {
     assertEquals(format[0].format, "iso8601");
   }
 });
@@ -402,9 +415,9 @@ Deno.test("normalizeField - string 'iso8601Date' → FormatConstraint iso8601", 
 Deno.test("normalizeField - string 'url' → FormatConstraint url", () => {
   const field = makeTestField({ name: "test", validators: ["url"] });
   const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c.type === "format");
+  const format = result.constraints.filter((c) => c._tag === "format");
   assertEquals(format.length, 1);
-  if (format[0].type === "format") {
+  if (format[0]._tag === "format") {
     assertEquals(format[0].format, "url");
   }
 });
@@ -412,9 +425,9 @@ Deno.test("normalizeField - string 'url' → FormatConstraint url", () => {
 Deno.test("normalizeField - string 'integer' → FormatConstraint integer", () => {
   const field = makeTestField({ name: "test", validators: ["integer"] });
   const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c.type === "format");
+  const format = result.constraints.filter((c) => c._tag === "format");
   assertEquals(format.length, 1);
-  if (format[0].type === "format") {
+  if (format[0]._tag === "format") {
     assertEquals(format[0].format, "integer");
   }
 });
@@ -422,9 +435,9 @@ Deno.test("normalizeField - string 'integer' → FormatConstraint integer", () =
 Deno.test("normalizeField - string 'decimal' → FormatConstraint decimal-degrees", () => {
   const field = makeTestField({ name: "test", validators: ["decimal"] });
   const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c.type === "format");
+  const format = result.constraints.filter((c) => c._tag === "format");
   assertEquals(format.length, 1);
-  if (format[0].type === "format") {
+  if (format[0]._tag === "format") {
     assertEquals(format[0].format, "decimal-degrees");
   }
 });
@@ -447,7 +460,7 @@ Deno.test("normalizeField - warns when requirement is stripped from value constr
       ],
     });
     const result = normalizeField(field);
-    const range = result.constraints.filter((c) => c.type === "range");
+    const range = result.constraints.filter((c) => c._tag === "range");
     assertEquals(range.length, 1);
     assertEquals(warnings.length, 1);
     assert(warnings[0].includes("Stripping"));
@@ -463,92 +476,69 @@ Deno.test("normalizeField - warns when requirement is stripped from value constr
 // =============================================================================
 
 Deno.test("mergeProfileConstraints - keeps strictest required constraint", () => {
-  const parent = [{
-    type: "required" as const,
-    requirement: "required" as const,
-    allowEmpty: false,
-    allowWhitespace: false,
-  }];
-  const child = [{
-    type: "required" as const,
-    requirement: "recommended" as const,
-    allowEmpty: false,
-    allowWhitespace: false,
-  }];
+  const parent: Constraint[] = [
+    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
+  ];
+  const child: Constraint[] = [
+    new RequiredConstraint({ level: "recommended", allowEmpty: false, allowWhitespace: false }),
+  ];
   const result = mergeProfileConstraints(parent, child);
-  const required = result.filter((c) => c.type === "required");
+  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "required");
+  assertEquals(required[0].level, "required");
 });
 
 Deno.test("mergeProfileConstraints - allows strengthening required", () => {
-  const parent = [{
-    type: "required" as const,
-    requirement: "recommended" as const,
-    allowEmpty: false,
-    allowWhitespace: false,
-  }];
-  const child = [{
-    type: "required" as const,
-    requirement: "required" as const,
-    allowEmpty: false,
-    allowWhitespace: false,
-  }];
+  const parent: Constraint[] = [
+    new RequiredConstraint({ level: "recommended", allowEmpty: false, allowWhitespace: false }),
+  ];
+  const child: Constraint[] = [
+    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
+  ];
   const result = mergeProfileConstraints(parent, child);
-  const required = result.filter((c) => c.type === "required");
+  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "required");
+  assertEquals(required[0].level, "required");
 });
 
 Deno.test("mergeProfileConstraints - replaces value constraints normally", () => {
-  const parent = [{ type: "range" as const, min: -90, max: 90, inclusive: true }];
-  const child = [{ type: "range" as const, min: -45, max: 45, inclusive: true }];
+  const parent: Constraint[] = [
+    new RangeConstraint({ min: -90, max: 90, inclusive: true }),
+  ];
+  const child: Constraint[] = [
+    new RangeConstraint({ min: -45, max: 45, inclusive: true }),
+  ];
   const result = mergeProfileConstraints(parent, child);
   assertEquals(result.length, 1);
-  assert(result[0].type === "range");
-  assertEquals(result[0].min, -45);
+  assert(result[0]._tag === "range");
+  assertEquals((result[0] as RangeConstraint).min, -45);
 });
 
 Deno.test("mergeProfileConstraints - child introduces RequiredConstraint where parent has none", () => {
   const parent: Constraint[] = [
-    { type: "range", min: -90, max: 90, inclusive: true },
+    new RangeConstraint({ min: -90, max: 90, inclusive: true }),
   ];
   const child: Constraint[] = [
-    {
-      type: "required",
-      requirement: "required" as const,
-      allowEmpty: false,
-      allowWhitespace: false,
-    },
+    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
   ];
   const result = mergeProfileConstraints(parent, child);
   assertEquals(result.length, 2);
-  const required = result.filter((c) => c.type === "required");
+  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "required");
+  assertEquals(required[0].level, "required");
 });
 
 Deno.test("mergeProfileConstraints - child cannot weaken parent's required", () => {
   const parent: Constraint[] = [
-    {
-      type: "required",
-      requirement: "required" as const,
-      allowEmpty: false,
-      allowWhitespace: false,
-    },
+    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
   ];
   const child: Constraint[] = [
-    {
-      type: "required",
-      requirement: "optional" as const,
-      allowEmpty: false,
-      allowWhitespace: false,
-    },
+    new RequiredConstraint({ level: "optional", allowEmpty: false, allowWhitespace: false }),
   ];
   const result = mergeProfileConstraints(parent, child);
-  const required = result.filter((c) => c.type === "required");
+  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
   assertEquals(required.length, 1);
-  assertEquals(required[0].requirement, "required");
+  assertEquals(required[0].level, "required");
 });
 
 Deno.test("normalizeField - no warning when value constraint has no requirement", () => {
@@ -577,9 +567,9 @@ Deno.test("normalizeField - object validator with params flattened to Constraint
     ],
   });
   const result = normalizeField(field);
-  const range = result.constraints.filter((c) => c.type === "range");
+  const range = result.constraints.filter((c) => c._tag === "range");
   assertEquals(range.length, 1);
-  if (range[0].type === "range") {
+  if (range[0]._tag === "range") {
     assertEquals(range[0].min, -90);
     assertEquals(range[0].max, 90);
   }

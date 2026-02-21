@@ -6,41 +6,45 @@
  *
  * ## Purpose
  *
- * FieldDefinition provides a unified representation for validation by:
+ * SpecField provides a unified representation for validation by:
  * - Converting string validators -> typed Constraint objects
  * - Preserving values for DuckDB ENUM creation (via raw `fields`)
  * - Providing consistent property names and structure
  *
  * ## Usage
  *
- * - Validation code uses `profile.normalizedFields` (FieldDefinition)
+ * - Validation code uses `profile.normalizedFields` (SpecField)
  * - Transformation code uses `profile.fields` (raw JSON schema format)
  *
  * See validation-profile.ts for details on the dual-purpose field storage.
  */
 
 import * as S from "effect/Schema";
-import type { Field } from "../schemas/validation-profile.ts";
+import type { RawField } from "../schemas/validation-profile.ts";
 import {
-  Constraint,
+  type Constraint,
+  ConstraintSchema,
   FieldDataType,
+  FormatConstraint,
   type Obligation,
   ObligationsMap,
   obligationToRequirement,
+  RequiredConstraint,
   type RequirementLevel,
+  UniqueConstraint,
 } from "./constraints.ts";
 
-export const FieldDefinitionSchema = S.Struct({
+export const SpecFieldSchema = S.Struct({
   name: S.String,
   label: S.optional(S.String),
-  constraints: S.Array(Constraint),
+  constraints: S.Array(ConstraintSchema),
   dataType: S.optional(FieldDataType),
   obligations: S.optional(ObligationsMap),
   comments: S.optional(S.String),
   examples: S.optional(S.String),
 });
 
-export type FieldDefinition = S.Schema.Type<typeof FieldDefinitionSchema>;
+export type SpecField = S.Schema.Type<typeof SpecFieldSchema>;
 
 /**
  * Result of looking up a field's obligation for a given standard.
@@ -57,7 +61,7 @@ export interface ObligationResult {
  * Get the obligation and derived requirement level for a field, given the active standard.
  */
 export function obligationForStandard(
-  field: FieldDefinition,
+  field: SpecField,
   standard: "obis" | "gbif",
 ): ObligationResult | undefined {
   if (!field.obligations) return undefined;
@@ -94,7 +98,7 @@ export function mapJsonTypeToFieldDataType(
 }
 
 /**
- * Normalize a JSON schema field to a FieldDefinition
+ * Normalize a JSON schema field to a SpecField
  *
  * Converts:
  * - validators: string[] -> Constraint[]
@@ -113,7 +117,7 @@ function isValidObligation(value: string): value is Obligation {
   return VALID_OBLIGATIONS.has(value);
 }
 
-export function normalizeField(jsonField: Field): FieldDefinition {
+export function normalizeField(jsonField: RawField): SpecField {
   const constraints: Constraint[] = [];
 
   // Convert validators to Constraint objects
@@ -127,7 +131,7 @@ export function normalizeField(jsonField: Field): FieldDefinition {
   // is handled separately via obligationToRequirement(), not via validator strings.
   if (jsonField.validators) {
     for (const v of jsonField.validators) {
-      // If already an object with type field, flatten params and decode via Constraint schema
+      // If already an object with type field, flatten params and decode via ConstraintSchema
       if (typeof v === "object" && v !== null && "type" in v) {
         const obj = v as Record<string, unknown>;
         const params = (obj.params as Record<string, unknown>) || {};
@@ -144,7 +148,13 @@ export function normalizeField(jsonField: Field): FieldDefinition {
         if (raw.type === "required") {
           raw.allowEmpty ??= false;
           raw.allowWhitespace ??= false;
-          raw.requirement ??= "required";
+          // Accept both "requirement" and "level" from JSON, prefer "level"
+          if (raw.level === undefined && raw.requirement !== undefined) {
+            raw.level = raw.requirement;
+          }
+          raw.level ??= "required";
+          // Keep requirement for schema decode compatibility
+          raw.requirement ??= raw.level;
         } else {
           // Value constraints no longer have requirement — strip if present
           if (raw.requirement !== undefined) {
@@ -153,9 +163,10 @@ export function normalizeField(jsonField: Field): FieldDefinition {
             );
           }
           delete raw.requirement;
+          delete raw.level;
         }
         try {
-          constraints.push(S.decodeUnknownSync(Constraint)(raw));
+          constraints.push(S.decodeUnknownSync(ConstraintSchema)(raw));
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           console.warn(
@@ -171,53 +182,41 @@ export function normalizeField(jsonField: Field): FieldDefinition {
         switch (v) {
           case "uniqueIdentifier":
           case "unique":
-            constraints.push({
-              type: "unique" as const,
-            });
+            constraints.push(new UniqueConstraint({}));
             break;
           case "required":
-            constraints.push({
-              type: "required" as const,
-              allowEmpty: false,
-              allowWhitespace: false,
-              requirement: "required" as const,
-            });
+            constraints.push(
+              new RequiredConstraint({
+                level: "required",
+                allowEmpty: false,
+                allowWhitespace: false,
+              }),
+            );
             break;
           case "recommended":
-            constraints.push({
-              type: "required" as const,
-              allowEmpty: false,
-              allowWhitespace: false,
-              requirement: "optional" as const,
-            });
+            constraints.push(
+              new RequiredConstraint({
+                level: "optional",
+                allowEmpty: false,
+                allowWhitespace: false,
+              }),
+            );
             break;
           case "optional":
             // No constraint emitted — matches requirementToConstraint() behavior
             break;
           case "integer":
-            constraints.push({
-              type: "format" as const,
-              format: "integer" as const,
-            });
+            constraints.push(new FormatConstraint({ format: "integer" }));
             break;
           case "date":
           case "iso8601Date":
-            constraints.push({
-              type: "format" as const,
-              format: "iso8601" as const,
-            });
+            constraints.push(new FormatConstraint({ format: "iso8601" }));
             break;
           case "url":
-            constraints.push({
-              type: "format" as const,
-              format: "url" as const,
-            });
+            constraints.push(new FormatConstraint({ format: "url" }));
             break;
           case "decimal":
-            constraints.push({
-              type: "format" as const,
-              format: "decimal-degrees" as const,
-            });
+            constraints.push(new FormatConstraint({ format: "decimal-degrees" }));
             break;
           default:
             console.warn(
