@@ -11,7 +11,7 @@
  * @module validation/field-resolution
  */
 
-import type { ResolvedSpec, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
+import type { ResolvedSpec, ResolvedStandard, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
 import type { Constraint, RequirementLevel, SpecField } from "@dwkt/domain/specs";
 import {
   getPreset,
@@ -29,13 +29,16 @@ import {
 /**
  * Resolve the active standard for obligation lookup.
  *
- * Takes the `standard` value from the workspace config.
- * Defaults to "obis" when not specified.
+ * Extracts the variant from a ResolvedStandard to determine which
+ * obligation column to use. Defaults to "obis" when no standard or
+ * variant is specified.
  */
 export function resolveActiveStandard(
-  standard: "obis" | "gbif" | undefined,
+  standard: ResolvedStandard | undefined,
 ): "obis" | "gbif" {
-  return standard ?? "obis";
+  const variant = standard?.variant;
+  if (variant === "obis" || variant === "gbif") return variant;
+  return "obis";
 }
 
 /**

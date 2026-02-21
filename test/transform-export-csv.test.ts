@@ -18,7 +18,7 @@ Deno.test("exportObisTablesToCSV - exports tables to CSV without timestamps", as
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -78,7 +78,7 @@ Deno.test("exportObisTablesToCSV - drops null columns when configured", async ()
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -143,7 +143,7 @@ Deno.test("exportObisTablesToCSV - returns OutputError on file system failure", 
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",

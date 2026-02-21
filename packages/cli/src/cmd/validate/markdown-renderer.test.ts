@@ -130,7 +130,7 @@ Deno.test('clean results - renders header, summary table, and overall summary', 
 Deno.test('violations - renders all severity sections with grouped field errors', () => {
   const dataset = makeCleanDataset({
     datasetName: 'occurrences',
-    type: 'dwc-occurrence',
+    class: 'dwc-occurrence',
     status: 'fail',
     schemaViolations: {
       errors: [makeSchemaViolation({ fieldName: 'eventDate' })],

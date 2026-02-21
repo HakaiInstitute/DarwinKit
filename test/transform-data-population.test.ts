@@ -18,7 +18,7 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     name: "Data Population Test Workspace",
     id: "data-population-test-workspace",
     createdAt: new Date(),

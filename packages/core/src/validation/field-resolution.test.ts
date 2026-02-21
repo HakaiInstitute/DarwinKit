@@ -75,9 +75,13 @@ function patternConstraint(
 // resolveActiveStandard Tests
 // =============================================================================
 
-Deno.test("resolveActiveStandard - returns the provided standard", () => {
-  assertEquals(resolveActiveStandard("obis"), "obis");
-  assertEquals(resolveActiveStandard("gbif"), "gbif");
+Deno.test("resolveActiveStandard - extracts variant from ResolvedStandard", () => {
+  assertEquals(resolveActiveStandard({ base: "darwin-core", variant: "obis" }), "obis");
+  assertEquals(resolveActiveStandard({ base: "darwin-core", variant: "gbif" }), "gbif");
+});
+
+Deno.test("resolveActiveStandard - defaults to obis when no variant", () => {
+  assertEquals(resolveActiveStandard({ base: "darwin-core" }), "obis");
 });
 
 Deno.test("resolveActiveStandard - defaults to obis when undefined", () => {

@@ -5,7 +5,7 @@ import type {
   WorkspaceCrossDatasetRule,
   WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
-import type { Standard } from "@dwkt/domain/schemas";
+import type { ResolvedStandard } from "@dwkt/domain/schemas";
 import { classToProfileKey } from "@dwkt/domain/schemas";
 import { getValidationProfile, obligationForStandard } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
@@ -122,7 +122,7 @@ export function importSchema(
   connection: DuckDBConnection,
   dataset: DatasetWithClass,
   datasets: readonly DatasetWithClass[],
-  standard: Standard,
+  standard: ResolvedStandard,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   resolvedFields?: Record<string, WorkspaceFieldMapping>,
 ): Effect.Effect<void, WorkspaceImportError> {
@@ -139,7 +139,7 @@ export function importSchema(
     }
     // Convert profile name to valid SQL table name using sanitizeTableName
     const tableName = sanitizeTableName(spec.name).toLowerCase();
-    const activeStandard = standard;
+    const activeStandard: "obis" | "gbif" = standard.variant === "gbif" ? "gbif" : "obis";
 
     // 1. Create ENUM types for controlled vocabularies (only for fields with sufficient obligation)
     const enumFields = new Set<string>();

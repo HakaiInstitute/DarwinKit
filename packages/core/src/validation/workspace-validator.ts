@@ -15,7 +15,7 @@ import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/err
 import type {
   DatasetConfig,
   ResolvedSpec,
-  Standard,
+  ResolvedStandard,
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
@@ -90,7 +90,7 @@ export class WorkspaceValidator {
     datasets: readonly DatasetConfig[],
     settings: ValidationSettings,
     basePath: string,
-    standard: Standard,
+    standard: ResolvedStandard,
     workspaceId?: string,
     crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
@@ -144,7 +144,7 @@ export class WorkspaceValidator {
     datasets: readonly DatasetConfig[],
     settings: ValidationSettings,
     basePath: string,
-    standard: Standard,
+    standard: ResolvedStandard,
     workspaceId?: string,
     crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
@@ -157,7 +157,7 @@ export class WorkspaceValidator {
       const activeStandard = resolveActiveStandard(standard);
       const resolvedFieldsMap = new Map<string, Record<string, WorkspaceFieldMapping>>();
       for (const dataset of datasets) {
-        const datasetProfile = resolveProfile(standard, dataset.class);
+        const datasetProfile = resolveProfile(standard.variant, dataset.class);
         if (datasetProfile) {
           const configMappings = dataset.fieldMappings || [];
           const allResolved = resolveSpecFields(
@@ -265,7 +265,7 @@ function _validateDatasetsCore(
   datasets: readonly DatasetConfig[],
   settings: ValidationSettings,
   basePath: string,
-  standard: Standard,
+  standard: ResolvedStandard,
   workspaceId: string,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
@@ -274,7 +274,7 @@ function _validateDatasetsCore(
     const datasetResults: DatasetValidationResult[] = [];
 
     for (const dataset of datasets) {
-      const datasetProfile = resolveProfile(standard, dataset.class);
+      const datasetProfile = resolveProfile(standard.variant, dataset.class);
 
       const result = yield* _(
         validateDataset(connection, dataset, datasetProfile, standard, settings, crossDatasetRules),
@@ -339,7 +339,7 @@ function createWorkspaceFromConfig(
   datasets: readonly DatasetConfig[],
   validationSettings: ValidationSettings,
   basePath: string,
-  standard: Standard,
+  standard: ResolvedStandard,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<
   {
@@ -369,7 +369,7 @@ function createWorkspaceFromConfig(
     const activeStandard = resolveActiveStandard(standard);
     const resolvedFieldsMap = new Map<string, Record<string, WorkspaceFieldMapping>>();
     for (const dataset of datasets) {
-      const datasetProfile = resolveProfile(standard, dataset.class);
+      const datasetProfile = resolveProfile(standard.variant, dataset.class);
       if (datasetProfile) {
         const configMappings = dataset.fieldMappings || [];
         const allResolved = resolveSpecFields(datasetProfile, activeStandard, configMappings);
@@ -417,7 +417,7 @@ function validateDataset(
   connection: DuckDBConnection,
   dataset: DatasetConfig,
   profile: ResolvedSpec | undefined,
-  standard: Standard,
+  standard: ResolvedStandard,
   validationSettings?: ValidationSettings,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {

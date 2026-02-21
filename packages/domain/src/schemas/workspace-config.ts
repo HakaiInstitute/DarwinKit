@@ -18,6 +18,61 @@ const DEFAULT_VERSION = "1.0.0";
 const DEFAULT_OUTPUT_DIR = "./output";
 
 // =============================================================================
+// Resolved Standard
+// =============================================================================
+
+/**
+ * The resolved form of the `standard` config field.
+ *
+ * Users can write:
+ * - `standard: obis`          → { base: "darwin-core", variant: "obis" }   (backward compat)
+ * - `standard: gbif`          → { base: "darwin-core", variant: "gbif" }   (backward compat)
+ * - `standard: darwin-core`   → { base: "darwin-core" }                    (no variant)
+ * - `standard: { base: "darwin-core", variant: "obis" }`                   (explicit form)
+ */
+export interface ResolvedStandard {
+  readonly base: string;
+  readonly variant?: string;
+}
+
+/**
+ * Known variant names that should be normalized to { base: "darwin-core", variant: ... }
+ * when provided as a bare string.
+ */
+const KNOWN_VARIANTS = new Set(["obis", "gbif"]);
+
+/** Schema for the object form of `standard` */
+const ResolvedStandardStruct = S.Struct({
+  base: S.String,
+  variant: S.optional(S.String),
+});
+
+/**
+ * Schema that accepts either a string or an object and normalizes to ResolvedStandard.
+ *
+ * String handling:
+ * - Known variant names ("obis", "gbif") → { base: "darwin-core", variant: <name> }
+ * - Other strings → { base: <string> }
+ *
+ * Object handling: passes through as-is.
+ */
+const ResolvedStandardSchema: S.Schema<
+  ResolvedStandard,
+  string | { base: string; variant?: string }
+> = S.Union(
+  S.transform(
+    S.String,
+    S.Struct({ base: S.String, variant: S.optional(S.String) }),
+    {
+      strict: true,
+      decode: (s) => KNOWN_VARIANTS.has(s) ? { base: "darwin-core", variant: s } : { base: s },
+      encode: (obj) => obj.variant ?? obj.base,
+    },
+  ),
+  ResolvedStandardStruct,
+);
+
+// =============================================================================
 // Field Mapping Schemas
 // =============================================================================
 
@@ -236,12 +291,16 @@ export const workspaceConfigSchema = S.Struct({
     S.String.annotations({ description: "Human-readable workspace description." }),
   ),
   standard: S.optionalWith(
-    S.Literal("obis", "gbif").annotations({
+    ResolvedStandardSchema.annotations({
       description:
-        "Target biodiversity standard. Determines which obligation metadata drives requirement levels. Default: 'obis'.",
+        "Target biodiversity standard. Accepts a string (e.g. 'obis') or object { base, variant }. " +
+        "Known variants ('obis', 'gbif') are normalized to { base: 'darwin-core', variant: <name> }. " +
+        "Default: { base: 'darwin-core', variant: 'obis' }.",
     }),
-    { default: () => "obis" as const },
-  ).pipe(S.withConstructorDefault(() => "obis" as const)),
+    { default: () => ({ base: "darwin-core", variant: "obis" }) as ResolvedStandard },
+  ).pipe(
+    S.withConstructorDefault(() => ({ base: "darwin-core", variant: "obis" }) as ResolvedStandard),
+  ),
   crossDatasetRules: S.optional(
     S.Array(workspaceCrossDatasetRuleSchema).annotations({
       description: "Rules enforcing referential integrity between datasets.",
@@ -285,7 +344,8 @@ export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSc
 export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
 export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
-export type Standard = "obis" | "gbif";
+/** @deprecated Use ResolvedStandard instead */
+export type Standard = ResolvedStandard;
 
 /**
  * Result of looking up a foreign key rule

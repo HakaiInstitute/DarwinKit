@@ -4,6 +4,9 @@ version: 1.0.0
 description: Hakai Institute Fish Creek 2022 survey data validation configuration
 createdAt: "2024-08-29T00:00:00.000Z"
 updatedAt: "2024-10-06T00:00:00.000Z"
+standard:
+  base: darwin-core
+  variant: obis
 validation:
   nullValues:
     - NA

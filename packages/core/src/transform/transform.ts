@@ -143,7 +143,7 @@ export function createTableFromSchema(
           connection,
           dataset,
           config.transform.datasets,
-          config.standard ?? "obis",
+          config.standard ?? { base: "darwin-core", variant: "obis" },
           config.crossDatasetRules,
         ),
       );

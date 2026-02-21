@@ -177,25 +177,40 @@ Deno.test("makeWorkspaceConfig - invalid input", async (t) => {
 });
 
 Deno.test("makeWorkspaceConfig - standard field", async (t) => {
-  await t.step("defaults standard to obis when omitted", () => {
+  await t.step("defaults standard to { base: darwin-core, variant: obis } when omitted", () => {
     const config = makeWorkspaceConfig({ validation: {} });
-    assertEquals(config.standard, "obis");
+    assertEquals(config.standard, { base: "darwin-core", variant: "obis" });
   });
 
-  await t.step("accepts explicit standard values", () => {
-    const obis = makeWorkspaceConfig({ standard: "obis", validation: {} });
-    const gbif = makeWorkspaceConfig({ standard: "gbif", validation: {} });
-    assertEquals(obis.standard, "obis");
-    assertEquals(gbif.standard, "gbif");
+  await t.step("backward compat: string 'obis' → { base: darwin-core, variant: obis }", () => {
+    const config = makeWorkspaceConfig({ standard: "obis", validation: {} });
+    assertEquals(config.standard, { base: "darwin-core", variant: "obis" });
   });
 
-  await t.step("rejects invalid standard values", () => {
-    assertThrows(
-      () =>
-        makeWorkspaceConfig(
-          { standard: "invalid", validation: {} } as unknown as WorkspaceConfigInput,
-        ),
-    );
+  await t.step("backward compat: string 'gbif' → { base: darwin-core, variant: gbif }", () => {
+    const config = makeWorkspaceConfig({ standard: "gbif", validation: {} });
+    assertEquals(config.standard, { base: "darwin-core", variant: "gbif" });
+  });
+
+  await t.step("string 'darwin-core' → { base: darwin-core } (no variant)", () => {
+    const config = makeWorkspaceConfig({ standard: "darwin-core", validation: {} });
+    assertEquals(config.standard, { base: "darwin-core" });
+  });
+
+  await t.step("accepts explicit object form { base, variant }", () => {
+    const config = makeWorkspaceConfig({
+      standard: { base: "darwin-core", variant: "obis" },
+      validation: {},
+    });
+    assertEquals(config.standard, { base: "darwin-core", variant: "obis" });
+  });
+
+  await t.step("accepts object form without variant", () => {
+    const config = makeWorkspaceConfig({
+      standard: { base: "darwin-core" },
+      validation: {},
+    });
+    assertEquals(config.standard, { base: "darwin-core" });
   });
 });
 

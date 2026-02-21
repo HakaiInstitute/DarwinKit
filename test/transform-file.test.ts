@@ -22,7 +22,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",

@@ -39,7 +39,7 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     name: "",
     id: "",
     createdAt: new Date(),
@@ -169,7 +169,7 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     name: "",
     id: "",
     createdAt: new Date(),
@@ -247,7 +247,7 @@ Deno.test("createTableFromSchema - no FK constraints without crossDatasetRules",
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     name: "",
     id: "",
     createdAt: new Date(),

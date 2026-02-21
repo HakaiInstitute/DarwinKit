@@ -18,7 +18,7 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
 
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -83,7 +83,7 @@ Deno.test("exportToPersistentDB - does nothing if exportDB is false", async () =
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-db-no-export-" });
   const config: WorkspaceConfig = {
     version: "1",
-    standard: "obis",
+    standard: { base: "darwin-core", variant: "obis" },
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
