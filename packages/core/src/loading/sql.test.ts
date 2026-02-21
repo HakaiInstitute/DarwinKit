@@ -15,27 +15,31 @@ import {
   sanitizeTableName,
 } from "./sql.ts";
 
-Deno.test("sanitizeTableName - replaces special characters with underscores", () => {
-  assertEquals(sanitizeTableName("my-dataset"), "my_dataset");
-  assertEquals(sanitizeTableName("data.csv"), "data_csv");
-  assertEquals(sanitizeTableName("events 2024"), "events_2024");
-  assertEquals(sanitizeTableName("table@name!"), "table_name_");
+Deno.test("sanitizeTableName - replaces special chars, preserves valid ones", () => {
+  const cases: Array<[string, string]> = [
+    ["my-dataset", "my_dataset"],
+    ["data.csv", "data_csv"],
+    ["events 2024", "events_2024"],
+    ["table@name!", "table_name_"],
+    ["valid_name", "valid_name"],
+    ["Table123", "Table123"],
+    ["_underscore", "_underscore"],
+  ];
+  for (const [input, expected] of cases) {
+    assertEquals(sanitizeTableName(input), expected, input);
+  }
 });
 
-Deno.test("sanitizeTableName - preserves valid characters", () => {
-  assertEquals(sanitizeTableName("valid_name"), "valid_name");
-  assertEquals(sanitizeTableName("Table123"), "Table123");
-  assertEquals(sanitizeTableName("_underscore"), "_underscore");
-});
-
-Deno.test("formatNullValues - formats array for DuckDB nullstr", () => {
-  assertEquals(formatNullValues(["NA", "N/A", ""]), "'NA', 'N/A', ''");
-  assertEquals(formatNullValues(["NULL"]), "'NULL'");
-  assertEquals(formatNullValues([]), "");
-});
-
-Deno.test("formatNullValues - escapes quotes in values", () => {
-  assertEquals(formatNullValues(["it's null"]), "'it''s null'");
+Deno.test("formatNullValues - formats and escapes for DuckDB nullstr", () => {
+  const cases: Array<[string[], string]> = [
+    [["NA", "N/A", ""], "'NA', 'N/A', ''"],
+    [["NULL"], "'NULL'"],
+    [[], ""],
+    [["it's null"], "'it''s null'"],
+  ];
+  for (const [input, expected] of cases) {
+    assertEquals(formatNullValues(input), expected, JSON.stringify(input));
+  }
 });
 
 // parseDuckDBError tests

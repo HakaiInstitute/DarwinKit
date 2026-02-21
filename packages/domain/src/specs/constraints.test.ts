@@ -28,122 +28,81 @@ function decodeConstraint(raw: unknown): Constraint {
 // Individual Constraint Schema Tests
 // =============================================================================
 
-Deno.test("RangeConstraint - decodes valid input via ConstraintSchema", () => {
-  const input = { type: "range", min: -90, max: 90 };
-  const result = decodeConstraint(input);
-  assertEquals(result._tag, "range");
-  assert(result instanceof RangeConstraint);
-  assertEquals(result.min, -90);
-  assertEquals(result.max, 90);
-  assertEquals(result.inclusive, true); // default
-});
+Deno.test("ConstraintSchema - decodes all constraint types", () => {
+  const cases: Array<
+    { input: Record<string, unknown>; expectedTag: string; check?: (c: Constraint) => void }
+  > = [
+    {
+      input: { type: "range", min: -90, max: 90 },
+      expectedTag: "range",
+      check: (c) => {
+        assert(c instanceof RangeConstraint);
+        assertEquals(c.min, -90);
+        assertEquals(c.max, 90);
+        assertEquals(c.inclusive, true);
+      },
+    },
+    {
+      input: { type: "range", min: 0 },
+      expectedTag: "range",
+      check: (c) => {
+        assert(c instanceof RangeConstraint);
+        assertEquals(c.min, 0);
+        assertEquals(c.max, undefined);
+      },
+    },
+    {
+      input: { type: "required", requirement: "required", message: "Field is required" },
+      expectedTag: "required",
+      check: (c) => {
+        assert(c instanceof RequiredConstraint);
+        assertEquals(c.level, "required");
+      },
+    },
+    {
+      input: { type: "required", level: "recommended" },
+      expectedTag: "required",
+      check: (c) => {
+        assert(c instanceof RequiredConstraint);
+        assertEquals(c.level, "recommended");
+      },
+    },
+    { input: { type: "unique" }, expectedTag: "unique" },
+    {
+      input: { type: "pattern", pattern: "^[A-Z]+$", flags: "i" },
+      expectedTag: "pattern",
+      check: (c) => {
+        assertEquals((c as { pattern: string }).pattern, "^[A-Z]+$");
+        assertEquals((c as { flags: string }).flags, "i");
+      },
+    },
+    { input: { type: "length", minLength: 1, maxLength: 255 }, expectedTag: "length" },
+    {
+      input: { type: "format", format: "iso8601", message: "Must be ISO 8601" },
+      expectedTag: "format",
+      check: (c) => assertEquals((c as FormatConstraint).format, "iso8601"),
+    },
+  ];
 
-Deno.test("RangeConstraint - accepts optional min/max", () => {
-  const input = { type: "range", min: 0 };
-  const result = decodeConstraint(input);
-  assert(result instanceof RangeConstraint);
-  assertEquals(result.min, 0);
-  assertEquals(result.max, undefined);
-});
-
-Deno.test("RangeConstraint - rejects non-numeric min", () => {
-  assertThrows(() => {
-    decodeConstraint({
-      type: "range",
-      min: "not-a-number",
-    });
-  });
-});
-
-Deno.test("RequiredConstraint - decodes valid input with requirement field", () => {
-  const result = decodeConstraint({
-    type: "required",
-    requirement: "required",
-    message: "Field is required",
-  });
-  assertEquals(result._tag, "required");
-  assert(result instanceof RequiredConstraint);
-  assertEquals(result.level, "required");
-});
-
-Deno.test("RequiredConstraint - decodes valid input with level field", () => {
-  const result = decodeConstraint({
-    type: "required",
-    level: "recommended",
-  });
-  assertEquals(result._tag, "required");
-  assert(result instanceof RequiredConstraint);
-  assertEquals(result.level, "recommended");
-});
-
-Deno.test("UniqueConstraint - decodes valid input", () => {
-  const result = decodeConstraint({
-    type: "unique",
-  });
-  assertEquals(result._tag, "unique");
-});
-
-Deno.test("PatternConstraint - decodes valid input", () => {
-  const result = decodeConstraint({
-    type: "pattern",
-    pattern: "^[A-Z]+$",
-    flags: "i",
-  });
-  assertEquals(result._tag, "pattern");
-  if (result._tag === "pattern") {
-    assertEquals(result.pattern, "^[A-Z]+$");
-    assertEquals(result.flags, "i");
+  for (const { input, expectedTag, check } of cases) {
+    const result = decodeConstraint(input);
+    assertEquals(result._tag, expectedTag, `type: ${input.type}`);
+    check?.(result);
   }
 });
 
-Deno.test("LengthConstraint - decodes valid input", () => {
-  const result = decodeConstraint({
-    type: "length",
-    minLength: 1,
-    maxLength: 255,
-  });
-  assertEquals(result._tag, "length");
+Deno.test("ConstraintSchema - rejects invalid inputs", () => {
+  assertThrows(() => decodeConstraint({ type: "range", min: "not-a-number" }));
+  assertThrows(() => decodeConstraint({ type: "nonexistent" }));
+  assertThrows(() => decodeConstraint({ min: 0 }));
 });
-
-Deno.test("FormatConstraint - decodes valid input", () => {
-  const result = decodeConstraint({
-    type: "format",
-    format: "iso8601",
-    message: "Must be ISO 8601",
-  });
-  assertEquals(result._tag, "format");
-  if (result._tag === "format") {
-    assertEquals(result.format, "iso8601");
-  }
-});
-
-// =============================================================================
-// Constraint Union Tests
-// =============================================================================
 
 Deno.test("Constraint union - discriminates by _tag field", () => {
-  const range = decodeConstraint({
-    type: "range",
-    min: 0,
-    max: 100,
-    inclusive: true,
-  });
+  const range = decodeConstraint({ type: "range", min: 0, max: 100, inclusive: true });
   assertEquals(range._tag, "range");
 
   const required = decodeConstraint({ type: "required", requirement: "required" });
   assertEquals(required._tag, "required");
-});
-
-Deno.test("Constraint union - rejects unknown constraint types", () => {
-  assertThrows(() => {
-    decodeConstraint({ type: "nonexistent" });
-  });
-});
-
-Deno.test("Constraint union - rejects missing type field", () => {
-  assertThrows(() => {
-    decodeConstraint({ min: 0 });
-  });
 });
 
 // =============================================================================
@@ -159,10 +118,8 @@ Deno.test("mergeConstraints - child range replaces parent range", () => {
   ];
   const merged = mergeConstraints(parent, child);
   assertEquals(merged.length, 1);
-  if (merged[0]._tag === "range") {
-    assertEquals(merged[0].min, -90);
-    assertEquals(merged[0].max, 90);
-  }
+  assertEquals((merged[0] as RangeConstraint).min, -90);
+  assertEquals((merged[0] as RangeConstraint).max, 90);
 });
 
 Deno.test("mergeConstraints - non-overlapping types preserved", () => {
@@ -190,14 +147,11 @@ Deno.test("mergeConstraints - child with multiple same-type constraints replaces
     new RangeConstraint({ min: 0, max: 11000, inclusive: true }),
   ];
   const merged = mergeConstraints(parent, child);
-  // Both child range constraints kept, parent range replaced
-  const ranges = merged.filter((c) => c._tag === "range");
+  const ranges = merged.filter((c) => c._tag === "range") as RangeConstraint[];
   assertEquals(ranges.length, 2);
-  if (ranges[0]._tag === "range" && ranges[1]._tag === "range") {
-    assertEquals(ranges[0].min, -90);
-    assertEquals(ranges[1].min, 0);
-    assertEquals(ranges[1].max, 11000);
-  }
+  assertEquals(ranges[0].min, -90);
+  assertEquals(ranges[1].min, 0);
+  assertEquals(ranges[1].max, 11000);
 });
 
 Deno.test("mergeConstraints - empty arrays handled", () => {
@@ -286,166 +240,138 @@ function makeTestField(overrides: Partial<RawField>): RawField {
   };
 }
 
-Deno.test("normalizeField - populates obligations.obis from obis_required", () => {
-  const field = makeTestField({ name: "eventDate", obis_required: "required" });
-  const result = normalizeField(field);
-  assertEquals(result.obligations?.obis, "required");
-});
+Deno.test("normalizeField - populates obligations from obis/gbif required fields", () => {
+  const cases: Array<{
+    label: string;
+    overrides: Partial<RawField>;
+    expected: { obis?: string; gbif?: string } | undefined;
+  }> = [
+    {
+      label: "obis_required → obligations.obis",
+      overrides: { name: "eventDate", obis_required: "required" },
+      expected: { obis: "required" },
+    },
+    {
+      label: "gbif_required 'true' → obligations.gbif 'required'",
+      overrides: { name: "eventDate", gbif_required: "true" },
+      expected: { gbif: "required" },
+    },
+    {
+      label: "gbif_required 'false' → obligations.gbif 'optional'",
+      overrides: { name: "eventDate", gbif_required: "false" },
+      expected: { gbif: "optional" },
+    },
+    {
+      label: "both obis and gbif",
+      overrides: {
+        name: "eventDate",
+        obis_required: "strongly recommended",
+        gbif_required: "true",
+      },
+      expected: { obis: "strongly recommended", gbif: "required" },
+    },
+    {
+      label: "empty strings → no obligations",
+      overrides: { name: "eventDate", obis_required: "", gbif_required: "" },
+      expected: undefined,
+    },
+  ];
 
-Deno.test("normalizeField - populates obligations.gbif from gbif_required", () => {
-  const field = makeTestField({ name: "eventDate", gbif_required: "true" });
-  const result = normalizeField(field);
-  assertEquals(result.obligations?.gbif, "required");
-});
-
-Deno.test("normalizeField - maps gbif_required 'false' to 'optional'", () => {
-  const field = makeTestField({ name: "eventDate", gbif_required: "false" });
-  const result = normalizeField(field);
-  assertEquals(result.obligations?.gbif, "optional");
-});
-
-Deno.test("normalizeField - handles both obis and gbif obligations", () => {
-  const field = makeTestField({
-    name: "eventDate",
-    obis_required: "strongly recommended",
-    gbif_required: "true",
-  });
-  const result = normalizeField(field);
-  assertEquals(result.obligations?.obis, "strongly recommended");
-  assertEquals(result.obligations?.gbif, "required");
-});
-
-Deno.test("normalizeField - omits obligations when no values present", () => {
-  const field = makeTestField({ name: "eventDate", obis_required: "", gbif_required: "" });
-  const result = normalizeField(field);
-  assertEquals(result.obligations, undefined);
+  for (const { label, overrides, expected } of cases) {
+    const result = normalizeField(makeTestField(overrides));
+    if (expected === undefined) {
+      assertEquals(result.obligations, undefined, label);
+    } else {
+      if (expected.obis !== undefined) assertEquals(result.obligations?.obis, expected.obis, label);
+      if (expected.gbif !== undefined) assertEquals(result.obligations?.gbif, expected.gbif, label);
+    }
+  }
 });
 
 // =============================================================================
 // obligationToRequirement Tests
 // =============================================================================
 
-Deno.test("obligationToRequirement - maps 'required' to 'required'", () => {
-  assertEquals(obligationToRequirement("required"), "required");
-});
-
-Deno.test("obligationToRequirement - maps 'strongly recommended' to 'recommended'", () => {
-  assertEquals(obligationToRequirement("strongly recommended"), "recommended");
-});
-
-Deno.test("obligationToRequirement - maps 'recommended' to 'optional'", () => {
-  assertEquals(obligationToRequirement("recommended"), "optional");
-});
-
-Deno.test("obligationToRequirement - returns undefined for 'optional'", () => {
-  assertEquals(obligationToRequirement("optional"), undefined);
-});
-
-Deno.test("obligationToRequirement - returns undefined for 'optional (required for imaging data)'", () => {
-  assertEquals(obligationToRequirement("optional (required for imaging data)"), undefined);
-});
-
-Deno.test("obligationToRequirement - returns undefined for 'required (if exists)'", () => {
-  assertEquals(obligationToRequirement("required (if exists)"), undefined);
+Deno.test("obligationToRequirement - maps obligations to requirement levels", () => {
+  const cases: Array<[Parameters<typeof obligationToRequirement>[0], string | undefined]> = [
+    ["required", "required"],
+    ["strongly recommended", "recommended"],
+    ["recommended", "optional"],
+    ["optional", undefined],
+    ["optional (required for imaging data)", undefined],
+    ["required (if exists)", undefined],
+  ];
+  for (const [input, expected] of cases) {
+    assertEquals(obligationToRequirement(input), expected, input);
+  }
 });
 
 // =============================================================================
 // normalizeField String-to-Constraint Tests
 // =============================================================================
 
-Deno.test("normalizeField - string 'required' → RequiredConstraint level:required", () => {
-  const field = makeTestField({ name: "test", validators: ["required"] });
-  const result = normalizeField(field);
-  const required = result.constraints.filter((c) => c._tag === "required");
-  assertEquals(required.length, 1);
-  assert(required[0] instanceof RequiredConstraint);
-  assertEquals(required[0].level, "required");
-});
+Deno.test("normalizeField - converts string validators to typed constraints", () => {
+  const cases: Array<{
+    validator: string;
+    expectedTag: string | null;
+    check?: (c: Constraint) => void;
+  }> = [
+    {
+      validator: "required",
+      expectedTag: "required",
+      check: (c) => assertEquals((c as RequiredConstraint).level, "required"),
+    },
+    {
+      validator: "recommended",
+      expectedTag: "required",
+      check: (c) => assertEquals((c as RequiredConstraint).level, "optional"),
+    },
+    { validator: "optional", expectedTag: null },
+    { validator: "unique", expectedTag: "unique" },
+    { validator: "uniqueIdentifier", expectedTag: "unique" },
+    {
+      validator: "date",
+      expectedTag: "format",
+      check: (c) => assertEquals((c as FormatConstraint).format, "iso8601"),
+    },
+    {
+      validator: "iso8601Date",
+      expectedTag: "format",
+      check: (c) => assertEquals((c as FormatConstraint).format, "iso8601"),
+    },
+    {
+      validator: "url",
+      expectedTag: "format",
+      check: (c) => assertEquals((c as FormatConstraint).format, "url"),
+    },
+    {
+      validator: "integer",
+      expectedTag: "format",
+      check: (c) => assertEquals((c as FormatConstraint).format, "integer"),
+    },
+    {
+      validator: "decimal",
+      expectedTag: "format",
+      check: (c) => assertEquals((c as FormatConstraint).format, "decimal-degrees"),
+    },
+    { validator: "unknownValidator", expectedTag: null },
+  ];
 
-Deno.test("normalizeField - string 'recommended' → RequiredConstraint level:optional (INFO for absence)", () => {
-  const field = makeTestField({ name: "test", validators: ["recommended"] });
-  const result = normalizeField(field);
-  const required = result.constraints.filter((c) => c._tag === "required");
-  assertEquals(required.length, 1);
-  assert(required[0] instanceof RequiredConstraint);
-  assertEquals(required[0].level, "optional");
-});
-
-Deno.test("normalizeField - string 'optional' → no constraint emitted", () => {
-  const field = makeTestField({ name: "test", validators: ["optional"] });
-  const result = normalizeField(field);
-  const required = result.constraints.filter((c) => c._tag === "required");
-  assertEquals(required.length, 0);
-});
-
-Deno.test("normalizeField - string 'unique' → UniqueConstraint", () => {
-  const field = makeTestField({ name: "test", validators: ["unique"] });
-  const result = normalizeField(field);
-  const unique = result.constraints.filter((c) => c._tag === "unique");
-  assertEquals(unique.length, 1);
-});
-
-Deno.test("normalizeField - string 'uniqueIdentifier' → UniqueConstraint", () => {
-  const field = makeTestField({ name: "test", validators: ["uniqueIdentifier"] });
-  const result = normalizeField(field);
-  const unique = result.constraints.filter((c) => c._tag === "unique");
-  assertEquals(unique.length, 1);
-});
-
-Deno.test("normalizeField - string 'date' → FormatConstraint iso8601", () => {
-  const field = makeTestField({ name: "test", validators: ["date"] });
-  const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c._tag === "format");
-  assertEquals(format.length, 1);
-  if (format[0]._tag === "format") {
-    assertEquals(format[0].format, "iso8601");
+  for (const { validator, expectedTag, check } of cases) {
+    const result = normalizeField(makeTestField({ name: "test", validators: [validator] }));
+    if (expectedTag === null) {
+      assertEquals(
+        result.constraints.filter((c) => c._tag !== "required" || validator === "optional")
+          .length === 0,
+        true,
+        validator,
+      );
+    } else {
+      const matches = result.constraints.filter((c) => c._tag === expectedTag);
+      assertEquals(matches.length, 1, `${validator} → ${expectedTag}`);
+      check?.(matches[0]);
+    }
   }
-});
-
-Deno.test("normalizeField - string 'iso8601Date' → FormatConstraint iso8601", () => {
-  const field = makeTestField({ name: "test", validators: ["iso8601Date"] });
-  const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c._tag === "format");
-  assertEquals(format.length, 1);
-  if (format[0]._tag === "format") {
-    assertEquals(format[0].format, "iso8601");
-  }
-});
-
-Deno.test("normalizeField - string 'url' → FormatConstraint url", () => {
-  const field = makeTestField({ name: "test", validators: ["url"] });
-  const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c._tag === "format");
-  assertEquals(format.length, 1);
-  if (format[0]._tag === "format") {
-    assertEquals(format[0].format, "url");
-  }
-});
-
-Deno.test("normalizeField - string 'integer' → FormatConstraint integer", () => {
-  const field = makeTestField({ name: "test", validators: ["integer"] });
-  const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c._tag === "format");
-  assertEquals(format.length, 1);
-  if (format[0]._tag === "format") {
-    assertEquals(format[0].format, "integer");
-  }
-});
-
-Deno.test("normalizeField - string 'decimal' → FormatConstraint decimal-degrees", () => {
-  const field = makeTestField({ name: "test", validators: ["decimal"] });
-  const result = normalizeField(field);
-  const format = result.constraints.filter((c) => c._tag === "format");
-  assertEquals(format.length, 1);
-  if (format[0]._tag === "format") {
-    assertEquals(format[0].format, "decimal-degrees");
-  }
-});
-
-Deno.test("normalizeField - unknown string validator is skipped with warning", () => {
-  const field = makeTestField({ name: "test", validators: ["unknownValidator"] });
-  const result = normalizeField(field);
-  assertEquals(result.constraints.length, 0);
 });
 
 Deno.test("normalizeField - warns when requirement is stripped from value constraint", () => {
@@ -510,7 +436,7 @@ Deno.test("mergeProfileConstraints - replaces value constraints normally", () =>
   ];
   const result = mergeProfileConstraints(parent, child);
   assertEquals(result.length, 1);
-  assert(result[0]._tag === "range");
+  assertEquals(result[0]._tag, "range");
   assertEquals((result[0] as RangeConstraint).min, -45);
 });
 
@@ -569,8 +495,6 @@ Deno.test("normalizeField - object validator with params flattened to Constraint
   const result = normalizeField(field);
   const range = result.constraints.filter((c) => c._tag === "range");
   assertEquals(range.length, 1);
-  if (range[0]._tag === "range") {
-    assertEquals(range[0].min, -90);
-    assertEquals(range[0].max, 90);
-  }
+  assertEquals((range[0] as RangeConstraint).min, -90);
+  assertEquals((range[0] as RangeConstraint).max, 90);
 });

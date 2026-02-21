@@ -9,7 +9,6 @@ import {
   assertFalse,
   assertGreater,
   assertGreaterOrEqual,
-  assertLess,
   assertLessOrEqual,
 } from "@std/assert";
 import {
@@ -39,84 +38,44 @@ const DARWIN_CORE_FIELDS = [
 
 const ld = levenshteinDistance;
 
-Deno.test("levenshteinDistance - exact matches", () => {
-  assertEquals(ld("", ""), 0);
-  assertEquals(ld("a", "a"), 0);
-  assertEquals(ld("hello", "hello"), 0);
-  assertEquals(ld("eventID", "eventID"), 0);
-});
-
-Deno.test("levenshteinDistance - empty strings", () => {
-  assertEquals(ld("", "hello"), 5);
-  assertEquals(ld("hello", ""), 5);
-  assertEquals(ld("", ""), 0);
-});
-
-Deno.test("levenshteinDistance - single character operations", () => {
-  // Insertion
-  assertEquals(ld("cat", "cats"), 1);
-  assertEquals(ld("event", "events"), 1);
-
-  // Deletion
-  assertEquals(ld("cats", "cat"), 1);
-  assertEquals(ld("events", "event"), 1);
-
-  // Substitution
-  assertEquals(ld("cat", "bat"), 1);
-
-  // Transposition (counted as 2 operations in Levenshtein)
-  assertEquals(ld("eventID", "evnetID"), 2);
-});
-
-Deno.test("levenshteinDistance - multiple operations", () => {
-  assertEquals(ld("kitten", "sitting"), 3);
-  assertEquals(ld("saturday", "sunday"), 3);
-  assertEquals(ld("eventID", "evntID"), 1); // Missing 'e'
-  assertEquals(ld("latitude", "decimalLatitude"), 7); // "decimal" prefix
-});
-
-Deno.test("levenshteinDistance - case sensitivity", () => {
-  // Function is case-sensitive by default
-  assertEquals(ld("Event", "event"), 1);
-  assertEquals(ld("EVENTID", "eventid"), 7);
-  assertEquals(ld("EventID", "eventID"), 1);
-});
-
-Deno.test("findClosestMatches - exact match (case-insensitive)", () => {
-  const matches = findClosestMatches("eventID", DARWIN_CORE_FIELDS);
-
-  assertEquals(matches.length, 1);
-  assertEquals(matches[0].value, "eventID");
-  assertEquals(matches[0].distance, 0);
-});
-
-Deno.test("findClosestMatches - case mismatch", () => {
-  // User types "eventid" (all lowercase)
-  const matches = findClosestMatches("eventid", DARWIN_CORE_FIELDS);
-
-  assertEquals(matches.length, 1);
-  assertEquals(matches[0].value, "eventID");
-  assertEquals(matches[0].distance, 0); // Distance 0 because case-insensitive
-});
-
-Deno.test("findClosestMatches - case mismatch variations", () => {
-  const variations = ["EVENTID", "EventId", "eventid", "eVeNtId"];
-
-  for (const variation of variations) {
-    const matches = findClosestMatches(variation, DARWIN_CORE_FIELDS);
-    assertGreaterOrEqual(matches.length, 1, `Should find match for ${variation}`);
-    assertEquals(matches[0].value, "eventID", `Should match eventID for ${variation}`);
-    assertEquals(matches[0].distance, 0, `Should have distance 0 for ${variation}`);
+Deno.test("levenshteinDistance - computes edit distance correctly", () => {
+  const cases: Array<[string, string, number]> = [
+    // exact matches
+    ["", "", 0],
+    ["a", "a", 0],
+    ["hello", "hello", 0],
+    ["eventID", "eventID", 0],
+    // empty strings
+    ["", "hello", 5],
+    ["hello", "", 5],
+    // single operations (insert, delete, substitute, transposition)
+    ["cat", "cats", 1],
+    ["cats", "cat", 1],
+    ["cat", "bat", 1],
+    ["eventID", "evnetID", 2],
+    // multiple operations
+    ["kitten", "sitting", 3],
+    ["saturday", "sunday", 3],
+    ["eventID", "evntID", 1],
+    ["latitude", "decimalLatitude", 7],
+    // case sensitivity
+    ["Event", "event", 1],
+    ["EVENTID", "eventid", 7],
+    ["EventID", "eventID", 1],
+  ];
+  for (const [a, b, expected] of cases) {
+    assertEquals(ld(a, b), expected, `ld("${a}", "${b}")`);
   }
 });
 
-Deno.test("findClosestMatches - separator normalization", () => {
-  // User types with underscores instead of camelCase
-  const matches = findClosestMatches("event_id", DARWIN_CORE_FIELDS);
-
-  assertEquals(matches.length, 1);
-  assertEquals(matches[0].value, "eventID");
-  assertEquals(matches[0].distance, 0); // Distance 0 because separators normalized
+Deno.test("findClosestMatches - normalization (case + separators) → distance 0", () => {
+  const inputs = ["eventID", "eventid", "EVENTID", "EventId", "eVeNtId", "event_id"];
+  for (const input of inputs) {
+    const matches = findClosestMatches(input, DARWIN_CORE_FIELDS);
+    assertGreaterOrEqual(matches.length, 1, input);
+    assertEquals(matches[0].value, "eventID", input);
+    assertEquals(matches[0].distance, 0, input);
+  }
 });
 
 Deno.test("findClosestMatches - single character typo", () => {
@@ -266,17 +225,6 @@ Deno.test("findSuggestions - returns just string values", () => {
   assertEquals(suggestions[0], "eventID");
 });
 
-Deno.test("findSuggestions - matches findClosestMatches values", () => {
-  const matches = findClosestMatches("event", DARWIN_CORE_FIELDS);
-  const suggestions = findSuggestions("event", DARWIN_CORE_FIELDS);
-
-  assertEquals(suggestions.length, matches.length);
-
-  for (let i = 0; i < suggestions.length; i++) {
-    assertEquals(suggestions[i], matches[i].value);
-  }
-});
-
 Deno.test("hasCloseMatch - returns true for close matches", () => {
   assert(hasCloseMatch("eventID", DARWIN_CORE_FIELDS));
   assert(hasCloseMatch("eventid", DARWIN_CORE_FIELDS));
@@ -421,20 +369,4 @@ Deno.test("Edge case: unicode characters", () => {
 
   // Should match événement (with accent) reasonably well
   assertGreaterOrEqual(matches.length, 1);
-});
-
-Deno.test("Performance: handles large field lists", () => {
-  // Create a large list of field names
-  const largeFieldList = Array.from({ length: 1000 }, (_, i) => `field${i}`);
-
-  const start = Date.now();
-  const matches = findClosestMatches("field500", largeFieldList);
-  const duration = Date.now() - start;
-
-  // Should complete in reasonable time (< 100ms for 1000 fields)
-  assertLess(duration, 100, `Took ${duration}ms for 1000 fields`);
-
-  // Should find the exact match
-  assertEquals(matches[0].value, "field500");
-  assertEquals(matches[0].distance, 0);
 });

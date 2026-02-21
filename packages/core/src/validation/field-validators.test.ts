@@ -63,6 +63,12 @@ async function withConnection(fn: (conn: DuckDBConnection) => Promise<void>): Pr
   }
 }
 
+// deno-lint-ignore no-explicit-any
+function extractViolations(result: any): Array<Record<string, unknown>> {
+  assert(result._tag === "Failure", "expected Failure exit");
+  return (result.cause as { error: unknown }).error as Array<Record<string, unknown>>;
+}
+
 // =============================================================================
 // Range Constraint Tests
 // =============================================================================
@@ -82,11 +88,7 @@ Deno.test("findRangeViolations - detects values above max", async () => {
       findRangeViolations(conn, TABLE, "lat", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { value: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
     assertEquals(violations[0].value, "95.0");
   });
@@ -106,11 +108,7 @@ Deno.test("findRangeViolations - detects values below min", async () => {
       findRangeViolations(conn, TABLE, "lat", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { value: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
     assertEquals(violations[0].value, "-95.0");
   });
@@ -130,11 +128,7 @@ Deno.test("findRangeViolations - only min specified", async () => {
       findRangeViolations(conn, TABLE, "depth", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { value: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
     assertEquals(violations[0].value, "-5.0");
   });
@@ -154,11 +148,7 @@ Deno.test("findRangeViolations - only max specified", async () => {
       findRangeViolations(conn, TABLE, "val", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { value: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
     assertEquals(violations[0].value, "150.0");
   });
@@ -235,11 +225,7 @@ Deno.test("findPatternViolations - invalid match fails", async () => {
       findPatternViolations(conn, TABLE, "code", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { value: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
     assertEquals(violations[0].value, "USA");
   });
@@ -279,11 +265,7 @@ Deno.test("findLengthViolations - below minLength fails", async () => {
       findLengthViolations(conn, TABLE, "name", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { value: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
     assertEquals(violations[0].value, "ab");
   });
@@ -343,11 +325,7 @@ Deno.test("findFormatViolations - invalid date detected", async () => {
       findFormatViolations(conn, TABLE, "eventDate", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { value: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
     assertEquals(violations[0].value, "not-a-date");
   });
@@ -394,8 +372,7 @@ Deno.test("findRequiredViolations - empty string detected", async () => {
       findRequiredViolations(conn, TABLE, "country", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as { length: number };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
   });
 });
@@ -418,8 +395,7 @@ Deno.test("findRequiredViolations - NULL detected", async () => {
       findRequiredViolations(conn, TABLE, "country", constraint, field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as { length: number };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
   });
 });
@@ -443,11 +419,7 @@ Deno.test("findRequiredViolations - optional level produces INFO violations", as
     );
 
     // Optional level now produces violations (INFO severity) instead of skipping
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { severity: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 2);
   });
 });
@@ -477,11 +449,7 @@ Deno.test("validateRequiredConstraints - strictest level wins over weaker config
       validateRequiredConstraints(conn, TABLE, "country", field),
     );
 
-    assert(result._tag === "Failure");
-    const violations = (result.cause as { error: unknown }).error as {
-      length: number;
-      0: { severity: string };
-    };
+    const violations = extractViolations(result);
     assertEquals(violations.length, 1);
     // The violation should carry the severity of the strictest level
     assertEquals(violations[0].severity, "error");
@@ -515,82 +483,61 @@ Deno.test("findRequiredViolations - allowEmpty permits empty strings", async () 
 // Invariant: Value constraint violations always produce ERROR severity
 // =============================================================================
 
-Deno.test("Value violations always produce ERROR severity", async (t) => {
-  await t.step("range violation has severity=error", async () => {
+Deno.test("Value violations always produce ERROR severity", async () => {
+  const cases: Array<{
+    label: string;
+    column: string;
+    row: string;
+    run: (conn: DuckDBConnection, field: SpecField) => Effect.Effect<void, unknown>;
+  }> = [
+    {
+      label: "range",
+      column: "lat DOUBLE",
+      row: "1, 999.0",
+      run: (conn, field) => {
+        const c = new RangeConstraint({ min: -90, max: 90, inclusive: true });
+        return findRangeViolations(conn, TABLE, "lat", c, { ...field, constraints: [c] });
+      },
+    },
+    {
+      label: "format",
+      column: "eventDate VARCHAR",
+      row: "1, 'not-a-date'",
+      run: (conn, field) => {
+        const c = new FormatConstraint({ format: "iso8601" });
+        return findFormatViolations(conn, TABLE, "eventDate", c, { ...field, constraints: [c] });
+      },
+    },
+    {
+      label: "pattern",
+      column: "countryCode VARCHAR",
+      row: "1, 'USA'",
+      run: (conn, field) => {
+        const c = new PatternConstraint({ pattern: "^[A-Z]{2}$" });
+        return findPatternViolations(conn, TABLE, "countryCode", c, { ...field, constraints: [c] });
+      },
+    },
+    {
+      label: "length",
+      column: "name VARCHAR",
+      row: "1, 'ab'",
+      run: (conn, field) => {
+        const c = new LengthConstraint({ minLength: 5 });
+        return findLengthViolations(conn, TABLE, "name", c, { ...field, constraints: [c] });
+      },
+    },
+  ];
+
+  for (const { label, column, row, run } of cases) {
     await withConnection(async (conn) => {
-      await setupTable(conn, "lat DOUBLE", ["1, 999.0"]);
-
-      const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
-      const field = makeField("lat", [constraint]);
-
-      const result = await Effect.runPromiseExit(
-        findRangeViolations(conn, TABLE, "lat", constraint, field),
-      );
-
-      assert(result._tag === "Failure");
-      const violations = (result.cause as { error: unknown }).error as Array<
-        { severity: string }
-      >;
-      assertEquals(violations[0].severity, "error");
+      await setupTable(conn, column, [row]);
+      const fieldName = column.split(" ")[0];
+      const field = makeField(fieldName, []);
+      const result = await Effect.runPromiseExit(run(conn, field));
+      const violations = extractViolations(result);
+      assertEquals(violations[0].severity, "error", `${label} violation severity`);
     });
-  });
-
-  await t.step("format violation has severity=error", async () => {
-    await withConnection(async (conn) => {
-      await setupTable(conn, "eventDate VARCHAR", ["1, 'not-a-date'"]);
-
-      const constraint = new FormatConstraint({ format: "iso8601" });
-      const field = makeField("eventDate", [constraint]);
-
-      const result = await Effect.runPromiseExit(
-        findFormatViolations(conn, TABLE, "eventDate", constraint, field),
-      );
-
-      assert(result._tag === "Failure");
-      const violations = (result.cause as { error: unknown }).error as Array<
-        { severity: string }
-      >;
-      assertEquals(violations[0].severity, "error");
-    });
-  });
-
-  await t.step("pattern violation has severity=error", async () => {
-    await withConnection(async (conn) => {
-      await setupTable(conn, "countryCode VARCHAR", ["1, 'USA'"]);
-
-      const constraint = new PatternConstraint({ pattern: "^[A-Z]{2}$" });
-      const field = makeField("countryCode", [constraint]);
-
-      const result = await Effect.runPromiseExit(
-        findPatternViolations(conn, TABLE, "countryCode", constraint, field),
-      );
-
-      assert(result._tag === "Failure");
-      const violations = (result.cause as { error: unknown }).error as Array<
-        { severity: string }
-      >;
-      assertEquals(violations[0].severity, "error");
-    });
-  });
-
-  await t.step("length violation has severity=error", async () => {
-    await withConnection(async (conn) => {
-      await setupTable(conn, "name VARCHAR", ["1, 'ab'"]);
-
-      const constraint = new LengthConstraint({ minLength: 5 });
-      const field = makeField("name", [constraint]);
-
-      const result = await Effect.runPromiseExit(
-        findLengthViolations(conn, TABLE, "name", constraint, field),
-      );
-
-      assert(result._tag === "Failure");
-      const violations = (result.cause as { error: unknown }).error as Array<
-        { severity: string }
-      >;
-      assertEquals(violations[0].severity, "error");
-    });
-  });
+  }
 });
 
 // =============================================================================
@@ -614,10 +561,7 @@ Deno.test("Uniqueness constraint violations", async (t) => {
         findUniquenessViolations(conn, TABLE, "eventID", field),
       );
 
-      assert(result._tag === "Failure");
-      const violations = (result.cause as { error: unknown }).error as Array<
-        { value: string; rowNumber: number; severity: string }
-      >;
+      const violations = extractViolations(result);
 
       // E1 appears in rows 1,3 and E2 in rows 2,5 — 4 violations total
       assertEquals(violations.length, 4);

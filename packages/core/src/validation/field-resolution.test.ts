@@ -75,17 +75,16 @@ function patternConstraint(
 // resolveActiveStandard Tests
 // =============================================================================
 
-Deno.test("resolveActiveStandard - extracts variant from ResolvedStandard", () => {
-  assertEquals(resolveActiveStandard({ base: "darwin-core", variant: "obis" }), "obis");
-  assertEquals(resolveActiveStandard({ base: "darwin-core", variant: "gbif" }), "gbif");
-});
-
-Deno.test("resolveActiveStandard - defaults to obis when no variant", () => {
-  assertEquals(resolveActiveStandard({ base: "darwin-core" }), "obis");
-});
-
-Deno.test("resolveActiveStandard - defaults to obis when undefined", () => {
-  assertEquals(resolveActiveStandard(undefined), "obis");
+Deno.test("resolveActiveStandard - extracts variant or defaults to obis", () => {
+  const cases: Array<[Parameters<typeof resolveActiveStandard>[0], string]> = [
+    [{ base: "darwin-core", variant: "obis" }, "obis"],
+    [{ base: "darwin-core", variant: "gbif" }, "gbif"],
+    [{ base: "darwin-core" }, "obis"],
+    [undefined, "obis"],
+  ];
+  for (const [input, expected] of cases) {
+    assertEquals(resolveActiveStandard(input), expected, JSON.stringify(input));
+  }
 });
 
 // =============================================================================
@@ -134,55 +133,30 @@ Deno.test("obligationForStandard - returns raw obligation for 'required (if exis
 // deriveRequirementFromConstraints Tests
 // =============================================================================
 
-Deno.test("deriveRequirementFromConstraints - required level → 'required'", () => {
-  assertEquals(
-    deriveRequirementFromConstraints([requiredConstraint("required")]),
-    "required",
-  );
-});
-
-Deno.test("deriveRequirementFromConstraints - recommended level → 'recommended'", () => {
-  assertEquals(
-    deriveRequirementFromConstraints([requiredConstraint("recommended")]),
-    "recommended",
-  );
-});
-
-Deno.test("deriveRequirementFromConstraints - optional level → 'optional'", () => {
-  assertEquals(
-    deriveRequirementFromConstraints([requiredConstraint("optional")]),
-    "optional",
-  );
-});
-
-Deno.test("deriveRequirementFromConstraints - no required constraints → undefined", () => {
-  assertEquals(deriveRequirementFromConstraints([rangeConstraint(-90, 90)]), undefined);
-  assertEquals(deriveRequirementFromConstraints(undefined), undefined);
+Deno.test("deriveRequirementFromConstraints - maps constraint levels to requirements", () => {
+  const cases: Array<[Constraint[] | undefined, string | undefined]> = [
+    [[requiredConstraint("required")], "required"],
+    [[requiredConstraint("recommended")], "recommended"],
+    [[requiredConstraint("optional")], "optional"],
+    [[rangeConstraint(-90, 90)], undefined],
+    [undefined, undefined],
+  ];
+  for (const [constraints, expected] of cases) {
+    assertEquals(deriveRequirementFromConstraints(constraints), expected);
+  }
 });
 
 // =============================================================================
 // requirementToConstraint Tests
 // =============================================================================
 
-Deno.test("requirementToConstraint - 'required' produces required constraint", () => {
-  const result = requirementToConstraint("required");
-  assert(result._tag === "required");
-  assert(result instanceof RequiredConstraint);
-  assertEquals(result.level, "required");
-});
-
-Deno.test("requirementToConstraint - 'recommended' produces recommended constraint", () => {
-  const result = requirementToConstraint("recommended");
-  assert(result._tag === "required");
-  assert(result instanceof RequiredConstraint);
-  assertEquals(result.level, "recommended");
-});
-
-Deno.test("requirementToConstraint - 'optional' produces optional level constraint", () => {
-  const result = requirementToConstraint("optional");
-  assert(result._tag === "required");
-  assert(result instanceof RequiredConstraint);
-  assertEquals(result.level, "optional");
+Deno.test("requirementToConstraint - produces RequiredConstraint with matching level", () => {
+  for (const level of ["required", "recommended", "optional"] as const) {
+    const result = requirementToConstraint(level);
+    assert(result instanceof RequiredConstraint, level);
+    assertEquals(result._tag, "required");
+    assertEquals(result.level, level);
+  }
 });
 
 // =============================================================================

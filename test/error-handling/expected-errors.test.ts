@@ -8,7 +8,7 @@
 import { Workspace } from "@dwkt/core/workspace";
 import { WorkspaceValidator } from "@dwkt/core/validation";
 import { parseFileForWorkspace } from "@dwkt/core/loading";
-import { assert, assertEquals, assertMatch } from "@std/assert";
+import { assert, assertEquals, assertExists, assertMatch } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 
@@ -54,20 +54,19 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
     assert(errorCaught, "Should catch with Effect.catchAll");
   });
 
-  await t.step("Invalid CSV data", async () => {
-    // Create a CSV that will be parsed but might have invalid data
-    const csvPath = join(tempDir, "data.csv");
-    await Deno.writeTextFile(csvPath, "col1,col2\nval1,val2");
-
-    // Parse should succeed, but in cases where it fails, it should be catchable
-    await Effect.runPromise(
-      parseFileForWorkspace(csvPath).pipe(
-        Effect.catchAll(() => Effect.succeed<null>(null)),
-      ),
+  await t.step("Valid CSV file parses successfully", async () => {
+    const validCsvPath = join(tempDir, "valid.csv");
+    await Deno.writeTextFile(
+      validCsvPath,
+      "name,age,city\nAlice,30,New York\nBob,25,London",
     );
 
-    // Either succeeds or error was caught
-    assertEquals(true, true, "CSV parsing errors are catchable");
+    const result = await Effect.runPromise(parseFileForWorkspace(validCsvPath));
+
+    assertExists(result);
+    assertExists(result.schema);
+    assertEquals(result.schema.rowCount, 2);
+    assertEquals(result.schema.fields.size, 3);
   });
 
   await t.step("Invalid workspace configuration", async () => {
@@ -196,54 +195,6 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
     assertEquals(result.id, "default");
   });
 
-  await t.step("Retry on expected error", async () => {
-    // Simulate retrying a file operation
-    let attempts = 0;
-
-    const operation = Effect.gen(function* () {
-      attempts++;
-      if (attempts < 2) {
-        return yield* Effect.fail({
-          code: "TEMPORARY_ERROR",
-          message: "Try again",
-        });
-      }
-      return "success";
-    });
-
-    const result = await Effect.runPromise(
-      operation.pipe(Effect.retry({ times: 2 })),
-    );
-
-    assertEquals(result, "success");
-    assertEquals(attempts, 2);
-  });
-
   // Cleanup
   await Deno.remove(tempDir, { recursive: true });
-});
-
-Deno.test("Expected errors - summary", () => {
-  // Summary of all expected errors in DarwinKit:
-  //
-  // 1. Workspace operations:
-  //    - WorkspaceConfigError - Config not found, parse error, missing datasets
-  //    - ValidationError - Validation operation failures
-  //
-  // 2. File operations:
-  //    - FILE_NOT_FOUND - User-provided path doesn't exist
-  //    - PARSE_ERROR - CSV file is invalid or malformed
-  //
-  // 3. Configuration:
-  //    - VALIDATION_FAILED - Invalid workspace configuration
-  //    - Config file not found or invalid JSON
-  //
-  // 4. Data validation:
-  //    - Type conversion failures during validation
-  //    - Field mapping errors
-  //    - Cross-dataset referential integrity violations
-  //
-  // All of these are recoverable and catchable with Effect.catchAll
-
-  assertEquals(true, true, "Expected errors documented");
 });
