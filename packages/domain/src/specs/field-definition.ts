@@ -13,8 +13,8 @@
  *
  * ## Usage
  *
- * - Validation code uses `profile.normalizedFields` (SpecField)
- * - Transformation code uses `profile.fields` (raw JSON schema format)
+ * - Validation code uses `spec.fields` (ResolvedField) or `spec.specFields` (SpecField)
+ * - Transformation code uses `spec.rawFields` (raw JSON schema format)
  *
  * See validation-profile.ts for details on the dual-purpose field storage.
  */
@@ -45,6 +45,39 @@ export const SpecFieldSchema = S.Struct({
 });
 
 export type SpecField = S.Schema.Type<typeof SpecFieldSchema>;
+
+/**
+ * A fully resolved field definition for validation.
+ *
+ * Unlike SpecField, ResolvedField has no `obligations` — obligations are
+ * converted to constraints during resolution. This is the field type
+ * consumed by validators.
+ */
+export interface ResolvedField {
+  readonly name: string;
+  readonly label?: string;
+  readonly dataType?: S.Schema.Type<typeof FieldDataType>;
+  readonly constraints: readonly Constraint[];
+  readonly comments?: string;
+  readonly examples?: string;
+}
+
+/**
+ * Convert a SpecField to a ResolvedField by dropping obligations.
+ *
+ * Obligations should already have been resolved to constraints via the
+ * 3-tier merge pipeline before calling this function.
+ */
+export function toResolvedField(specField: SpecField): ResolvedField {
+  return {
+    name: specField.name,
+    label: specField.label,
+    dataType: specField.dataType,
+    constraints: specField.constraints,
+    comments: specField.comments,
+    examples: specField.examples,
+  };
+}
 
 /**
  * Result of looking up a field's obligation for a given standard.

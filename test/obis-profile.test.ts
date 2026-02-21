@@ -23,16 +23,16 @@ Deno.test("Profile inheritance - obis-event resolves with Event base fields", ()
   const profile = getValidationProfile("obis-event");
   assertExists(profile, "obis-event profile should resolve");
 
-  // Should have normalizedFields inherited from Event (JSON base)
-  assertExists(profile.normalizedFields, "Should have normalizedFields from Event base");
+  // Should have fields inherited from Event (JSON base)
+  assertExists(profile.fields, "Should have fields from Event base");
 
   // Event base defines eventID, eventDate, decimalLatitude, etc.
   assert(
-    "eventID" in profile.normalizedFields!,
+    "eventID" in profile.fields!,
     "Should inherit eventID from Event base",
   );
   assert(
-    "eventDate" in profile.normalizedFields!,
+    "eventDate" in profile.fields!,
     "Should inherit eventDate from Event base",
   );
 });
@@ -71,14 +71,14 @@ Deno.test("Profile inheritance - obis-event preserves non-overlapping fields fro
   assertExists(samplingOverride, "samplingProtocol override from obis-event should be present");
 });
 
-Deno.test("Profile inheritance - obis resolves with Event base normalizedFields", () => {
+Deno.test("Profile inheritance - obis resolves with Event base fields", () => {
   const profile = getValidationProfile("obis");
   assertExists(profile, "obis profile should resolve");
-  assertExists(profile.normalizedFields, "obis should inherit normalizedFields from Event");
+  assertExists(profile.fields, "obis should inherit fields from Event");
 
   // Verify Event base fields are present
-  assert("eventID" in profile.normalizedFields!, "Should have eventID from Event");
-  assert("decimalLatitude" in profile.normalizedFields!, "Should have decimalLatitude from Event");
+  assert("eventID" in profile.fields!, "Should have eventID from Event");
+  assert("decimalLatitude" in profile.fields!, "Should have decimalLatitude from Event");
 });
 
 // =============================================================================

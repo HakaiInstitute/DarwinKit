@@ -11,7 +11,7 @@
  * Version: 2024
  */
 
-import type { ValidationProfile } from "../../schemas/validation-profile.ts";
+import type { Profile } from "../../schemas/validation-profile.ts";
 import { FormatConstraint, RangeConstraint, RequiredConstraint } from "../constraints.ts";
 
 /**
@@ -19,12 +19,11 @@ import { FormatConstraint, RangeConstraint, RequiredConstraint } from "../constr
  *
  * Universal requirements for all OBIS data submissions.
  */
-export const OBIS_BASE_PROFILE: ValidationProfile = {
+export const OBIS_BASE_PROFILE: Profile = {
   id: "obis",
   name: "OBIS Base Requirements",
   description:
     "Core validation requirements for all data to be published to the Ocean Biodiversity Information System (OBIS)",
-  targetSchema: "obis",
   extends: "Event", // Inherit field definitions from Event core
   documentationUrl: "https://manual.obis.org/",
   version: "2024",

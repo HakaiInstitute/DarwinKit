@@ -11,7 +11,7 @@
  * @module validation/field-resolution
  */
 
-import type { ValidationProfile, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
+import type { ResolvedSpec, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
 import type { Constraint, RequirementLevel, SpecField } from "@dwkt/domain/specs";
 import {
   getPreset,
@@ -168,7 +168,7 @@ export interface ResolutionDiagnostic {
  * Resolve all field definitions for a dataset through the 3-tier merge pipeline.
  *
  * Pipeline:
- * 1. Start with spec normalizedFields → derive obligation-based constraints
+ * 1. Start with spec specFields → derive obligation-based constraints
  * 2. Apply profile fieldOverrides (requirement → constraint, constraints via mergeConstraints)
  * 3. Apply config fieldMappings (preset, requirement, constraints via addConstraints)
  *
@@ -180,7 +180,7 @@ export interface ResolutionDiagnostic {
  * When `diagnostics` is provided, overlapping config constraint types are recorded.
  */
 export function resolveSpecFields(
-  schemaProfile: ValidationProfile,
+  schemaProfile: ResolvedSpec,
   activeStandard: "obis" | "gbif",
   configMappings: readonly WorkspaceFieldMapping[],
   diagnostics?: ResolutionDiagnostic[],
@@ -191,7 +191,7 @@ export function resolveSpecFields(
   // Fields explicitly mapped by the user's config (needed for conditional obligations)
   const mappedFieldNames = new Set(configMappings.map((m) => m.targetName));
 
-  for (const [fieldName, field] of Object.entries(schemaProfile.normalizedFields || {})) {
+  for (const [fieldName, field] of Object.entries(schemaProfile.specFields || {})) {
     // Start with the spec's own constraints
     let constraints: Constraint[] = [...(field.constraints ?? [])];
 

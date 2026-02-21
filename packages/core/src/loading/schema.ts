@@ -1,6 +1,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import type {
-  ValidationProfile,
+  ResolvedSpec,
+  TransformField,
   WorkspaceCrossDatasetRule,
   WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
@@ -88,11 +89,11 @@ type DatasetWithClass = {
  * get ENUM enforcement. Optional/unmapped fields accept any value as TEXT.
  */
 function shouldEnforceVocabulary(
-  spec: ValidationProfile,
+  spec: ResolvedSpec,
   fieldName: string,
   activeStandard: "obis" | "gbif",
 ): boolean {
-  const normalizedField = spec.normalizedFields?.[fieldName];
+  const normalizedField = spec.specFields?.[fieldName];
   if (!normalizedField) return false;
   const result = obligationForStandard(normalizedField, activeStandard);
   return result?.requirement === "required" || result?.requirement === "recommended";
@@ -103,11 +104,11 @@ function shouldEnforceVocabulary(
  *
  * When resolved fields are available (from the 3-tier constraint pipeline),
  * uses them to derive NOT NULL from RequiredConstraints. Falls back to
- * checking profile fieldOverrides when resolved fields aren't provided.
+ * checking spec fieldOverrides when resolved fields aren't provided.
  */
 function isFieldRequired(
   resolvedFields: Record<string, WorkspaceFieldMapping> | undefined,
-  spec: ValidationProfile,
+  spec: ResolvedSpec,
   fieldName: string,
 ): boolean {
   if (resolvedFields) {
@@ -142,8 +143,9 @@ export function importSchema(
 
     // 1. Create ENUM types for controlled vocabularies (only for fields with sufficient obligation)
     const enumFields = new Set<string>();
-    const enums = Object.entries(spec.fields || {}).map(
-      ([fieldName, field]) => {
+    const rawFields = spec.rawFields || {};
+    const enums = Object.entries(rawFields).map(
+      ([fieldName, field]: [string, TransformField]) => {
         if (field.type === "controlled-vocabulary" && field.values) {
           if (!shouldEnforceVocabulary(spec, fieldName, activeStandard)) {
             return null;
@@ -161,8 +163,8 @@ export function importSchema(
     // field-validators.ts, not via DuckDB CHECK constraints.
     // See #110 for potential CHECK constraint support in the future.
     // 2. Generate Column Definition SQL
-    const columns = Object.keys(spec.fields || {}).map((fieldName) => {
-      const field = spec.fields![fieldName];
+    const columns = Object.keys(rawFields).map((fieldName) => {
+      const field = rawFields[fieldName];
       const fieldType = (field.type?.toUpperCase() || "TEXT")
         .replace("IDENTIFIER", "TEXT")
         .replace(

@@ -3,7 +3,7 @@
  */
 
 import { assert, assertEquals } from "@std/assert";
-import type { ValidationProfile, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
+import type { ResolvedSpec, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
 import type { Constraint, SpecField } from "@dwkt/domain/specs";
 import {
   FormatConstraint,
@@ -34,12 +34,14 @@ import {
 // Test Helpers
 // =============================================================================
 
-function makeProfile(overrides: Partial<ValidationProfile> = {}): ValidationProfile {
+function makeResolvedSpec(overrides: Partial<ResolvedSpec> = {}): ResolvedSpec {
   return {
     id: "test",
     name: "Test Profile",
-    description: "Test profile for unit tests",
+    spec: "Test",
     fieldOverrides: {},
+    fields: {},
+    specFields: {},
     ...overrides,
   };
 }
@@ -284,8 +286,8 @@ Deno.test("addConstraints - keeps stronger RequiredConstraint from config", () =
 // =============================================================================
 
 Deno.test("resolveSpecFields - diagnostics records overlapping config constraints", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       decimalLatitude: {
         name: "decimalLatitude",
         constraints: [rangeConstraint(-90, 90)],
@@ -316,8 +318,8 @@ Deno.test("resolveSpecFields - diagnostics records overlapping config constraint
 });
 
 Deno.test("resolveSpecFields - diagnostic message explains both constraints apply", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       decimalLatitude: {
         name: "decimalLatitude",
         constraints: [rangeConstraint(-90, 90)],
@@ -346,8 +348,8 @@ Deno.test("resolveSpecFields - diagnostic message explains both constraints appl
 });
 
 Deno.test("resolveSpecFields - no diagnostics when config adds new types", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       countryCode: {
         name: "countryCode",
         constraints: [requiredConstraint()],
@@ -368,8 +370,8 @@ Deno.test("resolveSpecFields - no diagnostics when config adds new types", () =>
 });
 
 Deno.test("resolveSpecFields - no diagnostics when array not provided", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       decimalLatitude: {
         name: "decimalLatitude",
         constraints: [rangeConstraint(-90, 90)],
@@ -393,8 +395,8 @@ Deno.test("resolveSpecFields - no diagnostics when array not provided", () => {
 // =============================================================================
 
 Deno.test("resolveSpecFields - spec fields with obligations get required constraints", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       eventDate: {
         name: "eventDate",
         constraints: [],
@@ -415,8 +417,8 @@ Deno.test("resolveSpecFields - spec fields with obligations get required constra
 });
 
 Deno.test("resolveSpecFields - profile override replaces spec constraint (replacement semantics)", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       decimalLatitude: {
         name: "decimalLatitude",
         constraints: [rangeConstraint(-90, 90)],
@@ -441,8 +443,8 @@ Deno.test("resolveSpecFields - profile override replaces spec constraint (replac
 });
 
 Deno.test("resolveSpecFields - config constraint same type as spec → both kept (tightening)", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       decimalLatitude: {
         name: "decimalLatitude",
         constraints: [rangeConstraint(-90, 90)],
@@ -472,8 +474,8 @@ Deno.test("resolveSpecFields - config constraint same type as spec → both kept
 });
 
 Deno.test("resolveSpecFields - config adds new constraint type not in spec → accepted", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       countryCode: {
         name: "countryCode",
         constraints: [requiredConstraint("recommended")],
@@ -497,8 +499,8 @@ Deno.test("resolveSpecFields - config adds new constraint type not in spec → a
 });
 
 Deno.test("resolveSpecFields - config requirement compiled to constraint", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       locality: {
         name: "locality",
         constraints: [],
@@ -523,8 +525,8 @@ Deno.test("resolveSpecFields - config requirement compiled to constraint", () =>
 });
 
 Deno.test("resolveSpecFields - config requirement 'recommended' produces optional level constraint", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       locality: {
         name: "locality",
         constraints: [],
@@ -549,8 +551,8 @@ Deno.test("resolveSpecFields - config requirement 'recommended' produces optiona
 });
 
 Deno.test("resolveSpecFields - 3-tier chain preserves all non-overlapping types", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       decimalLatitude: {
         name: "decimalLatitude",
         constraints: [rangeConstraint(-90, 90)], // Tier 1: range
@@ -579,8 +581,8 @@ Deno.test("resolveSpecFields - 3-tier chain preserves all non-overlapping types"
 });
 
 Deno.test("resolveSpecFields - config originName/targetName applied to mapping", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       decimalLatitude: {
         name: "decimalLatitude",
         constraints: [rangeConstraint(-90, 90)],
@@ -604,8 +606,8 @@ Deno.test("resolveSpecFields - config originName/targetName applied to mapping",
 // =============================================================================
 
 Deno.test("resolveSpecFields - field only in profile overrides gets synthesized mapping", () => {
-  const profile = makeProfile({
-    normalizedFields: {},
+  const profile = makeResolvedSpec({
+    specFields: {},
     fieldOverrides: {
       customField: {
         requirement: "required",
@@ -626,8 +628,8 @@ Deno.test("resolveSpecFields - field only in profile overrides gets synthesized 
 });
 
 Deno.test("resolveSpecFields - triple config-tier: preset + explicit + requirement on same field", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       locality: {
         name: "locality",
         constraints: [],
@@ -658,8 +660,8 @@ Deno.test("resolveSpecFields - profile replacement produces single required cons
   // Tier 2 uses mergeConstraints (replacement), so only one required constraint
   // remains. deriveRequirementFromConstraints picks the strictest, which is the
   // same as the only one after replacement.
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       eventDate: {
         name: "eventDate",
         constraints: [requiredConstraint("recommended")], // Tier 1: recommended
@@ -896,8 +898,8 @@ Deno.test("End-to-end requirement chain", async (t) => {
 
 Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to correct requirement", async (t) => {
   await t.step("OBIS required obligation → required level on resolved field", () => {
-    const profile = makeProfile({
-      normalizedFields: {
+    const profile = makeResolvedSpec({
+      specFields: {
         eventDate: {
           name: "eventDate",
           constraints: [],
@@ -914,8 +916,8 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
   await t.step(
     "OBIS strongly recommended obligation → recommended level on resolved field",
     () => {
-      const profile = makeProfile({
-        normalizedFields: {
+      const profile = makeResolvedSpec({
+        specFields: {
           scientificName: {
             name: "scientificName",
             constraints: [],
@@ -931,8 +933,8 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
   );
 
   await t.step("OBIS recommended obligation → optional level on resolved field", () => {
-    const profile = makeProfile({
-      normalizedFields: {
+    const profile = makeResolvedSpec({
+      specFields: {
         kingdom: {
           name: "kingdom",
           constraints: [],
@@ -947,8 +949,8 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
   });
 
   await t.step("OBIS optional obligation → no requirement constraint on resolved field", () => {
-    const profile = makeProfile({
-      normalizedFields: {
+    const profile = makeResolvedSpec({
+      specFields: {
         fieldNotes: {
           name: "fieldNotes",
           constraints: [],
@@ -965,8 +967,8 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
   await t.step(
     "OBIS 'required (if exists)' obligation → recommended level when field is mapped",
     () => {
-      const profile = makeProfile({
-        normalizedFields: {
+      const profile = makeResolvedSpec({
+        specFields: {
           parentEventID: {
             name: "parentEventID",
             label: "Parent Event ID",
@@ -992,8 +994,8 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
   await t.step(
     "OBIS 'required (if exists)' obligation → no constraint when field is NOT mapped",
     () => {
-      const profile = makeProfile({
-        normalizedFields: {
+      const profile = makeResolvedSpec({
+        specFields: {
           parentEventID: {
             name: "parentEventID",
             label: "Parent Event ID",
@@ -1014,8 +1016,8 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
 
 Deno.test("End-to-end: profile requirement override flows to correct requirement", async (t) => {
   await t.step("profile 'required' override strengthens spec optional obligation", () => {
-    const profile = makeProfile({
-      normalizedFields: {
+    const profile = makeResolvedSpec({
+      specFields: {
         locality: {
           name: "locality",
           constraints: [],
@@ -1033,8 +1035,8 @@ Deno.test("End-to-end: profile requirement override flows to correct requirement
   });
 
   await t.step("config 'required' requirement adds requirement alongside spec", () => {
-    const profile = makeProfile({
-      normalizedFields: {
+    const profile = makeResolvedSpec({
+      specFields: {
         locality: {
           name: "locality",
           constraints: [],
@@ -1062,8 +1064,8 @@ Deno.test("End-to-end: profile requirement override flows to correct requirement
 // =============================================================================
 
 Deno.test("resolveSpecFields - weaker config requirement filtered with diagnostic", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       eventDate: {
         name: "eventDate",
         constraints: [],
@@ -1100,8 +1102,8 @@ Deno.test("resolveSpecFields - weaker config requirement filtered with diagnosti
 // =============================================================================
 
 Deno.test("Required-if-exists: emits WARNING constraint when field is mapped", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       parentEventID: {
         name: "parentEventID",
         label: "Parent Event ID",
@@ -1136,8 +1138,8 @@ Deno.test("Required-if-exists: emits WARNING constraint when field is mapped", (
 });
 
 Deno.test("Required-if-exists: no constraint when field is NOT mapped", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       parentEventID: {
         name: "parentEventID",
         label: "Parent Event ID",
@@ -1156,8 +1158,8 @@ Deno.test("Required-if-exists: no constraint when field is NOT mapped", () => {
 });
 
 Deno.test("Required-if-exists: uses fieldName as fallback when label is absent", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       parentEventID: {
         name: "parentEventID",
         // no label
@@ -1187,8 +1189,8 @@ Deno.test("Required-if-exists: uses fieldName as fallback when label is absent",
 // =============================================================================
 
 Deno.test("resolveSpecFields - profile cannot weaken spec required to recommended", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       eventDate: {
         name: "eventDate",
         constraints: [],
@@ -1213,8 +1215,8 @@ Deno.test("resolveSpecFields - profile cannot weaken spec required to recommende
 });
 
 Deno.test("resolveSpecFields - profile can strengthen spec recommended to required", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       scientificName: {
         name: "scientificName",
         constraints: [],
@@ -1237,8 +1239,8 @@ Deno.test("resolveSpecFields - profile can strengthen spec recommended to requir
 });
 
 Deno.test("resolveSpecFields - profile can still replace value constraints", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       decimalLatitude: {
         name: "decimalLatitude",
         constraints: [new RangeConstraint({ min: -90, max: 90, inclusive: true })],
@@ -1262,8 +1264,8 @@ Deno.test("resolveSpecFields - profile can still replace value constraints", () 
 });
 
 Deno.test("Required-if-exists: profile override can strengthen to required (ERROR)", () => {
-  const profile = makeProfile({
-    normalizedFields: {
+  const profile = makeResolvedSpec({
+    specFields: {
       parentEventID: {
         name: "parentEventID",
         label: "Parent Event ID",

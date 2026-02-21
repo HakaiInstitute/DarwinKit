@@ -10,7 +10,7 @@
  * Version: 2024
  */
 
-import type { ValidationProfile } from "../../schemas/validation-profile.ts";
+import type { Profile } from "../../schemas/validation-profile.ts";
 
 /**
  * OBIS Event Core Profile
@@ -22,12 +22,11 @@ import type { ValidationProfile } from "../../schemas/validation-profile.ts";
  *
  * Inherits base OBIS requirements for coordinates, dates, and taxonomy.
  */
-export const OBIS_EVENT_PROFILE: ValidationProfile = {
+export const OBIS_EVENT_PROFILE: Profile = {
   id: "obis-event",
   name: "OBIS Event Core",
   description:
     "Validation requirements for Event Core data to be published to the Ocean Biodiversity Information System (OBIS)",
-  targetSchema: "obis",
   extends: "obis", // Inherits all base OBIS requirements
   documentationUrl: "https://manual.obis.org/format_event.html",
   version: "2024",

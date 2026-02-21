@@ -14,8 +14,8 @@ import type { WorkspaceOperationError } from "@dwkt/domain/errors";
 import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
 import type {
   DatasetConfig,
+  ResolvedSpec,
   Standard,
-  ValidationProfile,
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
@@ -416,7 +416,7 @@ function createWorkspaceFromConfig(
 function validateDataset(
   connection: DuckDBConnection,
   dataset: DatasetConfig,
-  profile: ValidationProfile | undefined,
+  profile: ResolvedSpec | undefined,
   standard: Standard,
   validationSettings?: ValidationSettings,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
@@ -707,8 +707,8 @@ function validateDataset(
     >[] = [];
 
     for (const mapping of validMappings) {
-      // Require profile for validation - normalized fields are the source of truth
-      if (!profile?.normalizedFields) {
+      // Require profile for validation - spec fields are the source of truth
+      if (!profile?.specFields) {
         schemaViolations.push(
           new UnknownProfileViolation({
             severity: requirementToSeverity("required"),
@@ -724,9 +724,8 @@ function validateDataset(
         continue;
       }
 
-      // Get field from normalized profile (already normalized at load time)
-      // Use normalizedFields for validation (keeps raw fields for transformation)
-      const baseField = profile.normalizedFields?.[mapping.targetName] as
+      // Get field from spec-level fields (preserves obligations for downstream use)
+      const baseField = profile.specFields?.[mapping.targetName] as
         | SpecField
         | undefined;
 
@@ -785,7 +784,7 @@ function validateDataset(
       // Add field validation effect to the list (will be run in parallel later)
       if (specField) {
         // Determine if DuckDB schema already enforces uniqueness
-        const rawField = profile.fields?.[mapping.targetName];
+        const rawField = profile.rawFields?.[mapping.targetName];
         const isDbPrimaryKey = mapping.targetName === schemaTableName + "ID" ||
           (mapping.targetName.endsWith("ID") && String(rawField?.unique) === "true");
 

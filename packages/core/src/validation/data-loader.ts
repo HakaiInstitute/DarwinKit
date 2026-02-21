@@ -16,7 +16,7 @@ import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 
 import type {
-  ValidationProfile,
+  ResolvedSpec,
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
@@ -51,7 +51,7 @@ interface ViolationContext {
   readonly rawTableName: string;
   readonly schemaTableName: string;
   readonly columnMappings: ColumnMapping[];
-  readonly profile: ValidationProfile;
+  readonly profile: ResolvedSpec;
   readonly activeStandard: "obis" | "gbif";
   readonly enableSuggestions: boolean;
   readonly rowNum: number;
@@ -72,7 +72,7 @@ function handlePrimaryKeyViolation(
     const pkMapping = ctx.columnMappings.find((m) =>
       m.target === ctx.schemaTableName + "ID" ||
       (m.target.endsWith("ID") &&
-        ctx.profile.fields?.[m.target]?.unique === "true")
+        ctx.profile.rawFields?.[m.target]?.unique === "true")
     );
 
     if (
@@ -82,8 +82,8 @@ function handlePrimaryKeyViolation(
       return [];
     }
 
-    const specField = ctx.profile.normalizedFields?.[pkMapping.target];
-    if (!specField) return [];
+    const resolvedField = ctx.profile.fields?.[pkMapping.target];
+    if (!resolvedField) return [];
 
     // Mark this duplicate value as processed
     ctx.processedDuplicates.add(parsed.value);
@@ -147,8 +147,8 @@ function handleNotNullViolation(
 
     if (!notNullMapping) return [];
 
-    const specField = ctx.profile.normalizedFields?.[notNullMapping.target];
-    if (!specField) return [];
+    const resolvedField = ctx.profile.fields?.[notNullMapping.target];
+    if (!resolvedField) return [];
 
     return [
       new NotNullViolation({
@@ -184,8 +184,8 @@ function handleEnumViolation(
 
     if (!enumMapping || !parsed.value) return [];
 
-    const specField = ctx.profile.normalizedFields?.[enumMapping.target];
-    const rawField = ctx.profile.fields?.[enumMapping.target];
+    const specField = ctx.profile.specFields?.[enumMapping.target];
+    const rawField = ctx.profile.rawFields?.[enumMapping.target];
 
     if (!specField || !rawField?.values) return [];
 
@@ -340,7 +340,7 @@ export function insertRowByRow(
   rawTableName: string,
   schemaTableName: string,
   columnMappings: ColumnMapping[],
-  profile: ValidationProfile,
+  profile: ResolvedSpec,
   activeStandard: "obis" | "gbif",
   currentDataset: string,
   crossDatasetRules: readonly WorkspaceCrossDatasetRule[],
