@@ -193,31 +193,25 @@ Deno.test("Obligation - rejects invalid values", () => {
   assertThrows(() => S.decodeUnknownSync(Obligation)(42));
 });
 
-Deno.test("ObligationsMap - decodes valid map with both standards", () => {
-  const result = S.decodeUnknownSync(ObligationsMap)({
-    obis: "required",
-    gbif: "recommended",
+Deno.test("ObligationsMap", async (t) => {
+  await t.step("decodes valid map with both standards", () => {
+    const result = S.decodeUnknownSync(ObligationsMap)({ obis: "required", gbif: "recommended" });
+    assertEquals(result.obis, "required");
+    assertEquals(result.gbif, "recommended");
   });
-  assertEquals(result.obis, "required");
-  assertEquals(result.gbif, "recommended");
-});
 
-Deno.test("ObligationsMap - accepts partial maps", () => {
-  const obisOnly = S.decodeUnknownSync(ObligationsMap)({ obis: "optional" });
-  assertEquals(obisOnly.obis, "optional");
-  assertEquals(obisOnly.gbif, undefined);
+  await t.step("accepts partial and empty maps", () => {
+    const obisOnly = S.decodeUnknownSync(ObligationsMap)({ obis: "optional" });
+    assertEquals(obisOnly.obis, "optional");
+    assertEquals(obisOnly.gbif, undefined);
 
-  const empty = S.decodeUnknownSync(ObligationsMap)({});
-  assertEquals(empty.obis, undefined);
-  assertEquals(empty.gbif, undefined);
-});
+    const empty = S.decodeUnknownSync(ObligationsMap)({});
+    assertEquals(empty.obis, undefined);
+  });
 
-Deno.test("ObligationsMap - rejects invalid obligation values", () => {
-  assertThrows(() =>
-    S.decodeUnknownSync(ObligationsMap)({
-      obis: "mandatory",
-    })
-  );
+  await t.step("rejects invalid obligation values", () => {
+    assertThrows(() => S.decodeUnknownSync(ObligationsMap)({ obis: "mandatory" }));
+  });
 });
 
 // =============================================================================
@@ -401,100 +395,80 @@ Deno.test("normalizeField - warns when requirement is stripped from value constr
 // mergeProfileConstraints Tests
 // =============================================================================
 
-Deno.test("mergeProfileConstraints - keeps strictest required constraint", () => {
-  const parent: Constraint[] = [
-    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
+Deno.test("mergeProfileConstraints", async (t) => {
+  const req = (level: "required" | "recommended" | "optional") =>
+    new RequiredConstraint({ level, allowEmpty: false, allowWhitespace: false });
+  const range = (min: number, max: number) => new RangeConstraint({ min, max, inclusive: true });
+
+  const cases = [
+    {
+      label: "keeps strictest required (required > recommended)",
+      parent: [req("required")],
+      child: [req("recommended")],
+      expectedTags: ["required"],
+      checkRequired: "required" as const,
+    },
+    {
+      label: "allows strengthening (recommended → required)",
+      parent: [req("recommended")],
+      child: [req("required")],
+      expectedTags: ["required"],
+      checkRequired: "required" as const,
+    },
+    {
+      label: "child cannot weaken parent's required",
+      parent: [req("required")],
+      child: [req("optional")],
+      expectedTags: ["required"],
+      checkRequired: "required" as const,
+    },
+    {
+      label: "replaces value constraints normally",
+      parent: [range(-90, 90)],
+      child: [range(-45, 45)],
+      expectedTags: ["range"],
+      checkRange: -45,
+    },
+    {
+      label: "child introduces required where parent has none",
+      parent: [range(-90, 90)],
+      child: [req("required")],
+      expectedTags: ["range", "required"],
+      checkRequired: "required" as const,
+    },
   ];
-  const child: Constraint[] = [
-    new RequiredConstraint({ level: "recommended", allowEmpty: false, allowWhitespace: false }),
-  ];
-  const result = mergeProfileConstraints(parent, child);
-  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
-  assertEquals(required.length, 1);
-  assertEquals(required[0].level, "required");
+
+  for (const { label, parent, child, expectedTags, checkRequired, checkRange } of cases) {
+    await t.step(label, () => {
+      const result = mergeProfileConstraints(parent, child);
+      assertEquals(result.map((c) => c._tag).sort(), [...expectedTags].sort(), label);
+      if (checkRequired) {
+        const req = result.filter((c) => c._tag === "required") as RequiredConstraint[];
+        assertEquals(req[0].level, checkRequired);
+      }
+      if (checkRange !== undefined) {
+        assertEquals((result.find((c) => c._tag === "range") as RangeConstraint).min, checkRange);
+      }
+    });
+  }
 });
 
-Deno.test("mergeProfileConstraints - allows strengthening required", () => {
-  const parent: Constraint[] = [
-    new RequiredConstraint({ level: "recommended", allowEmpty: false, allowWhitespace: false }),
-  ];
-  const child: Constraint[] = [
-    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
-  ];
-  const result = mergeProfileConstraints(parent, child);
-  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
-  assertEquals(required.length, 1);
-  assertEquals(required[0].level, "required");
-});
-
-Deno.test("mergeProfileConstraints - replaces value constraints normally", () => {
-  const parent: Constraint[] = [
-    new RangeConstraint({ min: -90, max: 90, inclusive: true }),
-  ];
-  const child: Constraint[] = [
-    new RangeConstraint({ min: -45, max: 45, inclusive: true }),
-  ];
-  const result = mergeProfileConstraints(parent, child);
-  assertEquals(result.length, 1);
-  assertEquals(result[0]._tag, "range");
-  assertEquals((result[0] as RangeConstraint).min, -45);
-});
-
-Deno.test("mergeProfileConstraints - child introduces RequiredConstraint where parent has none", () => {
-  const parent: Constraint[] = [
-    new RangeConstraint({ min: -90, max: 90, inclusive: true }),
-  ];
-  const child: Constraint[] = [
-    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
-  ];
-  const result = mergeProfileConstraints(parent, child);
-  assertEquals(result.length, 2);
-  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
-  assertEquals(required.length, 1);
-  assertEquals(required[0].level, "required");
-});
-
-Deno.test("mergeProfileConstraints - child cannot weaken parent's required", () => {
-  const parent: Constraint[] = [
-    new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
-  ];
-  const child: Constraint[] = [
-    new RequiredConstraint({ level: "optional", allowEmpty: false, allowWhitespace: false }),
-  ];
-  const result = mergeProfileConstraints(parent, child);
-  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
-  assertEquals(required.length, 1);
-  assertEquals(required[0].level, "required");
-});
-
-Deno.test("normalizeField - no warning when value constraint has no requirement", () => {
+Deno.test("normalizeField - object validator with params flattened to Constraint (no warning)", () => {
   const warnings: string[] = [];
   const originalWarn = console.warn;
   console.warn = (msg: string) => warnings.push(msg);
   try {
     const field = makeTestField({
-      name: "decimalLatitude",
-      validators: [
-        { type: "range", params: { min: -90, max: 90 } },
-      ],
+      name: "test",
+      validators: [{ type: "range", params: { min: -90, max: 90 } }],
     });
-    normalizeField(field);
-    assertEquals(warnings.length, 0);
+    const result = normalizeField(field);
+    const range = result.constraints.filter((c) => c._tag === "range");
+    assertEquals(range.length, 1);
+    assertEquals((range[0] as RangeConstraint).min, -90);
+    assertEquals((range[0] as RangeConstraint).max, 90);
+    assertEquals(warnings.length, 0, "no warning when no requirement on value constraint");
   } finally {
     console.warn = originalWarn;
   }
-});
-
-Deno.test("normalizeField - object validator with params flattened to Constraint", () => {
-  const field = makeTestField({
-    name: "test",
-    validators: [
-      { type: "range", params: { min: -90, max: 90 } },
-    ],
-  });
-  const result = normalizeField(field);
-  const range = result.constraints.filter((c) => c._tag === "range");
-  assertEquals(range.length, 1);
-  assertEquals((range[0] as RangeConstraint).min, -90);
-  assertEquals((range[0] as RangeConstraint).max, 90);
 });

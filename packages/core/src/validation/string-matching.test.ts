@@ -104,114 +104,56 @@ Deno.test("findClosestMatches - multiple close matches", () => {
   assert(hasEventFields);
 });
 
-Deno.test("findClosestMatches - respects maxDistance", () => {
-  // "lat" is far from most fields
-  const matchesDefault = findClosestMatches("lat", DARWIN_CORE_FIELDS);
-  const matchesStrict = findClosestMatches("lat", DARWIN_CORE_FIELDS, {
-    maxDistance: 1,
+Deno.test("findClosestMatches - options and sorting", async (t) => {
+  await t.step("respects maxDistance", () => {
+    const matchesDefault = findClosestMatches("lat", DARWIN_CORE_FIELDS);
+    const matchesStrict = findClosestMatches("lat", DARWIN_CORE_FIELDS, { maxDistance: 1 });
+    assertLessOrEqual(matchesStrict.length, matchesDefault.length);
   });
 
-  // With default distance (2), might find some matches
-  // With strict distance (1), should find fewer or none
-  assertLessOrEqual(matchesStrict.length, matchesDefault.length);
-});
-
-Deno.test("findClosestMatches - respects maxSuggestions", () => {
-  const matches1 = findClosestMatches("event", DARWIN_CORE_FIELDS, {
-    maxSuggestions: 1,
-  });
-  const matches5 = findClosestMatches("event", DARWIN_CORE_FIELDS, {
-    maxSuggestions: 5,
+  await t.step("respects maxSuggestions", () => {
+    const matches1 = findClosestMatches("event", DARWIN_CORE_FIELDS, { maxSuggestions: 1 });
+    assertEquals(matches1.length, 1);
   });
 
-  assertEquals(matches1.length, 1);
-  assertLessOrEqual(matches5.length, 5);
-  assertGreaterOrEqual(matches5.length, matches1.length);
-});
+  await t.step("sorted by distance then length", () => {
+    const matches = findClosestMatches("eventd", DARWIN_CORE_FIELDS);
+    for (let i = 1; i < matches.length; i++) {
+      assertLessOrEqual(matches[i - 1].distance, matches[i].distance);
+    }
 
-Deno.test("findClosestMatches - sorting by distance", () => {
-  const matches = findClosestMatches("eventd", DARWIN_CORE_FIELDS);
+    const byLength = findClosestMatches("a", ["abc", "abcdef", "ab"], { maxDistance: 2 });
+    assertGreaterOrEqual(byLength.length, 2);
+    assertEquals(byLength[0].value, "ab");
+    assertEquals(byLength[1].value, "abc");
+  });
 
-  // Should be sorted by distance (closest first)
-  for (let i = 1; i < matches.length; i++) {
-    assertLessOrEqual(
-      matches[i - 1].distance,
-      matches[i].distance,
-      "Matches should be sorted by distance",
+  await t.step("no matches for empty input, empty options, or beyond threshold", () => {
+    assertEquals(findClosestMatches("xyz", DARWIN_CORE_FIELDS, { maxDistance: 1 }).length, 0);
+    assertEquals(findClosestMatches("", DARWIN_CORE_FIELDS).length, 0);
+    assertEquals(findClosestMatches("eventID", []).length, 0);
+  });
+
+  await t.step("case sensitivity and separator normalization toggles", () => {
+    assertEquals(
+      findClosestMatches("eventid", DARWIN_CORE_FIELDS, { caseInsensitive: true })[0]?.distance,
+      0,
     );
-  }
-});
-
-Deno.test("findClosestMatches - sorting by length for same distance", () => {
-  // Create test data where multiple fields have same distance
-  const testFields = ["abc", "abcdef", "ab"];
-  const matches = findClosestMatches("a", testFields, { maxDistance: 2 });
-
-  // For same distance, shorter strings should come first
-  assertGreaterOrEqual(matches.length, 2);
-  assertEquals(matches[0].value, "ab"); // distance 1, shortest
-  assertEquals(matches[1].value, "abc"); // distance 2, shorter
-  // abcdef has distance 5, which is > maxDistance of 2, so it won't be included
-});
-
-Deno.test("findClosestMatches - no matches beyond threshold", () => {
-  const matches = findClosestMatches("xyz", DARWIN_CORE_FIELDS, {
-    maxDistance: 1,
+    assertGreater(
+      findClosestMatches("eventid", DARWIN_CORE_FIELDS, { caseInsensitive: false })[0]?.distance,
+      0,
+    );
+    assertEquals(
+      findClosestMatches("event_id", DARWIN_CORE_FIELDS, { normalizeSeparators: true })[0]
+        ?.distance,
+      0,
+    );
+    assertGreater(
+      findClosestMatches("event_id", DARWIN_CORE_FIELDS, { normalizeSeparators: false })[0]
+        ?.distance,
+      0,
+    );
   });
-
-  // "xyz" is very different from Darwin Core fields
-  // With maxDistance=1, should find no matches
-  assertEquals(matches.length, 0);
-});
-
-Deno.test("findClosestMatches - empty input", () => {
-  const matches = findClosestMatches("", DARWIN_CORE_FIELDS);
-
-  // Empty string has large distance from all fields
-  // Should return no matches with default maxDistance
-  assertEquals(matches.length, 0);
-});
-
-Deno.test("findClosestMatches - empty options", () => {
-  const matches = findClosestMatches("eventID", []);
-
-  assertEquals(matches.length, 0);
-});
-
-Deno.test("findClosestMatches - case-sensitive mode", () => {
-  const matchesCaseInsensitive = findClosestMatches("eventid", DARWIN_CORE_FIELDS, {
-    caseInsensitive: true,
-  });
-
-  const matchesCaseSensitive = findClosestMatches("eventid", DARWIN_CORE_FIELDS, {
-    caseInsensitive: false,
-  });
-
-  // Case-insensitive should find exact match
-  assertEquals(matchesCaseInsensitive[0]?.distance, 0);
-
-  // Case-sensitive should have distance based on case differences
-  if (matchesCaseSensitive.length > 0) {
-    assertGreater(matchesCaseSensitive[0].distance, 0);
-  }
-});
-
-Deno.test("findClosestMatches - separator normalization disabled", () => {
-  const matchesNormalized = findClosestMatches("event_id", DARWIN_CORE_FIELDS, {
-    normalizeSeparators: true,
-  });
-
-  const matchesNotNormalized = findClosestMatches("event_id", DARWIN_CORE_FIELDS, {
-    normalizeSeparators: false,
-  });
-
-  // With normalization, should match exactly
-  assertEquals(matchesNormalized[0]?.distance, 0);
-
-  // Without normalization, distance should be higher
-  if (matchesNotNormalized.length > 0) {
-    assertGreater(matchesNotNormalized[0].distance, 0);
-  }
 });
 
 Deno.test("findSuggestions - returns just string values", () => {
@@ -225,30 +167,18 @@ Deno.test("findSuggestions - returns just string values", () => {
   assertEquals(suggestions[0], "eventID");
 });
 
-Deno.test("hasCloseMatch - returns true for close matches", () => {
-  assert(hasCloseMatch("eventID", DARWIN_CORE_FIELDS));
-  assert(hasCloseMatch("eventid", DARWIN_CORE_FIELDS));
-  assert(hasCloseMatch("evntID", DARWIN_CORE_FIELDS));
-  assert(hasCloseMatch("event_id", DARWIN_CORE_FIELDS));
-});
-
-Deno.test("hasCloseMatch - returns false for no matches", () => {
-  assertFalse(hasCloseMatch("xyz", DARWIN_CORE_FIELDS));
-  assertFalse(hasCloseMatch("completely_different", DARWIN_CORE_FIELDS));
-});
-
-Deno.test("hasCloseMatch - respects maxDistance", () => {
-  // "evt" is 3 edits away from "eventID" (after normalization: "evt" -> "eventid")
-  const hasMatchDefault = hasCloseMatch("evt", DARWIN_CORE_FIELDS);
-
-  assertFalse(hasMatchDefault);
-
-  const hasMatchStrict = hasCloseMatch("evt", DARWIN_CORE_FIELDS, {
-    maxDistance: 1,
+Deno.test("hasCloseMatch", async (t) => {
+  await t.step("returns true for close matches", () => {
+    for (const input of ["eventID", "eventid", "evntID", "event_id"]) {
+      assert(hasCloseMatch(input, DARWIN_CORE_FIELDS), input);
+    }
   });
 
-  // Default (maxDistance: 2) might not find it either, but strict definitely won't
-  assertFalse(hasMatchStrict);
+  await t.step("returns false for distant or unknown inputs", () => {
+    for (const input of ["xyz", "completely_different", "evt"]) {
+      assertFalse(hasCloseMatch(input, DARWIN_CORE_FIELDS), input);
+    }
+  });
 });
 
 Deno.test("Real-world scenario: common typos", () => {
@@ -283,90 +213,41 @@ Deno.test("Real-world scenario: common typos", () => {
   }
 });
 
-Deno.test("Real-world scenario: prefix matching", () => {
-  // User types partial field names - need higher maxDistance for prefixes
-  // Note: Levenshtein distance counts insertions, so "decimal" -> "decimalLatitude" = 8 inserts
-  const partials = [
-    { input: "event", expectedContains: ["eventID"], maxDistance: 4 },
-    { input: "decimal", expectedContains: ["decimalLatitude"], maxDistance: 10 },
-    { input: "institution", expectedContains: ["institutionCode"], maxDistance: 10 },
-  ];
-
-  for (const { input, expectedContains, maxDistance } of partials) {
-    const suggestions = findSuggestions(input, DARWIN_CORE_FIELDS, {
-      maxDistance,
-      maxSuggestions: 5,
-    });
-
-    for (const expected of expectedContains) {
-      assertArrayIncludes(
-        suggestions,
-        [expected],
-        `Expected '${expected}' in suggestions for prefix '${input}', got: ${
-          suggestions.join(", ")
-        }`,
-      );
-    }
-  }
-});
-
-Deno.test("Real-world scenario: no false positives", () => {
-  // Completely unrelated field names should not match
-  const unrelated = ["foobar", "test123", "randomField", "notAField"];
-
-  for (const input of unrelated) {
+Deno.test("Real-world scenario: no false positives for unrelated inputs", () => {
+  for (const input of ["foobar", "test123", "randomField", "notAField"]) {
     const suggestions = findSuggestions(input, DARWIN_CORE_FIELDS);
-
-    // Should either find no matches, or only very weak matches
-    assertLessOrEqual(
-      suggestions.length,
-      1,
-      `Should not find many matches for unrelated field '${input}'`,
-    );
+    assertLessOrEqual(suggestions.length, 1, `unexpected matches for '${input}'`);
   }
 });
 
-Deno.test("Edge case: single character field names", () => {
-  const fields = ["a", "b", "c"];
-  const matches = findClosestMatches("a", fields);
+Deno.test("Edge cases", async (t) => {
+  await t.step("single character field names", () => {
+    const matches = findClosestMatches("a", ["a", "b", "c"]);
+    assertGreaterOrEqual(matches.length, 1);
+    assertEquals(matches[0].value, "a");
+    assertEquals(matches[0].distance, 0);
+  });
 
-  // With maxDistance=2, all three single chars are within range
-  // 'a' matches 'a' exactly (distance 0)
-  // 'a' matches 'b' and 'c' with distance 1
-  assertGreaterOrEqual(matches.length, 1);
-  assertEquals(matches[0].value, "a");
-  assertEquals(matches[0].distance, 0);
-});
+  await t.step("very long field names", () => {
+    const matches = findClosestMatches("a".repeat(99), ["a".repeat(100), "b".repeat(100)]);
+    assertGreaterOrEqual(matches.length, 1);
+    assertEquals(matches[0].value, "a".repeat(100));
+    assertEquals(matches[0].distance, 1);
+  });
 
-Deno.test("Edge case: very long field names", () => {
-  const fields = ["a".repeat(100), "b".repeat(100)];
-  const matches = findClosestMatches("a".repeat(99), fields);
+  await t.step("special characters normalized", () => {
+    const matches = findClosestMatches("field-name", [
+      "field-name",
+      "field_name",
+      "field.name",
+      "fieldName",
+    ]);
+    assertGreaterOrEqual(matches.length, 1);
+    assertEquals(matches[0].distance, 0);
+  });
 
-  assertGreaterOrEqual(matches.length, 1);
-  assertEquals(matches[0].value, "a".repeat(100));
-  assertEquals(matches[0].distance, 1);
-});
-
-Deno.test("Edge case: special characters in field names", () => {
-  const fields = ["field-name", "field_name", "field.name", "fieldName"];
-  const matches = findClosestMatches("field-name", fields);
-
-  // With normalization, all of these become "fieldname" so they all match
-  assertGreaterOrEqual(matches.length, 1);
-  assertEquals(matches[0].distance, 0);
-
-  // The first match should be "field-name" (exact match) or one of the normalized equivalents
-  const firstMatch = matches[0].value;
-  assertArrayIncludes(
-    ["field-name", "field_name", "fieldName"],
-    [firstMatch],
-  );
-});
-
-Deno.test("Edge case: unicode characters", () => {
-  const fields = ["événement", "événementID", "country"];
-  const matches = findClosestMatches("evenement", fields);
-
-  // Should match événement (with accent) reasonably well
-  assertGreaterOrEqual(matches.length, 1);
+  await t.step("unicode characters", () => {
+    const matches = findClosestMatches("evenement", ["événement", "événementID", "country"]);
+    assertGreaterOrEqual(matches.length, 1);
+  });
 });

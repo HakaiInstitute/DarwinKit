@@ -73,161 +73,102 @@ function extractViolations(result: any): Array<Record<string, unknown>> {
 // Range Constraint Tests
 // =============================================================================
 
-Deno.test("findRangeViolations - detects values above max", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "lat DOUBLE", [
-      "1, 45.0",
-      "2, 95.0",
-      "3, -10.0",
-    ]);
+Deno.test("findRangeViolations", async (t) => {
+  const cases = [
+    {
+      label: "above max",
+      rows: ["1, 45.0", "2, 95.0", "3, -10.0"],
+      constraint: { min: -90, max: 90, inclusive: true },
+      expectedCount: 1,
+      expectedValue: "95.0",
+    },
+    {
+      label: "below min",
+      rows: ["1, 45.0", "2, -95.0"],
+      constraint: { min: -90, max: 90, inclusive: true },
+      expectedCount: 1,
+      expectedValue: "-95.0",
+    },
+    {
+      label: "only min specified",
+      rows: ["1, 10.0", "2, -5.0"],
+      constraint: { min: 0, inclusive: true },
+      expectedCount: 1,
+      expectedValue: "-5.0",
+    },
+    {
+      label: "only max specified",
+      rows: ["1, 50.0", "2, 150.0"],
+      constraint: { max: 100, inclusive: true },
+      expectedCount: 1,
+      expectedValue: "150.0",
+    },
+    {
+      label: "inclusive boundary passes",
+      rows: ["1, 90.0", "2, -90.0"],
+      constraint: { min: -90, max: 90, inclusive: true },
+      expectedCount: 0,
+    },
+    {
+      label: "exclusive boundary fails",
+      rows: ["1, 90.0"],
+      constraint: { min: -90, max: 90, inclusive: false },
+      expectedCount: 1,
+    },
+  ];
 
-    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
-    const field = makeField("lat", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findRangeViolations(conn, TABLE, "lat", constraint, field),
-    );
-
-    const violations = extractViolations(result);
-    assertEquals(violations.length, 1);
-    assertEquals(violations[0].value, "95.0");
-  });
-});
-
-Deno.test("findRangeViolations - detects values below min", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "lat DOUBLE", [
-      "1, 45.0",
-      "2, -95.0",
-    ]);
-
-    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
-    const field = makeField("lat", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findRangeViolations(conn, TABLE, "lat", constraint, field),
-    );
-
-    const violations = extractViolations(result);
-    assertEquals(violations.length, 1);
-    assertEquals(violations[0].value, "-95.0");
-  });
-});
-
-Deno.test("findRangeViolations - only min specified", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "depth DOUBLE", [
-      "1, 10.0",
-      "2, -5.0",
-    ]);
-
-    const constraint = new RangeConstraint({ min: 0, inclusive: true });
-    const field = makeField("depth", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findRangeViolations(conn, TABLE, "depth", constraint, field),
-    );
-
-    const violations = extractViolations(result);
-    assertEquals(violations.length, 1);
-    assertEquals(violations[0].value, "-5.0");
-  });
-});
-
-Deno.test("findRangeViolations - only max specified", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "val DOUBLE", [
-      "1, 50.0",
-      "2, 150.0",
-    ]);
-
-    const constraint = new RangeConstraint({ max: 100, inclusive: true });
-    const field = makeField("val", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findRangeViolations(conn, TABLE, "val", constraint, field),
-    );
-
-    const violations = extractViolations(result);
-    assertEquals(violations.length, 1);
-    assertEquals(violations[0].value, "150.0");
-  });
-});
-
-Deno.test("findRangeViolations - inclusive boundary passes", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "lat DOUBLE", [
-      "1, 90.0",
-      "2, -90.0",
-    ]);
-
-    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
-    const field = makeField("lat", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findRangeViolations(conn, TABLE, "lat", constraint, field),
-    );
-
-    assert(result._tag === "Success");
-  });
-});
-
-Deno.test("findRangeViolations - exclusive boundary fails", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "lat DOUBLE", [
-      "1, 90.0",
-    ]);
-
-    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: false });
-    const field = makeField("lat", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findRangeViolations(conn, TABLE, "lat", constraint, field),
-    );
-
-    assert(result._tag === "Failure");
-  });
+  for (const { label, rows, constraint: params, expectedCount, expectedValue } of cases) {
+    await t.step(label, async () => {
+      await withConnection(async (conn) => {
+        await setupTable(conn, "val DOUBLE", rows);
+        const constraint = new RangeConstraint(params);
+        const field = makeField("val", [constraint]);
+        const result = await Effect.runPromiseExit(
+          findRangeViolations(conn, TABLE, "val", constraint, field),
+        );
+        if (expectedCount === 0) {
+          assert(result._tag === "Success", label);
+        } else {
+          const violations = extractViolations(result);
+          assertEquals(violations.length, expectedCount, label);
+          if (expectedValue) assertEquals(violations[0].value, expectedValue, label);
+        }
+      });
+    });
+  }
 });
 
 // =============================================================================
 // Pattern Constraint Tests
 // =============================================================================
 
-Deno.test("findPatternViolations - valid match passes", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "code VARCHAR", [
-      "1, 'CA'",
-      "2, 'GB'",
-    ]);
+Deno.test("findPatternViolations", async (t) => {
+  const pattern = "^[A-Z]{2}$";
 
-    const constraint = new PatternConstraint({ pattern: "^[A-Z]{2}$" });
-    const field = makeField("code", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findPatternViolations(conn, TABLE, "code", constraint, field),
-    );
-
-    assert(result._tag === "Success");
+  await t.step("valid match passes", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "code VARCHAR", ["1, 'CA'", "2, 'GB'"]);
+      const constraint = new PatternConstraint({ pattern });
+      const field = makeField("code", [constraint]);
+      const result = await Effect.runPromiseExit(
+        findPatternViolations(conn, TABLE, "code", constraint, field),
+      );
+      assert(result._tag === "Success");
+    });
   });
-});
 
-Deno.test("findPatternViolations - invalid match fails", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "code VARCHAR", [
-      "1, 'CA'",
-      "2, 'USA'",
-    ]);
-
-    const constraint = new PatternConstraint({ pattern: "^[A-Z]{2}$" });
-    const field = makeField("code", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findPatternViolations(conn, TABLE, "code", constraint, field),
-    );
-
-    const violations = extractViolations(result);
-    assertEquals(violations.length, 1);
-    assertEquals(violations[0].value, "USA");
+  await t.step("invalid match fails", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "code VARCHAR", ["1, 'CA'", "2, 'USA'"]);
+      const constraint = new PatternConstraint({ pattern });
+      const field = makeField("code", [constraint]);
+      const result = await Effect.runPromiseExit(
+        findPatternViolations(conn, TABLE, "code", constraint, field),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "USA");
+    });
   });
 });
 
@@ -235,56 +176,43 @@ Deno.test("findPatternViolations - invalid match fails", async () => {
 // Length Constraint Tests
 // =============================================================================
 
-Deno.test("findLengthViolations - at minLength passes", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "name VARCHAR", [
-      "1, 'abc'",
-    ]);
-
-    const constraint = new LengthConstraint({ minLength: 3, maxLength: 100 });
-    const field = makeField("name", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findLengthViolations(conn, TABLE, "name", constraint, field),
-    );
-
-    assert(result._tag === "Success");
+Deno.test("findLengthViolations", async (t) => {
+  await t.step("at minLength passes", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "name VARCHAR", ["1, 'abc'"]);
+      const constraint = new LengthConstraint({ minLength: 3, maxLength: 100 });
+      const field = makeField("name", [constraint]);
+      const result = await Effect.runPromiseExit(
+        findLengthViolations(conn, TABLE, "name", constraint, field),
+      );
+      assert(result._tag === "Success");
+    });
   });
-});
 
-Deno.test("findLengthViolations - below minLength fails", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "name VARCHAR", [
-      "1, 'ab'",
-    ]);
-
-    const constraint = new LengthConstraint({ minLength: 3 });
-    const field = makeField("name", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findLengthViolations(conn, TABLE, "name", constraint, field),
-    );
-
-    const violations = extractViolations(result);
-    assertEquals(violations.length, 1);
-    assertEquals(violations[0].value, "ab");
+  await t.step("below minLength fails", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "name VARCHAR", ["1, 'ab'"]);
+      const constraint = new LengthConstraint({ minLength: 3 });
+      const field = makeField("name", [constraint]);
+      const result = await Effect.runPromiseExit(
+        findLengthViolations(conn, TABLE, "name", constraint, field),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "ab");
+    });
   });
-});
 
-Deno.test("findLengthViolations - above maxLength fails", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "name VARCHAR", [
-      "1, 'a very long string that exceeds the limit'",
-    ]);
-
-    const constraint = new LengthConstraint({ maxLength: 10 });
-    const field = makeField("name", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findLengthViolations(conn, TABLE, "name", constraint, field),
-    );
-
-    assert(result._tag === "Failure");
+  await t.step("above maxLength fails", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "name VARCHAR", ["1, 'a very long string that exceeds the limit'"]);
+      const constraint = new LengthConstraint({ maxLength: 10 });
+      const field = makeField("name", [constraint]);
+      const result = await Effect.runPromiseExit(
+        findLengthViolations(conn, TABLE, "name", constraint, field),
+      );
+      assert(result._tag === "Failure");
+    });
   });
 });
 
@@ -292,60 +220,50 @@ Deno.test("findLengthViolations - above maxLength fails", async () => {
 // Format Constraint Tests
 // =============================================================================
 
-Deno.test("findFormatViolations - valid ISO 8601 date passes", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "eventDate VARCHAR", [
-      "1, '2022-09-15'",
-      "2, '2022-01'",
-      "3, '2022'",
-    ]);
-
-    const constraint = new FormatConstraint({ format: "iso8601" });
-    const field = makeField("eventDate", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findFormatViolations(conn, TABLE, "eventDate", constraint, field),
-    );
-
-    assert(result._tag === "Success");
+Deno.test("findFormatViolations", async (t) => {
+  await t.step("valid ISO 8601 dates pass", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "eventDate VARCHAR", [
+        "1, '2022-09-15'",
+        "2, '2022-01'",
+        "3, '2022'",
+      ]);
+      const constraint = new FormatConstraint({ format: "iso8601" });
+      const field = makeField("eventDate", [constraint]);
+      const result = await Effect.runPromiseExit(
+        findFormatViolations(conn, TABLE, "eventDate", constraint, field),
+      );
+      assert(result._tag === "Success");
+    });
   });
-});
 
-Deno.test("findFormatViolations - invalid date detected", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "eventDate VARCHAR", [
-      "1, '2022-09-15'",
-      "2, 'not-a-date'",
-    ]);
-
-    const constraint = new FormatConstraint({ format: "iso8601" });
-    const field = makeField("eventDate", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findFormatViolations(conn, TABLE, "eventDate", constraint, field),
-    );
-
-    const violations = extractViolations(result);
-    assertEquals(violations.length, 1);
-    assertEquals(violations[0].value, "not-a-date");
+  await t.step("invalid date detected", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "eventDate VARCHAR", ["1, '2022-09-15'", "2, 'not-a-date'"]);
+      const constraint = new FormatConstraint({ format: "iso8601" });
+      const field = makeField("eventDate", [constraint]);
+      const result = await Effect.runPromiseExit(
+        findFormatViolations(conn, TABLE, "eventDate", constraint, field),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "not-a-date");
+    });
   });
-});
 
-Deno.test("findFormatViolations - valid URL passes", async () => {
-  await withConnection(async (conn) => {
-    await setupTable(conn, "url VARCHAR", [
-      "1, 'https://example.com'",
-      "2, 'http://test.org/path'",
-    ]);
-
-    const constraint = new FormatConstraint({ format: "url" });
-    const field = makeField("url", [constraint]);
-
-    const result = await Effect.runPromiseExit(
-      findFormatViolations(conn, TABLE, "url", constraint, field),
-    );
-
-    assert(result._tag === "Success");
+  await t.step("valid URL passes", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "url VARCHAR", [
+        "1, 'https://example.com'",
+        "2, 'http://test.org/path'",
+      ]);
+      const constraint = new FormatConstraint({ format: "url" });
+      const field = makeField("url", [constraint]);
+      const result = await Effect.runPromiseExit(
+        findFormatViolations(conn, TABLE, "url", constraint, field),
+      );
+      assert(result._tag === "Success");
+    });
   });
 });
 

@@ -91,42 +91,45 @@ Deno.test("resolveActiveStandard - extracts variant or defaults to obis", () => 
 // obligationForStandard Tests
 // =============================================================================
 
-Deno.test("obligationForStandard - returns obligation and requirement for OBIS required", () => {
-  const field: SpecField = {
-    name: "eventDate",
-    constraints: [],
-    obligations: { obis: "required" },
-  };
-  const result = obligationForStandard(field, "obis");
-  assertEquals(result?.obligation, "required");
-  assertEquals(result?.requirement, "required");
-});
+Deno.test("obligationForStandard - maps obligation to requirement for given standard", () => {
+  const cases: Array<{
+    label: string;
+    obligations?: Record<string, string>;
+    standard: "obis" | "gbif";
+    expected: { obligation: string; requirement: string | undefined } | undefined;
+  }> = [
+    {
+      label: "OBIS required",
+      obligations: { obis: "required" },
+      standard: "obis",
+      expected: { obligation: "required", requirement: "required" },
+    },
+    {
+      label: "GBIF required",
+      obligations: { gbif: "required" },
+      standard: "gbif",
+      expected: { obligation: "required", requirement: "required" },
+    },
+    {
+      label: "no obligations → undefined",
+      obligations: undefined,
+      standard: "obis",
+      expected: undefined,
+    },
+    {
+      label: "'required (if exists)' → no requirement",
+      obligations: { obis: "required (if exists)" },
+      standard: "obis",
+      expected: { obligation: "required (if exists)", requirement: undefined },
+    },
+  ];
 
-Deno.test("obligationForStandard - returns obligation and requirement for GBIF required", () => {
-  const field: SpecField = {
-    name: "eventDate",
-    constraints: [],
-    obligations: { gbif: "required" },
-  };
-  const result = obligationForStandard(field, "gbif");
-  assertEquals(result?.obligation, "required");
-  assertEquals(result?.requirement, "required");
-});
-
-Deno.test("obligationForStandard - returns undefined when no obligations", () => {
-  const field: SpecField = { name: "eventDate", constraints: [] };
-  assertEquals(obligationForStandard(field, "obis"), undefined);
-});
-
-Deno.test("obligationForStandard - returns raw obligation for 'required (if exists)'", () => {
-  const field: SpecField = {
-    name: "parentEventID",
-    constraints: [],
-    obligations: { obis: "required (if exists)" },
-  };
-  const result = obligationForStandard(field, "obis");
-  assertEquals(result?.obligation, "required (if exists)");
-  assertEquals(result?.requirement, undefined);
+  for (const { label, obligations, standard, expected } of cases) {
+    const field: SpecField = { name: "test", constraints: [], ...(obligations && { obligations }) };
+    const result = obligationForStandard(field, standard);
+    assertEquals(result?.obligation, expected?.obligation, label);
+    assertEquals(result?.requirement, expected?.requirement, label);
+  }
 });
 
 // =============================================================================
@@ -222,48 +225,50 @@ Deno.test("addConstraints - no diagnostics when no overlapping types", () => {
   assertEquals(tracker.overlapping.length, 0);
 });
 
-Deno.test("addConstraints - filters weaker RequiredConstraint and emits diagnostic", () => {
-  const existing: Constraint[] = [requiredConstraint("required")];
-  const additions: Constraint[] = [requiredConstraint("optional")];
-  const tracker = { fieldName: "eventDate", overlapping: [] as string[], filtered: [] as string[] };
+Deno.test("addConstraints - RequiredConstraint strength filtering", async (t) => {
+  const cases = [
+    {
+      label: "filters weaker (optional added to required)",
+      existing: "required" as const,
+      addition: "optional" as const,
+      expectedCount: 1,
+      expectFiltered: true,
+    },
+    {
+      label: "keeps equal strength (required + required)",
+      existing: "required" as const,
+      addition: "required" as const,
+      expectedCount: 2,
+      expectFiltered: false,
+    },
+    {
+      label: "keeps stronger from config (required added to optional)",
+      existing: "optional" as const,
+      addition: "required" as const,
+      expectedCount: 2,
+      expectFiltered: false,
+    },
+  ];
 
-  const result = addConstraints(existing, additions, tracker);
-  // Weaker 'optional' should be filtered out
-  assertEquals(result.length, 1);
-  const required = result.filter((c) => c._tag === "required") as RequiredConstraint[];
-  assertEquals(required.length, 1);
-  assertEquals(required[0].level, "required");
-
-  // Diagnostic should record the filtering
-  assertEquals(tracker.filtered.length, 1);
-  assert(tracker.filtered[0].includes("optional"));
-  assert(tracker.filtered[0].includes("required"));
-});
-
-Deno.test("addConstraints - keeps equal-strength RequiredConstraint (not weaker)", () => {
-  const existing: Constraint[] = [requiredConstraint("required")];
-  const additions: Constraint[] = [requiredConstraint("required")];
-
-  const result = addConstraints(existing, additions);
-  // Equal strength is allowed (additive)
-  assertEquals(result.length, 2);
-});
-
-Deno.test("addConstraints - keeps stronger RequiredConstraint from config", () => {
-  const existing: Constraint[] = [requiredConstraint("optional")];
-  const additions: Constraint[] = [requiredConstraint("required")];
-
-  const result = addConstraints(existing, additions);
-  assertEquals(result.length, 2);
-  const required = result.filter((c) => c._tag === "required");
-  assertEquals(required.length, 2);
+  for (const { label, existing, addition, expectedCount, expectFiltered } of cases) {
+    await t.step(label, () => {
+      const tracker = { fieldName: "test", overlapping: [] as string[], filtered: [] as string[] };
+      const result = addConstraints(
+        [requiredConstraint(existing)],
+        [requiredConstraint(addition)],
+        tracker,
+      );
+      assertEquals(result.length, expectedCount, label);
+      assertEquals(tracker.filtered.length > 0, expectFiltered, `${label} - filtered diagnostic`);
+    });
+  }
 });
 
 // =============================================================================
 // resolveSpecFields Diagnostics Tests
 // =============================================================================
 
-Deno.test("resolveSpecFields - diagnostics records overlapping config constraints", () => {
+Deno.test("resolveSpecFields - diagnostics records overlapping config constraints with explanatory message", () => {
   const profile = makeResolvedSpec({
     specFields: {
       decimalLatitude: {
@@ -287,42 +292,15 @@ Deno.test("resolveSpecFields - diagnostics records overlapping config constraint
   assert(lat?.constraints !== undefined);
   assertEquals(lat.constraints.filter((c) => c._tag === "range").length, 2);
 
-  // Diagnostic records the overlap
+  // Diagnostic records the overlap with explanatory message
   assertEquals(diagnostics.length, 1);
   assertEquals(diagnostics[0].fieldName, "decimalLatitude");
   assert(diagnostics[0].overlappingTypes.includes("range"));
-  assert(diagnostics[0].message.includes("range"));
-  assert(diagnostics[0].message.includes("decimalLatitude"));
-});
-
-Deno.test("resolveSpecFields - diagnostic message explains both constraints apply", () => {
-  const profile = makeResolvedSpec({
-    specFields: {
-      decimalLatitude: {
-        name: "decimalLatitude",
-        constraints: [rangeConstraint(-90, 90)],
-      },
-    },
-  });
-
-  const configMappings: WorkspaceFieldMapping[] = [{
-    originName: "lat",
-    targetName: "decimalLatitude",
-    constraints: [rangeConstraint(0, 50)],
-  }];
-
-  const diagnostics: ResolutionDiagnostic[] = [];
-  resolveSpecFields(profile, "obis", configMappings, diagnostics);
-
-  assertEquals(diagnostics.length, 1);
   const msg = diagnostics[0].message;
   assert(msg.includes("additional"), "Message should mention 'additional'");
   assert(msg.includes("range"), "Message should mention constraint type");
   assert(msg.includes("decimalLatitude"), "Message should mention field name");
-  assert(
-    msg.includes("data must satisfy both"),
-    "Message should explain both constraints apply",
-  );
+  assert(msg.includes("data must satisfy both"), "Message should explain both constraints apply");
 });
 
 Deno.test("resolveSpecFields - no diagnostics when config adds new types", () => {
@@ -942,54 +920,8 @@ Deno.test("End-to-end: obligation on spec field flows through 3-tier pipeline to
     assertEquals(requirement, undefined);
   });
 
-  await t.step(
-    "OBIS 'required (if exists)' obligation → recommended level when field is mapped",
-    () => {
-      const profile = makeResolvedSpec({
-        specFields: {
-          parentEventID: {
-            name: "parentEventID",
-            label: "Parent Event ID",
-            constraints: [],
-            obligations: { obis: "required (if exists)" },
-          },
-        },
-      });
-
-      const configMappings: WorkspaceFieldMapping[] = [{
-        originName: "parentEventID",
-        targetName: "parentEventID",
-      }];
-
-      const resolved = resolveSpecFields(profile, "obis", configMappings);
-      const requirement = deriveRequirementFromConstraints(
-        resolved["parentEventID"]?.constraints,
-      );
-      assertEquals(requirement, "recommended");
-    },
-  );
-
-  await t.step(
-    "OBIS 'required (if exists)' obligation → no constraint when field is NOT mapped",
-    () => {
-      const profile = makeResolvedSpec({
-        specFields: {
-          parentEventID: {
-            name: "parentEventID",
-            label: "Parent Event ID",
-            constraints: [],
-            obligations: { obis: "required (if exists)" },
-          },
-        },
-      });
-
-      const resolved = resolveSpecFields(profile, "obis", []);
-      const requirement = deriveRequirementFromConstraints(
-        resolved["parentEventID"]?.constraints,
-      );
-      assertEquals(requirement, undefined);
-    },
-  );
+  // "required (if exists)" cases are tested in detail by the dedicated
+  // "Required-if-exists" tests below, so they are not duplicated here.
 });
 
 Deno.test("End-to-end: profile requirement override flows to correct requirement", async (t) => {

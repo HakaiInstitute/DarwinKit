@@ -135,14 +135,6 @@ const TEST_DATA = {
     { eventID: "E1", country: "Mexico" },
   ],
 
-  EVENTS_WITH_DUPLICATE_E2: [
-    { eventID: "E1", country: "Canada" },
-    { eventID: "E2", country: "USA" },
-    { eventID: "E1", country: "Mexico" },
-    { eventID: "E2", country: "France" },
-    { eventID: "E3", country: "Steve's house" },
-  ],
-
   EVENTS_WITH_4_DUPLICATES: [
     { eventID: "DUP", country: "Country1" },
     { eventID: "E2", country: "Country2" },
@@ -365,38 +357,6 @@ function assertRowNumbers(
   assertEquals([...rowNumbers].sort((a, b) => a - b), expectedRows);
 }
 
-function assertEnumViolations(
-  result: WorkspaceValidationResult,
-  fieldName: string,
-  expectedValue: string,
-  expectedRowNumber: number,
-  partition: "errors" | "warnings" = "errors",
-): void {
-  const datasetResult = result.datasetResults[0];
-  const enumViolations = Array.filter(
-    datasetResult.fieldViolations[partition],
-    isEnumViolation,
-  );
-
-  assertEquals(enumViolations.length, 1);
-  assertEquals(enumViolations[0].fieldName, fieldName);
-  assertEquals(enumViolations[0].value, expectedValue);
-  assertEquals(enumViolations[0].rowNumber, expectedRowNumber);
-}
-
-function assertRangeViolations(
-  result: WorkspaceValidationResult,
-  expectedCount: number,
-  fieldName: string,
-): void {
-  const rangeErrors = Array.filter(
-    result.datasetResults[0].fieldViolations.errors,
-    isRangeViolation,
-  );
-  assertEquals(rangeErrors.length, expectedCount);
-  assertEquals(rangeErrors[0].fieldName, fieldName);
-}
-
 Deno.test.afterAll(async () => {
   await removeTempDirs();
 });
@@ -570,11 +530,15 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     );
 
     const result = await validateWorkspace(tempDir);
-
-    assertRangeViolations(result, 2, "decimalLatitude");
+    const rangeErrors = Array.filter(
+      result.datasetResults[0].fieldViolations.errors,
+      isRangeViolation,
+    );
+    assertEquals(rangeErrors.length, 2);
+    assertEquals(rangeErrors[0].fieldName, "decimalLatitude");
   });
 
-  await t.step("detects vocabulary violations", async () => {
+  await t.step("detects vocabulary violations with correct severity", async () => {
     const tempDir = await createTempDir("detect_vocabulary_violations");
 
     await createSingleDatasetWorkspace(
@@ -590,11 +554,18 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     );
 
     const result = await validateWorkspace(tempDir);
+    const datasetResult = result.datasetResults[0];
 
-    // Overall status is "fail" because there are schema errors (unmapped required
-    // fields). The vocabulary violation itself is a warning (recommended strictness).
+    // Overall status is "fail" because there are schema errors (unmapped required fields)
     assertEquals(result.overallStatus, "fail");
-    assertEnumViolations(result, "basisOfRecord", "InvalidBasis", 2);
+
+    // basisOfRecord is obis_required: "required" — vocabulary violation is an ERROR
+    const enumErrors = Array.filter(datasetResult.fieldViolations.errors, isEnumViolation);
+    assertEquals(enumErrors.length, 1);
+    assertEquals(enumErrors[0].fieldName, "basisOfRecord");
+    assertEquals(enumErrors[0].value, "InvalidBasis");
+    assertEquals(enumErrors[0].rowNumber, 2);
+    assertEquals(enumErrors[0].severity, "error");
   });
 
   await t.step("detects duplicate identifiers", async () => {
@@ -1118,38 +1089,6 @@ Deno.test("WorkspaceValidator - Obligation-Based Requirement", async (t) => {
       `Expected schema error for missing required field 'eventDate', got ${missingRequired.length}`,
     );
   });
-});
-
-Deno.test("WorkspaceValidator - Vocabulary Strictness Tests", async (t) => {
-  await t.step(
-    "required field vocabulary violation produces ERROR severity",
-    async () => {
-      const tempDir = await createTempDir("vocab_required_strictness");
-
-      await createSingleDatasetWorkspace(
-        tempDir,
-        "occurrences",
-        TEST_DATA.OCCURRENCES_WITH_INVALID_BASIS,
-        [
-          { originName: "occurrenceID", targetName: "occurrenceID" },
-          { originName: "basisOfRecord", targetName: "basisOfRecord" },
-          { originName: "scientificName", targetName: "scientificName" },
-        ],
-        { class: "occurrence" },
-      );
-
-      const result = await validateWorkspace(tempDir);
-      const datasetResult = result.datasetResults[0];
-
-      // basisOfRecord is obis_required: "required" — vocabulary violation is an ERROR
-      const enumErrors = Array.filter(
-        datasetResult.fieldViolations.errors,
-        isEnumViolation,
-      );
-      assert(enumErrors.length > 0, "Should have at least one enum violation error");
-      assertEquals(enumErrors[0].severity, "error");
-    },
-  );
 });
 
 Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
