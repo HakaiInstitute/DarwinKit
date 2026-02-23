@@ -138,42 +138,65 @@ export type Constraint =
   | FormatConstraint;
 
 // =============================================================================
-// Effect Schema for Constraint (decode/encode from YAML/JSON)
+// Effect Schema for Constraint (decode-only from YAML/JSON)
 // =============================================================================
 
 /**
- * Effect Schema that decodes YAML/JSON `{ type: "range", ... }` into
- * Data.TaggedClass instances. Maps `type` → `_tag` and `requirement` → `level`
- * at the parsing boundary.
+ * Build a decode-only Effect Schema that validates `{ type: tag, ...fields }`
+ * and constructs a Data.TaggedClass instance. The `type` field on input is
+ * mapped to `_tag` on the class. Encode is a no-op identity (never used).
  */
-const RangeConstraintSchema = S.transform(
-  S.Struct({
-    type: S.Literal("range"),
-    min: S.optional(S.Number),
-    max: S.optional(S.Number),
-    inclusive: S.optional(S.Boolean),
-    message: S.optional(S.String),
-  }),
-  S.typeSchema(S.instanceOf(RangeConstraint)),
-  {
-    strict: true,
-    decode: (from) =>
-      new RangeConstraint({
-        min: from.min,
-        max: from.max,
-        inclusive: from.inclusive ?? true,
-        message: from.message,
-      }),
-    encode: (to) => ({
-      type: "range" as const,
-      min: to.min,
-      max: to.max,
-      inclusive: to.inclusive,
-      message: to.message,
-    }),
-  },
-);
+function constraintSchema<Tag extends string, C extends Constraint>(
+  tag: Tag,
+  // deno-lint-ignore no-explicit-any
+  Cls: new (args: any) => C,
+  fields: S.Struct.Fields,
+  defaults?: Record<string, unknown>,
+) {
+  return S.transform(
+    S.Struct({ type: S.Literal(tag), ...fields }),
+    S.typeSchema(S.instanceOf(Cls)),
+    {
+      strict: true,
+      decode: (from) => {
+        const { type: _, ...rest } = from;
+        return new Cls({ ...rest, ...defaults });
+      },
+      // deno-lint-ignore no-explicit-any
+      encode: (to) => ({ type: tag, ...to } as any),
+    },
+  );
+}
 
+const RangeConstraintSchema = constraintSchema("range", RangeConstraint, {
+  min: S.optional(S.Number),
+  max: S.optional(S.Number),
+  inclusive: S.optional(S.Boolean),
+  message: S.optional(S.String),
+}, { inclusive: true });
+
+const UniqueConstraintSchema = constraintSchema("unique", UniqueConstraint, {
+  message: S.optional(S.String),
+});
+
+const PatternConstraintSchema = constraintSchema("pattern", PatternConstraint, {
+  pattern: S.String,
+  flags: S.optional(S.String),
+  message: S.optional(S.String),
+});
+
+const LengthConstraintSchema = constraintSchema("length", LengthConstraint, {
+  minLength: S.optional(S.Number),
+  maxLength: S.optional(S.Number),
+  message: S.optional(S.String),
+});
+
+const FormatConstraintSchema = constraintSchema("format", FormatConstraint, {
+  format: S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees", "integer"),
+  message: S.optional(S.String),
+});
+
+/** RequiredConstraint has custom decode logic (alias handling, defaults) */
 const RequiredConstraintSchema = S.transform(
   S.Struct({
     type: S.Literal("required"),
@@ -193,106 +216,8 @@ const RequiredConstraintSchema = S.transform(
         allowWhitespace: from.allowWhitespace ?? false,
         message: from.message,
       }),
-    encode: (to) => ({
-      type: "required" as const,
-      requirement: to.level,
-      level: to.level,
-      allowEmpty: to.allowEmpty,
-      allowWhitespace: to.allowWhitespace,
-      message: to.message,
-    }),
-  },
-);
-
-const UniqueConstraintSchema = S.transform(
-  S.Struct({
-    type: S.Literal("unique"),
-    message: S.optional(S.String),
-  }),
-  S.typeSchema(S.instanceOf(UniqueConstraint)),
-  {
-    strict: true,
-    decode: (from) => new UniqueConstraint({ message: from.message }),
-    encode: (to) => ({ type: "unique" as const, message: to.message }),
-  },
-);
-
-const PatternConstraintSchema = S.transform(
-  S.Struct({
-    type: S.Literal("pattern"),
-    pattern: S.String,
-    flags: S.optional(S.String),
-    message: S.optional(S.String),
-  }),
-  S.typeSchema(S.instanceOf(PatternConstraint)),
-  {
-    strict: true,
-    decode: (from) =>
-      new PatternConstraint({
-        pattern: from.pattern,
-        flags: from.flags,
-        message: from.message,
-      }),
-    encode: (to) => ({
-      type: "pattern" as const,
-      pattern: to.pattern,
-      flags: to.flags,
-      message: to.message,
-    }),
-  },
-);
-
-const LengthConstraintSchema = S.transform(
-  S.Struct({
-    type: S.Literal("length"),
-    minLength: S.optional(S.Number),
-    maxLength: S.optional(S.Number),
-    message: S.optional(S.String),
-  }),
-  S.typeSchema(S.instanceOf(LengthConstraint)),
-  {
-    strict: true,
-    decode: (from) =>
-      new LengthConstraint({
-        minLength: from.minLength,
-        maxLength: from.maxLength,
-        message: from.message,
-      }),
-    encode: (to) => ({
-      type: "length" as const,
-      minLength: to.minLength,
-      maxLength: to.maxLength,
-      message: to.message,
-    }),
-  },
-);
-
-const FormatConstraintSchema = S.transform(
-  S.Struct({
-    type: S.Literal("format"),
-    format: S.Literal(
-      "email",
-      "url",
-      "uuid",
-      "iso8601",
-      "decimal-degrees",
-      "integer",
-    ),
-    message: S.optional(S.String),
-  }),
-  S.typeSchema(S.instanceOf(FormatConstraint)),
-  {
-    strict: true,
-    decode: (from) =>
-      new FormatConstraint({
-        format: from.format,
-        message: from.message,
-      }),
-    encode: (to) => ({
-      type: "format" as const,
-      format: to.format,
-      message: to.message,
-    }),
+    // deno-lint-ignore no-explicit-any
+    encode: (to) => ({ type: "required", ...to } as any),
   },
 );
 
