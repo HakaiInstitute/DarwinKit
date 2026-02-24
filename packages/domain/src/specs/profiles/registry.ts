@@ -52,11 +52,6 @@ export const PROFILE_REGISTRY: ProfileRegistry = {
   "obis-event": OBIS_EVENT_PROFILE,
 } as const;
 
-/**
- * @deprecated Use PROFILE_REGISTRY instead
- */
-export const VALIDATION_PROFILES = PROFILE_REGISTRY;
-
 // =============================================================================
 // Field Override Merging
 // =============================================================================

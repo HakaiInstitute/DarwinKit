@@ -24,7 +24,7 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
 import type { Constraint, SpecField } from "@dwkt/domain/specs";
-import { REQUIREMENT_STRICTNESS } from "@dwkt/domain/specs";
+import { type RequiredConstraint, strictestRequired } from "@dwkt/domain/specs";
 import type { FieldViolation, ValidField } from "@dwkt/domain/types";
 import {
   FormatViolation,
@@ -159,12 +159,8 @@ function validateConstraintsByType<TType extends Constraint["_tag"]>(
     let toValidate = filtered;
     if (options?.takeStrictest && filtered.length > 1) {
       // takeStrictest is only used for "required" constraints which have level
-      const strictest = filtered.reduce((a, b) => {
-        const aEnf = "level" in a ? (a.level as keyof typeof REQUIREMENT_STRICTNESS) : undefined;
-        const bEnf = "level" in b ? (b.level as keyof typeof REQUIREMENT_STRICTNESS) : undefined;
-        return (REQUIREMENT_STRICTNESS[aEnf!] ?? 0) >= (REQUIREMENT_STRICTNESS[bEnf!] ?? 0) ? a : b;
-      });
-      toValidate = [strictest];
+      const winner = strictestRequired(filtered as unknown as RequiredConstraint[]);
+      toValidate = winner ? [winner as unknown as Extract<Constraint, { _tag: TType }>] : filtered;
     }
 
     const violations: FieldViolation[] = [];

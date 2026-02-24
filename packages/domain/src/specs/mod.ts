@@ -19,5 +19,4 @@ export {
   getValidationProfile,
   PROFILE_REGISTRY,
   resolveProfile,
-  VALIDATION_PROFILES,
 } from "./profiles/registry.ts";

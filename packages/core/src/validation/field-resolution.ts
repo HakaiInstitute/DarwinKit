@@ -20,6 +20,7 @@ import {
   obligationForStandard,
   RequiredConstraint,
   REQUIREMENT_STRICTNESS,
+  strictestRequired,
 } from "@dwkt/domain/specs";
 
 // =============================================================================
@@ -55,14 +56,7 @@ export function deriveRequirementFromConstraints(
   const requiredConstraints = constraints.filter(
     (c): c is RequiredConstraint => c._tag === "required",
   );
-  if (requiredConstraints.length === 0) return undefined;
-  const strictest = requiredConstraints.reduce((a, b) =>
-    (REQUIREMENT_STRICTNESS[a.level] ?? 0) >=
-        (REQUIREMENT_STRICTNESS[b.level] ?? 0)
-      ? a
-      : b
-  );
-  return strictest.level;
+  return strictestRequired(requiredConstraints)?.level;
 }
 
 /**
@@ -114,14 +108,7 @@ export function addConstraints(
   const existingRequired = existing.filter(
     (c): c is RequiredConstraint => c._tag === "required",
   );
-  const strictestExisting = existingRequired.length > 0
-    ? existingRequired.reduce((a, b) =>
-      (REQUIREMENT_STRICTNESS[a.level] ?? 0) >=
-          (REQUIREMENT_STRICTNESS[b.level] ?? 0)
-        ? a
-        : b
-    )
-    : undefined;
+  const strictestExisting = strictestRequired(existingRequired);
 
   const kept: Constraint[] = [];
   for (const c of additions) {

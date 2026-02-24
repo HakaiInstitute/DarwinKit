@@ -275,6 +275,19 @@ export type ObligationsMap = S.Schema.Type<typeof ObligationsMap>;
 // =============================================================================
 
 /**
+ * Pick the strictest RequiredConstraint from an array.
+ * Returns undefined if the array is empty.
+ */
+export function strictestRequired(
+  constraints: readonly RequiredConstraint[],
+): RequiredConstraint | undefined {
+  if (constraints.length === 0) return undefined;
+  return constraints.reduce((a, b) =>
+    (REQUIREMENT_STRICTNESS[a.level] ?? 0) >= (REQUIREMENT_STRICTNESS[b.level] ?? 0) ? a : b
+  );
+}
+
+/**
  * Map an Obligation (external standard metadata) to a RequirementLevel for constraints.
  *
  * **Terminology chain:**
@@ -353,17 +366,9 @@ export function mergeProfileConstraints(
   const childNonRequired = child.filter((c) => c._tag !== "required");
 
   // For required type: pick strictest from either side
-  let resolvedRequired: Constraint[] = [];
-  if (childRequired.length > 0 || parentRequired.length > 0) {
-    const allRequired = [...parentRequired, ...childRequired];
-    const strictest = allRequired.reduce((a, b) =>
-      (REQUIREMENT_STRICTNESS[a.level] ?? 0) >=
-          (REQUIREMENT_STRICTNESS[b.level] ?? 0)
-        ? a
-        : b
-    );
-    resolvedRequired = [strictest];
-  }
+  const allRequired = [...parentRequired, ...childRequired];
+  const winner = strictestRequired(allRequired);
+  const resolvedRequired: Constraint[] = winner ? [winner] : [];
 
   return [...keptNonRequired, ...childNonRequired, ...resolvedRequired];
 }

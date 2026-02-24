@@ -150,6 +150,28 @@ function isValidObligation(value: string): value is Obligation {
   return VALID_OBLIGATIONS.has(value);
 }
 
+/** Maps string validator names from dwcSchema.json to Constraint instances. null = no constraint emitted. */
+const STRING_VALIDATOR_MAP: Record<string, Constraint | null> = {
+  uniqueIdentifier: new UniqueConstraint({}),
+  unique: new UniqueConstraint({}),
+  required: new RequiredConstraint({
+    level: "required",
+    allowEmpty: false,
+    allowWhitespace: false,
+  }),
+  recommended: new RequiredConstraint({
+    level: "optional",
+    allowEmpty: false,
+    allowWhitespace: false,
+  }),
+  optional: null,
+  integer: new FormatConstraint({ format: "integer" }),
+  date: new FormatConstraint({ format: "iso8601" }),
+  iso8601Date: new FormatConstraint({ format: "iso8601" }),
+  url: new FormatConstraint({ format: "url" }),
+  decimal: new FormatConstraint({ format: "decimal-degrees" }),
+};
+
 export function normalizeField(jsonField: RawField): SpecField {
   const constraints: Constraint[] = [];
 
@@ -212,50 +234,13 @@ export function normalizeField(jsonField: RawField): SpecField {
 
       // Convert string validators to Constraint objects
       if (typeof v === "string") {
-        switch (v) {
-          case "uniqueIdentifier":
-          case "unique":
-            constraints.push(new UniqueConstraint({}));
-            break;
-          case "required":
-            constraints.push(
-              new RequiredConstraint({
-                level: "required",
-                allowEmpty: false,
-                allowWhitespace: false,
-              }),
-            );
-            break;
-          case "recommended":
-            constraints.push(
-              new RequiredConstraint({
-                level: "optional",
-                allowEmpty: false,
-                allowWhitespace: false,
-              }),
-            );
-            break;
-          case "optional":
-            // No constraint emitted — matches requirementToConstraint() behavior
-            break;
-          case "integer":
-            constraints.push(new FormatConstraint({ format: "integer" }));
-            break;
-          case "date":
-          case "iso8601Date":
-            constraints.push(new FormatConstraint({ format: "iso8601" }));
-            break;
-          case "url":
-            constraints.push(new FormatConstraint({ format: "url" }));
-            break;
-          case "decimal":
-            constraints.push(new FormatConstraint({ format: "decimal-degrees" }));
-            break;
-          default:
-            console.warn(
-              `Unknown validator string "${v}" for field "${jsonField.name}" — skipping`,
-            );
-            break;
+        const mapped = STRING_VALIDATOR_MAP[v];
+        if (mapped === undefined) {
+          console.warn(
+            `Unknown validator string "${v}" for field "${jsonField.name}" — skipping`,
+          );
+        } else if (mapped !== null) {
+          constraints.push(mapped);
         }
       }
     }
