@@ -126,7 +126,7 @@ export const datasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this dataset." }),
   class: S.String.annotations({
     description:
-      "Darwin Core class: event, occurrence, extendedMeasurementOrFact, dnaDerivedData, resourceRelationship.",
+      "Darwin Core class: Event, Occurrence, Taxon, ExtendedMeasurementOrFact, DnaDerivedData, ResourceRelationship.",
   }),
   path: S.String.annotations({ description: "File path to the CSV data file." }),
   description: S.optional(S.String),
@@ -387,7 +387,7 @@ export type WorkspaceConfigInput = S.Schema.Encoded<typeof workspaceConfigSchema
  * ```typescript
  * const config = makeWorkspaceConfig({
  *   validation: {
- *     datasets: [{ name: "events", class: "event", path: "./events.csv", fieldMappings: [] }]
+ *     datasets: [{ name: "events", class: "Event", path: "./events.csv", fieldMappings: [] }]
  *   }
  * });
  * // id, name, version, standard, createdAt, updatedAt are auto-generated
@@ -413,23 +413,15 @@ export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig =>
 // =============================================================================
 
 /**
- * Valid Darwin Core classes (lowercase).
+ * Valid Darwin Core classes (PascalCase, matching registry keys).
  */
 export const DARWIN_CORE_CLASSES = [
-  "event",
-  "occurrence",
-  "extendedMeasurementOrFact",
-  "dnaDerivedData",
-  "resourceRelationship",
+  "Event",
+  "Occurrence",
+  "Taxon",
+  "ExtendedMeasurementOrFact",
+  "DnaDerivedData",
+  "ResourceRelationship",
 ] as const;
 
 export type DarwinCoreClass = typeof DARWIN_CORE_CLASSES[number];
-
-/**
- * Normalize a dataset class to a profile registry key.
- *
- * Capitalizes the first letter to match registry keys (e.g., "event" → "Event").
- */
-export function classToProfileKey(dwcClass: string): string {
-  return dwcClass.charAt(0).toUpperCase() + dwcClass.slice(1);
-}

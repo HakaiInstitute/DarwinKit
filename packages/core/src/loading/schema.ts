@@ -6,7 +6,7 @@ import type {
   WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
 import type { ResolvedStandard } from "@dwkt/domain/schemas";
-import { classToProfileKey } from "@dwkt/domain/schemas";
+
 import { getValidationProfile, obligationForStandard } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
@@ -26,7 +26,7 @@ type DatasetWithClass = {
  * Generates and applies a database schema for a dataset based on its validation profile.
  *
  * This function:
- * - Loads a validation profile for `dataset` using `getValidationProfile(classToProfileKey(dataset.class))`.
+ * - Loads a validation profile for `dataset` using `getValidationProfile(dataset.class)`.
  *   If no profile is found the function returns early (no DB changes).
  * - Derives a table name from the profile's `name` (lowercased).
  * - Creates ENUM types for any profile fields declared as controlled vocabularies
@@ -129,8 +129,7 @@ export function importSchema(
   return Effect.gen(function* (_) {
     // Load base validation profile for DDL generation
     // Uses base type profile (not standard-specific) to ensure consistent table naming
-    const profileId = classToProfileKey(dataset.class);
-    const spec = getValidationProfile(profileId);
+    const spec = getValidationProfile(dataset.class);
     if (!spec) {
       // No validation profile found - skip table creation
       // TODO: When implementing issue #63 (https://github.com/HakaiInstitute/DarwinKit/issues/63):
@@ -192,8 +191,7 @@ export function importSchema(
         // Resolve target dataset name to table name via its profile
         const targetDataset = datasets.find((ds) => ds.name === fkRule.targetDataset);
         if (targetDataset) {
-          const targetProfileId = classToProfileKey(targetDataset.class);
-          const targetProfile = targetProfileId ? getValidationProfile(targetProfileId) : undefined;
+          const targetProfile = getValidationProfile(targetDataset.class);
           if (targetProfile) {
             const referencedTable = sanitizeTableName(targetProfile.name).toLowerCase();
             fieldStr += ` REFERENCES ${referencedTable}("${fkRule.targetField}")`;

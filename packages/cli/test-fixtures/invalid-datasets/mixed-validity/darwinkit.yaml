@@ -16,7 +16,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: occurrence_data
-      class: occurrence
+      class: Occurrence
       path: data/mixed_occ.csv
       description: Mixed occurrence data with both valid and invalid records
       fieldMappings:

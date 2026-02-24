@@ -107,10 +107,10 @@ TypeScript-defined `Profile` objects extend base specs with community-specific r
 
 **Standard + Class Resolution:**
 
-The config uses `standard` (root-level, e.g., `{ base: "darwin-core", variant: "obis" }`) and `class` (per-dataset, e.g., `"event"`) to drive resolution. The registry in `registry.ts` implements `resolveProfile(variant, class)` → `ResolvedSpec`:
+The config uses `standard` (root-level, e.g., `{ base: "darwin-core", variant: "obis" }`) and `class` (per-dataset, e.g., `"Event"`) to drive resolution. The registry in `registry.ts` implements `resolveProfile(variant, class)` → `ResolvedSpec`:
 
-1. **Profile Lookup**: Try composite key `"${variant}-${class}"` in profile registry (e.g., `"obis-event"` → OBIS_EVENT_PROFILE)
-2. **Base Spec Lookup**: Look up base spec using capitalized class key (e.g., `"Event"`)
+1. **Profile Lookup**: Try composite key `"${variant}-${class.toLowerCase()}"` in profile registry (e.g., `"obis-event"` → OBIS_EVENT_PROFILE)
+2. **Base Spec Lookup**: Look up base spec using class key directly (e.g., `"Event"`)
 3. **Inheritance Resolution**: Walk profile `extends` chain, collecting field overrides
 4. **Normalization**: Convert JSON validators to typed `Constraint` objects via `normalizeField()`
 5. **Merging**: Combine spec + profile overrides → `ResolvedSpec` with `ResolvedField` records
@@ -251,7 +251,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: event_data
-      class: event       # Darwin Core class (Event, Occurrence, Taxon, etc.)
+      class: Event       # Darwin Core class (Event, Occurrence, Taxon, etc.)
       path: ../data/FC2022_event.csv
       description: Sampling events
       fieldMappings:

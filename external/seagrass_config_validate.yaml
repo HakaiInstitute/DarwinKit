@@ -16,7 +16,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: events
-      class: event
+      class: Event
       path: ./seagrass-site-production/obis/event.csv
       description: Marine sampling events for OBIS
       fieldMappings:
@@ -86,7 +86,7 @@ validation:
             maxValue: 11000
 
     - name: occurrence
-      class: occurrence
+      class: Occurrence
       path: ./seagrass-site-production/obis/occurrence.csv
       description: Marine sampling occurrence for OBIS
       fieldMappings:
@@ -134,7 +134,7 @@ validation:
           targetName: occurrenceID
 
     - name: extendedMeasurementOrFact
-      class: extendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       path: ./seagrass-site-production/obis/extendedmeasurementorfact.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
       fieldMappings:

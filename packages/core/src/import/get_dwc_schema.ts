@@ -70,6 +70,7 @@ interface RangeValidator {
 interface Options {
   group?: string;
   idFieldName: string;
+  nameOverride?: string;
 }
 
 // ============================================================================
@@ -166,7 +167,7 @@ function xmlThesaurusToJson(inputID: string, externalDir: string): Thesaurus {
  * Parses XML extension/core definitions and extracts field properties.
  */
 function xmlSchemaToJson(filePath: string, options: Options, externalDir: string): SchemaJson {
-  const { group, idFieldName } = options;
+  const { group, idFieldName, nameOverride } = options;
   Effect.logInfo(`Reading Schema file ${filePath}`);
 
   const inputXML = Deno.readTextFileSync(filePath);
@@ -180,7 +181,7 @@ function xmlSchemaToJson(filePath: string, options: Options, externalDir: string
     throw new Error(`No extension or core element found in ${filePath}`);
   }
 
-  const extensionName = extension._attributes?.name || "Unknown";
+  const extensionName = nameOverride ?? extension._attributes?.name ?? "Unknown";
 
   // Extract field properties from property elements
   const fields: Record<string, ImportFieldDefinition> = {};
@@ -303,7 +304,7 @@ function joinObisRequirements(
     if (item["Event Table"]) affectedTables.push("Event");
     if (item["Occurrence Extension"]) affectedTables.push("Occurrence");
     if (item["eMoF Table"]) affectedTables.push("ExtendedMeasurementOrFact");
-    if (item["DNA Table"]) affectedTables.push("dnaDerivedData");
+    if (item["DNA Table"]) affectedTables.push("DnaDerivedData");
 
     // Apply OBIS requirements to matching fields
     Object.keys(schemaJson).forEach((tableName) => {
@@ -449,7 +450,8 @@ export function import_schema(sourceDir: string, outputDir: string): Effect.Effe
     const DNAJson = xmlSchemaToJson(
       DNAXml,
       {
-        group: "dnaDerivedData",
+        group: "DnaDerivedData",
+        nameOverride: "DnaDerivedData",
         idFieldName: "samp_name",
       },
       sourceDir,

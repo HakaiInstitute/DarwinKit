@@ -85,8 +85,8 @@ Deno.test("Profile inheritance - obis resolves with Event base fields", () => {
 // resolveProfile(standard, type) Tests
 // =============================================================================
 
-Deno.test("resolveProfile - obis + event resolves to OBIS-Event profile", () => {
-  const profile = resolveProfile("obis", "event");
+Deno.test("resolveProfile - obis + Event resolves to OBIS-Event profile", () => {
+  const profile = resolveProfile("obis", "Event");
   assertExists(profile, "Should resolve a profile");
   assertEquals(profile.id, "obis-event", "Should resolve to OBIS-Event profile");
 
@@ -99,34 +99,22 @@ Deno.test("resolveProfile - obis + event resolves to OBIS-Event profile", () => 
   );
 });
 
-Deno.test("resolveProfile - obis + occurrence falls back to base Occurrence profile", () => {
+Deno.test("resolveProfile - obis + Occurrence falls back to base Occurrence profile", () => {
   // No "obis-occurrence" TypeScript profile exists, so should fall back to JSON base
-  const profile = resolveProfile("obis", "occurrence");
+  const profile = resolveProfile("obis", "Occurrence");
   assertExists(profile, "Should resolve a profile");
   // Base JSON profile has name "Occurrence" (not "obis-occurrence")
   assertEquals(profile.name, "Occurrence", "Should fall back to base Occurrence profile");
 });
 
 Deno.test("resolveProfile - undefined standard falls back to base profile", () => {
-  const profile = resolveProfile(undefined, "event");
+  const profile = resolveProfile(undefined, "Event");
   assertExists(profile, "Should resolve a profile");
   assertEquals(profile.name, "Event", "Should use base Event profile when no standard");
 });
 
-Deno.test("resolveProfile - case insensitive type matching", () => {
-  const profileLower = resolveProfile("obis", "event");
-  const profileUpper = resolveProfile("obis", "Event");
-
-  assertExists(profileLower);
-  assertExists(profileUpper);
-  // Both should resolve, though they may resolve differently
-  // "obis-event" matches OBIS_EVENT_PROFILE, "obis-Event" won't match
-  // so uppercase falls back to base "Event"
-  assertEquals(profileLower.id, "obis-event");
-});
-
 Deno.test("resolveProfile - unknown type returns undefined", () => {
-  const profile = resolveProfile("obis", "nonExistentType");
+  const profile = resolveProfile("obis", "NonExistentType");
   assertEquals(profile, undefined, "Should return undefined for unknown type");
 });
 
@@ -158,7 +146,7 @@ E3,P1,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
           datasets: [
             {
               name: "events",
-              class: "event",
+              class: "Event",
               path: "./events.csv",
               description: "Marine sampling events",
               fieldMappings: [
@@ -233,7 +221,7 @@ E2,2022-09-16,49.9012,-125.4789`;
           datasets: [
             {
               name: "events",
-              class: "event",
+              class: "Event",
               path: "./events.csv",
               description: "Marine sampling events",
             },
@@ -295,7 +283,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
         datasets: [
           {
             name: "events",
-            class: "event",
+            class: "Event",
             path: "./events.csv",
             description: "Marine sampling events",
             fieldMappings: [

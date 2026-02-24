@@ -36,7 +36,7 @@ E4,2022,6,32,2022-06-32`;
           datasets: [
             {
               name: "events",
-              class: "event",
+              class: "Event",
               path: "./events.csv",
               fieldMappings: [
                 { originName: "eventID", targetName: "eventID" },

@@ -40,7 +40,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84`;
           datasets: [
             {
               name: "events",
-              class: "event",
+              class: "Event",
               path: "./events.csv",
               fieldMappings: [
                 { originName: "eventID", targetName: "eventID" },
@@ -112,7 +112,7 @@ E2,,49.9012,-125.4789,WGS84`;
           datasets: [
             {
               name: "events",
-              class: "event",
+              class: "Event",
               path: "./events.csv",
               fieldMappings: [
                 { originName: "eventID", targetName: "eventID" },
@@ -193,7 +193,7 @@ E2,2022-09-16,49.9012,-125.4789,WGS84`;
           datasets: [
             {
               name: "events",
-              class: "event",
+              class: "Event",
               path: "./events.csv",
               fieldMappings: [
                 { originName: "eventID", targetName: "eventID" },

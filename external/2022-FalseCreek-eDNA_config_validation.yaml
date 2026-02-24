@@ -16,7 +16,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: events
-      class: event
+      class: Event
       path: ./2022-FalseCreek-eDNA/obis/FC2022_event.csv
       description: Marine sampling events for OBIS
       fieldMappings:
@@ -116,7 +116,7 @@ validation:
           targetName: verbatimDepth
 
     - name: occurrence
-      class: occurrence
+      class: Occurrence
       path: ./2022-FalseCreek-eDNA/obis/FC2022_occ.csv
       description: Marine sampling occurrence for OBIS
       fieldMappings:
@@ -204,7 +204,7 @@ validation:
           targetName: organismRemarks
 
     - name: extendedMeasurementOrFact
-      class: extendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       path: ./2022-FalseCreek-eDNA/obis/FC2022_eMOF.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
       fieldMappings:
@@ -230,7 +230,7 @@ validation:
           targetName: measurementMethod
 
     - name: dnaDerivedData
-      class: dnaDerivedData
+      class: DnaDerivedData
       path: ./2022-FalseCreek-eDNA/obis/FC2022_dna_ext.csv
       description: Dna dervied data for OBIS
       fieldMappings:
@@ -283,7 +283,7 @@ validation:
         #   targetName: materialSampleID
 
     - name: ResourceRelationship
-      class: resourceRelationship
+      class: ResourceRelationship
       path: ./2022-FalseCreek-eDNA/obis/FC2022_rr_ext.csv
       description: Dna dervied data for OBIS
       fieldMappings:

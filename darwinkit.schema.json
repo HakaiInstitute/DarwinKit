@@ -140,7 +140,8 @@
               },
               "class": {
                 "type": "string",
-                "description": "Darwin Core class: event, occurrence, extendedMeasurementOrFact, dnaDerivedData, resourceRelationship."
+                "enum": ["Event", "Occurrence", "Taxon", "ExtendedMeasurementOrFact", "DnaDerivedData", "ResourceRelationship"],
+                "description": "Darwin Core class: Event, Occurrence, Taxon, ExtendedMeasurementOrFact, DnaDerivedData, ResourceRelationship."
               },
               "path": {
                 "type": "string",

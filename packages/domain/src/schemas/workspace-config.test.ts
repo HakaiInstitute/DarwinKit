@@ -117,7 +117,7 @@ Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
       validation: {
         datasets: [{
           name: "events",
-          class: "event",
+          class: "Event",
           path: "./events.csv",
           fieldMappings: [{
             originName: "eventID",
@@ -138,7 +138,7 @@ Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
       validation: {
         datasets: [{
           name: "events",
-          class: "event",
+          class: "Event",
           path: "./events.csv",
           fieldMappings: [{
             originName: "eventID",
@@ -214,12 +214,12 @@ Deno.test("makeWorkspaceConfig - class field on datasets", async (t) => {
       validation: {
         datasets: [{
           name: "events",
-          class: "event",
+          class: "Event",
           path: "./events.csv",
         }],
       },
     });
-    assertEquals(config.validation?.datasets[0]?.class, "event");
+    assertEquals(config.validation?.datasets[0]?.class, "Event");
   });
 
   await t.step("rejects dataset without class field", () => {

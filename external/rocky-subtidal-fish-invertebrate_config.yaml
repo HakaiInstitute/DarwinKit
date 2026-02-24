@@ -17,17 +17,17 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: events
-      class: event
+      class: Event
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_event.csv
       description: Marine sampling events for OBIS
 
     - name: occurrence
-      class: occurrence
+      class: Occurrence
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_occ.csv
       description: Marine sampling occurrence for OBIS
 
     - name: extendedMeasurementOrFact
-      class: extendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       path: ./rocky-subtidal-fish-invertebrate/obis/hakaiFI_eMOF.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
 

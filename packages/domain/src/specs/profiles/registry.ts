@@ -270,7 +270,7 @@ export function getValidationProfile(profileId: string): ResolvedSpec | undefine
  * 1. Try `"${standard}-${dwcClass}"` in TypeScript registry (e.g., "obis-event")
  * 2. Fall back to base JSON profile using capitalized class key (e.g., "Event")
  *
- * This allows `standard: "obis"` + `class: "event"` to automatically load
+ * This allows `standard: "obis"` + `class: "Event"` to automatically load
  * the OBIS-Event TypeScript profile with its field overrides.
  */
 export function resolveProfile(
@@ -283,7 +283,6 @@ export function resolveProfile(
     if (tsProfile) return tsProfile;
   }
 
-  // Fall back to base profile using capitalized class key
-  const baseKey = dwcClass.charAt(0).toUpperCase() + dwcClass.slice(1);
-  return getValidationProfile(baseKey);
+  // Fall back to base profile using class key directly (PascalCase)
+  return getValidationProfile(dwcClass);
 }

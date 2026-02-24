@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 
 import { Workspace } from "../workspace/mod.ts";
 import type { WorkspaceConfig } from "@dwkt/domain/schemas";
-import { classToProfileKey, hasTransformationConfig } from "@dwkt/domain/schemas";
+import { hasTransformationConfig } from "@dwkt/domain/schemas";
 import { getValidationProfile } from "@dwkt/domain/specs";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
@@ -182,7 +182,7 @@ export function populateSchemaFromDataTables( // Export for testing
 
       // TODO(#108): Transform should use resolveProfile(standard, type) to respect
       // standard-specific profiles. Currently ignores the standard field.
-      const transformProfile = getValidationProfile(classToProfileKey(dataset.class));
+      const transformProfile = getValidationProfile(dataset.class);
       if (!transformProfile) {
         return yield* _(Effect.fail(
           new TransformationError({
@@ -282,7 +282,7 @@ export function exportObisTablesToCSV(
 
     const withTimestamp = outputFilesWithTimestamp ?? true;
     const tables = [
-      ...new Set(datasets.map((ds) => classToProfileKey(ds.class).toLowerCase())),
+      ...new Set(datasets.map((ds) => ds.class.toLowerCase())),
     ];
     const outputPath = output.outputDir;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -468,7 +468,7 @@ export function exportToPersistentDB(
     for (const dataset of config.transform.datasets) {
       // TODO(#108): Transform should use resolveProfile(standard, type) to respect
       // standard-specific profiles. Currently ignores the standard field.
-      const transformProfile = getValidationProfile(classToProfileKey(dataset.class));
+      const transformProfile = getValidationProfile(dataset.class);
       if (!transformProfile) {
         console.warn(
           `No validation profile found for class '${dataset.class}', skipping table export.`,

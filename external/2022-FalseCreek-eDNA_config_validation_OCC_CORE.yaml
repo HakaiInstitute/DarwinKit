@@ -16,7 +16,7 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: occurrence
-      class: occurrence
+      class: Occurrence
       path: ./2022-FalseCreek-eDNA/obis/interim_obis/edna/FC2022_occ_core.csv
       description: Marine sampling occurrence for OBIS
       fieldMappings:
@@ -151,7 +151,7 @@ validation:
 
 
     - name: dnaDerivedData
-      class: dnaDerivedData
+      class: DnaDerivedData
       path: ./2022-FalseCreek-eDNA/obis/interim_obis/edna/FC2022_DNA.csv
       description: Dna dervied data for OBIS
       fieldMappings:

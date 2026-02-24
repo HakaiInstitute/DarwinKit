@@ -19,7 +19,6 @@ import type {
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
-import { classToProfileKey } from "@dwkt/domain/schemas";
 import type { SpecField } from "@dwkt/domain/specs";
 import {
   getPreset,
@@ -455,8 +454,7 @@ function validateDataset(
       .filter((col) => col !== "_row_number");
 
     // Use base type profile for DuckDB table naming (matches importSchema which uses base profiles)
-    const baseProfileKey = classToProfileKey(dataset.class);
-    const baseProfile = getValidationProfile(baseProfileKey);
+    const baseProfile = getValidationProfile(dataset.class);
 
     const schemaTableName = baseProfile
       ? sanitizeTableName(baseProfile.name).toLowerCase()
@@ -465,7 +463,7 @@ function validateDataset(
       return yield* _(
         Effect.fail(
           new WorkspaceValidationError({
-            message: `Invalid profile identifier: ${baseProfileKey}`,
+            message: `Invalid profile identifier: ${dataset.class}`,
           }),
         ),
       );

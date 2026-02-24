@@ -222,7 +222,7 @@ async function createMultiDatasetWorkspace(
   const datasets = options?.datasets ?? [
     {
       name: "events",
-      class: "event",
+      class: "Event",
       path: "./events.csv",
       fieldMappings: [
         { originName: "eventID", targetName: "eventID" },
@@ -234,7 +234,7 @@ async function createMultiDatasetWorkspace(
     },
     {
       name: "occurrences",
-      class: "occurrence",
+      class: "Occurrence",
       path: "./occurrences.csv",
       fieldMappings: [
         { originName: "eventID", targetName: "eventID" },
@@ -409,7 +409,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         datasets: [
           {
             name: "events",
-            class: "event",
+            class: "Event",
             path: "./events.csv",
             fieldMappings: [
               { originName: "eventID", targetName: "eventID" },
@@ -417,7 +417,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
           },
           {
             name: "occurrences",
-            class: "occurrence",
+            class: "Occurrence",
             path: "./occurrences.csv",
             fieldMappings: [
               { originName: "eventID", targetName: "eventID" },
@@ -473,7 +473,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         datasets: [
           {
             name: "events",
-            class: "event",
+            class: "Event",
             path: "./events.csv",
             fieldMappings: [
               { originName: "eventID", targetName: "eventID" },
@@ -526,7 +526,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         { originName: "decimalLatitude", targetName: "decimalLatitude" },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -550,7 +550,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         { originName: "basisOfRecord", targetName: "basisOfRecord" },
         { originName: "scientificName", targetName: "scientificName" },
       ],
-      { class: "occurrence" },
+      { class: "Occurrence" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -579,7 +579,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -601,7 +601,7 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -620,7 +620,7 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -639,7 +639,7 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result1 = await validateWorkspace(tempDir);
@@ -702,7 +702,7 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
         { originName: "decimalLatitude", targetName: "decimalLatitude" },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -750,7 +750,7 @@ Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {
           constraints: [{ type: "format", format: "url" }],
         },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -800,7 +800,7 @@ Deno.test("WorkspaceValidator - Pattern Validation Tests", async (t) => {
           ],
         },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -841,7 +841,7 @@ Deno.test("WorkspaceValidator - Length Validation Tests", async (t) => {
           ],
         },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -886,7 +886,7 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
           ],
         },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -937,7 +937,7 @@ Deno.test("WorkspaceValidator - Required Field Validation Tests", async (t) => {
         },
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -993,7 +993,7 @@ Deno.test("WorkspaceValidator - Constraint Erasure Prevention", async (t) => {
           { originName: "decimalLongitude", targetName: "decimalLongitude" },
           { originName: "geodeticDatum", targetName: "geodeticDatum" },
         ],
-        { class: "event" },
+        { class: "Event" },
       );
 
       const result = await validateWorkspace(tempDir);
@@ -1035,7 +1035,7 @@ Deno.test("WorkspaceValidator - Invalid Preset Detection", async (t) => {
         } as RawFieldMapping,
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -1074,7 +1074,7 @@ Deno.test("WorkspaceValidator - Obligation-Based Requirement", async (t) => {
         { originName: "eventID", targetName: "eventID" },
         { originName: "country", targetName: "country" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -1117,7 +1117,7 @@ Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
         } as RawFieldMapping,
         { originName: "decimalLongitude", targetName: "decimalLongitude" },
       ],
-      { class: "event" },
+      { class: "Event" },
     );
 
     const result = await validateWorkspace(tempDir);
@@ -1156,7 +1156,7 @@ Deno.test("WorkspaceValidator - NOT NULL from Resolved Constraints", async (t) =
           { originName: "eventID", targetName: "eventID" },
           { originName: "eventDate", targetName: "eventDate" },
         ],
-        { class: "event" },
+        { class: "Event" },
       );
 
       const result = await validateWorkspace(tempDir);
