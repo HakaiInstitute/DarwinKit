@@ -5,7 +5,6 @@
  * then runs the validator and checks the Effect result.
  */
 
-import { DuckDBInstance } from "@duckdb/node-api";
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { assert, assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
@@ -19,6 +18,13 @@ import {
   UniqueConstraint,
 } from "@dwkt/domain/specs";
 import {
+  extractViolations,
+  makeField,
+  setupTable,
+  TABLE,
+  withConnection,
+} from "../../../../test/helpers/duckdb-test-utils.ts";
+import {
   findFormatViolations,
   findLengthViolations,
   findPatternViolations,
@@ -27,47 +33,6 @@ import {
   findUniquenessViolations,
   validateRequiredConstraints,
 } from "./field-validators.ts";
-
-// =============================================================================
-// Test Helpers
-// =============================================================================
-
-const TABLE = "test_data";
-
-async function setupTable(
-  connection: DuckDBConnection,
-  columns: string,
-  rows: string[],
-): Promise<void> {
-  await connection.run(`CREATE TABLE ${TABLE} (_row_number INTEGER, ${columns})`);
-  for (const row of rows) {
-    await connection.run(`INSERT INTO ${TABLE} VALUES (${row})`);
-  }
-}
-
-function makeField(
-  name: string,
-  constraints: SpecField["constraints"],
-): SpecField {
-  return { name, constraints };
-}
-
-async function withConnection(fn: (conn: DuckDBConnection) => Promise<void>): Promise<void> {
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-  try {
-    await fn(connection);
-  } finally {
-    connection.closeSync();
-    instance.closeSync();
-  }
-}
-
-// deno-lint-ignore no-explicit-any
-function extractViolations(result: any): Array<Record<string, unknown>> {
-  assert(result._tag === "Failure", "expected Failure exit");
-  return (result.cause as { error: unknown }).error as Array<Record<string, unknown>>;
-}
 
 // =============================================================================
 // Range Constraint Tests

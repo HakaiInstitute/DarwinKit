@@ -6,10 +6,8 @@ import { assert, assertEquals } from "@std/assert";
 import type { ResolvedSpec, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
 import type { Constraint, SpecField } from "@dwkt/domain/specs";
 import {
-  FormatConstraint,
   obligationForStandard,
   obligationToRequirement,
-  PatternConstraint,
   RangeConstraint,
   RequiredConstraint,
 } from "@dwkt/domain/specs";
@@ -20,6 +18,12 @@ import {
   RequiredFieldViolation,
   requirementToSeverity,
 } from "@dwkt/domain/types";
+import {
+  formatConstraint,
+  patternConstraint,
+  rangeConstraint,
+  requiredConstraint,
+} from "../../../../test/helpers/constraint-factories.ts";
 import type { ResolutionDiagnostic } from "./field-resolution.ts";
 import {
   addConstraints,
@@ -44,31 +48,6 @@ function makeResolvedSpec(overrides: Partial<ResolvedSpec> = {}): ResolvedSpec {
     specFields: {},
     ...overrides,
   };
-}
-
-function rangeConstraint(
-  min: number,
-  max: number,
-): Constraint {
-  return new RangeConstraint({ min, max, inclusive: true });
-}
-
-function requiredConstraint(
-  level: "required" | "recommended" | "optional" = "required",
-): Constraint {
-  return new RequiredConstraint({ level, allowEmpty: false, allowWhitespace: false });
-}
-
-function formatConstraint(
-  format: "iso8601" | "url" | "decimal-degrees",
-): Constraint {
-  return new FormatConstraint({ format });
-}
-
-function patternConstraint(
-  pattern: string,
-): Constraint {
-  return new PatternConstraint({ pattern });
 }
 
 // =============================================================================

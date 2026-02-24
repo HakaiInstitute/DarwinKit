@@ -18,6 +18,10 @@ import {
   RequiredConstraint,
 } from "./constraints.ts";
 import { normalizeField } from "./field-definition.ts";
+import {
+  rangeConstraint,
+  requiredConstraint as reqConstraint,
+} from "../../../../test/helpers/constraint-factories.ts";
 
 // Helper to decode unknown values into Constraint
 function decodeConstraint(raw: unknown): Constraint {
@@ -396,9 +400,8 @@ Deno.test("normalizeField - warns when requirement is stripped from value constr
 // =============================================================================
 
 Deno.test("mergeProfileConstraints", async (t) => {
-  const req = (level: "required" | "recommended" | "optional") =>
-    new RequiredConstraint({ level, allowEmpty: false, allowWhitespace: false });
-  const range = (min: number, max: number) => new RangeConstraint({ min, max, inclusive: true });
+  const req = reqConstraint;
+  const range = rangeConstraint;
 
   const cases = [
     {
