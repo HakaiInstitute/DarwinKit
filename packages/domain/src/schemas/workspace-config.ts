@@ -1,25 +1,10 @@
-/**
- * Schema definitions for workspace configuration validation
- *
- * Uses a single struct with optional validation/transform fields,
- * filtered to ensure at least one is present.
- */
-
 import * as S from "effect/Schema";
 import { ConstraintSchema, RequirementLevel } from "../specs/constraints.ts";
-
-// =============================================================================
-// Default Values
-// =============================================================================
 
 const DEFAULT_NULL_VALUES = ["NA", "N/A", "", "NULL", "null"];
 const DEFAULT_WORKSPACE_NAME = "Workspace";
 const DEFAULT_VERSION = "1.0.0";
 const DEFAULT_OUTPUT_DIR = "./output";
-
-// =============================================================================
-// Resolved Standard
-// =============================================================================
 
 /**
  * The resolved form of the `standard` config field.
@@ -41,7 +26,6 @@ export interface ResolvedStandard {
  */
 const KNOWN_VARIANTS = new Set(["obis", "gbif"]);
 
-/** Schema for the object form of `standard` */
 const ResolvedStandardStruct = S.Struct({
   base: S.String,
   variant: S.optional(S.String),
@@ -72,10 +56,6 @@ const ResolvedStandardSchema: S.Schema<
   ResolvedStandardStruct,
 );
 
-// =============================================================================
-// Field Mapping Schemas
-// =============================================================================
-
 /**
  * Maps source columns to Darwin Core fields with optional typed constraints.
  *
@@ -94,11 +74,6 @@ export const workspaceFieldMappingSchema = S.Struct({
   preset: S.optional(S.String),
 });
 
-/**
- * Defines relationships between datasets
- */
-// Cross-dataset rules drive DuckDB FK constraint creation in importSchema().
-// FK violations are caught at INSERT time, not via post-insert queries.
 export const workspaceCrossDatasetRuleSchema = S.Struct({
   ruleType: S.Literal("foreignKey").annotations({
     description: "Type of cross-dataset rule.",
@@ -114,14 +89,7 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
   description: "Defines a referential integrity rule between two datasets.",
 });
 
-// =============================================================================
-// Dataset Configuration Schemas
-// =============================================================================
-
-/**
- * Dataset configuration schema for validation
- * TODO: Should probably name accordingly (something like validationDatasetConfig)
- */
+// TODO: Should probably name accordingly (something like validationDatasetConfig)
 export const datasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this dataset." }),
   class: S.String.annotations({
@@ -141,9 +109,6 @@ export const datasetConfigSchema = S.Struct({
     "Configuration for a single dataset to validate against a Darwin Core specification.",
 });
 
-/**
- * Dataset configuration schema for transform workflows
- */
 export const transformDatasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this transform dataset." }),
   class: S.String.annotations({
@@ -158,13 +123,7 @@ export const transformDatasetConfigSchema = S.Struct({
   description: "Configuration for a dataset in a transform workflow.",
 });
 
-// =============================================================================
-// Validation Settings Schema
-// =============================================================================
-
 /**
- * Validation settings schema
- *
  * Uses two default patterns for optional fields:
  * - `S.optionalWith(schema, { default: () => value })` - Applies defaults during decoding
  * - `.pipe(S.withConstructorDefault(() => value))` - Applies defaults when using schema.make()
@@ -212,13 +171,6 @@ export const validationSettingsSchema = S.Struct({
   description: "Configuration for the validation workflow.",
 });
 
-// =============================================================================
-// Transform Settings Schema
-// =============================================================================
-
-/**
- * Transform settings schema
- */
 export const transformSettingsSchema = S.Struct({
   nullValues: S.optionalWith(
     S.Array(S.String).annotations({
@@ -258,14 +210,7 @@ export const transformSettingsSchema = S.Struct({
   description: "Configuration for the data transformation workflow.",
 });
 
-// =============================================================================
-// Workspace Configuration Schema
-// =============================================================================
-
-/**
- * Defines the structure with optional validation/transform, filtered to ensure
- * at least one is present.
- */
+/** Filtered to ensure at least one of validation/transform is present. */
 export const workspaceConfigSchema = S.Struct({
   id: S.optionalWith(
     S.String.annotations({
@@ -333,10 +278,6 @@ export const workspaceConfigSchema = S.Struct({
   ),
 );
 
-// =============================================================================
-// Type Exports
-// =============================================================================
-
 export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
 export type ValidationSettingsInput = S.Schema.Encoded<typeof validationSettingsSchema>;
 export type TransformSettings = S.Schema.Type<typeof transformSettingsSchema>;
@@ -347,32 +288,19 @@ export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
 /** @deprecated Use ResolvedStandard instead */
 export type Standard = ResolvedStandard;
 
-/**
- * Result of looking up a foreign key rule
- */
 export type ForeignKeyRuleMatch =
   & Pick<WorkspaceCrossDatasetRule, "targetDataset" | "targetField">
   & Required<Pick<WorkspaceCrossDatasetRule, "requirement">>;
 
-/** Config with validation settings guaranteed present */
 export type ConfigWithValidation = WorkspaceConfig & { validation: ValidationSettings };
 
-/** Config with transform settings guaranteed present */
 export type ConfigWithTransform = WorkspaceConfig & { transform: TransformSettings };
-
-// =============================================================================
-// Type Predicates
-// =============================================================================
 
 export const hasValidationConfig = (c: WorkspaceConfig): c is ConfigWithValidation =>
   c.validation !== undefined;
 
 export const hasTransformationConfig = (c: WorkspaceConfig): c is ConfigWithTransform =>
   c.transform !== undefined;
-
-// =============================================================================
-// Factory Functions
-// =============================================================================
 
 /** Input type for makeWorkspaceConfig - allows partial settings with defaults applied */
 export type WorkspaceConfigInput = S.Schema.Encoded<typeof workspaceConfigSchema>;
@@ -408,13 +336,6 @@ export function makeWorkspaceConfig(input: WorkspaceConfigInput): WorkspaceConfi
 export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig =>
   S.decodeUnknownSync(workspaceConfigSchema)(input);
 
-// =============================================================================
-// Utility Functions
-// =============================================================================
-
-/**
- * Valid Darwin Core classes (PascalCase, matching registry keys).
- */
 export const DARWIN_CORE_CLASSES = [
   "Event",
   "Occurrence",

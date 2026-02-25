@@ -1,53 +1,23 @@
-/**
- * Type definitions for the specification system
- *
- * Three distinct types model different roles:
- * - Spec: Base schema definitions loaded from JSON (Event, Occurrence, etc.)
- * - Profile: Variant overlays defined in TypeScript (OBIS, OBIS-Event, etc.)
- * - ResolvedSpec: Merged result of Spec + Profile, consumed by validation
- */
-
 import * as S from "effect/Schema";
 import { ConstraintSchema, RequirementLevel } from "../specs/constraints.ts";
 import type { ResolvedField, SpecField } from "../specs/field-definition.ts";
 
-// =============================================================================
-// Shared Schemas
-// =============================================================================
-
-/** Field override schema — used by Profiles to override spec field behavior */
 export const fieldOverrideSchema = S.Struct({
   requirement: S.optional(RequirementLevel),
   constraints: S.optional(S.Array(ConstraintSchema)),
 });
 
-/** Raw field metadata from JSON schema — used for SQL DDL generation */
 export const transformFieldSchema = S.Struct({
   type: S.optional(S.String),
   unique: S.optional(S.String),
   values: S.optional(S.Record({ key: S.String, value: S.Unknown })),
 });
 
-// =============================================================================
-// Derived Types
-// =============================================================================
-
 export type FieldOverride = S.Schema.Type<typeof fieldOverrideSchema>;
 export type TransformField = S.Schema.Type<typeof transformFieldSchema>;
 
-// =============================================================================
-// Raw Field (from JSON schema)
-// =============================================================================
-
 /**
- * Raw field definition from JSON schema
- *
- * Represents the raw structure of fields in the dwcSchema.json file.
- *
- * @internal This type is used internally for normalization and should not be used
- * directly in application code. Use SpecField instead for validation logic.
- *
- * Validators can be either strings (legacy format) or typed Constraint objects.
+ * @internal Use SpecField instead for validation logic.
  */
 export interface RawField {
   readonly group: string;
@@ -67,17 +37,6 @@ export interface RawField {
   readonly unique?: string;
 }
 
-// =============================================================================
-// Spec — Base schema definitions loaded from JSON
-// =============================================================================
-
-/**
- * A base Darwin Core schema definition (Event, Occurrence, Taxon, etc.)
- *
- * Loaded from dwcSchema.json. Contains field definitions in two forms:
- * - rawFields: Original JSON format for SQL DDL generation
- * - normalizedFields: Processed SpecField format for validation logic
- */
 export interface Spec {
   readonly id: string;
   readonly name: string;
@@ -88,20 +47,8 @@ export interface Spec {
   readonly metadata?: { createdAt?: Date; updatedAt?: Date; author?: string };
 }
 
-/** Registry mapping spec IDs to Spec objects */
 export type SpecRegistry = Record<string, Spec>;
 
-// =============================================================================
-// Profile — Variant overlays defined in TypeScript
-// =============================================================================
-
-/**
- * A validation profile that overlays a Spec with community-specific requirements.
- *
- * Profiles (OBIS, OBIS-Event, etc.) define field overrides that strengthen
- * or adjust the base spec's constraints. They don't carry field definitions
- * themselves — those come from the Spec they extend.
- */
 export interface Profile {
   readonly id: string;
   readonly name: string;
@@ -113,33 +60,15 @@ export interface Profile {
   readonly metadata?: { createdAt?: Date; updatedAt?: Date; author?: string };
 }
 
-/** Registry mapping profile IDs to Profile objects */
 export type ProfileRegistry = Record<string, Profile>;
 
-// =============================================================================
-// ResolvedSpec — Merged result for validation
-// =============================================================================
-
-/**
- * A fully resolved specification combining a Spec with an optional Profile.
- *
- * This is the merged result consumed by the validation pipeline.
- * Contains all the information needed for both DDL generation and validation.
- */
 export interface ResolvedSpec {
-  /** Display name (from the Spec) */
   readonly id: string;
   readonly name: string;
-  /** Which Spec it came from */
   readonly spec: string;
-  /** Which Profile was applied (undefined if base spec only) */
   readonly profile?: string;
-  /** Merged field overrides from Spec inheritance and Profile */
   readonly fieldOverrides: Record<string, FieldOverride>;
-  /** Resolved fields — obligations baked into constraints, ready for validators */
   readonly fields: Record<string, ResolvedField>;
-  /** Spec-level fields with obligations intact (for obligation lookups at DDL/resolution time) */
   readonly specFields: Record<string, SpecField>;
-  /** Raw fields from the Spec (for DDL generation) */
   readonly rawFields?: Record<string, TransformField>;
 }

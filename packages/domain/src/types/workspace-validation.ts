@@ -23,9 +23,6 @@ import type {
 } from "./validation-violation.ts";
 import type { SchemaViolation } from "./schema-violation.ts";
 
-/**
- * Validation result for a single dataset within a workspace
- */
 export interface DatasetValidationResult {
   readonly datasetName: string;
   readonly class: string;
@@ -41,14 +38,6 @@ export interface DatasetValidationResult {
   readonly fieldViolations: PartitionedViolations<FieldViolation>;
 }
 
-/**
- * Cross-dataset validation result
- *
- * Uses CrossDatasetViolation[] directly for violations, which includes:
- * - rowNumber, value, errorMessage (from ViolationBase)
- * - params.sourceDataset, params.targetDataset, params.targetField
- * - severity for consistent handling with other violations
- */
 export interface CrossDatasetValidationResult {
   readonly ruleType: "foreignKey";
   readonly sourceDataset: string;
@@ -58,9 +47,6 @@ export interface CrossDatasetValidationResult {
   readonly violations: ReadonlyArray<CrossDatasetViolation>;
 }
 
-/**
- * Complete workspace validation result
- */
 export interface WorkspaceValidationResult {
   readonly workspaceId: string;
   readonly configPath: string;
@@ -68,13 +54,8 @@ export interface WorkspaceValidationResult {
   readonly totalProcessingTimeMs: number;
   readonly overallStatus: "pass" | "warn" | "fail";
 
-  /** Per-dataset results */
   readonly datasetResults: ReadonlyArray<DatasetValidationResult>;
-
-  /** Cross-dataset results */
   readonly crossDatasetResults: ReadonlyArray<CrossDatasetValidationResult>;
-
-  /** Summary statistics */
   readonly summary: {
     readonly totalDatasets: number;
     readonly datasetsPassedCount: number;
@@ -86,7 +67,6 @@ export interface WorkspaceValidationResult {
     readonly totalRowsProcessed: number;
   };
 
-  /** Transformation statistics (optional, populated when transformation tracking is enabled) */
   readonly transformationSummary?: {
     readonly totalValues: number;
     readonly transformedValues: number;

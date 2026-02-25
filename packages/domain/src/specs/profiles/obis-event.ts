@@ -12,39 +12,24 @@
 
 import type { Profile } from "../../schemas/validation-profile.ts";
 
-/**
- * OBIS Event Core Profile
- *
- * Enforces OBIS-specific requirements for Event data, including:
- * - Event identifiers and structure
- * - Hierarchical event relationships
- * - Event-specific metadata
- *
- * Inherits base OBIS requirements for coordinates, dates, and taxonomy.
- */
 export const OBIS_EVENT_PROFILE: Profile = {
   id: "obis-event",
   name: "OBIS Event Core",
   description:
     "Validation requirements for Event Core data to be published to the Ocean Biodiversity Information System (OBIS)",
-  extends: "obis", // Inherits all base OBIS requirements
+  extends: "obis",
   documentationUrl: "https://manual.obis.org/format_event.html",
   version: "2024",
 
   fieldOverrides: {
-    // === Event Core Fields (Event-specific requirements) ===
-
-    // eventID: Required for Event core
     eventID: {
       requirement: "required",
     },
 
-    // parentEventID: Strongly recommended for hierarchical events
     parentEventID: {
       requirement: "recommended",
     },
 
-    // Event type and metadata
     eventType: {
       requirement: "optional",
     },
@@ -52,8 +37,6 @@ export const OBIS_EVENT_PROFILE: Profile = {
     eventRemarks: {
       requirement: "optional",
     },
-
-    // === Location Fields (Event-specific recommendations) ===
 
     locationID: {
       requirement: "optional",
@@ -86,8 +69,6 @@ export const OBIS_EVENT_PROFILE: Profile = {
     islandGroup: {
       requirement: "optional",
     },
-
-    // === Sampling Protocol (Event-specific) ===
 
     samplingProtocol: {
       requirement: "recommended",

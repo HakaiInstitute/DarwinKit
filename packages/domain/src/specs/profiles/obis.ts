@@ -14,22 +14,16 @@
 import type { Profile } from "../../schemas/validation-profile.ts";
 import { FormatConstraint, RangeConstraint, RequiredConstraint } from "../constraints.ts";
 
-/**
- * OBIS Base Profile
- *
- * Universal requirements for all OBIS data submissions.
- */
 export const OBIS_BASE_PROFILE: Profile = {
   id: "obis",
   name: "OBIS Base Requirements",
   description:
     "Core validation requirements for all data to be published to the Ocean Biodiversity Information System (OBIS)",
-  extends: "Event", // Inherit field definitions from Event core
+  extends: "Event",
   documentationUrl: "https://manual.obis.org/",
   version: "2024",
 
   fieldOverrides: {
-    // === Geographic Location (Required for all OBIS data) ===
     decimalLatitude: {
       requirement: "required",
       constraints: [
@@ -77,7 +71,6 @@ export const OBIS_BASE_PROFILE: Profile = {
       ],
     },
 
-    // === Temporal Information ===
     eventDate: {
       requirement: "required",
       constraints: [
@@ -101,7 +94,6 @@ export const OBIS_BASE_PROFILE: Profile = {
       requirement: "optional",
     },
 
-    // === Taxonomic Information ===
     scientificName: {
       requirement: "recommended",
       constraints: [
@@ -128,7 +120,6 @@ export const OBIS_BASE_PROFILE: Profile = {
       requirement: "optional",
     },
 
-    // === Occurrence Information ===
     basisOfRecord: {
       requirement: "recommended",
     },
@@ -137,7 +128,6 @@ export const OBIS_BASE_PROFILE: Profile = {
       requirement: "recommended",
     },
 
-    // === Depth Information (Marine-specific) ===
     minimumDepthInMeters: {
       requirement: "optional",
       constraints: [
@@ -162,7 +152,6 @@ export const OBIS_BASE_PROFILE: Profile = {
       ],
     },
 
-    // === Dataset/Record Metadata ===
     datasetName: {
       requirement: "optional",
     },
@@ -175,7 +164,6 @@ export const OBIS_BASE_PROFILE: Profile = {
       requirement: "optional",
     },
 
-    // === Location Details ===
     country: {
       requirement: "optional",
     },

@@ -65,9 +65,6 @@ const baseViolationFields = {
   validatorType: Schema.String,
 };
 
-/**
- * Range validation violation (numeric/date range constraints)
- */
 export class RangeViolation extends Schema.TaggedClass<RangeViolation>()("RangeViolation", {
   ...baseViolationFields,
   params: Schema.optional(
@@ -78,18 +75,12 @@ export class RangeViolation extends Schema.TaggedClass<RangeViolation>()("RangeV
   ),
 }) {}
 
-/**
- * Uniqueness validation violation (duplicate identifier constraints)
- */
 export class UniquenessViolation
   extends Schema.TaggedClass<UniquenessViolation>()("UniquenessViolation", {
     ...baseViolationFields,
     params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
   }) {}
 
-/**
- * Cross-dataset validation violation (foreign key/referential integrity)
- */
 export class CrossDatasetViolation
   extends Schema.TaggedClass<CrossDatasetViolation>()("CrossDatasetViolation", {
     ...baseViolationFields,
@@ -102,9 +93,6 @@ export class CrossDatasetViolation
     ),
   }) {}
 
-/**
- * Primary key constraint violation (duplicate or null primary key)
- */
 export class PrimaryKeyViolation
   extends Schema.TaggedClass<PrimaryKeyViolation>()("PrimaryKeyViolation", {
     ...baseViolationFields,
@@ -113,17 +101,11 @@ export class PrimaryKeyViolation
     params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
   }) {}
 
-/**
- * Not null constraint violation (required field is null)
- */
 export class NotNullViolation extends Schema.TaggedClass<NotNullViolation>()("NotNullViolation", {
   ...baseViolationFields,
   params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
 }) {}
 
-/**
- * Enum constraint violation (value not in controlled vocabulary)
- */
 export class EnumViolation extends Schema.TaggedClass<EnumViolation>()("EnumViolation", {
   ...baseViolationFields,
   enumType: Schema.String,
@@ -132,18 +114,12 @@ export class EnumViolation extends Schema.TaggedClass<EnumViolation>()("EnumViol
   params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
 }) {}
 
-/**
- * Format validation violation (field doesn't match expected format like ISO 8601, URL, UUID)
- */
 export class FormatViolation extends Schema.TaggedClass<FormatViolation>()("FormatViolation", {
   ...baseViolationFields,
   format: Schema.String,
   params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
 }) {}
 
-/**
- * Pattern validation violation (field doesn't match regex pattern)
- */
 export class PatternViolation extends Schema.TaggedClass<PatternViolation>()("PatternViolation", {
   ...baseViolationFields,
   pattern: Schema.String,
@@ -151,9 +127,6 @@ export class PatternViolation extends Schema.TaggedClass<PatternViolation>()("Pa
   params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
 }) {}
 
-/**
- * Length validation violation (string too short or too long)
- */
 export class LengthViolation extends Schema.TaggedClass<LengthViolation>()("LengthViolation", {
   ...baseViolationFields,
   params: Schema.optional(
@@ -165,18 +138,12 @@ export class LengthViolation extends Schema.TaggedClass<LengthViolation>()("Leng
   ),
 }) {}
 
-/**
- * Required field violation (field is null, empty, or whitespace-only)
- */
 export class RequiredFieldViolation
   extends Schema.TaggedClass<RequiredFieldViolation>()("RequiredFieldViolation", {
     ...baseViolationFields,
     params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
   }) {}
 
-/**
- * Foreign key constraint violation (referenced value doesn't exist)
- */
 export class ForeignKeyViolation
   extends Schema.TaggedClass<ForeignKeyViolation>()("ForeignKeyViolation", {
     ...baseViolationFields,
@@ -190,11 +157,6 @@ export class ForeignKeyViolation
     ),
   }) {}
 
-/**
- * Represents a field that passed validation
- *
- * Used as the success type when validators find no violations.
- */
 export interface ValidField {
   readonly fieldName: string;
   readonly targetName: string;
@@ -227,117 +189,50 @@ export type FieldViolation =
   | LengthViolation
   | RequiredFieldViolation;
 
-/**
- * Type guard helper for RangeViolation
- *
- * @example
- * ```typescript
- * const rangeErrors = violations.filter(isRangeViolation);
- * // TypeScript knows rangeErrors is RangeViolation[]
- * ```
- */
 export function isRangeViolation(v: FieldViolation): v is RangeViolation {
   return v._tag === "RangeViolation";
 }
 
-/**
- * Type guard helper for PrimaryKeyViolation
- *
- * @example
- * ```typescript
- * const pkErrors = violations.filter(isPrimaryKeyViolation);
- * // TypeScript knows pkErrors is PrimaryKeyViolation[]
- * ```
- */
 export function isPrimaryKeyViolation(v: FieldViolation): v is PrimaryKeyViolation {
   return v._tag === "PrimaryKeyViolation";
 }
 
-/**
- * Type guard helper for EnumViolation
- *
- * @example
- * ```typescript
- * const enumErrors = violations.filter(isEnumViolation);
- * // TypeScript knows enumErrors is EnumViolation[]
- * ```
- */
 export function isEnumViolation(v: FieldViolation): v is EnumViolation {
   return v._tag === "EnumViolation";
 }
 
-/**
- * Type guard helper for UniquenessViolation
- */
 export function isUniquenessViolation(v: FieldViolation): v is UniquenessViolation {
   return v._tag === "UniquenessViolation";
 }
 
-/**
- * Type guard helper for NotNullViolation
- */
 export function isNotNullViolation(v: FieldViolation): v is NotNullViolation {
   return v._tag === "NotNullViolation";
 }
 
-/**
- * Type guard helper for ForeignKeyViolation
- */
 export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolation {
   return v._tag === "ForeignKeyViolation";
 }
 
-/**
- * Type guard helper for CrossDatasetViolation
- */
 export function isCrossDatasetViolation(v: FieldViolation): v is CrossDatasetViolation {
   return v._tag === "CrossDatasetViolation";
 }
 
-/**
- * Type guard helper for FormatViolation
- */
 export function isFormatViolation(v: FieldViolation): v is FormatViolation {
   return v._tag === "FormatViolation";
 }
 
-/**
- * Type guard helper for PatternViolation
- */
 export function isPatternViolation(v: FieldViolation): v is PatternViolation {
   return v._tag === "PatternViolation";
 }
 
-/**
- * Type guard helper for LengthViolation
- */
 export function isLengthViolation(v: FieldViolation): v is LengthViolation {
   return v._tag === "LengthViolation";
 }
 
-/**
- * Type guard helper for RequiredFieldViolation
- */
 export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldViolation {
   return v._tag === "RequiredFieldViolation";
 }
 
-/**
- * Convert requirement level to severity
- *
- * Maps validation domain requirement levels to error severity
- * for consistent error handling across the system.
- *
- * @param requirement - The requirement level from constraint config
- * @returns The corresponding error severity
- *
- * @example
- * ```typescript
- * requirementToSeverity("required")    // => ErrorSeverity.ERROR
- * requirementToSeverity("recommended") // => ErrorSeverity.WARNING
- * requirementToSeverity("optional")    // => ErrorSeverity.INFO
- * ```
- */
 export function requirementToSeverity(requirement: RequirementLevel): ErrorSeverity {
   switch (requirement) {
     case "required":
@@ -349,15 +244,6 @@ export function requirementToSeverity(requirement: RequirementLevel): ErrorSever
   }
 }
 
-/**
- * Partition field violations by severity level
- *
- * Groups violations into errors, warnings, and info based on their
- * severity level.
- *
- * @param violations - Array of violations to partition
- * @returns Partitioned violations object
- */
 export function partitionFieldViolations(
   violations: ReadonlyArray<FieldViolation>,
 ): PartitionedViolations<FieldViolation> {
@@ -382,9 +268,6 @@ export function partitionFieldViolations(
   return { errors, warnings, info };
 }
 
-/**
- * Create an empty partitioned field violations object
- */
 export function emptyPartitionedFieldViolations(): PartitionedViolations<FieldViolation> {
   return { errors: [], warnings: [], info: [] };
 }

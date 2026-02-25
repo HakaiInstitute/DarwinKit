@@ -1,13 +1,3 @@
-/**
- * Constraint Presets
- *
- * Named constraint bundles for common validation patterns.
- * Presets provide reusable constraint configurations that can be
- * referenced by name in YAML configuration files.
- *
- * @module specs/constraint-presets
- */
-
 import type { Constraint } from "./constraints.ts";
 import {
   FormatConstraint,
@@ -17,17 +7,11 @@ import {
   UniqueConstraint,
 } from "./constraints.ts";
 
-/**
- * A named bundle of constraints for a common validation pattern
- */
 export interface ConstraintPreset {
   readonly description: string;
   readonly constraints: readonly Constraint[];
 }
 
-/**
- * Registry of named constraint presets
- */
 export const CONSTRAINT_PRESETS: Record<string, ConstraintPreset> = {
   latitude: {
     description: "WGS84 latitude (-90 to +90 decimal degrees)",
@@ -109,16 +93,10 @@ export const CONSTRAINT_PRESETS: Record<string, ConstraintPreset> = {
   },
 };
 
-/**
- * Get a constraint preset by name
- */
 export function getPreset(name: string): readonly Constraint[] | undefined {
   return CONSTRAINT_PRESETS[name]?.constraints;
 }
 
-/**
- * Get all valid preset names
- */
 export function getPresetNames(): string[] {
   return Object.keys(CONSTRAINT_PRESETS);
 }

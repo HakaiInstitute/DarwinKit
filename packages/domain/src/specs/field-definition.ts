@@ -1,24 +1,3 @@
-/**
- * Field Definition
- *
- * A normalized field structure derived from JSON schema fields.
- * Used by validation logic to work with a consistent format.
- *
- * ## Purpose
- *
- * SpecField provides a unified representation for validation by:
- * - Converting string validators -> typed Constraint objects
- * - Preserving values for DuckDB ENUM creation (via raw `fields`)
- * - Providing consistent property names and structure
- *
- * ## Usage
- *
- * - Validation code uses `spec.fields` (ResolvedField) or `spec.specFields` (SpecField)
- * - Transformation code uses `spec.rawFields` (raw JSON schema format)
- *
- * See validation-profile.ts for details on the dual-purpose field storage.
- */
-
 import * as S from "effect/Schema";
 import type { RawField } from "../schemas/validation-profile.ts";
 import {
@@ -62,12 +41,6 @@ export interface ResolvedField {
   readonly examples?: string;
 }
 
-/**
- * Convert a SpecField to a ResolvedField by dropping obligations.
- *
- * Obligations should already have been resolved to constraints via the
- * 3-tier merge pipeline before calling this function.
- */
 export function toResolvedField(specField: SpecField): ResolvedField {
   return {
     name: specField.name,
@@ -90,9 +63,6 @@ export interface ObligationResult {
   readonly requirement: RequirementLevel | undefined;
 }
 
-/**
- * Get the obligation and derived requirement level for a field, given the active standard.
- */
 export function obligationForStandard(
   field: SpecField,
   standard: "obis" | "gbif",
@@ -130,13 +100,6 @@ export function mapJsonTypeToFieldDataType(
   return mapping[jsonType];
 }
 
-/**
- * Normalize a JSON schema field to a SpecField
- *
- * Converts:
- * - validators: string[] -> Constraint[]
- * - values: Preserved in raw `fields` for DuckDB ENUM creation (not in constraints)
- */
 const VALID_OBLIGATIONS: ReadonlySet<string> = new Set([
   "required",
   "strongly recommended",
@@ -150,7 +113,6 @@ function isValidObligation(value: string): value is Obligation {
   return VALID_OBLIGATIONS.has(value);
 }
 
-/** Maps string validator names from dwcSchema.json to Constraint instances. null = no constraint emitted. */
 const STRING_VALIDATOR_MAP: Record<string, Constraint | null> = {
   uniqueIdentifier: new UniqueConstraint({}),
   unique: new UniqueConstraint({}),
@@ -175,43 +137,27 @@ const STRING_VALIDATOR_MAP: Record<string, Constraint | null> = {
 export function normalizeField(jsonField: RawField): SpecField {
   const constraints: Constraint[] = [];
 
-  // Convert validators to Constraint objects
-  //
-  // Terminology chain (JSON validator string → RequirementLevel → ErrorSeverity):
-  //   "required"    → "required"  → ERROR
-  //   "recommended" → "optional"  → INFO
-  //   "optional"    → (no constraint emitted)
-  //
-  // Note: Obligation "strongly recommended" → requirement "recommended" → WARNING
-  // is handled separately via obligationToRequirement(), not via validator strings.
   if (jsonField.validators) {
     for (const v of jsonField.validators) {
-      // If already an object with type field, flatten params and decode via ConstraintSchema
       if (typeof v === "object" && v !== null && "type" in v) {
         const obj = v as Record<string, unknown>;
         const params = (obj.params as Record<string, unknown>) || {};
 
-        // Flatten params into the object
         const raw: Record<string, unknown> = {
           ...params,
           ...obj,
         };
-        // Remove nested params — fields are now at top level
         delete raw.params;
 
-        // Apply type-specific defaults for fields that Schema requires
         if (raw.type === "required") {
           raw.allowEmpty ??= false;
           raw.allowWhitespace ??= false;
-          // Accept both "requirement" and "level" from JSON, prefer "level"
           if (raw.level === undefined && raw.requirement !== undefined) {
             raw.level = raw.requirement;
           }
           raw.level ??= "required";
-          // Keep requirement for schema decode compatibility
           raw.requirement ??= raw.level;
         } else {
-          // Value constraints no longer have requirement — strip if present
           if (raw.requirement !== undefined) {
             console.warn(
               `Stripping "requirement" from ${raw.type} constraint on field "${jsonField.name}" — only "required" constraints support requirement`,
@@ -232,7 +178,6 @@ export function normalizeField(jsonField: RawField): SpecField {
         continue;
       }
 
-      // Convert string validators to Constraint objects
       if (typeof v === "string") {
         const mapped = STRING_VALIDATOR_MAP[v];
         if (mapped === undefined) {
@@ -246,7 +191,6 @@ export function normalizeField(jsonField: RawField): SpecField {
     }
   }
 
-  // Build obligations map from raw JSON field metadata
   const obligations: { obis?: Obligation; gbif?: Obligation } = {};
   if (jsonField.obis_required && isValidObligation(jsonField.obis_required)) {
     obligations.obis = jsonField.obis_required;

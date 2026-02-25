@@ -1,14 +1,3 @@
-/**
- * Validation Profile Registry
- *
- * Central registry for specs (base schemas from JSON) and profiles
- * (TypeScript overlays) with support for inheritance and composition.
- *
- * - Specs: Base Darwin Core schemas (Event, Occurrence, etc.) from dwcSchema.json
- * - Profiles: Community-specific overlays (OBIS, OBIS-Event) defined in TypeScript
- * - ResolvedSpec: Merged result of Spec + Profile for validation
- */
-
 import { join } from "@std/path";
 import type {
   FieldOverride,
@@ -40,25 +29,11 @@ function loadDwcSchema(): Record<string, unknown> {
   return _dwcSchemaCache;
 }
 
-// =============================================================================
-// Profile Registry (TypeScript-defined overlays)
-// =============================================================================
-
-/**
- * All available TypeScript profiles
- */
 export const PROFILE_REGISTRY: ProfileRegistry = {
   "obis": OBIS_BASE_PROFILE,
   "obis-event": OBIS_EVENT_PROFILE,
 } as const;
 
-// =============================================================================
-// Field Override Merging
-// =============================================================================
-
-/**
- * Merge two field override objects (child overrides parent)
- */
 function mergeFieldOverrides(
   parent: Record<string, FieldOverride>,
   child: Record<string, FieldOverride>,
@@ -69,10 +44,8 @@ function mergeFieldOverrides(
     const parentOverride = merged[fieldName];
 
     if (!parentOverride) {
-      // Field only in child
       merged[fieldName] = childOverride;
     } else {
-      // Merge parent and child overrides (child takes precedence)
       merged[fieldName] = {
         requirement: childOverride.requirement ?? parentOverride.requirement,
         constraints: childOverride.constraints
@@ -85,15 +58,6 @@ function mergeFieldOverrides(
   return merged;
 }
 
-// =============================================================================
-// Spec Loading (from JSON)
-// =============================================================================
-
-/**
- * Normalize a JSON profile to a Spec by converting raw fields to SpecFields.
- *
- * Produces a Spec with both rawFields (for DDL) and normalizedFields (for validation).
- */
 function normalizeJsonToSpec(jsonProfile: unknown): Spec {
   if (typeof jsonProfile !== "object" || jsonProfile === null) {
     throw new Error("Invalid JSON profile: expected object");
@@ -101,7 +65,6 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
 
   const profile = jsonProfile as Record<string, unknown>;
 
-  // Normalize fields if they exist
   const normalizedFields: Record<string, SpecField> = {};
   const rawFields: Record<string, TransformField> = {};
 
@@ -116,7 +79,6 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
       } catch {
         // Skip invalid fields rather than failing the entire spec
       }
-      // Preserve raw field data for DDL generation
       const raw = fieldValue as Record<string, unknown>;
       rawFields[fieldName] = {
         type: typeof raw.type === "string" ? raw.type : undefined,
@@ -137,35 +99,16 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
   };
 }
 
-/**
- * Get a base Spec by ID from JSON schema.
- *
- * Returns a Spec with normalizedFields and rawFields.
- * Does NOT resolve inheritance — use getResolvedSpec() for that.
- */
 function getJsonSpec(specId: string): Spec | undefined {
   const rawJsonProfile = loadDwcSchema()[specId];
   if (!rawJsonProfile) return undefined;
   return normalizeJsonToSpec(rawJsonProfile);
 }
 
-// =============================================================================
-// Profile Resolution
-// =============================================================================
-
-/**
- * Get a Profile by ID from the TypeScript registry.
- */
 export function getProfile(profileId: string): Profile | undefined {
   return PROFILE_REGISTRY[profileId];
 }
 
-/**
- * Resolve a Profile's inheritance chain, merging field overrides.
- *
- * Returns the profile with all inherited field overrides merged.
- * Parent profiles contribute their field overrides (child takes precedence).
- */
 function resolveProfileChain(profile: Profile): {
   fieldOverrides: Record<string, FieldOverride>;
   spec: Spec | undefined;
@@ -174,7 +117,6 @@ function resolveProfileChain(profile: Profile): {
     return { fieldOverrides: profile.fieldOverrides, spec: undefined };
   }
 
-  // Check if parent is another Profile
   const parentProfile = PROFILE_REGISTRY[profile.extends];
   if (parentProfile) {
     const parentResolved = resolveProfileChain(parentProfile);
@@ -184,7 +126,6 @@ function resolveProfileChain(profile: Profile): {
     };
   }
 
-  // Parent must be a JSON Spec
   const parentSpec = getJsonSpec(profile.extends);
   return {
     fieldOverrides: profile.fieldOverrides,
@@ -192,19 +133,11 @@ function resolveProfileChain(profile: Profile): {
   };
 }
 
-// =============================================================================
-// ResolvedSpec Construction
-// =============================================================================
-
-/**
- * Build a ResolvedSpec from a Spec and optional Profile.
- */
 function buildResolvedSpec(
   spec: Spec,
   profile?: Profile,
   mergedOverrides?: Record<string, FieldOverride>,
 ): ResolvedSpec {
-  // Convert SpecFields → ResolvedFields (drops obligations)
   const fields: Record<string, ResolvedField> = {};
   for (const [name, specField] of Object.entries(spec.normalizedFields)) {
     fields[name] = toResolvedField(specField);
@@ -222,20 +155,6 @@ function buildResolvedSpec(
   };
 }
 
-// =============================================================================
-// Public API
-// =============================================================================
-
-/**
- * Get a validation profile by ID with inheritance resolution.
- *
- * Returns a ResolvedSpec that combines the base Spec with any Profile overlays.
- * Handles both TypeScript profiles and JSON specs.
- *
- * Resolution order:
- * 1. Check TypeScript profile registry → resolve inheritance → build ResolvedSpec
- * 2. Check JSON spec registry → build ResolvedSpec (no profile)
- */
 export function getValidationProfile(profileId: string): ResolvedSpec | undefined {
   // Try TypeScript profile registry first
   const tsProfile = PROFILE_REGISTRY[profileId];
@@ -244,7 +163,6 @@ export function getValidationProfile(profileId: string): ResolvedSpec | undefine
     if (spec) {
       return buildResolvedSpec(spec, tsProfile, fieldOverrides);
     }
-    // Profile with no resolvable spec (shouldn't normally happen)
     return {
       id: tsProfile.id,
       name: tsProfile.name,
@@ -257,7 +175,6 @@ export function getValidationProfile(profileId: string): ResolvedSpec | undefine
     };
   }
 
-  // Fall back to JSON spec
   const jsonSpec = getJsonSpec(profileId);
   if (!jsonSpec) return undefined;
   return buildResolvedSpec(jsonSpec);
@@ -283,6 +200,5 @@ export function resolveProfile(
     if (tsProfile) return tsProfile;
   }
 
-  // Fall back to base profile using class key directly (PascalCase)
   return getValidationProfile(dwcClass);
 }

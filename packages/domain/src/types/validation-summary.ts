@@ -1,18 +1,8 @@
-/**
- * Validation Summary Types and Utilities
- *
- * Pure domain types and functions for calculating and aggregating
- * validation results. No infrastructure dependencies.
- */
-
 import type {
   CrossDatasetValidationResult,
   DatasetValidationResult,
 } from "./workspace-validation.ts";
 
-/**
- * Summary statistics for validation results
- */
 export interface ValidationSummary {
   readonly totalDatasets: number;
   readonly datasetsPassedCount: number;
@@ -24,13 +14,6 @@ export interface ValidationSummary {
   readonly totalRowsProcessed: number;
 }
 
-/**
- * Calculate summary statistics across all dataset results
- *
- * @param datasetResults - Array of dataset validation results
- * @param crossDatasetResults - Optional array of cross-dataset validation results
- * @returns Summary statistics
- */
 export function calculateSummary(
   datasetResults: readonly DatasetValidationResult[],
   crossDatasetResults?: readonly CrossDatasetValidationResult[],
@@ -46,7 +29,6 @@ export function calculateSummary(
   for (const result of datasetResults) {
     totalRowsProcessed += result.rowsProcessed;
 
-    // Count violations by severity from both schema and field violations
     totalErrors += result.schemaViolations.errors.length + result.fieldViolations.errors.length;
     totalWarnings += result.schemaViolations.warnings.length +
       result.fieldViolations.warnings.length;
@@ -61,7 +43,6 @@ export function calculateSummary(
     }
   }
 
-  // Count cross-dataset violations by severity
   if (crossDatasetResults) {
     for (const result of crossDatasetResults) {
       for (const violation of result.violations) {
@@ -92,12 +73,6 @@ export function calculateSummary(
   };
 }
 
-/**
- * Determine overall validation status from summary
- *
- * @param summary - Validation summary
- * @returns "pass", "warn", or "fail"
- */
 export function determineOverallStatus(
   summary: ValidationSummary,
 ): "pass" | "warn" | "fail" {

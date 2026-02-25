@@ -1,27 +1,6 @@
-/**
- * Typed Constraint System
- *
- * Defines a discriminated union of constraint types for field validation.
- * Each constraint type uses Data.TaggedClass for structural equality and
- * immutability. The `_tag` field is the discriminator.
- *
- * "Constraint" is the config data (what to check), "validator" is the
- * runtime function (how to check it). This file defines the constraint
- * classes, types, and merge logic.
- *
- * @module specs/constraints
- */
-
 import * as Data from "effect/Data";
 import * as S from "effect/Schema";
 
-// =============================================================================
-// Requirement Level (shared infrastructure, moved from validators.ts)
-// =============================================================================
-
-/**
- * Requirement levels determine how strictly constraints are applied
- */
 export const RequirementLevel: S.Literal<[
   "required",
   "recommended",
@@ -34,16 +13,11 @@ export const RequirementLevel: S.Literal<[
 
 export type RequirementLevel = S.Schema.Type<typeof RequirementLevel>;
 
-/** Strictness ordering for requirement levels (higher = stricter). */
 export const REQUIREMENT_STRICTNESS: Record<RequirementLevel, number> = {
   required: 2,
   recommended: 1,
   optional: 0,
 };
-
-// =============================================================================
-// Field Data Types (for registry discoverability)
-// =============================================================================
 
 export const FieldDataType = S.Literal(
   "string",
@@ -58,13 +32,6 @@ export const FieldDataType = S.Literal(
 
 export type FieldDataType = S.Schema.Type<typeof FieldDataType>;
 
-// =============================================================================
-// Constraint Classes (Data.TaggedClass)
-// =============================================================================
-
-/**
- * Range constraint - validates numeric values within min/max bounds
- */
 export class RangeConstraint extends Data.TaggedClass("range")<{
   readonly min?: number;
   readonly max?: number;
@@ -72,9 +39,6 @@ export class RangeConstraint extends Data.TaggedClass("range")<{
   readonly message?: string;
 }> {}
 
-/**
- * Required constraint - field must have a non-null/non-empty value
- */
 export class RequiredConstraint extends Data.TaggedClass("required")<{
   readonly level: RequirementLevel;
   readonly allowEmpty?: boolean;
@@ -82,34 +46,22 @@ export class RequiredConstraint extends Data.TaggedClass("required")<{
   readonly message?: string;
 }> {}
 
-/**
- * Unique constraint - field value must be unique within the dataset
- */
 export class UniqueConstraint extends Data.TaggedClass("unique")<{
   readonly message?: string;
 }> {}
 
-/**
- * Pattern constraint - field value must match a regular expression
- */
 export class PatternConstraint extends Data.TaggedClass("pattern")<{
   readonly pattern: string;
   readonly flags?: string;
   readonly message?: string;
 }> {}
 
-/**
- * Length constraint - string field must meet length requirements
- */
 export class LengthConstraint extends Data.TaggedClass("length")<{
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly message?: string;
 }> {}
 
-/**
- * Format constraint - field must conform to a specific format
- */
 export class FormatConstraint extends Data.TaggedClass("format")<{
   readonly format:
     | "email"
@@ -121,14 +73,6 @@ export class FormatConstraint extends Data.TaggedClass("format")<{
   readonly message?: string;
 }> {}
 
-// =============================================================================
-// Discriminated Union
-// =============================================================================
-
-/**
- * The discriminated union of all constraint types.
- * Discriminated by the `_tag` field.
- */
 export type Constraint =
   | RangeConstraint
   | RequiredConstraint
@@ -136,10 +80,6 @@ export type Constraint =
   | PatternConstraint
   | LengthConstraint
   | FormatConstraint;
-
-// =============================================================================
-// Effect Schema for Constraint (decode-only from YAML/JSON)
-// =============================================================================
 
 /**
  * Build a decode-only Effect Schema that validates `{ type: tag, ...fields }`
@@ -196,7 +136,6 @@ const FormatConstraintSchema = constraintSchema("format", FormatConstraint, {
   message: S.optional(S.String),
 });
 
-/** RequiredConstraint has custom decode logic (alias handling, defaults) */
 const RequiredConstraintSchema = S.transform(
   S.Struct({
     type: S.Literal("required"),
@@ -221,12 +160,6 @@ const RequiredConstraintSchema = S.transform(
   },
 );
 
-/**
- * Effect Schema for the Constraint union.
- *
- * Decodes YAML/JSON with `type` discriminator into Data.TaggedClass instances.
- * Used at the config parsing boundary (workspace-config.ts, validation-profile.ts).
- */
 export const ConstraintSchema = S.Union(
   RangeConstraintSchema,
   RequiredConstraintSchema,
@@ -236,16 +169,6 @@ export const ConstraintSchema = S.Union(
   FormatConstraintSchema,
 );
 
-// =============================================================================
-// Obligation System
-// =============================================================================
-
-/**
- * Obligation levels from biodiversity data standards (OBIS, GBIF).
- *
- * These represent the requirement level for a field within a specific standard,
- * directly matching the values used in dwcSchema.json.
- */
 export const Obligation = S.Literal(
   "required",
   "strongly recommended",
@@ -257,12 +180,6 @@ export const Obligation = S.Literal(
 
 export type Obligation = S.Schema.Type<typeof Obligation>;
 
-/**
- * Per-standard obligations map.
- *
- * Each key represents a biodiversity data standard and its value is the
- * obligation level for the field within that standard.
- */
 export const ObligationsMap = S.Struct({
   obis: S.optional(Obligation),
   gbif: S.optional(Obligation),
@@ -270,14 +187,6 @@ export const ObligationsMap = S.Struct({
 
 export type ObligationsMap = S.Schema.Type<typeof ObligationsMap>;
 
-// =============================================================================
-// Merge & Utility Functions
-// =============================================================================
-
-/**
- * Pick the strictest RequiredConstraint from an array.
- * Returns undefined if the array is empty.
- */
 export function strictestRequired(
   constraints: readonly RequiredConstraint[],
 ): RequiredConstraint | undefined {
@@ -328,13 +237,8 @@ export function mergeConstraints(
   parent: readonly Constraint[],
   child: readonly Constraint[],
 ): Constraint[] {
-  // Collect the set of constraint types the child defines
   const childTypes = new Set(child.map((c) => c._tag));
-
-  // Keep parent constraints whose type is NOT overridden by child
   const kept = parent.filter((c) => !childTypes.has(c._tag));
-
-  // Append all child constraints (preserving duplicates within child)
   return [...kept, ...child];
 }
 
@@ -351,7 +255,6 @@ export function mergeProfileConstraints(
 ): Constraint[] {
   const childTypes = new Set(child.map((c) => c._tag));
 
-  // Separate required constraints for strictest-wins handling
   const parentRequired = parent.filter(
     (c): c is RequiredConstraint => c._tag === "required",
   );
@@ -359,13 +262,11 @@ export function mergeProfileConstraints(
     (c): c is RequiredConstraint => c._tag === "required",
   );
 
-  // For non-required types: standard replacement semantics
   const keptNonRequired = parent.filter(
     (c) => c._tag !== "required" && !childTypes.has(c._tag),
   );
   const childNonRequired = child.filter((c) => c._tag !== "required");
 
-  // For required type: pick strictest from either side
   const allRequired = [...parentRequired, ...childRequired];
   const winner = strictestRequired(allRequired);
   const resolvedRequired: Constraint[] = winner ? [winner] : [];
