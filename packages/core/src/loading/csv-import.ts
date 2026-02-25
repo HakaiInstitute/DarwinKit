@@ -12,18 +12,6 @@ import * as Effect from "effect/Effect";
 import { CsvImportError } from "../errors/mod.ts";
 import { formatNullValues, sanitizeTableName } from "./sql.ts";
 
-/**
- * Import a CSV file into a DuckDB table with row numbers
- *
- * Creates a table from the CSV with an additional `_row_number` column
- * for tracking original row positions. If the table exists, it will be
- * dropped and recreated.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name for the table (will be sanitized)
- * @param csvPath - Path to the CSV file
- * @param nullValues - Strings to treat as NULL values
- */
 export function importCsv(
   connection: DuckDBConnection,
   tableName: string,
@@ -45,7 +33,6 @@ export function importCsv(
       // Create sequence for deterministic row numbering
       await connection.run(`CREATE SEQUENCE ${sequenceName} START 1`);
 
-      // Import CSV with row numbers
       await connection.run(
         `CREATE TABLE "${safeName}" AS
          SELECT *, nextval('${sequenceName}') as _row_number
@@ -62,18 +49,6 @@ export function importCsv(
   });
 }
 
-/**
- * Get a single cell value from a table by field name and row number
- *
- * Used to retrieve the original value from an imported CSV table,
- * typically for error reporting or validation feedback.
- *
- * @param connection - DuckDB connection
- * @param tableName - Name of the table
- * @param fieldName - Name of the column/field
- * @param rowNumber - Row number (1-indexed, from _row_number column)
- * @returns The value as a string, or empty string if not found
- */
 export function getCsvValue(
   connection: DuckDBConnection,
   tableName: string,

@@ -11,7 +11,12 @@
  * @module validation/field-resolution
  */
 
-import type { ResolvedSpec, ResolvedStandard, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
+import type {
+  DatasetConfig,
+  ResolvedSpec,
+  ResolvedStandard,
+  WorkspaceFieldMapping,
+} from "@dwkt/domain/schemas";
 import type { Constraint, RequirementLevel, SpecField } from "@dwkt/domain/specs";
 import {
   getPreset,
@@ -20,20 +25,10 @@ import {
   obligationForStandard,
   RequiredConstraint,
   REQUIREMENT_STRICTNESS,
+  resolveProfile,
   strictestRequired,
 } from "@dwkt/domain/specs";
 
-// =============================================================================
-// Helper Functions (moved from workspace-validator.ts)
-// =============================================================================
-
-/**
- * Resolve the active standard for obligation lookup.
- *
- * Extracts the variant from a ResolvedStandard to determine which
- * obligation column to use. Defaults to "obis" when no standard or
- * variant is specified.
- */
 export function resolveActiveStandard(
   standard: ResolvedStandard | undefined,
 ): "obis" | "gbif" {
@@ -59,13 +54,6 @@ export function deriveRequirementFromConstraints(
   return strictestRequired(requiredConstraints)?.level;
 }
 
-/**
- * Compile a requirement level into a RequiredConstraint.
- *
- * Every requirement level produces a constraint — the level
- * value controls the severity (required → ERROR, recommended → WARNING,
- * optional → INFO).
- */
 export function requirementToConstraint(
   requirement: RequirementLevel,
 ): Constraint {
@@ -75,10 +63,6 @@ export function requirementToConstraint(
     allowWhitespace: false,
   });
 }
-
-// =============================================================================
-// Additive Constraint Merge
-// =============================================================================
 
 /**
  * Additive constraint merge: config constraints are appended to existing ones.
@@ -104,7 +88,6 @@ export function addConstraints(
 ): Constraint[] {
   const existingTypes = new Set(existing.map((c) => c._tag));
 
-  // Find the strictest existing RequiredConstraint (if any)
   const existingRequired = existing.filter(
     (c): c is RequiredConstraint => c._tag === "required",
   );
@@ -136,10 +119,6 @@ export function addConstraints(
 
   return [...existing, ...kept];
 }
-
-// =============================================================================
-// Field Resolution Pipeline
-// =============================================================================
 
 /**
  * Diagnostic message from constraint resolution.
@@ -175,20 +154,14 @@ export function resolveSpecFields(
   configMappings: readonly WorkspaceFieldMapping[],
   diagnostics?: ResolutionDiagnostic[],
 ): Record<string, WorkspaceFieldMapping> {
-  // --- Tier 1: Spec fields with obligation-derived constraints ---
   const result: Record<string, WorkspaceFieldMapping> = {};
-
-  // Fields explicitly mapped by the user's config (needed for conditional obligations)
   const mappedFieldNames = new Set(configMappings.map((m) => m.targetName));
 
   for (const [fieldName, field] of Object.entries(schemaProfile.specFields || {})) {
-    // Start with the spec's own constraints
     let constraints: Constraint[] = [...(field.constraints ?? [])];
 
-    // Add obligation-derived constraint
     const obligationResult = obligationForStandard(field, activeStandard);
     if (obligationResult?.requirement) {
-      // Obligation → RequiredConstraint merged via replacement (spec-level, trusted)
       constraints = mergeConstraints(constraints, [
         new RequiredConstraint({
           level: obligationResult.requirement,
@@ -224,18 +197,14 @@ export function resolveSpecFields(
     };
   }
 
-  // --- Tier 2: Profile fieldOverrides (trusted, full replacement semantics) ---
   if (schemaProfile.fieldOverrides) {
     for (const [fieldName, override] of Object.entries(schemaProfile.fieldOverrides)) {
       const existing = result[fieldName];
-
-      // Merge profile override constraints (replacement for values, strictest-wins for required)
       let constraints = existing?.constraints ?? [];
       if (override.constraints) {
         constraints = mergeProfileConstraints(constraints, override.constraints);
       }
 
-      // Profile requirement → constraint (strictest-wins for required)
       if (override.requirement) {
         constraints = mergeProfileConstraints(constraints, [
           requirementToConstraint(override.requirement),
@@ -258,12 +227,10 @@ export function resolveSpecFields(
     }
   }
 
-  // --- Tier 3: Config fieldMappings (additive-only constraints) ---
   for (const configMapping of configMappings) {
     const existing = result[configMapping.targetName];
     let constraints = existing?.constraints ?? [];
 
-    // Track overlapping constraint types when diagnostics are requested
     const tracker = diagnostics
       ? {
         fieldName: configMapping.targetName,
@@ -272,7 +239,6 @@ export function resolveSpecFields(
       }
       : undefined;
 
-    // Resolve preset to constraints and add
     if (configMapping.preset) {
       const presetConstraints = getPreset(configMapping.preset);
       if (presetConstraints) {
@@ -280,12 +246,10 @@ export function resolveSpecFields(
       }
     }
 
-    // Config explicit constraints
     if (configMapping.constraints) {
       constraints = addConstraints(constraints, configMapping.constraints, tracker);
     }
 
-    // Config requirement → constraint
     if (configMapping.requirement) {
       constraints = addConstraints(
         constraints,
@@ -294,7 +258,6 @@ export function resolveSpecFields(
       );
     }
 
-    // Record diagnostics for overlapping constraint types and filtered constraints
     if (tracker && (tracker.overlapping.length > 0 || tracker.filtered.length > 0)) {
       const unique = [...new Set(tracker.overlapping)];
       const parts: string[] = [];
@@ -316,7 +279,6 @@ export function resolveSpecFields(
       });
     }
 
-    // Apply config's originName/targetName, preserve resolved constraints
     result[configMapping.targetName] = {
       ...(existing ?? {}),
       originName: configMapping.originName,
@@ -329,12 +291,7 @@ export function resolveSpecFields(
 }
 
 /**
- * Build a SpecField for validation by combining base field metadata
- * (name, label, data type) with the fully-resolved constraints from
- * resolveSpecFields().
- *
- * The resolved constraints already include all spec, profile, and config
- * constraints — this function simply applies them to the base definition.
+ * Combine base field metadata with fully-resolved constraints from resolveSpecFields().
  */
 export function withResolvedConstraints(
   baseField: SpecField,
@@ -347,4 +304,54 @@ export function withResolvedConstraints(
     ...baseField,
     constraints: resolvedMapping.constraints,
   };
+}
+
+/**
+ * Pre-resolved field data for a single dataset.
+ *
+ * - `all`: Full resolution of all spec + profile + config fields. Used by
+ *   validators for missing-field detection and constraint-driven validation.
+ * - `mapped`: Subset filtered to fields with explicit config mappings. Used
+ *   by importSchema for NOT NULL column generation — unmapped spec fields
+ *   would cause spurious NOT NULL failures since no data is inserted for them.
+ */
+export interface ResolvedFieldsEntry {
+  readonly all: Record<string, WorkspaceFieldMapping>;
+  readonly mapped: Record<string, WorkspaceFieldMapping>;
+}
+
+/**
+ * Resolve constraints for all datasets in a single pass.
+ *
+ * This is the single source of truth for constraint resolution — both
+ * schema creation (importSchema) and validation (validateDataset) consume
+ * the same pre-resolved fields, eliminating duplicated resolution logic
+ * and preventing divergence between DDL and validation.
+ */
+export function resolveFieldsForDatasets(
+  datasets: readonly DatasetConfig[],
+  standard: ResolvedStandard,
+  diagnosticsPerDataset?: Map<string, ResolutionDiagnostic[]>,
+): Map<string, ResolvedFieldsEntry> {
+  const activeStandard = resolveActiveStandard(standard);
+  const result = new Map<string, ResolvedFieldsEntry>();
+
+  for (const dataset of datasets) {
+    const datasetProfile = resolveProfile(standard.variant, dataset.class);
+    if (!datasetProfile) continue;
+
+    const configMappings = dataset.fieldMappings || [];
+    const diagnostics = diagnosticsPerDataset?.get(dataset.name);
+    const all = resolveSpecFields(datasetProfile, activeStandard, configMappings, diagnostics);
+
+    const mappedNames = new Set(configMappings.map((m) => m.targetName));
+    const mapped: Record<string, WorkspaceFieldMapping> = {};
+    for (const [name, field] of Object.entries(all)) {
+      if (mappedNames.has(name)) mapped[name] = field;
+    }
+
+    result.set(dataset.name, { all, mapped });
+  }
+
+  return result;
 }

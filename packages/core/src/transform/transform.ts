@@ -14,31 +14,17 @@ import { importCsv } from "../loading/csv-import.ts";
 import { importSchema } from "../loading/schema.ts";
 import { findForeignKeyRule, formatConstraintViolation, parseDuckDBError } from "../loading/sql.ts";
 
-/**
- * Represents an error that occurs during the data transformation process.
- */
 export class TransformationError extends Data.TaggedError("TransformationError")<{
   readonly message: string;
   readonly cause?: Error;
 }> {}
 
-/**
- * Represents an error that occurs during the output process.
- */
 export class OutputError extends Data.TaggedError("OutputError")<{
   readonly message: string;
   readonly outputPath: string;
   readonly cause?: Error;
 }> {}
 
-/**
- * Creates tables in the DuckDB database from the CSV files specified in the workspace configuration.
- * It also executes any post-import SQL transformations.
- * @param connection - The active DuckDB connection.
- * @param config - The workspace configuration.
- * @param basePath - The base path for resolving relative CSV file paths.
- * @returns An Effect that completes when all tables are created, or fails with a TransformationError.
- */
 export function createTablesFromCSV( // Export for testing
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
@@ -49,14 +35,11 @@ export function createTablesFromCSV( // Export for testing
   | WorkspaceImportError,
   never
 > {
-  // Using Effect.gen to handle asynchronous operations in a sequential and readable manner.
   return Effect.gen(function* (_) {
-    // Type guard - ensure config has transform settings
     if (!hasTransformationConfig(config)) {
       return;
     }
 
-    // Check if there are any inputs defined in the configuration. If not, exit the function.
     if (!config.transform.inputs) {
       return;
     }
@@ -66,7 +49,6 @@ export function createTablesFromCSV( // Export for testing
 
       const fullPath = resolve(basePath, csvPath);
 
-      // Import CSV with row numbers
       yield* _(
         importCsv(connection, tableName, fullPath, config.transform.nullValues).pipe(
           Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
@@ -76,29 +58,11 @@ export function createTablesFromCSV( // Export for testing
   });
 }
 
-/**
- * Executes post-import transformation SQL queries on the given DuckDB connection.
- *
- * This function runs a series of SQL transformations defined in the workspace configuration
- * after data has been imported. It processes each transformation sequentially and handles
- * any errors that occur during execution.
- *
- * @param config - The workspace configuration containing transform settings
- * @param connection - The DuckDB connection to execute transformations on
- * @returns An Effect that completes when all transformations are executed successfully,
- *          or fails with a TransformationError if any transformation fails
- *
- * @remarks
- * - If the config lacks a "transform" property or postImportTransforms array, the effect returns without executing anything
- * - Transformations are executed sequentially in the order they appear in the configuration
- * - Any errors during SQL execution are caught and wrapped in a TransformationError with context
- */
 function runPostImportTransformations(
   config: WorkspaceConfig,
   connection: duckdb.DuckDBConnection,
 ): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
-    // Type guard - ensure config has transform settings
     if (!hasTransformationConfig(config)) {
       return;
     }
@@ -118,26 +82,16 @@ function runPostImportTransformations(
   });
 }
 
-/**
- * Creates tables based on the schema definitions in the workspace configuration.
- * This includes creating ENUM types for controlled vocabularies and defining table structures.
- * @param connection - The active DuckDB connection.
- * @param config - The workspace configuration.
- * @returns An Effect that completes when all schema tables are created, or fails with a WorkspaceImportError.
- */
 export function createTableFromSchema(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
-    // Type guard - ensure config has transform settings
     if (!hasTransformationConfig(config)) {
       return;
     }
 
     for (const dataset of config.transform.datasets) {
-      // Enforce structural integrity via FK constraints from crossDatasetRules
-      // Transform uses profile-override NOT NULL (no config field mappings to resolve)
       yield* _(
         importSchema(
           connection,
@@ -151,18 +105,11 @@ export function createTableFromSchema(
   });
 }
 
-/**
- * Populates the schema tables with data from the source data tables using SQL transformations.
- * @param connection - The active DuckDB connection.
- * @param config - The workspace configuration.
- * @returns An Effect that completes when the tables are populated, or fails with a TransformationError.
- */
 export function populateSchemaFromDataTables( // Export for testing
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
 ): Effect.Effect<void, TransformationError> {
   return Effect.gen(function* (_) {
-    // Type guard - ensure config has transform settings
     if (!hasTransformationConfig(config)) {
       return;
     }
@@ -176,7 +123,6 @@ export function populateSchemaFromDataTables( // Export for testing
         ));
       }
 
-      // Create column calculations based on the transformations defined in the dataset fields
       const columnCalculations = Object.entries(dataset.fields)
         .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
 
@@ -198,8 +144,6 @@ export function populateSchemaFromDataTables( // Export for testing
       const tableName = transformProfile.name.toLowerCase();
       const tableSources = Object.entries(dataset.source || {}).map(
         ([tableName, joinSQL]) => {
-          // Simple table names don't contain spaces, just an identifier
-          // Only wrap subqueries in parentheses, not simple table names
           const isSimpleTable = !joinSQL.trim().includes(" ");
           return isSimpleTable ? `${joinSQL} AS ${tableName}` : `(${joinSQL}) AS ${tableName}`;
         },
@@ -234,26 +178,6 @@ export function populateSchemaFromDataTables( // Export for testing
   });
 }
 
-/**
- * Exports data from schema tables to CSV files.
- *
- * This function takes explicit dependencies rather than a workspace reference,
- * making it easier to test and reuse in different contexts.
- *
- * @param connection - DuckDB connection to use for querying data
- * @param config - Export configuration (output directory, timestamp, null column handling)
- * @returns An Effect that completes when all tables are exported, or fails with an OutputError.
- *
- * @example
- * ```typescript
- * const connection = yield* createConnection();
- * const settings = {
- *   datasets: [{ name: "events", type: "Event", ... }],
- *   output: { dir: "./output", outputFilesWithTimestamp: true, dropNullColumns: false }
- * };
- * yield* exportObisTablesToCSV(connection, settings);
- * ```
- */
 export function exportObisTablesToCSV(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
@@ -272,7 +196,6 @@ export function exportObisTablesToCSV(
 
     const datasets = transformSettings.datasets;
 
-    // If no datasets provided, return early
     if (!datasets || datasets.length === 0) {
       return;
     }
@@ -286,7 +209,6 @@ export function exportObisTablesToCSV(
     ];
     const outputPath = output.outputDir;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    // Create output directory, recursively if necessary
     yield* _(
       Effect.try(() => Deno.mkdirSync(outputPath, { recursive: true })).pipe(
         Effect.mapError((error) =>
@@ -302,7 +224,6 @@ export function exportObisTablesToCSV(
     );
 
     for (const tableName of tables) {
-      // Get all column names from table schema
       const columnNamesResult = yield* _(
         Effect.tryPromise({
           try: () => connection.runAndReadAll(`PRAGMA table_info(${tableName});`),
@@ -320,15 +241,12 @@ export function exportObisTablesToCSV(
         String(row.name)
       );
 
-      // Determine which columns to include in export
       let columnsToExport: string[] = allColumnNames;
       const selectColumns: string[] = [];
 
       if (output.dropNullColumns) {
-        // Filter out columns that are entirely NULL
         const nonNullColumns: string[] = [];
         for (const columnName of allColumnNames) {
-          // Check if the column is entirely NULL
           const nullCountResult = yield* _(
             Effect.tryPromise({
               try: () =>
@@ -356,7 +274,6 @@ export function exportObisTablesToCSV(
         selectColumns.push("*");
       }
 
-      // Fetch all data from the current table
       const result = yield* _(
         Effect.tryPromise({
           try: () =>
@@ -371,11 +288,9 @@ export function exportObisTablesToCSV(
             }),
         }),
       );
-      // Generate the filename for the CSV file, including a timestamp if specified
       const filename = withTimestamp ? `${tableName}-${timestamp}.csv` : `${tableName}.csv`;
       const fullPath: string = join(outputPath, filename);
 
-      // Write the data to the CSV file
       yield* _(Effect.tryPromise({
         try: () =>
           Deno.writeTextFile(
@@ -395,19 +310,10 @@ export function exportObisTablesToCSV(
   });
 }
 
-/**
- * Exports the in-memory DuckDB database to a persistent file.
- * The output file name can include a timestamp based on the `withTimestamp` flag.
- *
- * @param connection - The active DuckDB connection.
- * @param config - The workspace configuration.
- * @returns An Effect that completes when the database is exported, or fails with an OutputError.
- */
 export function exportToPersistentDB(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
 ): Effect.Effect<void, OutputError> {
-  // Type guard - ensure config has transform settings
   if (!hasTransformationConfig(config)) {
     return Effect.succeed(void 0);
   }
@@ -426,7 +332,6 @@ export function exportToPersistentDB(
       return;
     }
 
-    // Create output directory, recursively if necessary
     yield* _(
       Effect.try(() => Deno.mkdirSync(outputPath, { recursive: true })).pipe(
         Effect.mapError((error) =>
@@ -439,7 +344,6 @@ export function exportToPersistentDB(
       ),
     );
 
-    // Check if DuckDB file already exists
     const fileExists = yield* _(Effect.tryPromise({
       try: () => Deno.stat(fullPath).then(() => true).catch(() => false),
       catch: (error) =>
@@ -450,7 +354,6 @@ export function exportToPersistentDB(
         }),
     }));
 
-    // If DuckDB file exists, delete it
     if (fileExists) {
       yield* _(Effect.tryPromise({
         try: () => Deno.remove(fullPath),
@@ -463,8 +366,7 @@ export function exportToPersistentDB(
       }));
     }
 
-    // Export the in-memory database to a persistent DuckDB file. This will create the file if it doesn't exist.
-    // We cant use COPY TO DATABASE directly, as it creates constraint violations when tables are copied out of order.
+    // Can't use COPY TO DATABASE — it violates constraints when tables are copied out of order
     for (const dataset of config.transform.datasets) {
       // TODO(#108): Transform should use resolveProfile(standard, type) to respect
       // standard-specific profiles. Currently ignores the standard field.
@@ -497,13 +399,6 @@ export function exportToPersistentDB(
   });
 }
 
-/**
- * Executes the entire data transformation process for a workspace.
- * This involves connecting to an in-memory DuckDB, creating tables from CSVs,
- * creating schema-defined tables, and populating them with transformed data.
- * @param configPath - Optional path to the workspace configuration file. If not provided, it will be discovered.
- * @returns An Effect that completes when the transformation is successful, or fails with a TransformationError or ConfigError.
- */
 export function transformFile(
   configPath?: string,
 ): Effect.Effect<
@@ -515,8 +410,6 @@ export function transformFile(
   never
 > {
   return Effect.gen(function* (_) {
-    // Load config using Workspace (handles discovery and validation)
-    // We use a scoped block to load config, then create our own connection for transform
     const { config, basePath } = yield* _(
       Effect.scoped(
         Effect.gen(function* (_) {
@@ -529,7 +422,6 @@ export function transformFile(
       ),
     );
 
-    // Create a separate DuckDB connection for transform operations
     yield* _(
       Effect.acquireUseRelease(
         Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(
@@ -539,7 +431,6 @@ export function transformFile(
           Effect.gen(function* (_) {
             console.log("Creating tables from CSV files...");
             yield* _(createTablesFromCSV(connection, config, basePath));
-            // Execute any post-import SQL transformations defined in the configuration.
             yield* _(runPostImportTransformations(config, connection));
 
             console.log("Creating OBIS tables from schema...");
@@ -554,7 +445,6 @@ export function transformFile(
             console.log("Exporting DuckDB database to persistent file...");
             yield* _(exportToPersistentDB(connection, config));
           }),
-        // Release: close DuckDB connection (ignore any cleanup errors)
         (connection) => Effect.try(() => connection.closeSync()).pipe(Effect.ignore),
       ),
     );
