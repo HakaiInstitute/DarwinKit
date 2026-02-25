@@ -34,7 +34,7 @@ export interface DatasetValidationResult {
   /** Schema-level violations (structural issues: missing fields, unknown profiles) */
   readonly schemaViolations: PartitionedViolations<SchemaViolation>;
 
-  /** Field-level violations (data issues: range, vocabulary, uniqueness) */
+  /** Field-level violations (data issues: range, format, pattern, length, required, uniqueness) */
   readonly fieldViolations: PartitionedViolations<FieldViolation>;
 }
 

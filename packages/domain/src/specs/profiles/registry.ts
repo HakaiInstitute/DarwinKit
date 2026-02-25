@@ -9,12 +9,7 @@ import type {
   TransformField,
 } from "../../schemas/validation-profile.ts";
 import { mergeProfileConstraints } from "../constraints.ts";
-import {
-  normalizeField,
-  type ResolvedField,
-  type SpecField,
-  toResolvedField,
-} from "../field-definition.ts";
+import { normalizeField, type SpecField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
 
@@ -65,7 +60,7 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
 
   const profile = jsonProfile as Record<string, unknown>;
 
-  const normalizedFields: Record<string, SpecField> = {};
+  const specFields: Record<string, SpecField> = {};
   const rawFields: Record<string, TransformField> = {};
 
   if (
@@ -75,7 +70,8 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
   ) {
     for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
       try {
-        normalizedFields[fieldName] = normalizeField(fieldValue as RawField);
+        const result = normalizeField(fieldValue as RawField);
+        specFields[fieldName] = result.field;
       } catch {
         // Skip invalid fields rather than failing the entire spec
       }
@@ -94,7 +90,7 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
     id: (profile.id ?? profile.name) as string,
     name: profile.name as string,
     description: profile.description as string | undefined,
-    normalizedFields,
+    specFields,
     rawFields: Object.keys(rawFields).length > 0 ? rawFields : undefined,
   };
 }
@@ -138,19 +134,13 @@ function buildResolvedSpec(
   profile?: Profile,
   mergedOverrides?: Record<string, FieldOverride>,
 ): ResolvedSpec {
-  const fields: Record<string, ResolvedField> = {};
-  for (const [name, specField] of Object.entries(spec.normalizedFields)) {
-    fields[name] = toResolvedField(specField);
-  }
-
   return {
     id: profile?.id ?? spec.id,
     name: profile?.name ?? spec.name,
     spec: spec.id,
     profile: profile?.id,
     fieldOverrides: mergedOverrides ?? profile?.fieldOverrides ?? {},
-    fields,
-    specFields: spec.normalizedFields,
+    specFields: spec.specFields,
     rawFields: spec.rawFields,
   };
 }
@@ -169,7 +159,6 @@ export function getResolvedSpec(profileId: string): ResolvedSpec | undefined {
       spec: tsProfile.extends ?? tsProfile.id,
       profile: tsProfile.id,
       fieldOverrides,
-      fields: {},
       specFields: {},
       rawFields: undefined,
     };

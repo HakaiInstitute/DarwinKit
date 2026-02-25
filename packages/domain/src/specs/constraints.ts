@@ -13,11 +13,11 @@ export const RequirementLevel: S.Literal<[
 
 export type RequirementLevel = S.Schema.Type<typeof RequirementLevel>;
 
-export const REQUIREMENT_STRICTNESS: Record<RequirementLevel, number> = {
+export const REQUIREMENT_STRICTNESS = {
   required: 2,
   recommended: 1,
   optional: 0,
-};
+} satisfies Record<RequirementLevel, number>;
 
 export const FieldDataType = S.Literal(
   "string",
@@ -92,15 +92,24 @@ function constraintSchema<Tag extends string, C extends Constraint>(
   Cls: new (args: any) => C,
   fields: S.Struct.Fields,
   defaults?: Record<string, unknown>,
+  // deno-lint-ignore no-explicit-any
+  validate?: (from: any) => string | undefined,
 ) {
+  const inputSchema = S.Struct({ type: S.Literal(tag), ...fields });
+  const filtered = validate
+    ? inputSchema.pipe(S.filter((from) => {
+      const msg = validate(from);
+      return msg ? { message: msg, path: [] } : undefined;
+    }))
+    : inputSchema;
   return S.transform(
-    S.Struct({ type: S.Literal(tag), ...fields }),
+    filtered,
     S.typeSchema(S.instanceOf(Cls)),
     {
       strict: true,
       decode: (from) => {
         const { type: _, ...rest } = from;
-        return new Cls({ ...rest, ...defaults });
+        return new Cls({ ...defaults, ...rest });
       },
       // deno-lint-ignore no-explicit-any
       encode: (to) => ({ type: tag, ...to } as any),
@@ -108,12 +117,22 @@ function constraintSchema<Tag extends string, C extends Constraint>(
   );
 }
 
-const RangeConstraintSchema = constraintSchema("range", RangeConstraint, {
-  min: S.optional(S.Number),
-  max: S.optional(S.Number),
-  inclusive: S.optional(S.Boolean),
-  message: S.optional(S.String),
-}, { inclusive: true });
+const RangeConstraintSchema = constraintSchema(
+  "range",
+  RangeConstraint,
+  {
+    min: S.optional(S.Number),
+    max: S.optional(S.Number),
+    inclusive: S.optional(S.Boolean),
+    message: S.optional(S.String),
+  },
+  { inclusive: true },
+  (from) => {
+    if (from.min === undefined && from.max === undefined) {
+      return "RangeConstraint requires at least one of 'min' or 'max'";
+    }
+  },
+);
 
 const UniqueConstraintSchema = constraintSchema("unique", UniqueConstraint, {
   message: S.optional(S.String),
@@ -125,40 +144,33 @@ const PatternConstraintSchema = constraintSchema("pattern", PatternConstraint, {
   message: S.optional(S.String),
 });
 
-const LengthConstraintSchema = constraintSchema("length", LengthConstraint, {
-  minLength: S.optional(S.Number),
-  maxLength: S.optional(S.Number),
-  message: S.optional(S.String),
-});
+const LengthConstraintSchema = constraintSchema(
+  "length",
+  LengthConstraint,
+  {
+    minLength: S.optional(S.Number),
+    maxLength: S.optional(S.Number),
+    message: S.optional(S.String),
+  },
+  undefined,
+  (from) => {
+    if (from.minLength === undefined && from.maxLength === undefined) {
+      return "LengthConstraint requires at least one of 'minLength' or 'maxLength'";
+    }
+  },
+);
 
 const FormatConstraintSchema = constraintSchema("format", FormatConstraint, {
   format: S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees", "integer"),
   message: S.optional(S.String),
 });
 
-const RequiredConstraintSchema = S.transform(
-  S.Struct({
-    type: S.Literal("required"),
-    requirement: S.optional(RequirementLevel),
-    level: S.optional(RequirementLevel),
-    allowEmpty: S.optional(S.Boolean),
-    allowWhitespace: S.optional(S.Boolean),
-    message: S.optional(S.String),
-  }),
-  S.typeSchema(S.instanceOf(RequiredConstraint)),
-  {
-    strict: true,
-    decode: (from) =>
-      new RequiredConstraint({
-        level: from.level ?? from.requirement ?? "required",
-        allowEmpty: from.allowEmpty ?? false,
-        allowWhitespace: from.allowWhitespace ?? false,
-        message: from.message,
-      }),
-    // deno-lint-ignore no-explicit-any
-    encode: (to) => ({ type: "required", ...to } as any),
-  },
-);
+const RequiredConstraintSchema = constraintSchema("required", RequiredConstraint, {
+  level: S.optional(RequirementLevel),
+  allowEmpty: S.optional(S.Boolean),
+  allowWhitespace: S.optional(S.Boolean),
+  message: S.optional(S.String),
+}, { level: "required", allowEmpty: false, allowWhitespace: false });
 
 export const ConstraintSchema = S.Union(
   RangeConstraintSchema,

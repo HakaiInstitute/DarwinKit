@@ -29,12 +29,24 @@ import {
   strictestRequired,
 } from "@dwkt/domain/specs";
 
+export interface ActiveStandardResult {
+  readonly standard: "obis" | "gbif";
+  readonly warning?: string;
+}
+
 export function resolveActiveStandard(
   standard: ResolvedStandard | undefined,
-): "obis" | "gbif" {
+): ActiveStandardResult {
   const variant = standard?.variant;
-  if (variant === "obis" || variant === "gbif") return variant;
-  return "obis";
+  if (variant === "obis" || variant === "gbif") return { standard: variant };
+  if (variant) {
+    return {
+      standard: "obis",
+      warning:
+        `Unknown standard variant "${variant}" — defaulting to "obis". Known variants: obis, gbif.`,
+    };
+  }
+  return { standard: "obis" };
 }
 
 /**
@@ -333,7 +345,7 @@ export function resolveFieldsForDatasets(
   standard: ResolvedStandard,
   diagnosticsPerDataset?: Map<string, ResolutionDiagnostic[]>,
 ): Map<string, ResolvedFieldsEntry> {
-  const activeStandard = resolveActiveStandard(standard);
+  const { standard: activeStandard } = resolveActiveStandard(standard);
   const result = new Map<string, ResolvedFieldsEntry>();
 
   for (const dataset of datasets) {

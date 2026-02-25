@@ -44,7 +44,6 @@ function makeResolvedSpec(overrides: Partial<ResolvedSpec> = {}): ResolvedSpec {
     name: "Test Profile",
     spec: "Test",
     fieldOverrides: {},
-    fields: {},
     specFields: {},
     ...overrides,
   };
@@ -55,15 +54,22 @@ function makeResolvedSpec(overrides: Partial<ResolvedSpec> = {}): ResolvedSpec {
 // =============================================================================
 
 Deno.test("resolveActiveStandard - extracts variant or defaults to obis", () => {
-  const cases: Array<[Parameters<typeof resolveActiveStandard>[0], string]> = [
-    [{ base: "darwin-core", variant: "obis" }, "obis"],
-    [{ base: "darwin-core", variant: "gbif" }, "gbif"],
-    [{ base: "darwin-core" }, "obis"],
-    [undefined, "obis"],
-  ];
-  for (const [input, expected] of cases) {
-    assertEquals(resolveActiveStandard(input), expected, JSON.stringify(input));
-  }
+  assertEquals(resolveActiveStandard({ base: "darwin-core", variant: "obis" }).standard, "obis");
+  assertEquals(resolveActiveStandard({ base: "darwin-core", variant: "gbif" }).standard, "gbif");
+  assertEquals(resolveActiveStandard({ base: "darwin-core" }).standard, "obis");
+  assertEquals(resolveActiveStandard(undefined).standard, "obis");
+});
+
+Deno.test("resolveActiveStandard - warns on unknown variant", () => {
+  const result = resolveActiveStandard({ base: "darwin-core", variant: "inat" });
+  assertEquals(result.standard, "obis");
+  assertEquals(typeof result.warning, "string");
+  assertEquals(result.warning!.includes("inat"), true);
+});
+
+Deno.test("resolveActiveStandard - no warning for undefined variant", () => {
+  const result = resolveActiveStandard({ base: "darwin-core" });
+  assertEquals(result.warning, undefined);
 });
 
 // =============================================================================

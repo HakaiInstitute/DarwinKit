@@ -72,8 +72,8 @@ function handlePrimaryKeyViolation(
       return [];
     }
 
-    const resolvedField = ctx.profile.fields?.[pkMapping.target];
-    if (!resolvedField) return [];
+    const specField = ctx.profile.specFields?.[pkMapping.target];
+    if (!specField) return [];
 
     ctx.processedDuplicates.add(parsed.value);
 
@@ -130,8 +130,8 @@ function handleNotNullViolation(
 
     if (!notNullMapping) return [];
 
-    const resolvedField = ctx.profile.fields?.[notNullMapping.target];
-    if (!resolvedField) return [];
+    const specField = ctx.profile.specFields?.[notNullMapping.target];
+    if (!specField) return [];
 
     return [
       new NotNullViolation({
@@ -151,7 +151,7 @@ function handleNotNullViolation(
 /**
  * Handle enum violation
  *
- * ENUMs are only created for fields whose obligation warrants enforcement
+ * ENUMs are only created for fields whose obligation warrants strict validation
  * (see `shouldEnforceVocabulary` in schema.ts). If DuckDB rejected a row
  * due to an ENUM constraint, the violation is always worth reporting.
  * Severity is derived from the field's obligation in the active standard.

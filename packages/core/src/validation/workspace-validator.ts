@@ -466,7 +466,7 @@ function validateDataset(
 
     if (bulkInsertResult._tag === "Left") {
       if (profile) {
-        const activeStandard = resolveActiveStandard(standard);
+        const { standard: activeStandard } = resolveActiveStandard(standard);
         yield* _(
           insertRowByRow(
             connection,

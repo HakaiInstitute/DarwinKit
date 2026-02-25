@@ -56,7 +56,7 @@ Deno.test("ConstraintSchema - decodes all constraint types", () => {
       },
     },
     {
-      input: { type: "required", requirement: "required", message: "Field is required" },
+      input: { type: "required", level: "required", message: "Field is required" },
       expectedTag: "required",
       check: (c) => {
         assert(c instanceof RequiredConstraint);
@@ -101,11 +101,27 @@ Deno.test("ConstraintSchema - rejects invalid inputs", () => {
   assertThrows(() => decodeConstraint({ min: 0 }));
 });
 
+Deno.test("ConstraintSchema - rejects RangeConstraint with no bounds", () => {
+  assertThrows(() => decodeConstraint({ type: "range" }));
+  assertThrows(() => decodeConstraint({ type: "range", inclusive: true }));
+  // At least one bound is fine
+  decodeConstraint({ type: "range", min: 0 });
+  decodeConstraint({ type: "range", max: 100 });
+});
+
+Deno.test("ConstraintSchema - rejects LengthConstraint with no bounds", () => {
+  assertThrows(() => decodeConstraint({ type: "length" }));
+  assertThrows(() => decodeConstraint({ type: "length", message: "oops" }));
+  // At least one bound is fine
+  decodeConstraint({ type: "length", minLength: 1 });
+  decodeConstraint({ type: "length", maxLength: 255 });
+});
+
 Deno.test("Constraint union - discriminates by _tag field", () => {
   const range = decodeConstraint({ type: "range", min: 0, max: 100, inclusive: true });
   assertEquals(range._tag, "range");
 
-  const required = decodeConstraint({ type: "required", requirement: "required" });
+  const required = decodeConstraint({ type: "required", level: "required" });
   assertEquals(required._tag, "required");
 });
 
@@ -276,12 +292,12 @@ Deno.test("normalizeField - populates obligations from obis/gbif required fields
   ];
 
   for (const { label, overrides, expected } of cases) {
-    const result = normalizeField(makeTestField(overrides));
+    const { field } = normalizeField(makeTestField(overrides));
     if (expected === undefined) {
-      assertEquals(result.obligations, undefined, label);
+      assertEquals(field.obligations, undefined, label);
     } else {
-      if (expected.obis !== undefined) assertEquals(result.obligations?.obis, expected.obis, label);
-      if (expected.gbif !== undefined) assertEquals(result.obligations?.gbif, expected.gbif, label);
+      if (expected.obis !== undefined) assertEquals(field.obligations?.obis, expected.obis, label);
+      if (expected.gbif !== undefined) assertEquals(field.obligations?.gbif, expected.gbif, label);
     }
   }
 });
@@ -356,43 +372,32 @@ Deno.test("normalizeField - converts string validators to typed constraints", ()
   ];
 
   for (const { validator, expectedTag, check } of cases) {
-    const result = normalizeField(makeTestField({ name: "test", validators: [validator] }));
+    const { field } = normalizeField(makeTestField({ name: "test", validators: [validator] }));
     if (expectedTag === null) {
       assertEquals(
-        result.constraints.filter((c) => c._tag !== "required" || validator === "optional")
+        field.constraints.filter((c) => c._tag !== "required" || validator === "optional")
           .length === 0,
         true,
         validator,
       );
     } else {
-      const matches = result.constraints.filter((c) => c._tag === expectedTag);
+      const matches = field.constraints.filter((c) => c._tag === expectedTag);
       assertEquals(matches.length, 1, `${validator} → ${expectedTag}`);
       check?.(matches[0]);
     }
   }
 });
 
-Deno.test("normalizeField - warns when requirement is stripped from value constraint", () => {
-  const warnings: string[] = [];
-  const originalWarn = console.warn;
-  console.warn = (msg: string) => warnings.push(msg);
-  try {
-    const field = makeTestField({
-      name: "decimalLatitude",
-      validators: [
-        { type: "range", params: { min: -90, max: 90 }, requirement: "optional" },
-      ],
-    });
-    const result = normalizeField(field);
-    const range = result.constraints.filter((c) => c._tag === "range");
-    assertEquals(range.length, 1);
-    assertEquals(warnings.length, 1);
-    assert(warnings[0].includes("Stripping"));
-    assert(warnings[0].includes("range"));
-    assert(warnings[0].includes("decimalLatitude"));
-  } finally {
-    console.warn = originalWarn;
-  }
+Deno.test("normalizeField - strips requirement from value constraint silently", () => {
+  const testField = makeTestField({
+    name: "decimalLatitude",
+    validators: [
+      { type: "range", params: { min: -90, max: 90 }, requirement: "optional" },
+    ],
+  });
+  const { field } = normalizeField(testField);
+  const range = field.constraints.filter((c) => c._tag === "range");
+  assertEquals(range.length, 1);
 });
 
 // =============================================================================
@@ -457,21 +462,14 @@ Deno.test("mergeProfileConstraints", async (t) => {
 });
 
 Deno.test("normalizeField - object validator with params flattened to Constraint (no warning)", () => {
-  const warnings: string[] = [];
-  const originalWarn = console.warn;
-  console.warn = (msg: string) => warnings.push(msg);
-  try {
-    const field = makeTestField({
-      name: "test",
-      validators: [{ type: "range", params: { min: -90, max: 90 } }],
-    });
-    const result = normalizeField(field);
-    const range = result.constraints.filter((c) => c._tag === "range");
-    assertEquals(range.length, 1);
-    assertEquals((range[0] as RangeConstraint).min, -90);
-    assertEquals((range[0] as RangeConstraint).max, 90);
-    assertEquals(warnings.length, 0, "no warning when no requirement on value constraint");
-  } finally {
-    console.warn = originalWarn;
-  }
+  const testField = makeTestField({
+    name: "test",
+    validators: [{ type: "range", params: { min: -90, max: 90 } }],
+  });
+  const { field, warnings } = normalizeField(testField);
+  const range = field.constraints.filter((c) => c._tag === "range");
+  assertEquals(range.length, 1);
+  assertEquals((range[0] as RangeConstraint).min, -90);
+  assertEquals((range[0] as RangeConstraint).max, 90);
+  assertEquals(warnings.length, 0, "no warning when no requirement on value constraint");
 });

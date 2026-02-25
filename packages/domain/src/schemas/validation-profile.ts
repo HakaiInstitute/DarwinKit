@@ -1,6 +1,6 @@
 import * as S from "effect/Schema";
 import { ConstraintSchema, RequirementLevel } from "../specs/constraints.ts";
-import type { ResolvedField, SpecField } from "../specs/field-definition.ts";
+import type { SpecField } from "../specs/field-definition.ts";
 
 export const fieldOverrideSchema = S.Struct({
   requirement: S.optional(RequirementLevel),
@@ -41,7 +41,7 @@ export interface Spec {
   readonly id: string;
   readonly name: string;
   readonly description?: string;
-  readonly normalizedFields: Record<string, SpecField>;
+  readonly specFields: Record<string, SpecField>;
   /** Raw fields for DDL generation (ENUM types, column types, etc.) */
   readonly rawFields?: Record<string, TransformField>;
   readonly metadata?: { createdAt?: Date; updatedAt?: Date; author?: string };
@@ -68,7 +68,6 @@ export interface ResolvedSpec {
   readonly spec: string;
   readonly profile?: string;
   readonly fieldOverrides: Record<string, FieldOverride>;
-  readonly fields: Record<string, ResolvedField>;
   readonly specFields: Record<string, SpecField>;
   readonly rawFields?: Record<string, TransformField>;
 }

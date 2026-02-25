@@ -26,33 +26,6 @@ export const SpecFieldSchema = S.Struct({
 export type SpecField = S.Schema.Type<typeof SpecFieldSchema>;
 
 /**
- * A fully resolved field definition for validation.
- *
- * Unlike SpecField, ResolvedField has no `obligations` — obligations are
- * converted to constraints during resolution. This is the field type
- * consumed by validators.
- */
-export interface ResolvedField {
-  readonly name: string;
-  readonly label?: string;
-  readonly dataType?: S.Schema.Type<typeof FieldDataType>;
-  readonly constraints: readonly Constraint[];
-  readonly comments?: string;
-  readonly examples?: string;
-}
-
-export function toResolvedField(specField: SpecField): ResolvedField {
-  return {
-    name: specField.name,
-    label: specField.label,
-    dataType: specField.dataType,
-    constraints: specField.constraints,
-    comments: specField.comments,
-    examples: specField.examples,
-  };
-}
-
-/**
  * Result of looking up a field's obligation for a given standard.
  *
  * Returns both the raw obligation (for conditional logic like "required (if exists)")
@@ -134,8 +107,14 @@ const STRING_VALIDATOR_MAP: Record<string, Constraint | null> = {
   decimal: new FormatConstraint({ format: "decimal-degrees" }),
 };
 
-export function normalizeField(jsonField: RawField): SpecField {
+export interface NormalizeFieldResult {
+  readonly field: SpecField;
+  readonly warnings: readonly string[];
+}
+
+export function normalizeField(jsonField: RawField): NormalizeFieldResult {
   const constraints: Constraint[] = [];
+  const warnings: string[] = [];
 
   if (jsonField.validators) {
     for (const v of jsonField.validators) {
@@ -149,30 +128,16 @@ export function normalizeField(jsonField: RawField): SpecField {
         };
         delete raw.params;
 
-        if (raw.type === "required") {
-          raw.allowEmpty ??= false;
-          raw.allowWhitespace ??= false;
-          if (raw.level === undefined && raw.requirement !== undefined) {
-            raw.level = raw.requirement;
-          }
-          raw.level ??= "required";
-          raw.requirement ??= raw.level;
-        } else {
-          if (raw.requirement !== undefined) {
-            console.warn(
-              `Stripping "requirement" from ${raw.type} constraint on field "${jsonField.name}" — only "required" constraints support requirement`,
-            );
-          }
-          delete raw.requirement;
+        if (raw.type !== "required") {
           delete raw.level;
         }
+        delete raw.requirement;
         try {
           constraints.push(S.decodeUnknownSync(ConstraintSchema)(raw));
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          console.warn(
+          warnings.push(
             `Invalid constraint object for field "${jsonField.name}" — skipping: ${message}`,
-            JSON.stringify(raw),
           );
         }
         continue;
@@ -181,7 +146,7 @@ export function normalizeField(jsonField: RawField): SpecField {
       if (typeof v === "string") {
         const mapped = STRING_VALIDATOR_MAP[v];
         if (mapped === undefined) {
-          console.warn(
+          warnings.push(
             `Unknown validator string "${v}" for field "${jsonField.name}" — skipping`,
           );
         } else if (mapped !== null) {
@@ -207,12 +172,15 @@ export function normalizeField(jsonField: RawField): SpecField {
   }
 
   return {
-    name: jsonField.name,
-    label: jsonField.label,
-    constraints,
-    dataType: mapJsonTypeToFieldDataType(jsonField.type),
-    obligations: Object.keys(obligations).length > 0 ? obligations : undefined,
-    comments: jsonField.comments,
-    examples: jsonField.examples,
+    field: {
+      name: jsonField.name,
+      label: jsonField.label,
+      constraints,
+      dataType: mapJsonTypeToFieldDataType(jsonField.type),
+      obligations: Object.keys(obligations).length > 0 ? obligations : undefined,
+      comments: jsonField.comments,
+      examples: jsonField.examples,
+    },
+    warnings,
   };
 }
