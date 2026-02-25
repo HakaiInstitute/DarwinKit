@@ -13,7 +13,6 @@ import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
 import { getStatusIcon, renderValidationMarkdown } from './markdown-renderer.ts';
 
-// Structured output function
 function outputResults(
   results: WorkspaceValidationResult,
   format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
@@ -32,7 +31,6 @@ function outputResults(
   });
 }
 
-// Effect-wrapped JSON output
 function outputJsonResultsEffect(
   results: WorkspaceValidationResult,
   outputDir?: string,
@@ -45,7 +43,6 @@ function outputJsonResultsEffect(
     const filename = `validation-results-${timestamp}.json`;
     const fullPath = join(outputPath, filename);
 
-    // Create output directory
     yield* _(
       Effect.tryPromise({
         try: () => Deno.mkdir(outputPath, { recursive: true }),
@@ -58,7 +55,6 @@ function outputJsonResultsEffect(
       }),
     );
 
-    // Write results file
     yield* _(
       Effect.tryPromise({
         try: () => Deno.writeTextFile(fullPath, JSON.stringify(results, null, 2)),
@@ -93,7 +89,6 @@ function outputMarkdownResultsEffect(
 
     const markdown = renderValidationMarkdown(results);
 
-    // Create output directory
     yield* _(
       Effect.tryPromise({
         try: () => Deno.mkdir(outputPath, { recursive: true }),
@@ -106,7 +101,6 @@ function outputMarkdownResultsEffect(
       }),
     );
 
-    // Write markdown file
     yield* _(
       Effect.tryPromise({
         try: () => Deno.writeTextFile(fullPath, markdown),
@@ -128,7 +122,6 @@ function outputMarkdownResultsEffect(
   });
 }
 
-// Handle validation results and exit codes
 function handleValidationResults(
   results: WorkspaceValidationResult,
 ): Effect.Effect<void, CLIError> {
@@ -153,7 +146,6 @@ function handleValidationResults(
         ));
         break;
       case 'pass':
-        // Success - no error to yield
         break;
       default:
         yield* _(Effect.fail(
@@ -166,11 +158,6 @@ function handleValidationResults(
   });
 }
 
-/**
- * Exhaustive error handler for validate command errors.
- * Uses Match.exhaustive to ensure all error types are handled.
- * TypeScript will error if a new error type is added but not handled here.
- */
 function handleValidateError(
   error: Effect.Effect.Error<ReturnType<typeof buildValidationEffect>>,
   options?: { strict?: boolean },
@@ -178,7 +165,6 @@ function handleValidateError(
   Output.blank();
 
   const exitCode = Match.value(error).pipe(
-    // CLI-specific errors (validation status)
     Match.tag('CLIError', (e) => {
       if (e.exitCode === 1) {
         Output.error('❌ Overall status: FAILED');
@@ -190,34 +176,28 @@ function handleValidateError(
       }
       return options?.strict ? e.exitCode : (e.exitCode === 2 ? 0 : e.exitCode);
     }),
-    // Output/file writing errors
     Match.tag('OutputError', (e) => {
       Output.error('❌ Output failed:');
       Output.error(e.message);
       Output.muted(`Path: ${e.outputPath}`);
       return 3;
     }),
-    // Validation logic errors
     Match.tag('ValidationError', (e) => {
       Output.error('❌ Validation error:');
       Output.error(e.message);
       return 1;
     }),
-    // Workspace configuration errors
     Match.tag('ConfigNotFoundError', (e) => {
       Output.error('❌ Configuration not found:');
       Output.error(e.message);
       Output.blank();
 
-      // Show context-appropriate hints based on whether we searched multiple paths
       if (e.searchedPaths.length > 1) {
-        // Directory search - show all paths checked
         Output.muted(`Searched from: ${e.startDirectory}`);
         Output.muted(`Paths checked:\n${e.searchDescription}`);
         Output.blank();
         Output.warning('💡 Hint: Create a darwinkit.yaml configuration file.');
       } else {
-        // Explicit file path - show simpler output
         Output.muted(`Path: ${e.searchedPaths[0]}`);
         Output.blank();
         Output.warning('💡 Hint: Check that the file path is correct.');
@@ -272,17 +252,12 @@ function handleValidateError(
       Output.warning('💡 Hint: Add datasets to the "validation.datasets" array in darwinkit.yaml.');
       return 3;
     }),
-    // Ensure all possible errors are handled
     Match.exhaustive,
   );
 
   Deno.exit(exitCode);
 }
 
-/**
- * Builds a validation pipeline.
- * Separated to allow extracting the error type via Effect.Error<T>.
- */
 function buildValidationEffect(
   configPath: string | undefined,
   format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
@@ -292,26 +267,19 @@ function buildValidationEffect(
   return Effect.gen(function* (_) {
     spinner.update('Loading workspace configuration...');
 
-    // Open workspace (handles discovery, config loading, path validation, and DuckDB connection)
     const workspace = yield* _(Workspace.open(configPath));
 
     spinner.update('Validating datasets...');
 
-    // Run validation using the workspace's managed connection
     const results = yield* _(workspace.validate());
 
-    // Stop spinner before output
     spinner.stop();
 
-    // Output results with structured error handling
     yield* _(outputResults(results, format, outputDir));
-
-    // Handle exit codes based on results
     yield* _(handleValidationResults(results));
   });
 }
 
-// Main validate function
 export async function validate(options: {
   config?: string;
   files?: string;
@@ -321,7 +289,6 @@ export async function validate(options: {
   failFast?: boolean;
   strict?: boolean;
 }) {
-  // Ensure format is valid
   // TODO: Should tell the user their option was invalid and tell them which ones are valid instead
   const validFormat = (
       options.format === 'json' ||
@@ -331,7 +298,6 @@ export async function validate(options: {
     ? options.format
     : 'table';
 
-  // Create spinner for validation progress
   const spinner = new ProgressSpinner({
     message: 'Discovering configuration...',
   });
@@ -344,22 +310,18 @@ export async function validate(options: {
   const result = await Effect.runPromiseExit(runValidation);
 
   if (Exit.isFailure(result)) {
-    // Stop spinner on error
     spinner.stop();
 
-    // Extract the error from the Cause and handle it exhaustively
     const failureOption = Cause.failureOption(result.cause);
     if (failureOption._tag === 'Some') {
       handleValidateError(failureOption.value, { strict: options.strict });
     } else {
-      // Defect or interruption - show raw cause
       Output.blank();
       Output.error('❌ Unexpected error occurred');
       Output.line(Cause.pretty(result.cause));
       Deno.exit(3);
     }
   } else {
-    // Success case - validation passed without warnings
     Output.success('✅ Overall status: PASSED');
     Deno.exit(0);
   }
@@ -371,7 +333,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
   Output.muted(`Configuration: ${results.configPath}`);
   Output.blank();
 
-  // Create summary table
   const table = new Table()
     .header(['Dataset', 'Type', 'Status', 'Errors', 'Warnings', 'Info'])
     .border(true);
@@ -380,7 +341,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
     const statusIcon = getStatusIcon(dataset.status);
     const statusText = `${statusIcon} ${dataset.status.toUpperCase()}`;
 
-    // Count violations from schema + field violations
     const errorCount = dataset.schemaViolations.errors.length +
       dataset.fieldViolations.errors.length;
 
@@ -403,7 +363,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
   table.render();
   Output.blank();
 
-  // Show detailed errors, warnings, and info by severity
   for (const dataset of results.datasetResults) {
     const hasErrors = dataset.schemaViolations.errors.length > 0 ||
       dataset.fieldViolations.errors.length > 0;
@@ -420,13 +379,11 @@ function outputTableResults(results: WorkspaceValidationResult) {
       Output.blank();
     }
 
-    // ❌ ERRORS (required violations)
     if (hasErrors) {
       const totalErrors = dataset.schemaViolations.errors.length +
         dataset.fieldViolations.errors.length;
       Output.error(`❌ ERRORS (${totalErrors}):`);
 
-      // Show schema errors first
       if (dataset.schemaViolations.errors.length > 0) {
         Output.error('  Schema Issues:');
         for (const violation of dataset.schemaViolations.errors) {
@@ -434,7 +391,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
         }
       }
 
-      // Show field violations
       if (dataset.fieldViolations.errors.length > 0) {
         Output.error('  Data Validation Errors:');
         const errorsByField = groupViolationsByField(dataset.fieldViolations.errors);
@@ -461,13 +417,11 @@ function outputTableResults(results: WorkspaceValidationResult) {
       Output.blank();
     }
 
-    // ⚠️ WARNINGS (recommended violations)
     if (hasWarnings) {
       const totalWarnings = dataset.schemaViolations.warnings.length +
         dataset.fieldViolations.warnings.length;
       Output.warning(`⚠️  WARNINGS (${totalWarnings}):`);
 
-      // Show schema warnings first
       if (dataset.schemaViolations.warnings.length > 0) {
         Output.warning('  Schema Issues:');
         for (const violation of dataset.schemaViolations.warnings) {
@@ -475,7 +429,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
         }
       }
 
-      // Show field violations
       if (dataset.fieldViolations.warnings.length > 0) {
         Output.warning('  Data Validation Warnings:');
         const warningsByField = groupViolationsByField(dataset.fieldViolations.warnings);
@@ -501,7 +454,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
       Output.blank();
     }
 
-    // ℹ️ INFO (optional violations)
     if (hasInfo) {
       const totalInfo = dataset.schemaViolations.info.length +
         dataset.fieldViolations.info.length;
@@ -515,7 +467,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
         }
       }
 
-      // Show field violations
       if (dataset.fieldViolations.info.length > 0) {
         Output.info('  Data Validation Info:');
         const infoByField = groupViolationsByField(dataset.fieldViolations.info);
@@ -542,7 +493,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
     }
   }
 
-  // Helper function to group violations by field
   function groupViolationsByField(
     violations: ReadonlyArray<FieldViolation>,
   ): Map<string, FieldViolation[]> {
@@ -558,7 +508,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
     return grouped;
   }
 
-  // Show cross-dataset validation results
   if (results.crossDatasetResults.length > 0) {
     Output.section('🔗', 'Cross-dataset validation');
     Output.blank();
@@ -591,7 +540,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
     Output.blank();
   }
 
-  // Overall summary
   Output.bold('📊 Summary:');
   Output.line(`  Datasets processed: ${results.summary.totalDatasets}`);
   Output.line(
