@@ -13,18 +13,17 @@ import {
   partitionSchemaViolations,
   UnmappedColumnViolation,
 } from "./schema-violation.ts";
-import { ErrorSeverity } from "../errors/severity.ts";
-
 // =============================================================================
 // requirementToSeverity Tests
 // =============================================================================
 
 Deno.test("requirementToSeverity - maps requirement levels to severities", () => {
-  const cases: Array<[Parameters<typeof requirementToSeverity>[0], ErrorSeverity]> = [
-    ["required", ErrorSeverity.ERROR],
-    ["recommended", ErrorSeverity.WARNING],
-    ["optional", ErrorSeverity.INFO],
-  ];
+  const cases: Array<[Parameters<typeof requirementToSeverity>[0], "error" | "warning" | "info"]> =
+    [
+      ["required", "error"],
+      ["recommended", "warning"],
+      ["optional", "info"],
+    ];
   for (const [input, expected] of cases) {
     assertEquals(requirementToSeverity(input), expected, input);
   }

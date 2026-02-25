@@ -24,7 +24,6 @@
  */
 
 import { Schema } from "effect";
-import { ErrorSeverity } from "../errors/severity.ts";
 import type { RequirementLevel } from "../specs/constraints.ts";
 
 /**
@@ -233,14 +232,14 @@ export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldV
   return v._tag === "RequiredFieldViolation";
 }
 
-export function requirementToSeverity(requirement: RequirementLevel): ErrorSeverity {
+export function requirementToSeverity(requirement: RequirementLevel): "error" | "warning" | "info" {
   switch (requirement) {
     case "required":
-      return ErrorSeverity.ERROR;
+      return "error";
     case "recommended":
-      return ErrorSeverity.WARNING;
+      return "warning";
     case "optional":
-      return ErrorSeverity.INFO;
+      return "info";
   }
 }
 
@@ -266,8 +265,4 @@ export function partitionFieldViolations(
   }
 
   return { errors, warnings, info };
-}
-
-export function emptyPartitionedFieldViolations(): PartitionedViolations<FieldViolation> {
-  return { errors: [], warnings: [], info: [] };
 }

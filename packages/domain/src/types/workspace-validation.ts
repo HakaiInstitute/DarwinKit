@@ -66,15 +66,4 @@ export interface WorkspaceValidationResult {
     readonly totalInfo: number;
     readonly totalRowsProcessed: number;
   };
-
-  readonly transformationSummary?: {
-    readonly totalValues: number;
-    readonly transformedValues: number;
-    readonly byType: {
-      readonly [transformationType: string]: {
-        readonly count: number;
-        readonly percentage: number;
-      };
-    };
-  };
 }

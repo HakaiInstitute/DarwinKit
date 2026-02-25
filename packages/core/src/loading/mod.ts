@@ -6,14 +6,6 @@
  * @module loading
  */
 
-// CSV parsing with DuckDB schema inference
-export {
-  ParseError,
-  parseFileForWorkspace,
-  ParseMetadata,
-  type ParseOptions,
-} from "./csv-parser.ts";
-
 // CSV import into DuckDB tables
 export { getCsvValue, importCsv } from "./csv-import.ts";
 

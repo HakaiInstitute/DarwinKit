@@ -7,7 +7,7 @@ import type {
 } from "@dwkt/domain/schemas";
 import type { ResolvedStandard } from "@dwkt/domain/schemas";
 
-import { getValidationProfile, obligationForStandard } from "@dwkt/domain/specs";
+import { getResolvedSpec, obligationForStandard } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
 import { deriveRequirementFromConstraints } from "../validation/field-resolution.ts";
@@ -53,7 +53,7 @@ export function importSchema(
   resolvedFields?: Record<string, WorkspaceFieldMapping>,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
-    const spec = getValidationProfile(dataset.class);
+    const spec = getResolvedSpec(dataset.class);
     if (!spec) {
       // TODO(#63): Surface as a recoverable schema violation (warning)
       return;
@@ -102,7 +102,7 @@ export function importSchema(
       if (fkRule) {
         const targetDataset = datasets.find((ds) => ds.name === fkRule.targetDataset);
         if (targetDataset) {
-          const targetProfile = getValidationProfile(targetDataset.class);
+          const targetProfile = getResolvedSpec(targetDataset.class);
           if (targetProfile) {
             const referencedTable = sanitizeTableName(targetProfile.name).toLowerCase();
             fieldStr += ` REFERENCES ${referencedTable}("${fkRule.targetField}")`;

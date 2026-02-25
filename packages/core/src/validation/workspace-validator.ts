@@ -20,12 +20,7 @@ import type {
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
 import type { SpecField } from "@dwkt/domain/specs";
-import {
-  getPreset,
-  getPresetNames,
-  getValidationProfile,
-  resolveProfile,
-} from "@dwkt/domain/specs";
+import { getPreset, getPresetNames, getResolvedSpec, resolveProfile } from "@dwkt/domain/specs";
 import type {
   CrossDatasetValidationResult,
   DatasetValidationResult,
@@ -35,6 +30,7 @@ import type {
 } from "@dwkt/domain/types";
 import {
   calculateSummary,
+  determineOverallStatus,
   MissingFieldViolation,
   MissingMappingViolation,
   partitionFieldViolations,
@@ -274,12 +270,7 @@ function _validateDatasetsCore(
     const summary = calculateSummary(datasetResults, crossDatasetResults);
     const totalProcessingTimeMs = Date.now() - startTime;
 
-    const overallStatus: "fail" | "warn" | "pass" = summary.datasetsFailedCount > 0 ||
-        summary.totalErrors > 0
-      ? "fail"
-      : summary.datasetsWithWarningsCount > 0 || summary.totalWarnings > 0
-      ? "warn"
-      : "pass";
+    const overallStatus = determineOverallStatus(summary);
 
     return {
       workspaceId,
@@ -391,7 +382,7 @@ function validateDataset(
       .filter((col) => col !== "_row_number");
 
     // Use base type profile for DuckDB table naming (matches importSchema which uses base profiles)
-    const baseProfile = getValidationProfile(dataset.class);
+    const baseProfile = getResolvedSpec(dataset.class);
 
     const schemaTableName = baseProfile
       ? sanitizeTableName(baseProfile.name).toLowerCase()

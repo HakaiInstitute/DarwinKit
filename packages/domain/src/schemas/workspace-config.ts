@@ -285,8 +285,6 @@ export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSc
 export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
 export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
-/** @deprecated Use ResolvedStandard instead */
-export type Standard = ResolvedStandard;
 
 export type ForeignKeyRuleMatch =
   & Pick<WorkspaceCrossDatasetRule, "targetDataset" | "targetField">

@@ -155,7 +155,7 @@ function buildResolvedSpec(
   };
 }
 
-export function getValidationProfile(profileId: string): ResolvedSpec | undefined {
+export function getResolvedSpec(profileId: string): ResolvedSpec | undefined {
   // Try TypeScript profile registry first
   const tsProfile = PROFILE_REGISTRY[profileId];
   if (tsProfile) {
@@ -196,9 +196,9 @@ export function resolveProfile(
 ): ResolvedSpec | undefined {
   if (standard) {
     const compositeKey = `${standard}-${dwcClass.toLowerCase()}`;
-    const tsProfile = getValidationProfile(compositeKey);
+    const tsProfile = getResolvedSpec(compositeKey);
     if (tsProfile) return tsProfile;
   }
 
-  return getValidationProfile(dwcClass);
+  return getResolvedSpec(dwcClass);
 }

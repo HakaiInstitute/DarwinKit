@@ -7,8 +7,7 @@
 
 import { Workspace } from "@dwkt/core/workspace";
 import { WorkspaceValidator } from "@dwkt/core/validation";
-import { parseFileForWorkspace } from "@dwkt/core/loading";
-import { assert, assertEquals, assertExists, assertMatch } from "@std/assert";
+import { assert, assertEquals, assertMatch } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 
@@ -35,38 +34,6 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
     );
 
     assert(errorCaught, "Should catch with Effect.catchAll");
-  });
-
-  await t.step("File not found (user-provided path)", async () => {
-    const nonExistentPath = join(tempDir, "does-not-exist.csv");
-
-    let errorCaught = false;
-
-    await Effect.runPromise(
-      parseFileForWorkspace(nonExistentPath).pipe(
-        Effect.catchAll((_error) => {
-          errorCaught = true;
-          return Effect.succeed<null>(null);
-        }),
-      ),
-    );
-
-    assert(errorCaught, "Should catch with Effect.catchAll");
-  });
-
-  await t.step("Valid CSV file parses successfully", async () => {
-    const validCsvPath = join(tempDir, "valid.csv");
-    await Deno.writeTextFile(
-      validCsvPath,
-      "name,age,city\nAlice,30,New York\nBob,25,London",
-    );
-
-    const result = await Effect.runPromise(parseFileForWorkspace(validCsvPath));
-
-    assertExists(result);
-    assertExists(result.schema);
-    assertEquals(result.schema.rowCount, 2);
-    assertEquals(result.schema.fields.size, 3);
   });
 
   await t.step("Invalid workspace configuration", async () => {
@@ -135,20 +102,6 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
 
     // Message should indicate config file issue
     assertMatch(result as string, /configuration|config|not found|darwinkit/i);
-  });
-
-  await t.step("Error messages include file paths", async () => {
-    const nonExistentPath = join(tempDir, "missing.csv");
-
-    const result = await Effect.runPromise(
-      parseFileForWorkspace(nonExistentPath).pipe(
-        Effect.catchAll((error) => Effect.succeed(error.message as string)),
-      ),
-    );
-
-    // Message should reference the file or parsing
-    const msg = result as string;
-    assertMatch(msg, /missing\.csv|parse|CSV/);
   });
 
   // Cleanup

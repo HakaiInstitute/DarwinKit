@@ -93,7 +93,7 @@ import {
   // Types
   type FieldMapping,
   // Specs
-  getValidationProfile,
+  getResolvedSpec,
   type ValidationProfile,
   type WorkspaceConfig,
   // Schemas
@@ -113,13 +113,13 @@ const result = Schema.decodeUnknownEither(workspaceConfigSchema)(configData);
 ### Working with Profiles
 
 ```typescript
-import { getValidationProfile } from "@dwkt/domain";
+import { getResolvedSpec } from "@dwkt/domain";
 
 // Get a specific profile (inheritance is resolved automatically)
-const eventProfile = getValidationProfile("Event");
+const eventProfile = getResolvedSpec("Event");
 
 // Get a profile that extends another (e.g., obis-event extends Event)
-const obisEventProfile = getValidationProfile("obis-event");
+const obisEventProfile = getResolvedSpec("obis-event");
 ```
 
 ## Dependencies

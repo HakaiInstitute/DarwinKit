@@ -206,7 +206,7 @@ export function strictestRequired(
  * Returns undefined for obligations that do not unconditionally generate a required constraint
  * ("optional", "optional (required for imaging data)", "required (if exists)").
  *
- * Note: "required (if exists)" is handled separately in resolveFieldDefinitions() —
+ * Note: "required (if exists)" is handled separately in resolveSpecFields() (field-resolution.ts)
  * it emits a WARNING-level constraint only when the field is actually mapped in the dataset.
  */
 export function obligationToRequirement(

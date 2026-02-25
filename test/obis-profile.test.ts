@@ -8,10 +8,7 @@ import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
-import {
-  getValidationProfile,
-  resolveProfile,
-} from "../packages/domain/src/specs/profiles/registry.ts";
+import { getResolvedSpec, resolveProfile } from "../packages/domain/src/specs/profiles/registry.ts";
 import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
 import { prepareConfigForYaml } from "./helpers/config-utils.ts";
 
@@ -20,7 +17,7 @@ import { prepareConfigForYaml } from "./helpers/config-utils.ts";
 // =============================================================================
 
 Deno.test("Profile inheritance - obis-event resolves with Event base fields", () => {
-  const profile = getValidationProfile("obis-event");
+  const profile = getResolvedSpec("obis-event");
   assertExists(profile, "obis-event profile should resolve");
 
   // Should have fields inherited from Event (JSON base)
@@ -38,7 +35,7 @@ Deno.test("Profile inheritance - obis-event resolves with Event base fields", ()
 });
 
 Deno.test("Profile inheritance - obis-event field overrides take precedence over Event base", () => {
-  const profile = getValidationProfile("obis-event");
+  const profile = getResolvedSpec("obis-event");
   assertExists(profile);
 
   // decimalLatitude is defined in Event base AND overridden by OBIS base profile.
@@ -55,7 +52,7 @@ Deno.test("Profile inheritance - obis-event field overrides take precedence over
 });
 
 Deno.test("Profile inheritance - obis-event preserves non-overlapping fields from all ancestors", () => {
-  const profile = getValidationProfile("obis-event");
+  const profile = getResolvedSpec("obis-event");
   assertExists(profile);
 
   // eventID override comes from obis-event (not in obis base or Event base overrides)
@@ -72,7 +69,7 @@ Deno.test("Profile inheritance - obis-event preserves non-overlapping fields fro
 });
 
 Deno.test("Profile inheritance - obis resolves with Event base fields", () => {
-  const profile = getValidationProfile("obis");
+  const profile = getResolvedSpec("obis");
   assertExists(profile, "obis profile should resolve");
   assertExists(profile.fields, "obis should inherit fields from Event");
 

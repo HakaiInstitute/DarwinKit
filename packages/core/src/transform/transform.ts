@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import { Workspace } from "../workspace/mod.ts";
 import type { WorkspaceConfig } from "@dwkt/domain/schemas";
 import { hasTransformationConfig } from "@dwkt/domain/schemas";
-import { getValidationProfile } from "@dwkt/domain/specs";
+import { getResolvedSpec } from "@dwkt/domain/specs";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import { importCsv } from "../loading/csv-import.ts";
@@ -128,7 +128,7 @@ export function populateSchemaFromDataTables( // Export for testing
 
       // TODO(#108): Transform should use resolveProfile(standard, type) to respect
       // standard-specific profiles. Currently ignores the standard field.
-      const transformProfile = getValidationProfile(dataset.class);
+      const transformProfile = getResolvedSpec(dataset.class);
       if (!transformProfile) {
         return yield* _(Effect.fail(
           new TransformationError({
@@ -370,7 +370,7 @@ export function exportToPersistentDB(
     for (const dataset of config.transform.datasets) {
       // TODO(#108): Transform should use resolveProfile(standard, type) to respect
       // standard-specific profiles. Currently ignores the standard field.
-      const transformProfile = getValidationProfile(dataset.class);
+      const transformProfile = getResolvedSpec(dataset.class);
       if (!transformProfile) {
         console.warn(
           `No validation profile found for class '${dataset.class}', skipping table export.`,
