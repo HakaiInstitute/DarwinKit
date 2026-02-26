@@ -28,7 +28,6 @@ const baseSchemaViolationFields = {
   fieldName: Schema.String,
   targetName: Schema.String,
   errorMessage: Schema.String,
-  validatorType: Schema.Literal("schema"),
 };
 
 /**

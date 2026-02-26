@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import { Workspace } from "../workspace/mod.ts";
 import type { WorkspaceConfig } from "@dwkt/domain/schemas";
 import { hasTransformationConfig } from "@dwkt/domain/schemas";
-import { getResolvedSpec, getSpecNames } from "@dwkt/domain/specs";
+import { getSpecNames, resolveProfile } from "@dwkt/domain/specs";
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
@@ -92,13 +92,17 @@ export function createTableFromSchema(
       return;
     }
 
+    const standard = config.standard ?? { base: "darwin-core", variant: "obis" };
     for (const dataset of config.transform.datasets) {
+      const spec = resolveProfile(standard.variant, dataset.class);
+      if (!spec) continue;
       yield* _(
         importSchema(
           connection,
           dataset,
           config.transform.datasets,
-          config.standard ?? { base: "darwin-core", variant: "obis" },
+          standard,
+          spec,
           config.crossDatasetRules,
         ),
       );
@@ -127,9 +131,7 @@ export function populateSchemaFromDataTables( // Export for testing
       const columnCalculations = Object.entries(dataset.fields)
         .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
 
-      // TODO(#108): Transform should use resolveProfile(standard.variant, dataset.class) to respect
-      // standard-specific profiles. Currently ignores the standard field.
-      const transformProfile = getResolvedSpec(dataset.class);
+      const transformProfile = resolveProfile(config.standard?.variant, dataset.class);
       if (!transformProfile) {
         const suggestion = findSuggestedValue(dataset.class, getSpecNames());
         const suggestionMsg = suggestion ? ` Did you mean '${suggestion}'?` : "";
@@ -180,7 +182,7 @@ export function populateSchemaFromDataTables( // Export for testing
   });
 }
 
-export function exportObisTablesToCSV(
+export function exportTablesToCSV(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
 ): Effect.Effect<void, OutputError> {
@@ -324,8 +326,8 @@ export function exportToPersistentDB(
     true;
   const outputPath = config.transform.output.outputDir;
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const dbName = "obis"; // Default database name for the exported file
-  const dbFileName = config.transform.output.exportDBFileName || dbName;
+  const dbAttachAlias = "export_db";
+  const dbFileName = config.transform.output.exportDBFileName || config.id || "darwinkit";
   const filename = withTimestamp ? `${dbFileName}-${timestamp}.duckdb` : `${dbFileName}.duckdb`;
   const fullPath = join(outputPath, filename);
 
@@ -370,9 +372,7 @@ export function exportToPersistentDB(
 
     // Can't use COPY TO DATABASE — it violates constraints when tables are copied out of order
     for (const dataset of config.transform.datasets) {
-      // TODO(#108): Transform should use resolveProfile(standard.variant, dataset.class) to respect
-      // standard-specific profiles. Currently ignores the standard field.
-      const transformProfile = getResolvedSpec(dataset.class);
+      const transformProfile = resolveProfile(config.standard?.variant, dataset.class);
       if (!transformProfile) {
         const suggestion = findSuggestedValue(dataset.class, getSpecNames());
         const suggestionMsg = suggestion ? ` Did you mean '${suggestion}'?` : "";
@@ -387,9 +387,9 @@ export function exportToPersistentDB(
           // try: () => connection.run(`ATTACH '${fullPath}'; COPY FROM DATABASE memory TO ${dbName}; DETACH ${dbName};`),
           try: () =>
             connection.run(`
-            ATTACH '${fullPath}' as ${dbName};
-            CREATE TABLE IF NOT EXISTS ${dbName}.${tableName} AS FROM memory.${tableName};
-            DETACH ${dbName};
+            ATTACH '${fullPath}' as ${dbAttachAlias};
+            CREATE TABLE IF NOT EXISTS ${dbAttachAlias}.${tableName} AS FROM memory.${tableName};
+            DETACH ${dbAttachAlias};
           `),
           catch: (error) =>
             new OutputError({
@@ -437,14 +437,14 @@ export function transformFile(
             yield* _(createTablesFromCSV(connection, config, basePath));
             yield* _(runPostImportTransformations(config, connection));
 
-            console.log("Creating OBIS tables from schema...");
+            console.log("Creating schema tables...");
             yield* _(createTableFromSchema(connection, config));
 
-            console.log("Populating OBIS tables from data tables...");
+            console.log("Populating schema tables from data tables...");
             yield* _(populateSchemaFromDataTables(connection, config));
 
-            console.log("Exporting OBIS tables to CSV...");
-            yield* _(exportObisTablesToCSV(connection, config));
+            console.log("Exporting tables to CSV...");
+            yield* _(exportTablesToCSV(connection, config));
 
             console.log("Exporting DuckDB database to persistent file...");
             yield* _(exportToPersistentDB(connection, config));

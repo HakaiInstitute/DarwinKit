@@ -53,7 +53,12 @@ function mergeFieldOverrides(
   return merged;
 }
 
-function normalizeJsonToSpec(jsonSpec: unknown): Spec {
+interface NormalizeResult {
+  spec: Spec;
+  warnings: string[];
+}
+
+function normalizeJsonToSpec(jsonSpec: unknown): NormalizeResult {
   if (typeof jsonSpec !== "object" || jsonSpec === null) {
     throw new Error("Invalid JSON profile: expected object");
   }
@@ -62,6 +67,7 @@ function normalizeJsonToSpec(jsonSpec: unknown): Spec {
 
   const specFields: Record<string, SpecField> = {};
   const rawFields: Record<string, TransformField> = {};
+  const warnings: string[] = [];
 
   if (
     "fields" in spec &&
@@ -73,10 +79,12 @@ function normalizeJsonToSpec(jsonSpec: unknown): Spec {
         const result = normalizeField(fieldValue as RawField);
         specFields[fieldName] = result.field;
         if (result.warnings.length > 0) {
-          console.warn(`Warnings normalizing field "${fieldName}": ${result.warnings.join(", ")}`);
+          warnings.push(
+            `Warnings normalizing field "${fieldName}": ${result.warnings.join(", ")}`,
+          );
         }
       } catch (e) {
-        console.warn(
+        warnings.push(
           `Failed to normalize field "${fieldName}": ${e instanceof Error ? e.message : String(e)}`,
         );
       }
@@ -92,11 +100,14 @@ function normalizeJsonToSpec(jsonSpec: unknown): Spec {
   }
 
   return {
-    id: (spec.id ?? spec.name) as string,
-    name: spec.name as string,
-    description: spec.description as string | undefined,
-    specFields,
-    rawFields: Object.keys(rawFields).length > 0 ? rawFields : undefined,
+    spec: {
+      id: (spec.id ?? spec.name) as string,
+      name: spec.name as string,
+      description: spec.description as string | undefined,
+      specFields,
+      rawFields: Object.keys(rawFields).length > 0 ? rawFields : undefined,
+    },
+    warnings,
   };
 }
 
@@ -104,7 +115,7 @@ export function getSpecNames(): string[] {
   return Object.keys(loadDwcSchema());
 }
 
-function getJsonSpec(specId: string): Spec | undefined {
+function getJsonSpec(specId: string): NormalizeResult | undefined {
   const rawJsonSpec = loadDwcSchema()[specId];
   if (!rawJsonSpec) return undefined;
   return normalizeJsonToSpec(rawJsonSpec);
@@ -116,6 +127,7 @@ function resolveProfileChain(
 ): {
   fieldOverrides: Record<string, FieldOverride>;
   spec: Spec | undefined;
+  warnings: string[];
 } {
   if (visited.has(profile.id)) {
     throw new Error(
@@ -125,7 +137,7 @@ function resolveProfileChain(
   visited.add(profile.id);
 
   if (!profile.extends) {
-    return { fieldOverrides: profile.fieldOverrides, spec: undefined };
+    return { fieldOverrides: profile.fieldOverrides, spec: undefined, warnings: [] };
   }
 
   const parentProfile = PROFILE_REGISTRY[profile.extends];
@@ -134,13 +146,15 @@ function resolveProfileChain(
     return {
       fieldOverrides: mergeFieldOverrides(parentResolved.fieldOverrides, profile.fieldOverrides),
       spec: parentResolved.spec,
+      warnings: parentResolved.warnings,
     };
   }
 
-  const parentSpec = getJsonSpec(profile.extends);
+  const result = getJsonSpec(profile.extends);
   return {
     fieldOverrides: profile.fieldOverrides,
-    spec: parentSpec,
+    spec: result?.spec,
+    warnings: result?.warnings ?? [],
   };
 }
 
@@ -148,15 +162,17 @@ function buildResolvedSpec(
   spec: Spec,
   profile?: Profile,
   mergedOverrides?: Record<string, FieldOverride>,
+  warnings?: string[],
 ): ResolvedSpec {
   return {
     id: profile?.id ?? spec.id,
-    name: profile?.name ?? spec.name,
+    name: spec.name,
     spec: spec.id,
     profile: profile?.id,
     fieldOverrides: mergedOverrides ?? profile?.fieldOverrides ?? {},
     specFields: spec.specFields,
     rawFields: spec.rawFields,
+    ...(warnings && warnings.length > 0 ? { warnings } : {}),
   };
 }
 
@@ -164,9 +180,9 @@ export function getResolvedSpec(specOrProfileId: string): ResolvedSpec | undefin
   // Try TypeScript profile registry first
   const tsProfile = PROFILE_REGISTRY[specOrProfileId];
   if (tsProfile) {
-    const { fieldOverrides, spec } = resolveProfileChain(tsProfile);
+    const { fieldOverrides, spec, warnings } = resolveProfileChain(tsProfile);
     if (spec) {
-      return buildResolvedSpec(spec, tsProfile, fieldOverrides);
+      return buildResolvedSpec(spec, tsProfile, fieldOverrides, warnings);
     }
     // Profile's inheritance chain did not resolve to a base JSON spec.
     // This indicates a misconfigured profile (e.g., extends a non-existent spec).
@@ -176,9 +192,9 @@ export function getResolvedSpec(specOrProfileId: string): ResolvedSpec | undefin
     );
   }
 
-  const jsonSpec = getJsonSpec(specOrProfileId);
-  if (!jsonSpec) return undefined;
-  return buildResolvedSpec(jsonSpec);
+  const result = getJsonSpec(specOrProfileId);
+  if (!result) return undefined;
+  return buildResolvedSpec(result.spec, undefined, undefined, result.warnings);
 }
 
 /**

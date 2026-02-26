@@ -115,7 +115,6 @@ function handlePrimaryKeyViolation(
           constraintType: "duplicate",
           duplicateCount,
           errorMessage: `Duplicate primary key: "${parsed.value}"`,
-          validatorType: "primary-key",
         }),
       );
     }
@@ -147,7 +146,6 @@ function handleNotNullViolation(
         value: "",
         csvValue: "",
         errorMessage: `Required field "${notNullMapping.origin}" cannot be NULL`,
-        validatorType: "not-null",
       }),
     ];
   });
@@ -201,7 +199,6 @@ function handleEnumViolation(
         errorMessage: suggestedValue
           ? `Invalid value "${parsed.value}" (did you mean "${suggestedValue}"?)`
           : `Invalid value "${parsed.value}" (must be one of: ${allowedValues.join(", ")})`,
-        validatorType: "enum",
       }),
     ];
   });
@@ -256,7 +253,6 @@ function handleForeignKeyViolation(
         referencedTable,
         referencedField,
         errorMessage,
-        validatorType: "foreign-key",
         // Include rule params when available for downstream consumers
         ...(fkRule && {
           params: {

@@ -5,7 +5,7 @@
 export {
   createTableFromSchema,
   createTablesFromCSV,
-  exportObisTablesToCSV,
+  exportTablesToCSV,
   exportToPersistentDB,
   OutputError,
   populateSchemaFromDataTables,

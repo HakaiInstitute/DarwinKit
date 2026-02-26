@@ -99,7 +99,7 @@ export function findRangeViolations(
           value: String(row.value),
           csvValue: String(row.value),
           errorMessage: constraint.message || `Value out of range`,
-          validatorType: constraint._tag,
+
           params: { min: constraint.min, max: constraint.max },
         })
       );
@@ -230,7 +230,6 @@ export function findUniquenessViolations(
             value,
             csvValue: value,
             errorMessage: `Duplicate value: "${value}"`,
-            validatorType: "unique",
           }),
         );
       }
@@ -367,7 +366,6 @@ export function findFormatViolations(
           csvValue: String(row.value),
           errorMessage: constraint.message ||
             `Value "${String(row.value)}" does not match ${constraint.format} format`,
-          validatorType: "format",
           format: constraint.format,
         })
       );
@@ -431,7 +429,6 @@ export function findPatternViolations(
           rowNumber: 0,
           value: "",
           errorMessage: `Invalid regex pattern "/${constraint.pattern}/": ${errorMsg}`,
-          validatorType: "pattern",
           pattern: constraint.pattern,
           flags: constraint.flags,
         }),
@@ -450,7 +447,6 @@ export function findPatternViolations(
           csvValue: String(row.value),
           errorMessage: constraint.message ||
             `Value "${String(row.value)}" does not match pattern /${constraint.pattern}/`,
-          validatorType: "pattern",
           pattern: constraint.pattern,
           flags: constraint.flags,
         })
@@ -529,7 +525,6 @@ export function findLengthViolations(
             `Value length ${row.actual_length} is outside bounds [${minLength ?? ""}..${
               maxLength ?? ""
             }]`,
-          validatorType: "length",
           params: {
             minLength,
             maxLength,
@@ -601,7 +596,6 @@ export function findRequiredViolations(
           value: row.value == null ? "" : String(row.value),
           csvValue: row.value == null ? "" : String(row.value),
           errorMessage: constraint.message || `Required field "${fieldName}" is empty or null`,
-          validatorType: "required",
         })
       );
       return yield* _(Effect.fail(violations));

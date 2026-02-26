@@ -1,11 +1,7 @@
-import type {
-  CrossDatasetValidationResult,
-  DatasetValidationResult,
-  WorkspaceValidationResult,
-} from '@dwkt/domain/types';
-import { CrossDatasetViolation, MissingFieldViolation } from '@dwkt/domain/types';
+import type { DatasetValidationResult, WorkspaceValidationResult } from '@dwkt/domain/types';
+import { MissingFieldViolation } from '@dwkt/domain/types';
 import { assertEquals, assertStringIncludes } from '@std/assert';
-import { renderCrossDatasetResults, renderValidationMarkdown } from './markdown-renderer.ts';
+import { renderValidationMarkdown } from './markdown-renderer.ts';
 
 // --- Test Data Factories ---
 
@@ -15,7 +11,6 @@ function makeFieldViolation(overrides: Partial<{
   rowNumber: number;
   value: string;
   errorMessage: string;
-  validatorType: string;
   severity: 'error' | 'warning' | 'info';
 }> = {}) {
   return {
@@ -26,7 +21,6 @@ function makeFieldViolation(overrides: Partial<{
     rowNumber: overrides.rowNumber ?? 1,
     value: overrides.value ?? '-100',
     errorMessage: overrides.errorMessage ?? 'Value -100 out of range [-90, 90]',
-    validatorType: overrides.validatorType ?? 'rangeCheck',
   };
 }
 
@@ -41,7 +35,6 @@ function makeSchemaViolation(overrides: Partial<{
     fieldName: overrides.fieldName ?? 'eventDate',
     targetName: overrides.targetName ?? 'eventDate',
     errorMessage: overrides.errorMessage ?? 'Missing required field: eventDate',
-    validatorType: 'schema',
     reason: 'not_in_csv',
   });
 }
@@ -75,7 +68,6 @@ function makeResults(
     totalProcessingTimeMs: overrides.totalProcessingTimeMs ?? 150,
     overallStatus: overrides.overallStatus ?? 'pass',
     datasetResults: overrides.datasetResults ?? [makeCleanDataset()],
-    crossDatasetResults: overrides.crossDatasetResults ?? [],
     summary: overrides.summary ?? {
       totalDatasets: 1,
       datasetsPassedCount: 1,
@@ -89,31 +81,6 @@ function makeResults(
   };
 }
 
-function makeCrossDatasetViolation(rowNumber: number, value: string) {
-  return new CrossDatasetViolation({
-    severity: 'error',
-    fieldName: 'eventID',
-    targetName: 'eventID',
-    rowNumber,
-    value,
-    errorMessage: `Foreign key not found: ${value}`,
-    validatorType: 'foreignKey',
-  });
-}
-
-function makeCrossResult(
-  violations: CrossDatasetViolation[] = [],
-): CrossDatasetValidationResult {
-  return {
-    ruleType: 'foreignKey',
-    sourceDataset: 'occurrences',
-    sourceField: 'eventID',
-    targetDataset: 'events',
-    targetField: 'eventID',
-    violations,
-  };
-}
-
 // --- renderValidationMarkdown ---
 
 Deno.test('clean results - renders header, summary table, and overall summary', () => {
@@ -123,7 +90,6 @@ Deno.test('clean results - renders header, summary table, and overall summary', 
   assertStringIncludes(result, '## Summary Table');
   assertStringIncludes(result, '✅ PASS');
   assertStringIncludes(result, '## 📊 Overall Summary');
-  assertEquals(result.includes('Cross-dataset'), false);
   assertEquals(result.includes('### ❌ ERRORS'), false);
 });
 
@@ -168,7 +134,7 @@ Deno.test('violations - renders all severity sections with grouped field errors'
   // Schema violation content
   assertStringIncludes(result, '**eventDate:**');
   // Field violations grouped
-  assertStringIncludes(result, '**lat** (rangeCheck): 2 violations');
+  assertStringIncludes(result, '**lat** (RangeViolation): 2 violations');
   // Summary table shows counts
   assertStringIncludes(result, '❌ FAIL');
   assertStringIncludes(result, '**❌ Errors:** 3');
@@ -187,35 +153,4 @@ Deno.test('field violation truncation - shows first 3 examples then truncation m
   assertStringIncludes(result, 'Row 3:');
   assertStringIncludes(result, '... and 3 more violations');
   assertEquals(result.includes('Row 4:'), false);
-});
-
-// --- renderCrossDatasetResults (tested directly — branching logic awkward to exercise via full render) ---
-
-Deno.test('cross-dataset - returns empty for no results', () => {
-  assertEquals(renderCrossDatasetResults([]), '');
-});
-
-Deno.test('cross-dataset - valid FK shows success with field references', () => {
-  const result = renderCrossDatasetResults([makeCrossResult()]);
-  assertStringIncludes(result, '✅ Foreign Key Valid');
-  assertStringIncludes(result, '**occurrences.eventID**');
-  assertStringIncludes(result, '**events.eventID**');
-});
-
-Deno.test('cross-dataset - FK violations show error rows', () => {
-  const result = renderCrossDatasetResults([
-    makeCrossResult([makeCrossDatasetViolation(5, 'EVT-999')]),
-  ]);
-  assertStringIncludes(result, '❌ Foreign Key Violation');
-  assertStringIncludes(result, 'Row 5:');
-  assertStringIncludes(result, 'EVT-999');
-});
-
-Deno.test('cross-dataset - truncates after 5 violations', () => {
-  const violations = Array.from(
-    { length: 8 },
-    (_, i) => makeCrossDatasetViolation(i + 1, `EVT-${i}`),
-  );
-  const result = renderCrossDatasetResults([makeCrossResult(violations)]);
-  assertStringIncludes(result, '... and 3 more violations');
 });

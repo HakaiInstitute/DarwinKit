@@ -19,14 +19,7 @@ import type {
   ValidationSettings,
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
-import type { SpecField } from "@dwkt/domain/specs";
-import {
-  getPreset,
-  getPresetNames,
-  getResolvedSpec,
-  getSpecNames,
-  resolveProfile,
-} from "@dwkt/domain/specs";
+import { getPreset, getPresetNames, getResolvedSpec, getSpecNames } from "@dwkt/domain/specs";
 import type {
   DatasetValidationResult,
   FieldViolation,
@@ -56,18 +49,18 @@ import { validateField } from "./field-validators.ts";
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { ResolvedFieldsEntry } from "./field-resolution.ts";
 import {
+  applyResolvedConstraints,
   deriveRequirementFromConstraints,
   resolveActiveStandard,
   resolveFieldsForDatasets,
-  withResolvedConstraints,
 } from "./field-resolution.ts";
 
-function deduplicateByTypeAndField<T extends { validatorType: string; fieldName: string }>(
+function deduplicateByTypeAndField<T extends { _tag: string; fieldName: string }>(
   arr: readonly T[],
 ): T[] {
   const seen = new Set<string>();
   return arr.filter((item) => {
-    const key = `${item.validatorType}:${item.fieldName}`;
+    const key = `${item._tag}:${item.fieldName}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -156,16 +149,20 @@ export class WorkspaceValidator {
             ),
           ),
         );
-        yield* _(
-          importSchema(
-            connection,
-            dataset,
-            datasets,
-            standard,
-            crossDatasetRules,
-            resolvedFieldsMap.get(dataset.name)?.mapped,
-          ),
-        );
+        const entry = resolvedFieldsMap.get(dataset.name);
+        if (entry) {
+          yield* _(
+            importSchema(
+              connection,
+              dataset,
+              datasets,
+              standard,
+              entry.resolvedSpec,
+              crossDatasetRules,
+              entry.mapped,
+            ),
+          );
+        }
       }
 
       return yield* _(
@@ -234,8 +231,8 @@ function _validateDatasetsCore(
     const datasetResults: DatasetValidationResult[] = [];
 
     for (const dataset of datasets) {
-      const datasetProfile = resolveProfile(standard.variant, dataset.class);
       const preResolved = resolvedFieldsMap.get(dataset.name);
+      const datasetProfile = preResolved?.resolvedSpec;
 
       const result = yield* _(
         validateDataset(
@@ -287,7 +284,6 @@ function _validateDatasetsCore(
       totalProcessingTimeMs,
       overallStatus,
       datasetResults,
-      crossDatasetResults: [],
       summary,
     };
   });
@@ -332,16 +328,20 @@ function createWorkspaceFromConfig(
           Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
         ),
       );
-      yield* _(
-        importSchema(
-          connection,
-          dataset,
-          datasets,
-          standard,
-          crossDatasetRules,
-          resolvedFieldsMap.get(dataset.name)?.mapped,
-        ),
-      );
+      const entry = resolvedFieldsMap.get(dataset.name);
+      if (entry) {
+        yield* _(
+          importSchema(
+            connection,
+            dataset,
+            datasets,
+            standard,
+            entry.resolvedSpec,
+            crossDatasetRules,
+            entry.mapped,
+          ),
+        );
+      }
     }
 
     return { workspaceId, connection, instance };
@@ -448,7 +448,7 @@ function validateDataset(
             targetName: mapping.targetName,
             errorMessage:
               `Unknown preset "${mapping.preset}" for field '${mapping.targetName}'.${suggestionMsg}`,
-            validatorType: "schema",
+
             datasetName: dataset.name,
           }),
         );
@@ -514,7 +514,6 @@ function validateDataset(
             `Field '${missingSourceField.fieldName}' is specified in config but not found in CSV.${
               altMsg ? ` ${altMsg}` : ""
             }`,
-          validatorType: "schema",
           datasetName: dataset.name,
         }),
       );
@@ -532,7 +531,6 @@ function validateDataset(
           errorMessage:
             `Source column '${unmappedSourceColumn.fieldName}' is not mapped to any Darwin Core field and will be ignored.` +
             (altMsg ? ` ${altMsg}` : ""),
-          validatorType: "schema",
           datasetName: dataset.name,
         }),
       );
@@ -564,7 +562,7 @@ function validateDataset(
               targetName: fieldName,
               errorMessage:
                 `Field '${fieldName}' is specified in config fieldMappings but not found in the dataset`,
-              validatorType: "schema",
+
               reason: "not_mapped",
             }),
           );
@@ -589,7 +587,7 @@ function validateDataset(
             targetName: fieldName,
             errorMessage:
               `Profile '${profile.name}' ${messageVerb} field '${fieldName}' but it is not mapped in the dataset`,
-            validatorType: "schema",
+
             reason: "not_mapped",
           }),
         );
@@ -610,7 +608,7 @@ function validateDataset(
             targetName: mapping.targetName,
             errorMessage:
               `No validation profile specified for dataset '${dataset.name}'. Please add a 'class' property to the dataset configuration.`,
-            validatorType: "schema",
+
             profileId: dataset.class ?? "unknown",
             reason: "not_found",
           }),
@@ -618,9 +616,7 @@ function validateDataset(
         continue;
       }
 
-      const baseField = profile.specFields?.[mapping.targetName] as
-        | SpecField
-        | undefined;
+      const baseField = profile.specFields?.[mapping.targetName];
 
       if (!baseField) {
         schemaViolations.push(
@@ -630,14 +626,14 @@ function validateDataset(
             targetName: mapping.targetName,
             errorMessage:
               `Unknown field '${mapping.targetName}' in profile '${profile.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
-            validatorType: "schema",
+
             profileId: profile.id,
           }),
         );
         continue;
       }
 
-      const specField = withResolvedConstraints(baseField, mapping);
+      const specField = applyResolvedConstraints(baseField, mapping);
 
       if (specField) {
         const rawField = profile.rawFields?.[mapping.targetName];

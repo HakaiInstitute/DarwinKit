@@ -41,7 +41,6 @@ Deno.test("partitionFieldViolations - groups violations by severity", () => {
     rowNumber: 1,
     value: "",
     errorMessage: "Required field is empty",
-    validatorType: "required",
   });
 
   const warningViolation = new RequiredFieldViolation({
@@ -51,7 +50,6 @@ Deno.test("partitionFieldViolations - groups violations by severity", () => {
     rowNumber: 2,
     value: "",
     errorMessage: "Recommended field is empty",
-    validatorType: "required",
   });
 
   const infoViolation = new RequiredFieldViolation({
@@ -61,7 +59,6 @@ Deno.test("partitionFieldViolations - groups violations by severity", () => {
     rowNumber: 3,
     value: "",
     errorMessage: "Optional field is empty",
-    validatorType: "required",
   });
 
   const result = partitionFieldViolations([errorViolation, warningViolation, infoViolation]);
@@ -91,7 +88,6 @@ Deno.test("partitionSchemaViolations - groups violations by severity", () => {
     fieldName: "eventID",
     targetName: "eventID",
     errorMessage: "Required field missing",
-    validatorType: "schema",
     reason: "not_mapped",
   });
 
@@ -100,7 +96,6 @@ Deno.test("partitionSchemaViolations - groups violations by severity", () => {
     fieldName: "scientificName",
     targetName: "scientificName",
     errorMessage: "Recommended field missing",
-    validatorType: "schema",
     reason: "not_mapped",
   });
 
@@ -109,7 +104,6 @@ Deno.test("partitionSchemaViolations - groups violations by severity", () => {
     fieldName: "extraColumn",
     targetName: "extraColumn",
     errorMessage: "Column not mapped",
-    validatorType: "schema",
     datasetName: "test",
   });
 

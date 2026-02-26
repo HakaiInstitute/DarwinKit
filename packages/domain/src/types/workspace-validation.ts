@@ -16,11 +16,7 @@
  * (errors, warnings, info).
  */
 
-import type {
-  CrossDatasetViolation,
-  FieldViolation,
-  PartitionedViolations,
-} from "./validation-violation.ts";
+import type { FieldViolation, PartitionedViolations } from "./validation-violation.ts";
 import type { SchemaViolation } from "./schema-violation.ts";
 
 export interface DatasetValidationResult {
@@ -38,15 +34,6 @@ export interface DatasetValidationResult {
   readonly fieldViolations: PartitionedViolations<FieldViolation>;
 }
 
-export interface CrossDatasetValidationResult {
-  readonly ruleType: "foreignKey";
-  readonly sourceDataset: string;
-  readonly sourceField: string;
-  readonly targetDataset: string;
-  readonly targetField: string;
-  readonly violations: ReadonlyArray<CrossDatasetViolation>;
-}
-
 export interface WorkspaceValidationResult {
   readonly workspaceId: string;
   readonly configPath: string;
@@ -55,7 +42,6 @@ export interface WorkspaceValidationResult {
   readonly overallStatus: "pass" | "warn" | "fail";
 
   readonly datasetResults: ReadonlyArray<DatasetValidationResult>;
-  readonly crossDatasetResults: ReadonlyArray<CrossDatasetValidationResult>;
   readonly summary: {
     readonly totalDatasets: number;
     readonly datasetsPassedCount: number;

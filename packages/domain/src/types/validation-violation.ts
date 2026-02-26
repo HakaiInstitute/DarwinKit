@@ -61,7 +61,6 @@ const baseViolationFields = {
   csvValue: Schema.optional(Schema.String),
   transformedValue: Schema.optional(Schema.Unknown),
   errorMessage: Schema.String,
-  validatorType: Schema.String,
 };
 
 export class RangeViolation extends Schema.TaggedClass<RangeViolation>()("RangeViolation", {
@@ -78,18 +77,6 @@ export class UniquenessViolation
   extends Schema.TaggedClass<UniquenessViolation>()("UniquenessViolation", {
     ...baseViolationFields,
     params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
-  }) {}
-
-export class CrossDatasetViolation
-  extends Schema.TaggedClass<CrossDatasetViolation>()("CrossDatasetViolation", {
-    ...baseViolationFields,
-    params: Schema.optional(
-      Schema.Struct({
-        sourceDataset: Schema.optional(Schema.String),
-        targetDataset: Schema.optional(Schema.String),
-        targetField: Schema.optional(Schema.String),
-      }),
-    ),
   }) {}
 
 export class PrimaryKeyViolation
@@ -178,7 +165,6 @@ export interface ValidField {
 export type FieldViolation =
   | RangeViolation
   | UniquenessViolation
-  | CrossDatasetViolation
   | PrimaryKeyViolation
   | NotNullViolation
   | EnumViolation
@@ -210,10 +196,6 @@ export function isNotNullViolation(v: FieldViolation): v is NotNullViolation {
 
 export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolation {
   return v._tag === "ForeignKeyViolation";
-}
-
-export function isCrossDatasetViolation(v: FieldViolation): v is CrossDatasetViolation {
-  return v._tag === "CrossDatasetViolation";
 }
 
 export function isFormatViolation(v: FieldViolation): v is FormatViolation {

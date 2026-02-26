@@ -28,11 +28,12 @@ import {
 import type { ResolutionDiagnostic } from "./field-resolution.ts";
 import {
   addConstraints,
+  applyResolvedConstraints,
   deriveRequirementFromConstraints,
   requirementToConstraint,
   resolveActiveStandard,
+  resolveFieldsForDatasets,
   resolveSpecFields,
-  withResolvedConstraints,
 } from "./field-resolution.ts";
 
 // =============================================================================
@@ -68,9 +69,11 @@ Deno.test("resolveActiveStandard - warns on unknown variant", () => {
   assertEquals(result.warning!.includes("inat"), true);
 });
 
-Deno.test("resolveActiveStandard - no warning for undefined variant", () => {
+Deno.test("resolveActiveStandard - warns when no variant specified", () => {
   const result = resolveActiveStandard({ base: "darwin-core" });
-  assertEquals(result.warning, undefined);
+  assertEquals(result.standard, "obis");
+  assertEquals(typeof result.warning, "string");
+  assertEquals(result.warning!.includes("defaulting"), true);
 });
 
 // =============================================================================
@@ -654,10 +657,10 @@ Deno.test("deriveRequirementFromConstraints - picks strictest when multiple requ
 });
 
 // =============================================================================
-// withResolvedConstraints Tests
+// applyResolvedConstraints Tests
 // =============================================================================
 
-Deno.test("withResolvedConstraints - applies resolved constraints to base field", () => {
+Deno.test("applyResolvedConstraints - applies resolved constraints to base field", () => {
   const baseField: SpecField = {
     name: "decimalLatitude",
     constraints: [rangeConstraint(-90, 90)],
@@ -668,12 +671,12 @@ Deno.test("withResolvedConstraints - applies resolved constraints to base field"
     constraints: [rangeConstraint(-45, 45), requiredConstraint()],
   };
 
-  const result = withResolvedConstraints(baseField, mapping);
+  const result = applyResolvedConstraints(baseField, mapping);
   assertEquals(result.constraints.length, 2);
   assertEquals(result.name, "decimalLatitude"); // base field name preserved
 });
 
-Deno.test("withResolvedConstraints - returns base field when no resolved constraints", () => {
+Deno.test("applyResolvedConstraints - returns base field when no resolved constraints", () => {
   const baseField: SpecField = {
     name: "eventDate",
     constraints: [formatConstraint("iso8601")],
@@ -683,17 +686,17 @@ Deno.test("withResolvedConstraints - returns base field when no resolved constra
     targetName: "eventDate",
   };
 
-  const result = withResolvedConstraints(baseField, mapping);
+  const result = applyResolvedConstraints(baseField, mapping);
   assertEquals(result, baseField); // identical reference
 });
 
-Deno.test("withResolvedConstraints - returns base field when mapping is undefined", () => {
+Deno.test("applyResolvedConstraints - returns base field when mapping is undefined", () => {
   const baseField: SpecField = {
     name: "eventDate",
     constraints: [formatConstraint("iso8601")],
   };
 
-  const result = withResolvedConstraints(baseField, undefined);
+  const result = applyResolvedConstraints(baseField, undefined);
   assertEquals(result, baseField);
 });
 
@@ -808,7 +811,6 @@ Deno.test("End-to-end requirement chain", async (t) => {
         rowNumber: 1,
         value: "",
         errorMessage: "test",
-        validatorType: "required",
       });
 
       const fieldPartition = partitionFieldViolations([fieldViolation]);
@@ -824,7 +826,6 @@ Deno.test("End-to-end requirement chain", async (t) => {
         fieldName: "testField",
         targetName: "testField",
         errorMessage: "test",
-        validatorType: "schema",
         reason: "not_mapped",
       });
 
@@ -1239,4 +1240,57 @@ Deno.test("Required-if-exists: profile override can strengthen to required (ERRO
   // "required (if exists)" constraint should be replaced by the ERROR-level one.
   const requirement = deriveRequirementFromConstraints(resolved["parentEventID"]?.constraints);
   assertEquals(requirement, "required");
+});
+
+// =============================================================================
+// resolveFieldsForDatasets Tests
+// =============================================================================
+
+Deno.test("resolveFieldsForDatasets - returns empty map for empty datasets", () => {
+  const result = resolveFieldsForDatasets([], { base: "darwin-core", variant: "obis" });
+  assertEquals(result.size, 0);
+});
+
+Deno.test("resolveFieldsForDatasets - skips datasets with unknown class", () => {
+  const datasets = [{ name: "bad", class: "NonExistentClass", path: "x.csv", fieldMappings: [] }];
+  const result = resolveFieldsForDatasets(datasets, { base: "darwin-core", variant: "obis" });
+  assertEquals(result.size, 0, "unknown class should be skipped");
+});
+
+Deno.test("resolveFieldsForDatasets - populates resolvedSpec on entries", () => {
+  const datasets = [{ name: "events", class: "Event", path: "e.csv", fieldMappings: [] }];
+  const result = resolveFieldsForDatasets(datasets, { base: "darwin-core", variant: "obis" });
+  assertEquals(result.size, 1);
+  const entry = result.get("events")!;
+  assert(entry.resolvedSpec !== undefined, "resolvedSpec should be populated");
+  assert(
+    Object.keys(entry.resolvedSpec.specFields).length > 0,
+    "resolvedSpec should have specFields from the base spec",
+  );
+  assert(Object.keys(entry.all).length > 0, "all fields should be resolved");
+});
+
+Deno.test("resolveFieldsForDatasets - mapped subset matches config fieldMappings", () => {
+  const datasets = [{
+    name: "events",
+    class: "Event",
+    path: "e.csv",
+    fieldMappings: [
+      { originName: "eventID", targetName: "eventID" },
+      { originName: "date", targetName: "eventDate" },
+    ],
+  }];
+  const result = resolveFieldsForDatasets(datasets, { base: "darwin-core", variant: "obis" });
+  const entry = result.get("events")!;
+  assertEquals(
+    Object.keys(entry.mapped).length,
+    2,
+    "mapped should only contain config-mapped fields",
+  );
+  assert("eventID" in entry.mapped, "mapped should contain eventID");
+  assert("eventDate" in entry.mapped, "mapped should contain eventDate");
+  assert(
+    Object.keys(entry.all).length > Object.keys(entry.mapped).length,
+    "all should have more fields than mapped",
+  );
 });

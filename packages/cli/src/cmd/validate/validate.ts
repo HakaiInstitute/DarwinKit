@@ -405,7 +405,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
         for (const [fieldName, violations] of errorsByField) {
           const firstViolation = violations[0];
           Output.error(
-            `    • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
+            `    • ${fieldName} (${firstViolation._tag}): ${violations.length} violations`,
           );
 
           // Show first few violations as examples
@@ -443,7 +443,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
         for (const [fieldName, violations] of warningsByField) {
           const firstViolation = violations[0];
           Output.warning(
-            `    • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
+            `    • ${fieldName} (${firstViolation._tag}): ${violations.length} violations`,
           );
 
           const examples = violations.slice(0, 3);
@@ -481,7 +481,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
         for (const [fieldName, violations] of infoByField) {
           const firstViolation = violations[0];
           Output.info(
-            `    • ${fieldName} (${firstViolation.validatorType}): ${violations.length} violations`,
+            `    • ${fieldName} (${firstViolation._tag}): ${violations.length} violations`,
           );
 
           const examples = violations.slice(0, 3);
@@ -514,38 +514,6 @@ function outputTableResults(results: WorkspaceValidationResult) {
     }
 
     return grouped;
-  }
-
-  if (results.crossDatasetResults.length > 0) {
-    Output.section('🔗', 'Cross-dataset validation');
-    Output.blank();
-
-    for (const crossResult of results.crossDatasetResults) {
-      if (crossResult.violations.length > 0) {
-        Output.error(
-          `❌ Foreign key violation: ${crossResult.sourceDataset}.${crossResult.sourceField} → ${crossResult.targetDataset}.${crossResult.targetField}`,
-        );
-
-        const sampleViolations = crossResult.violations.slice(0, 5);
-        for (const violation of sampleViolations) {
-          Output.error(
-            `  • Row ${violation.rowNumber}: ${violation.errorMessage}`,
-          );
-        }
-
-        if (crossResult.violations.length > 5) {
-          Output.muted(
-            `  ... and ${crossResult.violations.length - 5} more violations`,
-          );
-        }
-        Output.blank();
-      } else {
-        Output.success(
-          `✅ Foreign key valid: ${crossResult.sourceDataset}.${crossResult.sourceField} → ${crossResult.targetDataset}.${crossResult.targetField}`,
-        );
-      }
-    }
-    Output.blank();
   }
 
   Output.bold('📊 Summary:');

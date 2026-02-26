@@ -7,7 +7,7 @@ import type {
 } from "@dwkt/domain/schemas";
 import type { ResolvedStandard } from "@dwkt/domain/schemas";
 
-import { getResolvedSpec, obligationForStandard } from "@dwkt/domain/specs";
+import { obligationForStandard, resolveProfile } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
 import { deriveRequirementFromConstraints } from "../validation/field-resolution.ts";
@@ -19,7 +19,7 @@ type DatasetWithClass = {
 };
 
 /**
- * Only fields with "required" or "recommended" obligation get ENUM enforcement.
+ * Only fields with "required" or "recommended" obligation get ENUM type constraints.
  */
 function shouldEnforceVocabulary(
   spec: ResolvedSpec,
@@ -34,14 +34,16 @@ function shouldEnforceVocabulary(
 
 function isFieldRequired(
   resolvedFields: Record<string, WorkspaceFieldMapping> | undefined,
-  spec: ResolvedSpec,
+  _spec: ResolvedSpec,
   fieldName: string,
 ): boolean {
   if (resolvedFields) {
     const resolved = resolvedFields[fieldName];
     return deriveRequirementFromConstraints(resolved?.constraints) === "required";
   }
-  return spec.fieldOverrides?.[fieldName]?.requirement === "required";
+  // Without resolved fields (e.g., transform path), don't enforce NOT NULL.
+  // Only the validation path provides resolvedFields with the full constraint pipeline.
+  return false;
 }
 
 export function importSchema(
@@ -49,17 +51,11 @@ export function importSchema(
   dataset: DatasetWithClass,
   datasets: readonly DatasetWithClass[],
   standard: ResolvedStandard,
+  spec: ResolvedSpec,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
   resolvedFields?: Record<string, WorkspaceFieldMapping>,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
-    // TODO(#108): Should use resolveProfile(standard.variant, dataset.class) to respect
-    // standard-specific profiles. Currently only loads the base JSON spec.
-    const spec = getResolvedSpec(dataset.class);
-    if (!spec) {
-      // TODO(#63): Surface as a recoverable schema violation (warning)
-      return;
-    }
     const tableName = sanitizeTableName(spec.name).toLowerCase();
     const activeStandard: "obis" | "gbif" = standard.variant === "gbif" ? "gbif" : "obis";
 
@@ -104,7 +100,7 @@ export function importSchema(
       if (fkRule) {
         const targetDataset = datasets.find((ds) => ds.name === fkRule.targetDataset);
         if (targetDataset) {
-          const targetProfile = getResolvedSpec(targetDataset.class);
+          const targetProfile = resolveProfile(standard.variant, targetDataset.class);
           if (targetProfile) {
             const referencedTable = sanitizeTableName(targetProfile.name).toLowerCase();
             fieldStr += ` REFERENCES ${referencedTable}("${fkRule.targetField}")`;

@@ -109,6 +109,8 @@ const STRING_VALIDATOR_MAP: Record<string, Constraint | null> = {
   date: new FormatConstraint({ format: "iso8601" }),
   iso8601Date: new FormatConstraint({ format: "iso8601" }),
   url: new FormatConstraint({ format: "url" }),
+  // "decimal" in Darwin Core schemas maps to "decimal-degrees" format validation
+  // because all decimal fields in the schema are geographic coordinates.
   decimal: new FormatConstraint({ format: "decimal-degrees" }),
 };
 

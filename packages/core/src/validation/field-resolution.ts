@@ -48,7 +48,10 @@ export function resolveActiveStandard(
       }.`,
     };
   }
-  return { standard: "obis" };
+  return {
+    standard: "obis",
+    warning: `No standard variant specified — defaulting to "obis".`,
+  };
 }
 
 /**
@@ -312,7 +315,7 @@ export function resolveSpecFields(
 /**
  * Combine base field metadata with fully-resolved constraints from resolveSpecFields().
  */
-export function withResolvedConstraints(
+export function applyResolvedConstraints(
   baseField: SpecField,
   resolvedMapping: WorkspaceFieldMapping | undefined,
 ): SpecField {
@@ -337,6 +340,7 @@ export function withResolvedConstraints(
 export interface ResolvedFieldsEntry {
   readonly all: Record<string, WorkspaceFieldMapping>;
   readonly mapped: Record<string, WorkspaceFieldMapping>;
+  readonly resolvedSpec: ResolvedSpec;
 }
 
 /**
@@ -369,7 +373,7 @@ export function resolveFieldsForDatasets(
       if (mappedNames.has(name)) mapped[name] = field;
     }
 
-    result.set(dataset.name, { all, mapped });
+    result.set(dataset.name, { all, mapped, resolvedSpec: datasetProfile });
   }
 
   return result;

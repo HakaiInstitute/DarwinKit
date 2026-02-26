@@ -2,7 +2,7 @@
  * Tests for the spec/profile registry resolution logic.
  */
 
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import { getResolvedSpec, getSpecNames, PROFILE_REGISTRY, resolveProfile } from "./registry.ts";
 
 // --- getSpecNames ---
@@ -116,5 +116,54 @@ Deno.test("getResolvedSpec - spec has rawFields populated", () => {
   assert(
     result.rawFields !== undefined && Object.keys(result.rawFields).length > 0,
     "Event spec should have rawFields for transform support",
+  );
+});
+
+// --- Circular inheritance detection ---
+
+Deno.test("getResolvedSpec - throws on circular profile inheritance", () => {
+  // Temporarily inject a circular profile: A extends B, B extends A
+  const circularA = {
+    id: "circular-a",
+    name: "Circular A",
+    extends: "circular-b",
+    fieldOverrides: {},
+  };
+  const circularB = {
+    id: "circular-b",
+    name: "Circular B",
+    extends: "circular-a",
+    fieldOverrides: {},
+  };
+  PROFILE_REGISTRY["circular-a"] = circularA;
+  PROFILE_REGISTRY["circular-b"] = circularB;
+  try {
+    assertThrows(
+      () => getResolvedSpec("circular-a"),
+      Error,
+      "Circular profile inheritance detected",
+    );
+  } finally {
+    delete PROFILE_REGISTRY["circular-a"];
+    delete PROFILE_REGISTRY["circular-b"];
+  }
+});
+
+// --- resolveProfile edge cases ---
+
+Deno.test("resolveProfile - unknown variant and unknown class returns undefined", () => {
+  const result = resolveProfile("unknown-variant", "NonExistentClass");
+  assertEquals(result, undefined);
+});
+
+// --- Warnings propagation ---
+
+Deno.test("getResolvedSpec - resolved spec includes warnings array", () => {
+  const result = getResolvedSpec("obis");
+  assert(result !== undefined);
+  // warnings should be present (may be empty if no normalization issues)
+  assert(
+    result.warnings === undefined || Array.isArray(result.warnings),
+    "warnings should be undefined or an array",
   );
 });

@@ -1,7 +1,4 @@
-import type {
-  CrossDatasetValidationResult,
-  DatasetValidationResult,
-} from "./workspace-validation.ts";
+import type { DatasetValidationResult } from "./workspace-validation.ts";
 
 export interface ValidationSummary {
   readonly totalDatasets: number;
@@ -16,7 +13,6 @@ export interface ValidationSummary {
 
 export function calculateSummary(
   datasetResults: readonly DatasetValidationResult[],
-  crossDatasetResults?: readonly CrossDatasetValidationResult[],
 ): ValidationSummary {
   let datasetsPassedCount = 0;
   let datasetsWithWarningsCount = 0;
@@ -40,24 +36,6 @@ export function calculateSummary(
       datasetsWithWarningsCount++;
     } else {
       datasetsFailedCount++;
-    }
-  }
-
-  if (crossDatasetResults) {
-    for (const result of crossDatasetResults) {
-      for (const violation of result.violations) {
-        switch (violation.severity) {
-          case "error":
-            totalErrors++;
-            break;
-          case "warning":
-            totalWarnings++;
-            break;
-          case "info":
-            totalInfo++;
-            break;
-        }
-      }
     }
   }
 

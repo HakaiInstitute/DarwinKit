@@ -70,4 +70,5 @@ export interface ResolvedSpec {
   readonly fieldOverrides: Record<string, FieldOverride>;
   readonly specFields: Record<string, SpecField>;
   readonly rawFields?: Record<string, TransformField>;
+  readonly warnings?: readonly string[];
 }
