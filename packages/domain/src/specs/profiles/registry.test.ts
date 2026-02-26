@@ -1,0 +1,120 @@
+/**
+ * Tests for the spec/profile registry resolution logic.
+ */
+
+import { assert, assertEquals } from "@std/assert";
+import { getResolvedSpec, getSpecNames, PROFILE_REGISTRY, resolveProfile } from "./registry.ts";
+
+// --- getSpecNames ---
+
+Deno.test("getSpecNames - returns known Darwin Core spec names", () => {
+  const names = getSpecNames();
+  assert(names.includes("Event"), "should include Event");
+  assert(names.includes("Occurrence"), "should include Occurrence");
+  assert(names.includes("Taxon"), "should include Taxon");
+  assert(names.length >= 3, "should have at least 3 specs");
+});
+
+// --- getResolvedSpec ---
+
+Deno.test("getResolvedSpec - returns undefined for non-existent ID", () => {
+  const result = getResolvedSpec("NonExistentSpec");
+  assertEquals(result, undefined);
+});
+
+Deno.test("getResolvedSpec - resolves a JSON spec by class name", () => {
+  const result = getResolvedSpec("Event");
+  assert(result !== undefined, "Event spec should exist");
+  assertEquals(result.id, "Event");
+  assert(
+    Object.keys(result.specFields).length > 0,
+    "Event spec should have specFields",
+  );
+  assertEquals(result.profile, undefined, "JSON-only spec has no profile");
+  assertEquals(result.fieldOverrides, {}, "JSON-only spec has no overrides");
+});
+
+Deno.test("getResolvedSpec - resolves a TypeScript profile (obis)", () => {
+  const result = getResolvedSpec("obis");
+  assert(result !== undefined, "OBIS profile should resolve");
+  assertEquals(result.id, "obis");
+  assertEquals(result.profile, "obis");
+  // OBIS extends Occurrence, so should have Occurrence's specFields
+  assert(
+    Object.keys(result.specFields).length > 0,
+    "OBIS should inherit specFields from Occurrence",
+  );
+  assert(
+    Object.keys(result.fieldOverrides).length > 0,
+    "OBIS should have fieldOverrides",
+  );
+});
+
+Deno.test("getResolvedSpec - resolves obis-event with merged overrides", () => {
+  const result = getResolvedSpec("obis-event");
+  assert(result !== undefined, "obis-event profile should resolve");
+  assertEquals(result.id, "obis-event");
+  assertEquals(result.profile, "obis-event");
+  // obis-event extends obis which extends Occurrence — but obis-event
+  // itself extends Event. The chain should resolve to Event as the base spec.
+  assert(
+    Object.keys(result.specFields).length > 0,
+    "obis-event should have specFields from base spec",
+  );
+  // Should have overrides from both obis and obis-event profiles
+  assert(
+    "decimalLatitude" in result.fieldOverrides,
+    "should inherit decimalLatitude override",
+  );
+});
+
+// --- resolveProfile ---
+
+Deno.test("resolveProfile - composite key resolves obis + Event to obis-event", () => {
+  const result = resolveProfile("obis", "Event");
+  assert(result !== undefined, "obis + Event should resolve");
+  assertEquals(result.id, "obis-event");
+});
+
+Deno.test("resolveProfile - falls back to JSON spec when no composite key matches", () => {
+  const result = resolveProfile("obis", "Taxon");
+  assert(result !== undefined, "obis + Taxon should fall back to Taxon JSON spec");
+  assertEquals(result.id, "Taxon");
+  assertEquals(result.profile, undefined, "no OBIS-Taxon profile exists");
+});
+
+Deno.test("resolveProfile - undefined standard uses class directly", () => {
+  const result = resolveProfile(undefined, "Event");
+  assert(result !== undefined);
+  assertEquals(result.id, "Event");
+});
+
+Deno.test("resolveProfile - unknown variant falls back to base JSON spec", () => {
+  const result = resolveProfile("unknown-variant", "Event");
+  assert(result !== undefined);
+  assertEquals(result.id, "Event");
+});
+
+// --- Profile inheritance ---
+
+Deno.test("PROFILE_REGISTRY - obis extends Event, obis-event extends obis", () => {
+  const obis = PROFILE_REGISTRY["obis"];
+  assert(obis !== undefined);
+  assertEquals(obis.extends, "Event");
+
+  const obisEvent = PROFILE_REGISTRY["obis-event"];
+  assert(obisEvent !== undefined);
+  assertEquals(obisEvent.extends, "obis");
+});
+
+// --- Edge cases ---
+
+Deno.test("getResolvedSpec - spec has rawFields populated", () => {
+  const result = getResolvedSpec("Event");
+  assert(result !== undefined);
+  // rawFields should be populated from JSON spec for transform support
+  assert(
+    result.rawFields !== undefined && Object.keys(result.rawFields).length > 0,
+    "Event spec should have rawFields for transform support",
+  );
+});

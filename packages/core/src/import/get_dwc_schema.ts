@@ -26,7 +26,7 @@ interface Thesaurus {
   [key: string]: unknown;
 }
 
-interface ImportFieldDefinition {
+interface ImportRawField {
   group?: string;
   name: string;
   label: string;
@@ -43,7 +43,7 @@ interface ImportFieldDefinition {
 interface SchemaTable {
   name: string;
   fieldOverrides: Record<string, unknown>;
-  fields: Record<string, ImportFieldDefinition>;
+  fields: Record<string, ImportRawField>;
   [key: string]: unknown;
 }
 
@@ -184,7 +184,7 @@ function xmlSchemaToJson(filePath: string, options: Options, externalDir: string
   const extensionName = nameOverride ?? extension._attributes?.name ?? "Unknown";
 
   // Extract field properties from property elements
-  const fields: Record<string, ImportFieldDefinition> = {};
+  const fields: Record<string, ImportRawField> = {};
   // deno-lint-ignore no-explicit-any
   getArray(extension.property).forEach((prop: any) => {
     const attrs = prop._attributes;
@@ -198,7 +198,7 @@ function xmlSchemaToJson(filePath: string, options: Options, externalDir: string
     label = label[0].toUpperCase() + label.slice(1);
 
     // Build field definition with all attributes
-    const field: ImportFieldDefinition = {
+    const field: ImportRawField = {
       group: group || attrs.group || undefined,
       name,
       label,

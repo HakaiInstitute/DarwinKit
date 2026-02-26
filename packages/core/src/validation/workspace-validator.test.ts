@@ -1,3 +1,4 @@
+import type { WorkspaceValidationResult } from "@dwkt/domain/types";
 import {
   isEnumViolation,
   isFormatViolation,
@@ -7,7 +8,6 @@ import {
   isRangeViolation,
   isRequiredFieldViolation,
 } from "@dwkt/domain/types";
-import type { WorkspaceValidationResult } from "@dwkt/domain/types";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { Array } from "effect";
 import {
@@ -800,7 +800,7 @@ Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
 
 Deno.test("WorkspaceValidator - NOT NULL from Resolved Constraints", async (t) => {
   await t.step(
-    "obligation-required mapped field gets NOT NULL enforcement at INSERT time",
+    "obligation-required mapped field gets NOT NULL obligation at INSERT time",
     async () => {
       const tempDir = await createTempDir("not_null_obligation");
 

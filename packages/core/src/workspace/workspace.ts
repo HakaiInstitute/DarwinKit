@@ -86,9 +86,7 @@ export class Workspace {
         ? { ...configSettings, failFast: options.failFast }
         : configSettings;
 
-      const crossDatasetRules = "crossDatasetRules" in this.config
-        ? this.config.crossDatasetRules
-        : undefined;
+      const crossDatasetRules = this.config.crossDatasetRules;
 
       const validator = new WorkspaceValidator();
       const result = yield* validator.validateDatasetsWithConnection(

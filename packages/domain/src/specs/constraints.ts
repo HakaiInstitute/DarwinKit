@@ -81,120 +81,136 @@ export type Constraint =
   | LengthConstraint
   | FormatConstraint;
 
-/**
- * Build a decode-only Effect Schema that validates `{ type: tag, ...fields }`
- * and constructs a Data.TaggedClass instance. The `type` field on input is
- * mapped to `_tag` on the class. Encode is a no-op identity (never used).
- */
-function constraintSchema<Tag extends string, C extends Constraint>(
-  tag: Tag,
-  // deno-lint-ignore no-explicit-any
-  Cls: new (args: any) => C,
-  fields: S.Struct.Fields,
-  defaults?: Record<string, unknown>,
-  // deno-lint-ignore no-explicit-any
-  validate?: (from: any) => string | undefined,
-) {
-  const inputSchema = S.Struct({ type: S.Literal(tag), ...fields });
-  const filtered = validate
-    ? inputSchema.pipe(S.filter((from) => {
-      const msg = validate(from);
-      return msg ? { message: msg, path: [] } : undefined;
-    }))
-    : inputSchema;
-  return S.transform(
-    filtered,
-    S.typeSchema(S.instanceOf(Cls)),
-    {
-      strict: true,
-      decode: (from) => {
-        const { type: _, ...rest } = from;
-        return new Cls({ ...defaults, ...rest });
-      },
-      // deno-lint-ignore no-explicit-any
-      encode: (to) => ({ type: tag, ...to } as any),
-    },
-  );
-}
-
-const RangeConstraintSchema = constraintSchema(
-  "range",
-  RangeConstraint,
-  {
+const RangeConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("range"),
     min: S.optional(S.Number),
     max: S.optional(S.Number),
     inclusive: S.optional(S.Boolean),
     message: S.optional(S.String),
-  },
-  { inclusive: true },
-  (from) => {
+  }).pipe(S.filter((from) => {
     if (from.min === undefined && from.max === undefined) {
-      return "RangeConstraint requires at least one of 'min' or 'max'";
+      return { message: "RangeConstraint requires at least one of 'min' or 'max'", path: [] };
     }
     if (from.min !== undefined && from.max !== undefined && from.min > from.max) {
-      return `RangeConstraint 'min' (${from.min}) must not exceed 'max' (${from.max})`;
+      return {
+        message: `RangeConstraint 'min' (${from.min}) must not exceed 'max' (${from.max})`,
+        path: [],
+      };
     }
-    return undefined;
+  })),
+  S.typeSchema(S.instanceOf(RangeConstraint)),
+  {
+    strict: true,
+    decode: ({ type: _, ...rest }) => new RangeConstraint({ inclusive: true, ...rest }),
+    encode: (to) => ({ type: "range" as const, ...to }),
   },
 );
 
-const UniqueConstraintSchema = constraintSchema("unique", UniqueConstraint, {
-  message: S.optional(S.String),
-});
-
-const PatternConstraintSchema = constraintSchema(
-  "pattern",
-  PatternConstraint,
+const UniqueConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("unique"),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(UniqueConstraint)),
   {
+    strict: true,
+    decode: ({ type: _, ...rest }) => new UniqueConstraint(rest),
+    encode: (to) => ({ type: "unique" as const, ...to }),
+  },
+);
+
+const PatternConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("pattern"),
     pattern: S.String,
     flags: S.optional(S.String),
     message: S.optional(S.String),
-  },
-  undefined,
-  (from) => {
+  }).pipe(S.filter((from) => {
     try {
       new RegExp(from.pattern, from.flags);
-      return undefined;
     } catch {
-      return `PatternConstraint has invalid regex "/${from.pattern}/${from.flags ?? ""}"`;
+      return {
+        message: `PatternConstraint has invalid regex "/${from.pattern}/${from.flags ?? ""}"`,
+        path: [],
+      };
     }
+  })),
+  S.typeSchema(S.instanceOf(PatternConstraint)),
+  {
+    strict: true,
+    decode: ({ type: _, ...rest }) => new PatternConstraint(rest),
+    encode: (to) => ({ type: "pattern" as const, ...to }),
   },
 );
 
-const LengthConstraintSchema = constraintSchema(
-  "length",
-  LengthConstraint,
-  {
+const LengthConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("length"),
     minLength: S.optional(S.Number),
     maxLength: S.optional(S.Number),
     message: S.optional(S.String),
-  },
-  undefined,
-  (from) => {
+  }).pipe(S.filter((from) => {
     if (from.minLength === undefined && from.maxLength === undefined) {
-      return "LengthConstraint requires at least one of 'minLength' or 'maxLength'";
+      return {
+        message: "LengthConstraint requires at least one of 'minLength' or 'maxLength'",
+        path: [],
+      };
     }
     if (
       from.minLength !== undefined && from.maxLength !== undefined &&
       from.minLength > from.maxLength
     ) {
-      return `LengthConstraint 'minLength' (${from.minLength}) must not exceed 'maxLength' (${from.maxLength})`;
+      return {
+        message:
+          `LengthConstraint 'minLength' (${from.minLength}) must not exceed 'maxLength' (${from.maxLength})`,
+        path: [],
+      };
     }
-    return undefined;
+  })),
+  S.typeSchema(S.instanceOf(LengthConstraint)),
+  {
+    strict: true,
+    decode: ({ type: _, ...rest }) => new LengthConstraint(rest),
+    encode: (to) => ({ type: "length" as const, ...to }),
   },
 );
 
-const FormatConstraintSchema = constraintSchema("format", FormatConstraint, {
-  format: S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees", "integer"),
-  message: S.optional(S.String),
-});
+const FormatConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("format"),
+    format: S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees", "integer"),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(FormatConstraint)),
+  {
+    strict: true,
+    decode: ({ type: _, ...rest }) => new FormatConstraint(rest),
+    encode: (to) => ({ type: "format" as const, ...to }),
+  },
+);
 
-const RequiredConstraintSchema = constraintSchema("required", RequiredConstraint, {
-  level: S.optional(RequirementLevel),
-  allowEmpty: S.optional(S.Boolean),
-  allowWhitespace: S.optional(S.Boolean),
-  message: S.optional(S.String),
-}, { level: "required", allowEmpty: false, allowWhitespace: false });
+const RequiredConstraintSchema = S.transform(
+  S.Struct({
+    type: S.Literal("required"),
+    level: S.optional(RequirementLevel),
+    allowEmpty: S.optional(S.Boolean),
+    allowWhitespace: S.optional(S.Boolean),
+    message: S.optional(S.String),
+  }),
+  S.typeSchema(S.instanceOf(RequiredConstraint)),
+  {
+    strict: true,
+    decode: ({ type: _, ...rest }) =>
+      new RequiredConstraint({
+        level: "required",
+        allowEmpty: false,
+        allowWhitespace: false,
+        ...rest,
+      }),
+    encode: (to) => ({ type: "required" as const, ...to }),
+  },
+);
 
 export const ConstraintSchema = S.Union(
   RangeConstraintSchema,
@@ -263,19 +279,19 @@ export function obligationToRequirement(
 }
 
 /**
- * Merge parent and child constraint arrays.
+ * Override base constraints with overrides by `_tag`.
  *
- * For each constraint type present in child, ALL child constraints of that type
- * replace ALL parent constraints of that type (batch replacement).
+ * For each constraint type present in `overrides`, ALL override constraints of
+ * that type replace ALL base constraints of that type.
  * Non-overlapping types from both arrays are preserved.
  */
-export function mergeConstraints(
-  parent: readonly Constraint[],
-  child: readonly Constraint[],
+export function overrideConstraints(
+  base: readonly Constraint[],
+  overrides: readonly Constraint[],
 ): Constraint[] {
-  const childTypes = new Set(child.map((c) => c._tag));
-  const kept = parent.filter((c) => !childTypes.has(c._tag));
-  return [...kept, ...child];
+  const overrideTypes = new Set(overrides.map((c) => c._tag));
+  const kept = base.filter((c) => !overrideTypes.has(c._tag));
+  return [...kept, ...overrides];
 }
 
 /**
@@ -283,7 +299,7 @@ export function mergeConstraints(
  *
  * For RequiredConstraints: uses strictest-wins semantics — a profile
  * cannot weaken a spec's requirement level.
- * For all other constraint types: uses replacement semantics (same as mergeConstraints).
+ * For all other constraint types: uses replacement semantics (same as overrideConstraints).
  */
 export function mergeProfileConstraints(
   parent: readonly Constraint[],

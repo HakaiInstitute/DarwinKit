@@ -168,15 +168,12 @@ export function getResolvedSpec(specOrProfileId: string): ResolvedSpec | undefin
     if (spec) {
       return buildResolvedSpec(spec, tsProfile, fieldOverrides);
     }
-    return {
-      id: tsProfile.id,
-      name: tsProfile.name,
-      spec: tsProfile.extends ?? tsProfile.id,
-      profile: tsProfile.id,
-      fieldOverrides,
-      specFields: {},
-      rawFields: undefined,
-    };
+    // Profile's inheritance chain did not resolve to a base JSON spec.
+    // This indicates a misconfigured profile (e.g., extends a non-existent spec).
+    throw new Error(
+      `Profile "${tsProfile.id}" resolved without a base spec. ` +
+        `Check that the "extends" chain terminates at a known JSON spec (e.g., "Event", "Occurrence").`,
+    );
   }
 
   const jsonSpec = getJsonSpec(specOrProfileId);

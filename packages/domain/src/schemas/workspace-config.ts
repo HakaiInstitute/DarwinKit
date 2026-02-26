@@ -113,9 +113,20 @@ export const transformDatasetConfigSchema = S.Struct({
   class: S.String.annotations({
     description: "Darwin Core class for the transform output.",
   }),
-  source: S.optional(S.Object),
+  source: S.optional(
+    S.Record({ key: S.String, value: S.String }).annotations({
+      description: "Named SQL sources: alias → table name or SQL query.",
+    }),
+  ),
   description: S.optional(S.String),
-  fields: S.optional(S.Object),
+  fields: S.optional(
+    S.Record({
+      key: S.String,
+      value: S.Union(S.String, S.Number, S.Null),
+    }).annotations({
+      description: "Field mappings: Darwin Core field name → SQL expression, number, or null.",
+    }),
+  ),
 }).annotations({
   title: "Transform Dataset Configuration",
   description: "Configuration for a dataset in a transform workflow.",

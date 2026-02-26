@@ -9,11 +9,11 @@ import {
   type Constraint,
   ConstraintSchema,
   FormatConstraint,
-  mergeConstraints,
   mergeProfileConstraints,
   Obligation,
   ObligationsMap,
   obligationToRequirement,
+  overrideConstraints,
   RangeConstraint,
   RequiredConstraint,
 } from "./constraints.ts";
@@ -137,23 +137,23 @@ Deno.test("Constraint union - discriminates by _tag field", () => {
 });
 
 // =============================================================================
-// mergeConstraints Tests
+// overrideConstraints Tests
 // =============================================================================
 
-Deno.test("mergeConstraints - child range replaces parent range", () => {
+Deno.test("overrideConstraints - child range replaces parent range", () => {
   const parent: Constraint[] = [
     new RangeConstraint({ min: 0, max: 100, inclusive: true }),
   ];
   const child: Constraint[] = [
     new RangeConstraint({ min: -90, max: 90, inclusive: true }),
   ];
-  const merged = mergeConstraints(parent, child);
+  const merged = overrideConstraints(parent, child);
   assertEquals(merged.length, 1);
   assertEquals((merged[0] as RangeConstraint).min, -90);
   assertEquals((merged[0] as RangeConstraint).max, 90);
 });
 
-Deno.test("mergeConstraints - non-overlapping types preserved", () => {
+Deno.test("overrideConstraints - non-overlapping types preserved", () => {
   const parent: Constraint[] = [
     new RangeConstraint({ min: 0, max: 100, inclusive: true }),
     new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
@@ -161,7 +161,7 @@ Deno.test("mergeConstraints - non-overlapping types preserved", () => {
   const child: Constraint[] = [
     new FormatConstraint({ format: "iso8601" }),
   ];
-  const merged = mergeConstraints(parent, child);
+  const merged = overrideConstraints(parent, child);
   assertEquals(merged.length, 3);
   const tags = merged.map((c) => c._tag);
   assert(tags.includes("range"));
@@ -169,7 +169,7 @@ Deno.test("mergeConstraints - non-overlapping types preserved", () => {
   assert(tags.includes("format"));
 });
 
-Deno.test("mergeConstraints - child with multiple same-type constraints replaces parent batch", () => {
+Deno.test("overrideConstraints - child with multiple same-type constraints replaces parent batch", () => {
   const parent: Constraint[] = [
     new RangeConstraint({ min: 0, max: 100, inclusive: true }),
   ];
@@ -177,7 +177,7 @@ Deno.test("mergeConstraints - child with multiple same-type constraints replaces
     new RangeConstraint({ min: -90, max: 90, inclusive: true }),
     new RangeConstraint({ min: 0, max: 11000, inclusive: true }),
   ];
-  const merged = mergeConstraints(parent, child);
+  const merged = overrideConstraints(parent, child);
   const ranges = merged.filter((c) => c._tag === "range") as RangeConstraint[];
   assertEquals(ranges.length, 2);
   assertEquals(ranges[0].min, -90);
@@ -185,16 +185,16 @@ Deno.test("mergeConstraints - child with multiple same-type constraints replaces
   assertEquals(ranges[1].max, 11000);
 });
 
-Deno.test("mergeConstraints - empty arrays handled", () => {
+Deno.test("overrideConstraints - empty arrays handled", () => {
   const parent: Constraint[] = [];
   const child: Constraint[] = [];
-  assertEquals(mergeConstraints(parent, child).length, 0);
+  assertEquals(overrideConstraints(parent, child).length, 0);
 
   const withParent: Constraint[] = [
     new RequiredConstraint({ level: "required", allowEmpty: false, allowWhitespace: false }),
   ];
-  assertEquals(mergeConstraints(withParent, child).length, 1);
-  assertEquals(mergeConstraints(parent, withParent).length, 1);
+  assertEquals(overrideConstraints(withParent, child).length, 1);
+  assertEquals(overrideConstraints(parent, withParent).length, 1);
 });
 
 // =============================================================================

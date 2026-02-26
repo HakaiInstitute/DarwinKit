@@ -599,7 +599,7 @@ Deno.test("resolveSpecFields - triple config-tier: preset + explicit + requireme
 });
 
 Deno.test("resolveSpecFields - profile replacement produces single required constraint", () => {
-  // Tier 2 uses mergeConstraints (replacement), so only one required constraint
+  // Tier 2 uses overrideConstraints (replacement), so only one required constraint
   // remains. deriveRequirementFromConstraints picks the strictest, which is the
   // same as the only one after replacement.
   const profile = makeResolvedSpec({
@@ -1235,7 +1235,7 @@ Deno.test("Required-if-exists: profile override can strengthen to required (ERRO
   }];
 
   const resolved = resolveSpecFields(profile, "obis", configMappings);
-  // Profile override uses mergeConstraints (replacement), so the WARNING-level
+  // Profile override uses overrideConstraints (replacement), so the WARNING-level
   // "required (if exists)" constraint should be replaced by the ERROR-level one.
   const requirement = deriveRequirementFromConstraints(resolved["parentEventID"]?.constraints);
   assertEquals(requirement, "required");

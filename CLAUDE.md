@@ -141,7 +141,7 @@ Constraints are `Data.TaggedClass` instances discriminated by `_tag` (consistent
 
 At validation time, constraints are resolved through a 3-tier merge pipeline:
 1. **Spec** (SpecField constraints + obligations): Base constraints from the Darwin Core schema, plus obligation-derived `RequiredConstraint`s
-2. **Profile** (fieldOverrides): Community-specific overrides using `mergeConstraints()` — full replacement by constraint `_tag` (trusted, curated)
+2. **Profile** (fieldOverrides): Community-specific overrides using `mergeProfileConstraints()` — strictest-wins for required, replacement for others (trusted, curated)
 3. **Config** (fieldMappings): User config using `addConstraints()` — additive only, cannot weaken spec/profile constraints
 
 **Profile Inheritance Example:**

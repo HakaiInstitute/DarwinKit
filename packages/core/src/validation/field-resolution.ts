@@ -21,9 +21,9 @@ import {
 import type { Constraint, RequirementLevel, SpecField } from "@dwkt/domain/specs";
 import {
   getPreset,
-  mergeConstraints,
   mergeProfileConstraints,
   obligationForStandard,
+  overrideConstraints,
   RequiredConstraint,
   REQUIREMENT_STRICTNESS,
   resolveProfile,
@@ -152,7 +152,7 @@ export interface ResolutionDiagnostic {
  *
  * Pipeline:
  * 1. Start with spec specFields → derive obligation-based constraints
- * 2. Apply profile fieldOverrides (requirement → constraint, constraints via mergeConstraints)
+ * 2. Apply profile fieldOverrides (requirement → constraint, constraints via mergeProfileConstraints)
  * 3. Apply config fieldMappings (preset, requirement, constraints via addConstraints)
  *
  * Returns a map of targetName → WorkspaceFieldMapping with fully resolved constraints.
@@ -171,12 +171,17 @@ export function resolveSpecFields(
   const result: Record<string, WorkspaceFieldMapping> = {};
   const mappedFieldNames = new Set(configMappings.map((m) => m.targetName));
 
+  // Tier 1 uses overrideConstraints — obligation-derived constraints override any
+  // same-type constraints already on the spec field. This is safe because there is
+  // no prior layer to protect. Tier 2 uses mergeProfileConstraints which applies
+  // strictest-wins for required constraints, preventing profiles from weakening
+  // spec obligations.
   for (const [fieldName, field] of Object.entries(resolvedSpec.specFields || {})) {
     let constraints: Constraint[] = [...(field.constraints ?? [])];
 
     const obligationResult = obligationForStandard(field, activeStandard);
     if (obligationResult?.requirement) {
-      constraints = mergeConstraints(constraints, [
+      constraints = overrideConstraints(constraints, [
         new RequiredConstraint({
           level: obligationResult.requirement,
           allowEmpty: false,
@@ -192,7 +197,7 @@ export function resolveSpecFields(
       // Emit a WARNING-level constraint with a descriptive message so users
       // can verify the blanks are intentional.
       const label = field.label ?? fieldName;
-      constraints = mergeConstraints(constraints, [
+      constraints = overrideConstraints(constraints, [
         new RequiredConstraint({
           level: "recommended",
           allowEmpty: false,

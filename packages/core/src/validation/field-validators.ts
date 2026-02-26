@@ -114,9 +114,7 @@ export function findRangeViolations(
  * Generic helper for the filter-loop-collect pattern shared by constraint validators.
  *
  * Filters constraints by type, runs the provided `findViolations` function for each,
- * and accumulates violations. When `takeStrictest` is true, only the constraint with
- * the strictest requirement level is validated (used for `required` where multiple
- * constraints may exist after additive merge — prevents config from weakening spec).
+ * and accumulates violations.
  */
 function validateConstraintsByType<TType extends Constraint["_tag"]>(
   constraintType: TType,
@@ -133,7 +131,6 @@ function validateConstraintsByType<TType extends Constraint["_tag"]>(
   fieldName: string,
   specField: SpecField,
   maxViolations: number,
-  options?: { takeStrictest?: boolean },
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* (_) {
     const filtered = (specField.constraints ?? []).filter(
@@ -143,15 +140,8 @@ function validateConstraintsByType<TType extends Constraint["_tag"]>(
       return validField(fieldName, specField.name);
     }
 
-    let toValidate = filtered;
-    if (options?.takeStrictest && filtered.length > 1) {
-      // takeStrictest is only used for "required" constraints which have level
-      const winner = strictestRequired(filtered as unknown as RequiredConstraint[]);
-      toValidate = winner ? [winner as unknown as Extract<Constraint, { _tag: TType }>] : filtered;
-    }
-
     const violations: FieldViolation[] = [];
-    for (const constraint of toValidate) {
+    for (const constraint of filtered) {
       const result = yield* _(Effect.either(
         findViolations(connection, tableName, fieldName, constraint, specField, maxViolations),
       ));
@@ -633,15 +623,27 @@ export function validateRequiredConstraints(
   specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FieldViolation[]> {
+  // After additive merge, multiple required constraints may exist (spec + config).
+  // Resolve to the strictest one so config cannot weaken spec requirements.
+  const requiredConstraints = (specField.constraints ?? []).filter(
+    (c): c is RequiredConstraint => c._tag === "required",
+  );
+  const winner = strictestRequired(requiredConstraints);
+  if (!winner) return Effect.succeed(validField(fieldName, specField.name));
+
+  // Build a specField with only the strictest required constraint for validation
+  const narrowed: SpecField = {
+    ...specField,
+    constraints: [winner],
+  };
   return validateConstraintsByType(
     "required",
     findRequiredViolations,
     connection,
     tableName,
     fieldName,
-    specField,
+    narrowed,
     maxViolations,
-    { takeStrictest: true },
   );
 }
 
