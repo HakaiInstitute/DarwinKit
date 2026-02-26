@@ -131,6 +131,7 @@ const RangeConstraintSchema = constraintSchema(
     if (from.min === undefined && from.max === undefined) {
       return "RangeConstraint requires at least one of 'min' or 'max'";
     }
+    return undefined;
   },
 );
 
@@ -157,6 +158,7 @@ const LengthConstraintSchema = constraintSchema(
     if (from.minLength === undefined && from.maxLength === undefined) {
       return "LengthConstraint requires at least one of 'minLength' or 'maxLength'";
     }
+    return undefined;
   },
 );
 

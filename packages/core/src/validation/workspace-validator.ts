@@ -77,6 +77,7 @@ export class WorkspaceValidator {
     standard: ResolvedStandard,
     workspaceId?: string,
     crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+    configPath?: string,
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
       const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
@@ -106,6 +107,7 @@ export class WorkspaceValidator {
           wsId,
           resolvedFieldsMap,
           crossDatasetRules,
+          configPath,
         )
           .pipe(
             Effect.ensuring(
@@ -130,6 +132,7 @@ export class WorkspaceValidator {
     standard: ResolvedStandard,
     workspaceId?: string,
     crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+    configPath?: string,
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
       const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
@@ -170,6 +173,7 @@ export class WorkspaceValidator {
           resolvedWorkspaceId,
           resolvedFieldsMap,
           crossDatasetRules,
+          configPath,
         ),
       );
     });
@@ -218,6 +222,7 @@ function _validateDatasetsCore(
   workspaceId: string,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
   crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+  configPath?: string,
 ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
   return Effect.gen(function* (_) {
     const startTime = Date.now();
@@ -274,7 +279,7 @@ function _validateDatasetsCore(
 
     return {
       workspaceId,
-      configPath: basePath,
+      configPath: configPath ?? basePath,
       validatedAt: new Date(),
       totalProcessingTimeMs,
       overallStatus,

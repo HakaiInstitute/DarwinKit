@@ -53,6 +53,17 @@ Deno.test("ConstraintSchema - decodes all constraint types", () => {
         assert(c instanceof RangeConstraint);
         assertEquals(c.min, 0);
         assertEquals(c.max, undefined);
+        assertEquals(c.inclusive, true);
+      },
+    },
+    {
+      input: { type: "required" },
+      expectedTag: "required",
+      check: (c) => {
+        assert(c instanceof RequiredConstraint);
+        assertEquals(c.level, "required");
+        assertEquals(c.allowEmpty, false);
+        assertEquals(c.allowWhitespace, false);
       },
     },
     {

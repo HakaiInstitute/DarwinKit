@@ -53,6 +53,8 @@ export function importSchema(
   resolvedFields?: Record<string, WorkspaceFieldMapping>,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
+    // TODO(#108): Should use resolveProfile(standard.variant, dataset.class) to respect
+    // standard-specific profiles. Currently only loads the base JSON spec.
     const spec = getResolvedSpec(dataset.class);
     if (!spec) {
       // TODO(#63): Surface as a recoverable schema violation (warning)

@@ -24,7 +24,7 @@ export interface ResolvedStandard {
  * Known variant names that should be normalized to { base: "darwin-core", variant: ... }
  * when provided as a bare string.
  */
-const KNOWN_VARIANTS = new Set(["obis", "gbif"]);
+export const KNOWN_VARIANTS = new Set(["obis", "gbif"]);
 
 const ResolvedStandardStruct = S.Struct({
   base: S.String,
@@ -86,7 +86,7 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
   description: S.optional(S.String),
 }).annotations({
   title: "Cross-Dataset Rule",
-  description: "Defines a referential integrity rule between two datasets.",
+  description: "Defines a foreign key constraint between two datasets.",
 });
 
 // TODO: Should probably name accordingly (something like validationDatasetConfig)
@@ -248,7 +248,7 @@ export const workspaceConfigSchema = S.Struct({
   ),
   crossDatasetRules: S.optional(
     S.Array(workspaceCrossDatasetRuleSchema).annotations({
-      description: "Rules enforcing referential integrity between datasets.",
+      description: "Foreign key constraints between datasets.",
     }),
   ),
   createdAt: S.optionalWith(

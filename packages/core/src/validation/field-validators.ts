@@ -333,6 +333,9 @@ function formatSqlCondition(fieldName: string, format: string): string | undefin
         AND TRIM(${asText}) != ''
         AND NOT regexp_matches(${asText}, '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')`;
     default:
+      console.warn(
+        `Unknown format type "${format}" — skipping validation for field "${fieldName}"`,
+      );
       return undefined;
   }
 }

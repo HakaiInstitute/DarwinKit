@@ -99,6 +99,7 @@ export class Workspace {
         this.config.standard ?? { base: "darwin-core", variant: "obis" },
         this.config.id,
         crossDatasetRules,
+        this.configPath,
       ).pipe(
         Effect.mapError((error) =>
           new ValidationError({

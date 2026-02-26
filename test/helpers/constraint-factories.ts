@@ -23,7 +23,7 @@ export function requiredConstraint(
 }
 
 export function formatConstraint(
-  format: "iso8601" | "url" | "decimal-degrees",
+  format: "email" | "url" | "uuid" | "iso8601" | "decimal-degrees" | "integer",
 ): Constraint {
   return new FormatConstraint({ format });
 }

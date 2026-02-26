@@ -10,9 +10,6 @@
 // String matching utilities
 export { findSuggestedValue } from "./string-matching.ts";
 
-// Summary utilities (resolveSchemaTableName is core-specific due to DuckDB dependency)
-export { resolveSchemaTableName } from "./summary.ts";
-
 // Field-level validators
 export {
   findRangeViolations,

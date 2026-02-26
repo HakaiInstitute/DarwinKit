@@ -10,6 +10,7 @@ import {
   obligationToRequirement,
   RangeConstraint,
   RequiredConstraint,
+  resolveProfile,
 } from "@dwkt/domain/specs";
 import {
   MissingFieldViolation,
@@ -1156,6 +1157,61 @@ Deno.test("resolveSpecFields - profile can still replace value constraints", () 
   assertEquals(ranges?.length, 1);
   assertEquals((ranges?.[0] as RangeConstraint)?.min, -45);
   assertEquals((ranges?.[0] as RangeConstraint)?.max, 45);
+});
+
+// =============================================================================
+// resolveProfile Fallback Tests
+// =============================================================================
+
+Deno.test("resolveProfile - unknown variant falls back to base JSON spec", () => {
+  const result = resolveProfile("unknown-variant", "Event");
+  assert(result !== undefined, "should return a ResolvedSpec for Event");
+  assert(
+    Object.keys(result!.specFields).length > 0,
+    "specFields should be populated from JSON spec",
+  );
+});
+
+// =============================================================================
+// Multi-Level Inheritance Strictness Tests
+// =============================================================================
+
+Deno.test("resolveSpecFields - config cannot weaken profile-strengthened requirement", () => {
+  // Spec field has "recommended" obligation → produces "recommended" level RequiredConstraint
+  // Profile override strengthens to "required"
+  // Config mapping tries to weaken to "optional"
+  // Result should be "required" (strongest wins)
+  const profile = makeResolvedSpec({
+    specFields: {
+      scientificName: {
+        name: "scientificName",
+        constraints: [],
+        obligations: { obis: "strongly recommended" }, // → "recommended" level
+      },
+    },
+    fieldOverrides: {
+      scientificName: {
+        requirement: "required", // profile strengthens to required
+      },
+    },
+  });
+
+  const configMappings: WorkspaceFieldMapping[] = [{
+    originName: "scientificName",
+    targetName: "scientificName",
+    requirement: "optional", // config tries to weaken to optional
+  }];
+
+  const result = resolveSpecFields(profile, "obis", configMappings);
+  const field = result["scientificName"];
+  assert(field?.constraints !== undefined);
+
+  const requirement = deriveRequirementFromConstraints(field.constraints);
+  assertEquals(
+    requirement,
+    "required",
+    "strongest requirement (required from profile) should win over config optional",
+  );
 });
 
 Deno.test("Required-if-exists: profile override can strengthen to required (ERROR)", () => {

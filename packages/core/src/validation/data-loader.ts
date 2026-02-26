@@ -32,7 +32,12 @@ import { obligationForStandard } from "@dwkt/domain/specs";
 
 import { getCsvValue } from "../loading/csv-import.ts";
 import type { ParsedErrorInfo } from "../loading/sql.ts";
-import { findForeignKeyRule, formatConstraintViolation, parseDuckDBError } from "../loading/sql.ts";
+import {
+  escapeString,
+  findForeignKeyRule,
+  formatConstraintViolation,
+  parseDuckDBError,
+} from "../loading/sql.ts";
 import { findSuggestedValue } from "./string-matching.ts";
 
 export interface ColumnMapping {
@@ -80,7 +85,7 @@ function handlePrimaryKeyViolation(
     const duplicateQuery = `
       SELECT _row_number
       FROM ${ctx.rawTableName}
-      WHERE "${pkMapping.origin}" = '${parsed.value}'
+      WHERE "${pkMapping.origin}" = '${escapeString(parsed.value)}'
     `;
 
     const duplicateResult = yield* _(

@@ -11,11 +11,12 @@
  * @module validation/field-resolution
  */
 
-import type {
-  DatasetConfig,
-  ResolvedSpec,
-  ResolvedStandard,
-  WorkspaceFieldMapping,
+import {
+  type DatasetConfig,
+  KNOWN_VARIANTS,
+  type ResolvedSpec,
+  type ResolvedStandard,
+  type WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
 import type { Constraint, RequirementLevel, SpecField } from "@dwkt/domain/specs";
 import {
@@ -38,12 +39,13 @@ export function resolveActiveStandard(
   standard: ResolvedStandard | undefined,
 ): ActiveStandardResult {
   const variant = standard?.variant;
-  if (variant === "obis" || variant === "gbif") return { standard: variant };
+  if (variant && KNOWN_VARIANTS.has(variant)) return { standard: variant as "obis" | "gbif" };
   if (variant) {
     return {
       standard: "obis",
-      warning:
-        `Unknown standard variant "${variant}" — defaulting to "obis". Known variants: obis, gbif.`,
+      warning: `Unknown standard variant "${variant}" — defaulting to "obis". Known variants: ${
+        [...KNOWN_VARIANTS].join(", ")
+      }.`,
     };
   }
   return { standard: "obis" };

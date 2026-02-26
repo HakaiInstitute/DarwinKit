@@ -126,7 +126,7 @@ export function populateSchemaFromDataTables( // Export for testing
       const columnCalculations = Object.entries(dataset.fields)
         .map(([targetField, transformation]): string => `${transformation} AS "${targetField}"`);
 
-      // TODO(#108): Transform should use resolveProfile(standard, type) to respect
+      // TODO(#108): Transform should use resolveProfile(standard.variant, dataset.class) to respect
       // standard-specific profiles. Currently ignores the standard field.
       const transformProfile = getResolvedSpec(dataset.class);
       if (!transformProfile) {
@@ -368,7 +368,7 @@ export function exportToPersistentDB(
 
     // Can't use COPY TO DATABASE — it violates constraints when tables are copied out of order
     for (const dataset of config.transform.datasets) {
-      // TODO(#108): Transform should use resolveProfile(standard, type) to respect
+      // TODO(#108): Transform should use resolveProfile(standard.variant, dataset.class) to respect
       // standard-specific profiles. Currently ignores the standard field.
       const transformProfile = getResolvedSpec(dataset.class);
       if (!transformProfile) {

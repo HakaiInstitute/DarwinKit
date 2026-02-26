@@ -11,7 +11,7 @@ export function sanitizeTableName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, "_");
 }
 
-function escapeString(value: string): string {
+export function escapeString(value: string): string {
   return value.replace(/'/g, "''");
 }
 

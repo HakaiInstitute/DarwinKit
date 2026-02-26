@@ -22,12 +22,27 @@
       "description": "Human-readable workspace description."
     },
     "standard": {
-      "type": "string",
-      "enum": [
-        "obis",
-        "gbif"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "base"
+          ],
+          "properties": {
+            "base": {
+              "type": "string"
+            },
+            "variant": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
       ],
-      "description": "Target biodiversity standard. Determines which obligation metadata drives requirement levels. Default: 'obis'."
+      "description": "Target biodiversity standard. Accepts a string (e.g. 'obis') or object { base, variant }. Known variants ('obis', 'gbif') are normalized to { base: 'darwin-core', variant: <name> }. Default: { base: 'darwin-core', variant: 'obis' }."
     },
     "crossDatasetRules": {
       "type": "array",
@@ -77,10 +92,10 @@
           }
         },
         "additionalProperties": false,
-        "description": "Defines a referential integrity rule between two datasets.",
+        "description": "Defines a foreign key constraint between two datasets.",
         "title": "Cross-Dataset Rule"
       },
-      "description": "Rules enforcing referential integrity between datasets."
+      "description": "Foreign key constraints between datasets."
     },
     "validation": {
       "type": "object",
@@ -140,7 +155,6 @@
               },
               "class": {
                 "type": "string",
-                "enum": ["Event", "Occurrence", "Taxon", "ExtendedMeasurementOrFact", "DnaDerivedData", "ResourceRelationship"],
                 "description": "Darwin Core class: Event, Occurrence, Taxon, ExtendedMeasurementOrFact, DnaDerivedData, ResourceRelationship."
               },
               "path": {
@@ -160,10 +174,12 @@
                   ],
                   "properties": {
                     "originName": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Source column name in the CSV file."
                     },
                     "targetName": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Target Darwin Core field name."
                     },
                     "requirement": {
                       "type": "string",
@@ -207,8 +223,7 @@
                           {
                             "type": "object",
                             "required": [
-                              "type",
-                              "requirement"
+                              "type"
                             ],
                             "properties": {
                               "type": {
@@ -217,19 +232,19 @@
                                   "required"
                                 ]
                               },
-                              "allowEmpty": {
-                                "type": "boolean"
-                              },
-                              "allowWhitespace": {
-                                "type": "boolean"
-                              },
-                              "requirement": {
+                              "level": {
                                 "type": "string",
                                 "enum": [
                                   "required",
                                   "recommended",
                                   "optional"
                                 ]
+                              },
+                              "allowEmpty": {
+                                "type": "boolean"
+                              },
+                              "allowWhitespace": {
+                                "type": "boolean"
                               },
                               "message": {
                                 "type": "string"

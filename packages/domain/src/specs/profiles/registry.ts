@@ -72,8 +72,13 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
       try {
         const result = normalizeField(fieldValue as RawField);
         specFields[fieldName] = result.field;
-      } catch {
-        // Skip invalid fields rather than failing the entire spec
+        if (result.warnings.length > 0) {
+          console.warn(`Warnings normalizing field "${fieldName}": ${result.warnings.join(", ")}`);
+        }
+      } catch (e) {
+        console.warn(
+          `Failed to normalize field "${fieldName}": ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
       const raw = fieldValue as Record<string, unknown>;
       rawFields[fieldName] = {
@@ -99,10 +104,6 @@ function getJsonSpec(specId: string): Spec | undefined {
   const rawJsonProfile = loadDwcSchema()[specId];
   if (!rawJsonProfile) return undefined;
   return normalizeJsonToSpec(rawJsonProfile);
-}
-
-export function getProfile(profileId: string): Profile | undefined {
-  return PROFILE_REGISTRY[profileId];
 }
 
 function resolveProfileChain(profile: Profile): {
