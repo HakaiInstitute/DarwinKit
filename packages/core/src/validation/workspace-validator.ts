@@ -28,7 +28,6 @@ import {
   resolveProfile,
 } from "@dwkt/domain/specs";
 import type {
-  CrossDatasetValidationResult,
   DatasetValidationResult,
   FieldViolation,
   SchemaViolation,
@@ -252,6 +251,8 @@ function _validateDatasetsCore(
 
       datasetResults.push(result);
 
+      // Debug-only: deduplicate and log intermediate results for troubleshooting.
+      // Not part of the validation output — kept as a diagnostic aid during development.
       if (settings.debug) {
         const earlyResult = {
           ...result,
@@ -274,11 +275,7 @@ function _validateDatasetsCore(
       }
     }
 
-    const crossDatasetResults: CrossDatasetValidationResult[] = [];
-    // FK violations are caught at INSERT time via DuckDB FK constraints.
-    // crossDatasetRules drives FK constraint creation in importSchema().
-
-    const summary = calculateSummary(datasetResults, crossDatasetResults);
+    const summary = calculateSummary(datasetResults);
     const totalProcessingTimeMs = Date.now() - startTime;
 
     const overallStatus = determineOverallStatus(summary);
@@ -290,7 +287,7 @@ function _validateDatasetsCore(
       totalProcessingTimeMs,
       overallStatus,
       datasetResults,
-      crossDatasetResults,
+      crossDatasetResults: [],
       summary,
     };
   });
@@ -642,36 +639,6 @@ function validateDataset(
 
       const specField = withResolvedConstraints(baseField, mapping);
 
-      const fieldExistsQuery = `
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_name = '${tableName}' AND column_name = '${mapping.originName}'
-      `;
-
-      const fieldExistsResult = yield* _(
-        Effect.tryPromise(() => connection.runAndReadAll(fieldExistsQuery))
-          .pipe(
-            Effect.orDie,
-          ),
-      );
-
-      const fieldExists = fieldExistsResult.getRowObjects().length > 0;
-
-      if (!fieldExists) {
-        schemaViolations.push(
-          new MissingFieldViolation({
-            severity: requirementToSeverity("required"),
-            fieldName: mapping.originName,
-            targetName: mapping.targetName,
-            errorMessage:
-              `Field '${mapping.originName}' not found in CSV. Please check the fieldMappings in the config file`,
-            validatorType: "schema",
-            reason: "not_in_csv",
-          }),
-        );
-        continue;
-      }
-
       if (specField) {
         const rawField = profile.rawFields?.[mapping.targetName];
         const isDbPrimaryKey = mapping.targetName === schemaTableName + "ID" ||
@@ -682,7 +649,6 @@ function validateDataset(
             connection,
             tableName,
             mapping.originName,
-            mapping.targetName,
             specField,
             {
               isDbPrimaryKey,

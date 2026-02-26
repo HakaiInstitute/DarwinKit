@@ -10,14 +10,6 @@
 // String matching utilities
 export { findSuggestedValue } from "./string-matching.ts";
 
-// Field-level validators
-export {
-  findRangeViolations,
-  findUniquenessViolations,
-  validateRangeConstraints,
-  validateUniqueness,
-} from "./field-validators.ts";
-
 // Row-by-row data loading with violation collection
 export { type ColumnMapping, insertRowByRow } from "./data-loader.ts";
 

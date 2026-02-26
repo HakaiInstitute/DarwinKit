@@ -654,7 +654,6 @@ export function validateField(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
-  targetName: string,
   specField: SpecField,
   context: FieldValidationContext,
 ): Effect.Effect<ValidField, FieldViolation[]> {
@@ -688,6 +687,6 @@ export function validateField(
       return yield* _(Effect.fail(violations));
     }
 
-    return validField(fieldName, targetName);
+    return validField(fieldName, specField.name);
   });
 }

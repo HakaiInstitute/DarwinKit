@@ -5,7 +5,7 @@
  *   spec → profile → config
  *
  * **Merge semantics:**
- * - Spec → Profile: `mergeConstraints()` — full replacement by type (trusted, domain-expert curated)
+ * - Spec → Profile: `mergeProfileConstraints()` — strictest-wins for required, replacement for others
  * - Profile → Config: `addConstraints()` — additive only (config cannot weaken spec/profile)
  *
  * @module validation/field-resolution
@@ -163,7 +163,7 @@ export interface ResolutionDiagnostic {
  * When `diagnostics` is provided, overlapping config constraint types are recorded.
  */
 export function resolveSpecFields(
-  schemaProfile: ResolvedSpec,
+  resolvedSpec: ResolvedSpec,
   activeStandard: "obis" | "gbif",
   configMappings: readonly WorkspaceFieldMapping[],
   diagnostics?: ResolutionDiagnostic[],
@@ -171,7 +171,7 @@ export function resolveSpecFields(
   const result: Record<string, WorkspaceFieldMapping> = {};
   const mappedFieldNames = new Set(configMappings.map((m) => m.targetName));
 
-  for (const [fieldName, field] of Object.entries(schemaProfile.specFields || {})) {
+  for (const [fieldName, field] of Object.entries(resolvedSpec.specFields || {})) {
     let constraints: Constraint[] = [...(field.constraints ?? [])];
 
     const obligationResult = obligationForStandard(field, activeStandard);
@@ -211,8 +211,8 @@ export function resolveSpecFields(
     };
   }
 
-  if (schemaProfile.fieldOverrides) {
-    for (const [fieldName, override] of Object.entries(schemaProfile.fieldOverrides)) {
+  if (resolvedSpec.fieldOverrides) {
+    for (const [fieldName, override] of Object.entries(resolvedSpec.fieldOverrides)) {
       const existing = result[fieldName];
       let constraints = existing?.constraints ?? [];
       if (override.constraints) {

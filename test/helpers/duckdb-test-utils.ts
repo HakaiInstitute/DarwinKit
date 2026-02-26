@@ -4,8 +4,10 @@
 
 import { DuckDBInstance } from "@duckdb/node-api";
 import type { DuckDBConnection } from "@duckdb/node-api";
-import { assert } from "@std/assert";
 import type { SpecField } from "@dwkt/domain/specs";
+import * as Exit from "effect/Exit";
+import * as Cause from "effect/Cause";
+import { Chunk } from "effect";
 
 export const TABLE = "test_data";
 
@@ -38,8 +40,13 @@ export async function withConnection(fn: (conn: DuckDBConnection) => Promise<voi
   }
 }
 
-// deno-lint-ignore no-explicit-any
-export function extractViolations(result: any): Array<Record<string, unknown>> {
-  assert(result._tag === "Failure", "expected Failure exit");
-  return (result.cause as { error: unknown }).error as Array<Record<string, unknown>>;
+export function extractViolations(
+  result: Exit.Exit<unknown, unknown>,
+): Array<Record<string, unknown>> {
+  if (Exit.isSuccess(result)) {
+    throw new Error("expected Failure exit");
+  }
+  const failures = Chunk.toArray(Cause.failures(result.cause));
+  const flat = failures.flat();
+  return flat as Array<Record<string, unknown>>;
 }

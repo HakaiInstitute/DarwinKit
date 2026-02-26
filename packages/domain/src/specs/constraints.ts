@@ -131,6 +131,9 @@ const RangeConstraintSchema = constraintSchema(
     if (from.min === undefined && from.max === undefined) {
       return "RangeConstraint requires at least one of 'min' or 'max'";
     }
+    if (from.min !== undefined && from.max !== undefined && from.min > from.max) {
+      return `RangeConstraint 'min' (${from.min}) must not exceed 'max' (${from.max})`;
+    }
     return undefined;
   },
 );
@@ -139,11 +142,24 @@ const UniqueConstraintSchema = constraintSchema("unique", UniqueConstraint, {
   message: S.optional(S.String),
 });
 
-const PatternConstraintSchema = constraintSchema("pattern", PatternConstraint, {
-  pattern: S.String,
-  flags: S.optional(S.String),
-  message: S.optional(S.String),
-});
+const PatternConstraintSchema = constraintSchema(
+  "pattern",
+  PatternConstraint,
+  {
+    pattern: S.String,
+    flags: S.optional(S.String),
+    message: S.optional(S.String),
+  },
+  undefined,
+  (from) => {
+    try {
+      new RegExp(from.pattern, from.flags);
+      return undefined;
+    } catch {
+      return `PatternConstraint has invalid regex "/${from.pattern}/${from.flags ?? ""}"`;
+    }
+  },
+);
 
 const LengthConstraintSchema = constraintSchema(
   "length",
@@ -157,6 +173,12 @@ const LengthConstraintSchema = constraintSchema(
   (from) => {
     if (from.minLength === undefined && from.maxLength === undefined) {
       return "LengthConstraint requires at least one of 'minLength' or 'maxLength'";
+    }
+    if (
+      from.minLength !== undefined && from.maxLength !== undefined &&
+      from.minLength > from.maxLength
+    ) {
+      return `LengthConstraint 'minLength' (${from.minLength}) must not exceed 'maxLength' (${from.maxLength})`;
     }
     return undefined;
   },

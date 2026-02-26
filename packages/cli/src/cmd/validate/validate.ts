@@ -289,7 +289,15 @@ export async function validate(options: {
   failFast?: boolean;
   strict?: boolean;
 }) {
-  // TODO: Should tell the user their option was invalid and tell them which ones are valid instead
+  if (
+    options.format &&
+    !['json', 'markdown', 'markdown_summary_action', 'table'].includes(options.format)
+  ) {
+    console.warn(
+      `Unknown format "${options.format}" — using "table". Valid formats: json, markdown, table`,
+    );
+  }
+
   const validFormat = (
       options.format === 'json' ||
       options.format === 'markdown' ||

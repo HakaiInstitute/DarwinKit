@@ -472,6 +472,31 @@ Deno.test("mergeProfileConstraints", async (t) => {
   }
 });
 
+// =============================================================================
+// Inverted Bounds & Invalid Regex Tests
+// =============================================================================
+
+Deno.test("RangeConstraintSchema - rejects min > max", () => {
+  assertThrows(
+    () => S.decodeUnknownSync(ConstraintSchema)({ type: "range", min: 100, max: 0 }),
+    Error,
+  );
+});
+
+Deno.test("LengthConstraintSchema - rejects minLength > maxLength", () => {
+  assertThrows(
+    () => S.decodeUnknownSync(ConstraintSchema)({ type: "length", minLength: 100, maxLength: 5 }),
+    Error,
+  );
+});
+
+Deno.test("PatternConstraintSchema - rejects invalid regex", () => {
+  assertThrows(
+    () => S.decodeUnknownSync(ConstraintSchema)({ type: "pattern", pattern: "[unclosed" }),
+    Error,
+  );
+});
+
 Deno.test("normalizeField - object validator with params flattened to Constraint (no warning)", () => {
   const testField = makeTestField({
     name: "test",

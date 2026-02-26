@@ -104,10 +104,8 @@ export const formatWorkspaceConfigError = createTaggedFormatter<WorkspaceConfigE
     `Config: ${error.configPath}\n\n` +
     `Check that the path in darwinkit.yaml is correct and the file exists.`,
 
-  ValidationConfigMissingError: (error) =>
+  ValidationConfigMissingError: (_error) =>
     `Validation configuration missing\n\n` +
-    // TODO: No need to include workspace name; only one is operated on at a time
-    `Workspace: ${error.workspaceName}\n\n` +
     `Add a "validation" section to darwinkit.yaml with datasets to validate.`,
 
   NoDatasetsDefinedError: (_error) =>

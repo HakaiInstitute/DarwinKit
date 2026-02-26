@@ -94,6 +94,11 @@ const STRING_VALIDATOR_MAP: Record<string, Constraint | null> = {
     allowEmpty: false,
     allowWhitespace: false,
   }),
+  // "recommended" obligation maps to RequirementLevel "optional" because:
+  // RequirementLevel is a strictness scale (required > recommended > optional).
+  // The obligation "recommended" is the weakest level that still generates a
+  // constraint, which corresponds to RequirementLevel "optional" (INFO severity).
+  // The obligation "strongly recommended" maps to RequirementLevel "recommended" (WARNING).
   recommended: new RequiredConstraint({
     level: "optional",
     allowEmpty: false,

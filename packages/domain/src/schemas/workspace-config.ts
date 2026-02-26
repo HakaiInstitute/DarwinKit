@@ -89,7 +89,6 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
   description: "Defines a foreign key constraint between two datasets.",
 });
 
-// TODO: Should probably name accordingly (something like validationDatasetConfig)
 export const datasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this dataset." }),
   class: S.String.annotations({
@@ -114,7 +113,6 @@ export const transformDatasetConfigSchema = S.Struct({
   class: S.String.annotations({
     description: "Darwin Core class for the transform output.",
   }),
-  // TODO: Define proper S.Struct shapes for source and fields to improve JSON Schema output
   source: S.optional(S.Object),
   description: S.optional(S.String),
   fields: S.optional(S.Object),
@@ -179,7 +177,6 @@ export const transformSettingsSchema = S.Struct({
     }),
     { default: () => [...DEFAULT_NULL_VALUES] },
   ).pipe(S.withConstructorDefault(() => DEFAULT_NULL_VALUES)),
-  // TODO: Define proper S.Struct shape for inputs to improve JSON Schema output
   inputs: S.Object.annotations({ description: "Input data source configuration." }),
   postImportTransforms: S.optional(
     S.Array(S.String).annotations({ description: "SQL transforms to run after data import." }),

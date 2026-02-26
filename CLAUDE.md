@@ -113,18 +113,18 @@ The config uses `standard` (root-level, e.g., `{ base: "darwin-core", variant: "
 2. **Base Spec Lookup**: Look up base spec using class key directly (e.g., `"Event"`)
 3. **Inheritance Resolution**: Walk profile `extends` chain, collecting field overrides
 4. **Normalization**: Convert JSON validators to typed `Constraint` objects via `normalizeField()`
-5. **Merging**: Combine spec + profile overrides → `ResolvedSpec` with `ResolvedField` records
+5. **Merging**: Combine spec + profile overrides → `ResolvedSpec` with `SpecField` records + `FieldOverride` map
 
 **Field Type Progression:**
 
 ```
-RawField → (normalize) → SpecField → (merge with FieldOverride) → ResolvedField
+RawField → (normalize) → SpecField → (resolve with FieldOverride) → WorkspaceFieldMapping
 ```
 
 - **`RawField`** — raw JSON from `dwcSchema.json`, string-based validators. Only used during import/DDL generation.
-- **`SpecField`** — normalized field with typed constraints and `ObligationsMap`. Lives on `Spec`.
-- **`ResolvedField`** — fully merged field with final constraints, no obligations (baked into constraints). Lives on `ResolvedSpec`.
-- **`FieldOverride`** — partial overlay on a `Profile` (requirement and/or constraint changes).
+- **`SpecField`** — normalized field with typed constraints and `ObligationsMap`. Lives on `Spec` and carried through to `ResolvedSpec`.
+- **`FieldOverride`** — partial overlay on a `Profile` (requirement and/or constraint changes). Lives on `ResolvedSpec`.
+- **`WorkspaceFieldMapping`** — final field with fully merged constraints from the 3-tier pipeline (spec + profile + config). Produced by `resolveSpecFields()` in `field-resolution.ts`.
 
 **Constraint System:**
 
@@ -177,9 +177,8 @@ This fetches the latest Darwin Core XML schemas and OBIS checklist, then generat
 - `packages/core/src/import/get_dwc_schema.ts` - Schema generation logic
 - `packages/domain/src/specs/constraints.ts` - Constraint `Data.TaggedClass` definitions and merge logic
 - `packages/domain/src/specs/constraint-presets.ts` - Named constraint bundles for YAML configs
-- `packages/domain/src/specs/field-definition.ts` - JSON field normalization (`RawField` → `SpecField`), `ResolvedField` type
+- `packages/domain/src/specs/field-definition.ts` - JSON field normalization (`RawField` → `SpecField`), `SpecField` type
 - `packages/domain/src/specs/profiles/registry.ts` - Spec/Profile registries, resolution, and merging
-- `packages/domain/src/specs/vocabularies/registry.ts` - Controlled vocabularies
 - `packages/core/src/validation/field-resolution.ts` - 3-tier constraint merge pipeline
 - `packages/core/src/validation/field-validators.ts` - Constraint-dispatched SQL validation
 

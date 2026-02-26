@@ -25,7 +25,6 @@ src/
 ├── errors/       # Error codes and type definitions
 ├── schemas/      # Effect validation schemas
 ├── specs/        # Darwin Core specifications and profiles
-│   ├── dwc/      # Base Darwin Core definitions
 │   └── profiles/ # Validation profiles (OBIS, GBIF, etc.)
 └── types/        # TypeScript interfaces and types
 ```
@@ -94,7 +93,9 @@ import {
   type FieldMapping,
   // Specs
   getResolvedSpec,
-  type ValidationProfile,
+  type Profile,
+  type ResolvedSpec,
+  type Spec,
   type WorkspaceConfig,
   // Schemas
   workspaceConfigSchema,

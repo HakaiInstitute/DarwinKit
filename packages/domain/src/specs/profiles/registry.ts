@@ -53,22 +53,22 @@ function mergeFieldOverrides(
   return merged;
 }
 
-function normalizeJsonToSpec(jsonProfile: unknown): Spec {
-  if (typeof jsonProfile !== "object" || jsonProfile === null) {
+function normalizeJsonToSpec(jsonSpec: unknown): Spec {
+  if (typeof jsonSpec !== "object" || jsonSpec === null) {
     throw new Error("Invalid JSON profile: expected object");
   }
 
-  const profile = jsonProfile as Record<string, unknown>;
+  const spec = jsonSpec as Record<string, unknown>;
 
   const specFields: Record<string, SpecField> = {};
   const rawFields: Record<string, TransformField> = {};
 
   if (
-    "fields" in profile &&
-    typeof profile.fields === "object" &&
-    profile.fields !== null
+    "fields" in spec &&
+    typeof spec.fields === "object" &&
+    spec.fields !== null
   ) {
-    for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
+    for (const [fieldName, fieldValue] of Object.entries(spec.fields)) {
       try {
         const result = normalizeField(fieldValue as RawField);
         specFields[fieldName] = result.field;
@@ -92,9 +92,9 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
   }
 
   return {
-    id: (profile.id ?? profile.name) as string,
-    name: profile.name as string,
-    description: profile.description as string | undefined,
+    id: (spec.id ?? spec.name) as string,
+    name: spec.name as string,
+    description: spec.description as string | undefined,
     specFields,
     rawFields: Object.keys(rawFields).length > 0 ? rawFields : undefined,
   };
@@ -105,22 +105,32 @@ export function getSpecNames(): string[] {
 }
 
 function getJsonSpec(specId: string): Spec | undefined {
-  const rawJsonProfile = loadDwcSchema()[specId];
-  if (!rawJsonProfile) return undefined;
-  return normalizeJsonToSpec(rawJsonProfile);
+  const rawJsonSpec = loadDwcSchema()[specId];
+  if (!rawJsonSpec) return undefined;
+  return normalizeJsonToSpec(rawJsonSpec);
 }
 
-function resolveProfileChain(profile: Profile): {
+function resolveProfileChain(
+  profile: Profile,
+  visited: Set<string> = new Set(),
+): {
   fieldOverrides: Record<string, FieldOverride>;
   spec: Spec | undefined;
 } {
+  if (visited.has(profile.id)) {
+    throw new Error(
+      `Circular profile inheritance detected: ${[...visited].join(" -> ")} -> ${profile.id}`,
+    );
+  }
+  visited.add(profile.id);
+
   if (!profile.extends) {
     return { fieldOverrides: profile.fieldOverrides, spec: undefined };
   }
 
   const parentProfile = PROFILE_REGISTRY[profile.extends];
   if (parentProfile) {
-    const parentResolved = resolveProfileChain(parentProfile);
+    const parentResolved = resolveProfileChain(parentProfile, visited);
     return {
       fieldOverrides: mergeFieldOverrides(parentResolved.fieldOverrides, profile.fieldOverrides),
       spec: parentResolved.spec,
@@ -150,9 +160,9 @@ function buildResolvedSpec(
   };
 }
 
-export function getResolvedSpec(profileId: string): ResolvedSpec | undefined {
+export function getResolvedSpec(specOrProfileId: string): ResolvedSpec | undefined {
   // Try TypeScript profile registry first
-  const tsProfile = PROFILE_REGISTRY[profileId];
+  const tsProfile = PROFILE_REGISTRY[specOrProfileId];
   if (tsProfile) {
     const { fieldOverrides, spec } = resolveProfileChain(tsProfile);
     if (spec) {
@@ -169,7 +179,7 @@ export function getResolvedSpec(profileId: string): ResolvedSpec | undefined {
     };
   }
 
-  const jsonSpec = getJsonSpec(profileId);
+  const jsonSpec = getJsonSpec(specOrProfileId);
   if (!jsonSpec) return undefined;
   return buildResolvedSpec(jsonSpec);
 }
