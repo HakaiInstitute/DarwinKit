@@ -100,6 +100,10 @@ function normalizeJsonToSpec(jsonProfile: unknown): Spec {
   };
 }
 
+export function getSpecNames(): string[] {
+  return Object.keys(loadDwcSchema());
+}
+
 function getJsonSpec(specId: string): Spec | undefined {
   const rawJsonProfile = loadDwcSchema()[specId];
   if (!rawJsonProfile) return undefined;

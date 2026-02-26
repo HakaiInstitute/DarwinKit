@@ -7,7 +7,8 @@ import * as Effect from "effect/Effect";
 import { Workspace } from "../workspace/mod.ts";
 import type { WorkspaceConfig } from "@dwkt/domain/schemas";
 import { hasTransformationConfig } from "@dwkt/domain/schemas";
-import { getResolvedSpec } from "@dwkt/domain/specs";
+import { getResolvedSpec, getSpecNames } from "@dwkt/domain/specs";
+import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
 import { importCsv } from "../loading/csv-import.ts";
@@ -130,10 +131,11 @@ export function populateSchemaFromDataTables( // Export for testing
       // standard-specific profiles. Currently ignores the standard field.
       const transformProfile = getResolvedSpec(dataset.class);
       if (!transformProfile) {
+        const suggestion = findSuggestedValue(dataset.class, getSpecNames());
+        const suggestionMsg = suggestion ? ` Did you mean '${suggestion}'?` : "";
         return yield* _(Effect.fail(
           new TransformationError({
-            message:
-              `Validation profile for class '${dataset.class}' not found for dataset '${dataset.name}'`,
+            message: `'${dataset.class}' is not a valid class.${suggestionMsg}`,
           }),
         ));
       }
@@ -372,8 +374,10 @@ export function exportToPersistentDB(
       // standard-specific profiles. Currently ignores the standard field.
       const transformProfile = getResolvedSpec(dataset.class);
       if (!transformProfile) {
+        const suggestion = findSuggestedValue(dataset.class, getSpecNames());
+        const suggestionMsg = suggestion ? ` Did you mean '${suggestion}'?` : "";
         console.warn(
-          `No validation profile found for class '${dataset.class}', skipping table export.`,
+          `'${dataset.class}' is not a valid class.${suggestionMsg} Skipping table export.`,
         );
         continue;
       }

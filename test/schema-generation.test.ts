@@ -44,7 +44,7 @@ Deno.test("Schema generation", async (t) => {
         "Occurrence",
         "Taxon",
         "ExtendedMeasurementOrFact",
-        "DnaDerivedData",
+        "dnaDerivedData",
         "ResourceRelationship",
       ]
     ) {

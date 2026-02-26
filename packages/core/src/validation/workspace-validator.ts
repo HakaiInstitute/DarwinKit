@@ -20,7 +20,13 @@ import type {
   WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
 import type { SpecField } from "@dwkt/domain/specs";
-import { getPreset, getPresetNames, getResolvedSpec, resolveProfile } from "@dwkt/domain/specs";
+import {
+  getPreset,
+  getPresetNames,
+  getResolvedSpec,
+  getSpecNames,
+  resolveProfile,
+} from "@dwkt/domain/specs";
 import type {
   CrossDatasetValidationResult,
   DatasetValidationResult,
@@ -393,10 +399,12 @@ function validateDataset(
       ? sanitizeTableName(baseProfile.name).toLowerCase()
       : dataset.name.toLowerCase();
     if (baseProfile === undefined) {
+      const suggestion = findSuggestedValue(dataset.class, getSpecNames());
+      const suggestionMsg = suggestion ? ` Did you mean '${suggestion}'?` : "";
       return yield* _(
         Effect.fail(
           new WorkspaceValidationError({
-            message: `Invalid profile identifier: ${dataset.class}`,
+            message: `'${dataset.class}' is not a valid class.${suggestionMsg}`,
           }),
         ),
       );

@@ -304,7 +304,7 @@ function joinObisRequirements(
     if (item["Event Table"]) affectedTables.push("Event");
     if (item["Occurrence Extension"]) affectedTables.push("Occurrence");
     if (item["eMoF Table"]) affectedTables.push("ExtendedMeasurementOrFact");
-    if (item["DNA Table"]) affectedTables.push("DnaDerivedData");
+    if (item["DNA Table"]) affectedTables.push("dnaDerivedData");
 
     // Apply OBIS requirements to matching fields
     Object.keys(schemaJson).forEach((tableName) => {
@@ -450,8 +450,7 @@ export function import_schema(sourceDir: string, outputDir: string): Effect.Effe
     const DNAJson = xmlSchemaToJson(
       DNAXml,
       {
-        group: "DnaDerivedData",
-        nameOverride: "DnaDerivedData",
+        group: "dnaDerivedData",
         idFieldName: "samp_name",
       },
       sourceDir,

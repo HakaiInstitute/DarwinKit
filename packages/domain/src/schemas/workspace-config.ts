@@ -94,7 +94,7 @@ export const datasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this dataset." }),
   class: S.String.annotations({
     description:
-      "Darwin Core class: Event, Occurrence, Taxon, ExtendedMeasurementOrFact, DnaDerivedData, ResourceRelationship.",
+      "Darwin Core class: Event, Occurrence, Taxon, ExtendedMeasurementOrFact, dnaDerivedData, ResourceRelationship.",
   }),
   path: S.String.annotations({ description: "File path to the CSV data file." }),
   description: S.optional(S.String),
@@ -333,14 +333,3 @@ export function makeWorkspaceConfig(input: WorkspaceConfigInput): WorkspaceConfi
  */
 export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig =>
   S.decodeUnknownSync(workspaceConfigSchema)(input);
-
-export const DARWIN_CORE_CLASSES = [
-  "Event",
-  "Occurrence",
-  "Taxon",
-  "ExtendedMeasurementOrFact",
-  "DnaDerivedData",
-  "ResourceRelationship",
-] as const;
-
-export type DarwinCoreClass = typeof DARWIN_CORE_CLASSES[number];

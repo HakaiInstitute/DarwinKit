@@ -155,7 +155,7 @@
               },
               "class": {
                 "type": "string",
-                "description": "Darwin Core class: Event, Occurrence, Taxon, ExtendedMeasurementOrFact, DnaDerivedData, ResourceRelationship."
+                "description": "Darwin Core class: Event, Occurrence, Taxon, ExtendedMeasurementOrFact, dnaDerivedData, ResourceRelationship."
               },
               "path": {
                 "type": "string",
