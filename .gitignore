@@ -42,5 +42,4 @@ packages/cli/transform_results
 .worktrees/
 
 packages/cli/validation_results/
-packages/domain/src/specs/generated/*
 !packages/domain/src/specs/generated/.gitkeep
