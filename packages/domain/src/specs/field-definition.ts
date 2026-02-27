@@ -1,5 +1,5 @@
 import * as S from "effect/Schema";
-import type { RawField } from "../schemas/validation-profile.ts";
+import type { RawField } from "../schemas/spec-types.ts";
 import {
   type Constraint,
   ConstraintSchema,

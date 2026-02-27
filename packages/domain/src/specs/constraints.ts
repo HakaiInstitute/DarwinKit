@@ -37,7 +37,11 @@ export class RangeConstraint extends Data.TaggedClass("range")<{
   readonly max?: number;
   readonly inclusive?: boolean;
   readonly message?: string;
-}> {}
+}> {
+  constructor(props: { min?: number; max?: number; inclusive?: boolean; message?: string }) {
+    super({ inclusive: true, ...props });
+  }
+}
 
 export class RequiredConstraint extends Data.TaggedClass("required")<{
   readonly level: RequirementLevel;

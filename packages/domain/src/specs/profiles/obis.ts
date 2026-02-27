@@ -11,7 +11,7 @@
  * Version: 2024
  */
 
-import type { Profile } from "../../schemas/validation-profile.ts";
+import type { Profile } from "../../schemas/spec-types.ts";
 import { FormatConstraint, RangeConstraint, RequiredConstraint } from "../constraints.ts";
 
 export const OBIS_BASE_PROFILE: Profile = {

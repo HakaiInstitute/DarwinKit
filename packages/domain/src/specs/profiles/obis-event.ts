@@ -10,7 +10,7 @@
  * Version: 2024
  */
 
-import type { Profile } from "../../schemas/validation-profile.ts";
+import type { Profile } from "../../schemas/spec-types.ts";
 
 export const OBIS_EVENT_PROFILE: Profile = {
   id: "obis-event",

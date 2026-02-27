@@ -232,13 +232,13 @@ function _validateDatasetsCore(
 
     for (const dataset of datasets) {
       const preResolved = resolvedFieldsMap.get(dataset.name);
-      const datasetProfile = preResolved?.resolvedSpec;
+      const datasetResolvedSpec = preResolved?.resolvedSpec;
 
       const result = yield* _(
         validateDataset(
           connection,
           dataset,
-          datasetProfile,
+          datasetResolvedSpec,
           standard,
           settings,
           preResolved,
@@ -351,7 +351,7 @@ function createWorkspaceFromConfig(
 function validateDataset(
   connection: DuckDBConnection,
   dataset: DatasetConfig,
-  profile: ResolvedSpec | undefined,
+  resolvedSpec: ResolvedSpec | undefined,
   standard: ResolvedStandard,
   validationSettings?: ValidationSettings,
   preResolved?: ResolvedFieldsEntry,
@@ -389,7 +389,7 @@ function validateDataset(
       .map((row) => String(row.column_name))
       .filter((col) => col !== "_row_number");
 
-    // Use base type profile for DuckDB table naming (matches importSchema which uses base profiles)
+    // Use base spec for DuckDB table naming (matches importSchema which uses base specs)
     const baseProfile = getResolvedSpec(dataset.class);
 
     const schemaTableName = baseProfile
@@ -475,7 +475,7 @@ function validateDataset(
     );
 
     if (bulkInsertResult._tag === "Left") {
-      if (profile) {
+      if (resolvedSpec) {
         const { standard: activeStandard } = resolveActiveStandard(standard);
         yield* _(
           insertRowByRow(
@@ -483,7 +483,7 @@ function validateDataset(
             tableName,
             schemaTableName,
             columnMappings,
-            profile,
+            resolvedSpec,
             activeStandard,
             dataset.name,
             crossDatasetRules ?? [],
@@ -536,7 +536,7 @@ function validateDataset(
       );
     }
 
-    if (profile && schemaColumnsObj && validMappings) {
+    if (resolvedSpec && schemaColumnsObj && validMappings) {
       const mappedSpecFields = new Set(
         validMappings.map((m) => m.targetName),
       );
@@ -586,7 +586,7 @@ function validateDataset(
             fieldName,
             targetName: fieldName,
             errorMessage:
-              `Profile '${profile.name}' ${messageVerb} field '${fieldName}' but it is not mapped in the dataset`,
+              `Profile '${resolvedSpec.name}' ${messageVerb} field '${fieldName}' but it is not mapped in the dataset`,
 
             reason: "not_mapped",
           }),
@@ -600,7 +600,7 @@ function validateDataset(
     >[] = [];
 
     for (const mapping of validMappings) {
-      if (!profile?.specFields) {
+      if (!resolvedSpec?.specFields) {
         schemaViolations.push(
           new UnknownProfileViolation({
             severity: requirementToSeverity("required"),
@@ -616,7 +616,7 @@ function validateDataset(
         continue;
       }
 
-      const baseField = profile.specFields?.[mapping.targetName];
+      const baseField = resolvedSpec.specFields?.[mapping.targetName];
 
       if (!baseField) {
         schemaViolations.push(
@@ -625,34 +625,31 @@ function validateDataset(
             fieldName: mapping.originName,
             targetName: mapping.targetName,
             errorMessage:
-              `Unknown field '${mapping.targetName}' in profile '${profile.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
+              `Unknown field '${mapping.targetName}' in profile '${resolvedSpec.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
 
-            profileId: profile.id,
+            profileId: resolvedSpec.id,
           }),
         );
         continue;
       }
 
       const specField = applyResolvedConstraints(baseField, mapping);
+      const rawField = resolvedSpec.rawFields?.[mapping.targetName];
+      const isDbPrimaryKey = mapping.targetName === schemaTableName + "ID" ||
+        (mapping.targetName.endsWith("ID") && String(rawField?.unique) === "true");
 
-      if (specField) {
-        const rawField = profile.rawFields?.[mapping.targetName];
-        const isDbPrimaryKey = mapping.targetName === schemaTableName + "ID" ||
-          (mapping.targetName.endsWith("ID") && String(rawField?.unique) === "true");
-
-        fieldValidationEffects.push(
-          validateField(
-            connection,
-            tableName,
-            mapping.originName,
-            specField,
-            {
-              isDbPrimaryKey,
-              maxViolations: validationSettings?.maxViolationsPerField,
-            },
-          ),
-        );
-      }
+      fieldValidationEffects.push(
+        validateField(
+          connection,
+          tableName,
+          mapping.originName,
+          specField,
+          {
+            isDbPrimaryKey,
+            maxViolations: validationSettings?.maxViolationsPerField,
+          },
+        ),
+      );
     }
 
     if (fieldValidationEffects.length > 0) {

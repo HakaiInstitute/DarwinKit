@@ -135,8 +135,10 @@ Deno.test("getResolvedSpec - throws on circular profile inheritance", () => {
     extends: "circular-a",
     fieldOverrides: {},
   };
-  PROFILE_REGISTRY["circular-a"] = circularA;
-  PROFILE_REGISTRY["circular-b"] = circularB;
+  // Cast to mutable for test injection only
+  const mutableRegistry = PROFILE_REGISTRY as Record<string, typeof circularA>;
+  mutableRegistry["circular-a"] = circularA;
+  mutableRegistry["circular-b"] = circularB;
   try {
     assertThrows(
       () => getResolvedSpec("circular-a"),
@@ -144,8 +146,8 @@ Deno.test("getResolvedSpec - throws on circular profile inheritance", () => {
       "Circular profile inheritance detected",
     );
   } finally {
-    delete PROFILE_REGISTRY["circular-a"];
-    delete PROFILE_REGISTRY["circular-b"];
+    delete mutableRegistry["circular-a"];
+    delete mutableRegistry["circular-b"];
   }
 });
 

@@ -36,9 +36,7 @@ function outputJsonResultsEffect(
   outputDir?: string,
 ): Effect.Effect<void, OutputError> {
   return Effect.gen(function* (_) {
-    const outputPath = outputDir || results.summary.totalDatasets > 0
-      ? './validation_results'
-      : './validation_results';
+    const outputPath = outputDir ?? './validation_results';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `validation-results-${timestamp}.json`;
     const fullPath = join(outputPath, filename);

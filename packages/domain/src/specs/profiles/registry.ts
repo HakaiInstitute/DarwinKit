@@ -7,7 +7,7 @@ import type {
   ResolvedSpec,
   Spec,
   TransformField,
-} from "../../schemas/validation-profile.ts";
+} from "../../schemas/spec-types.ts";
 import { mergeProfileConstraints } from "../constraints.ts";
 import { normalizeField, type SpecField } from "../field-definition.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
@@ -24,7 +24,7 @@ function loadDwcSchema(): Record<string, unknown> {
   return _dwcSchemaCache;
 }
 
-export const PROFILE_REGISTRY: ProfileRegistry = {
+export const PROFILE_REGISTRY: Readonly<ProfileRegistry> = {
   "obis": OBIS_BASE_PROFILE,
   "obis-event": OBIS_EVENT_PROFILE,
 } as const;
@@ -99,10 +99,15 @@ function normalizeJsonToSpec(jsonSpec: unknown): NormalizeResult {
     }
   }
 
+  const id = spec.id ?? spec.name;
+  if (typeof id !== "string") {
+    throw new Error("JSON spec missing both 'id' and 'name'");
+  }
+
   return {
     spec: {
-      id: (spec.id ?? spec.name) as string,
-      name: spec.name as string,
+      id,
+      name: (spec.name ?? id) as string,
       description: spec.description as string | undefined,
       specFields,
       rawFields: Object.keys(rawFields).length > 0 ? rawFields : undefined,

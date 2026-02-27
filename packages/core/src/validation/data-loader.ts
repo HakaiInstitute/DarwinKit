@@ -50,7 +50,7 @@ interface ViolationContext {
   readonly rawTableName: string;
   readonly schemaTableName: string;
   readonly columnMappings: ColumnMapping[];
-  readonly profile: ResolvedSpec;
+  readonly resolvedSpec: ResolvedSpec;
   readonly activeStandard: "obis" | "gbif";
   readonly enableSuggestions: boolean;
   readonly rowNum: number;
@@ -67,7 +67,7 @@ function handlePrimaryKeyViolation(
     const pkMapping = ctx.columnMappings.find((m) =>
       m.target === ctx.schemaTableName + "ID" ||
       (m.target.endsWith("ID") &&
-        ctx.profile.rawFields?.[m.target]?.unique === "true")
+        ctx.resolvedSpec.rawFields?.[m.target]?.unique === "true")
     );
 
     if (
@@ -77,7 +77,7 @@ function handlePrimaryKeyViolation(
       return [];
     }
 
-    const specField = ctx.profile.specFields?.[pkMapping.target];
+    const specField = ctx.resolvedSpec.specFields?.[pkMapping.target];
     if (!specField) return [];
 
     ctx.processedDuplicates.add(parsed.value);
@@ -134,7 +134,7 @@ function handleNotNullViolation(
 
     if (!notNullMapping) return [];
 
-    const specField = ctx.profile.specFields?.[notNullMapping.target];
+    const specField = ctx.resolvedSpec.specFields?.[notNullMapping.target];
     if (!specField) return [];
 
     return [
@@ -170,8 +170,8 @@ function handleEnumViolation(
 
     if (!enumMapping || !parsed.value) return [];
 
-    const specField = ctx.profile.specFields?.[enumMapping.target];
-    const rawField = ctx.profile.rawFields?.[enumMapping.target];
+    const specField = ctx.resolvedSpec.specFields?.[enumMapping.target];
+    const rawField = ctx.resolvedSpec.rawFields?.[enumMapping.target];
 
     if (!specField || !rawField?.values) return [];
 
@@ -295,7 +295,7 @@ export function insertRowByRow(
   rawTableName: string,
   schemaTableName: string,
   columnMappings: ColumnMapping[],
-  profile: ResolvedSpec,
+  resolvedSpec: ResolvedSpec,
   activeStandard: "obis" | "gbif",
   currentDataset: string,
   crossDatasetRules: readonly WorkspaceCrossDatasetRule[],
@@ -346,7 +346,7 @@ export function insertRowByRow(
         rawTableName,
         schemaTableName,
         columnMappings,
-        profile,
+        resolvedSpec,
         activeStandard,
         enableSuggestions,
         rowNum,

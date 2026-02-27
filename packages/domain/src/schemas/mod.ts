@@ -4,5 +4,5 @@
 
 export * from "./primitives.ts";
 export * from "./schema.ts";
-export * from "./validation-profile.ts";
+export * from "./spec-types.ts";
 export * from "./workspace-config.ts";
