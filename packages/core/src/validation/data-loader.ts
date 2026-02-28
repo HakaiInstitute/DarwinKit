@@ -15,11 +15,7 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 
-import type {
-  ResolvedSpec,
-  ValidationSettings,
-  WorkspaceCrossDatasetRule,
-} from "@dwkt/domain/schemas";
+import type { DatasetRule, ResolvedSpec, ValidationSettings } from "@dwkt/domain/schemas";
 import type { FieldViolation } from "@dwkt/domain/types";
 import {
   EnumViolation,
@@ -56,7 +52,7 @@ interface ViolationContext {
   readonly rowNum: number;
   readonly processedDuplicates: Set<string>;
   readonly currentDataset: string;
-  readonly crossDatasetRules: readonly WorkspaceCrossDatasetRule[];
+  readonly datasetRules: readonly DatasetRule[];
 }
 
 function handlePrimaryKeyViolation(
@@ -216,7 +212,7 @@ function handleForeignKeyViolation(
       : undefined;
 
     const fkRule = fkMapping
-      ? findForeignKeyRule(ctx.currentDataset, fkMapping.target, ctx.crossDatasetRules)
+      ? findForeignKeyRule(ctx.currentDataset, fkMapping.target, ctx.datasetRules)
       : undefined;
 
     const originField = fkMapping?.origin ?? parsed.fieldName ?? "unknown";
@@ -298,7 +294,7 @@ export function insertRowByRow(
   resolvedSpec: ResolvedSpec,
   activeStandard: "obis" | "gbif",
   currentDataset: string,
-  crossDatasetRules: readonly WorkspaceCrossDatasetRule[],
+  datasetRules: readonly DatasetRule[],
   validationSettings?: ValidationSettings,
 ): Effect.Effect<void, FieldViolation[]> {
   return Effect.gen(function* (_) {
@@ -352,7 +348,7 @@ export function insertRowByRow(
         rowNum,
         processedDuplicates,
         currentDataset,
-        crossDatasetRules,
+        datasetRules,
       };
 
       const newViolations = yield* _(createViolationsFromError(parsed, ctx));

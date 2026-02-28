@@ -92,7 +92,7 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
           },
         ],
       },
-      crossDatasetRules: [
+      datasetRules: [
         {
           ruleType: "foreignKey",
           sourceDataset: "occurrences",

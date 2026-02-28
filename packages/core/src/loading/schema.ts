@@ -1,8 +1,8 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import type {
+  DatasetRule,
   ResolvedSpec,
   TransformField,
-  WorkspaceCrossDatasetRule,
   WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
 import type { ResolvedStandard } from "@dwkt/domain/schemas";
@@ -52,7 +52,7 @@ export function importSchema(
   datasets: readonly DatasetWithClass[],
   standard: ResolvedStandard,
   spec: ResolvedSpec,
-  crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+  datasetRules?: readonly DatasetRule[],
   resolvedFields?: Record<string, WorkspaceFieldMapping>,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* (_) {
@@ -96,7 +96,7 @@ export function importSchema(
       } else if (isFieldRequired(resolvedFields, spec, fieldName)) {
         fieldStr += " NOT NULL";
       }
-      const fkRule = findForeignKeyRule(dataset.name, fieldName, crossDatasetRules);
+      const fkRule = findForeignKeyRule(dataset.name, fieldName, datasetRules);
       if (fkRule) {
         const targetDataset = datasets.find((ds) => ds.name === fkRule.targetDataset);
         if (targetDataset) {

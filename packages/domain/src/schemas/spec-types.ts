@@ -1,5 +1,6 @@
 import * as S from "effect/Schema";
 import { ConstraintSchema, RequirementLevel } from "../specs/constraints.ts";
+import type { DatasetRule } from "../specs/dataset-rules.ts";
 import type { SpecField } from "../specs/field-definition.ts";
 
 export const fieldOverrideSchema = S.Struct({
@@ -55,6 +56,7 @@ export interface Profile {
   readonly description?: string;
   readonly extends?: string;
   readonly fieldOverrides: Record<string, FieldOverride>;
+  readonly datasetRules?: readonly DatasetRule[];
   readonly documentationUrl?: string;
   readonly version?: string;
   readonly metadata?: { createdAt?: Date; updatedAt?: Date; author?: string };
@@ -69,6 +71,7 @@ export interface ResolvedSpec {
   readonly profile?: string;
   readonly fieldOverrides: Record<string, FieldOverride>;
   readonly specFields: Record<string, SpecField>;
+  readonly datasetRules?: readonly DatasetRule[];
   readonly rawFields?: Record<string, TransformField>;
   readonly warnings?: readonly string[];
 }

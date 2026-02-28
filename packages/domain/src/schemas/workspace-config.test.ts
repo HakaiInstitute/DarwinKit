@@ -28,7 +28,7 @@ Deno.test("makeWorkspaceConfig", async (t) => {
 
     // Optional fields remain undefined
     assertEquals(config1.description, undefined);
-    assertEquals(config1.crossDatasetRules, undefined);
+    assertEquals(config1.datasetRules, undefined);
     assertEquals(config1.transform, undefined);
   });
 
@@ -42,7 +42,7 @@ Deno.test("makeWorkspaceConfig", async (t) => {
       updatedAt: customDate.toISOString(),
       description: "Test description",
       validation: {},
-      crossDatasetRules: [
+      datasetRules: [
         {
           ruleType: "foreignKey",
           sourceDataset: "a",
@@ -58,7 +58,7 @@ Deno.test("makeWorkspaceConfig", async (t) => {
     assertEquals(config.version, "2.0.0");
     assertEquals(config.createdAt, customDate);
     assertEquals(config.description, "Test description");
-    assertEquals(config.crossDatasetRules?.length, 1);
+    assertEquals(config.datasetRules?.length, 1);
   });
 
   await t.step("applies validation defaults and preserves overrides", () => {
@@ -230,5 +230,26 @@ Deno.test("makeWorkspaceConfig - class field on datasets", async (t) => {
         },
       } as WorkspaceConfigInput)
     );
+  });
+});
+
+Deno.test("makeWorkspaceConfig - datasetRules", async (t) => {
+  await t.step("accepts datasetRules with foreignKey rules", () => {
+    const config = makeWorkspaceConfig({
+      validation: {},
+      datasetRules: [
+        {
+          ruleType: "foreignKey",
+          sourceDataset: "occurrences",
+          sourceField: "eventID",
+          targetDataset: "events",
+          targetField: "eventID",
+        },
+      ],
+    });
+
+    assertEquals(config.datasetRules?.length, 1);
+    assertEquals(config.datasetRules?.[0].ruleType, "foreignKey");
+    assertEquals(config.datasetRules?.[0].sourceDataset, "occurrences");
   });
 });

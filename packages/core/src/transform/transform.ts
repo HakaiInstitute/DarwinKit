@@ -103,7 +103,7 @@ export function createTableFromSchema(
           config.transform.datasets,
           standard,
           spec,
-          config.crossDatasetRules,
+          config.datasetRules,
         ),
       );
     }
@@ -163,7 +163,7 @@ export function populateSchemaFromDataTables( // Export for testing
           const err = error instanceof Error ? error : new Error(String(error));
           const parsed = parseDuckDBError(err);
           const fkRule = parsed.fieldName
-            ? findForeignKeyRule(dataset.name, parsed.fieldName, config.crossDatasetRules)
+            ? findForeignKeyRule(dataset.name, parsed.fieldName, config.datasetRules)
             : undefined;
           const message = formatConstraintViolation({
             type: parsed.type,

@@ -4,7 +4,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import type { WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
+import type { DatasetRule } from "@dwkt/domain/schemas";
 import { assertEquals } from "@std/assert";
 import {
   findForeignKeyRule,
@@ -174,7 +174,7 @@ for (const testCase of constraintTestCases) {
 
 // findForeignKeyRule tests
 
-const sampleRules: WorkspaceCrossDatasetRule[] = [
+const sampleRules: DatasetRule[] = [
   {
     ruleType: "foreignKey",
     sourceDataset: "occurrence",
@@ -232,7 +232,7 @@ Deno.test("findForeignKeyRule - returns undefined when rules are empty", () => {
 });
 
 Deno.test("findForeignKeyRule - defaults requirement to required", () => {
-  const rulesWithoutRequirement: WorkspaceCrossDatasetRule[] = [
+  const rulesWithoutRequirement: DatasetRule[] = [
     {
       ruleType: "foreignKey",
       sourceDataset: "test",

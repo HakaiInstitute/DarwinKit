@@ -11,7 +11,7 @@ import * as Match from 'effect/Match';
 import { CLIError, OutputError } from '../../errors.ts';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
-import { getStatusIcon, renderValidationMarkdown } from './markdown-renderer.ts';
+import { renderValidationMarkdown } from './markdown-renderer.ts';
 
 function outputResults(
   results: WorkspaceValidationResult,
@@ -65,11 +65,14 @@ function outputJsonResultsEffect(
       }),
     );
 
-    Output.success(`✅ Results written to: ${fullPath}`);
+    Output.success(`Results written to: ${fullPath}`);
     Output.blank();
     Output.line(`Overall status: ${results.overallStatus}`);
+    const warningNote = results.summary.datasetsWithWarningsCount > 0
+      ? ` (${results.summary.datasetsWithWarningsCount} with warnings)`
+      : '';
     Output.line(
-      `Datasets: ${results.summary.datasetsPassedCount} passed, ${results.summary.datasetsWithWarningsCount} warnings, ${results.summary.datasetsFailedCount} failed`,
+      `Datasets: ${results.summary.datasetsPassedCount} passed${warningNote}, ${results.summary.datasetsFailedCount} failed`,
     );
   });
 }
@@ -111,11 +114,14 @@ function outputMarkdownResultsEffect(
       }),
     );
 
-    Output.success(`✅ Markdown results written to: ${fullPath}`);
+    Output.success(`Markdown results written to: ${fullPath}`);
     Output.blank();
     Output.line(`Overall status: ${results.overallStatus}`);
+    const warningNote = results.summary.datasetsWithWarningsCount > 0
+      ? ` (${results.summary.datasetsWithWarningsCount} with warnings)`
+      : '';
     Output.line(
-      `Datasets: ${results.summary.datasetsPassedCount} passed, ${results.summary.datasetsWithWarningsCount} warnings, ${results.summary.datasetsFailedCount} failed`,
+      `Datasets: ${results.summary.datasetsPassedCount} passed${warningNote}, ${results.summary.datasetsFailedCount} failed`,
     );
   });
 }
@@ -165,9 +171,9 @@ function handleValidateError(
   const exitCode = Match.value(error).pipe(
     Match.tag('CLIError', (e) => {
       if (e.exitCode === 1) {
-        Output.error('❌ Overall status: FAILED');
+        Output.error('Overall status: FAILED');
       } else if (e.exitCode === 2) {
-        Output.warning('⚠️  Overall status: PASSED with warnings');
+        Output.warning('Overall status: PASSED with warnings');
       }
       if (e.hint) {
         Output.muted(`   ${e.hint}`);
@@ -175,18 +181,18 @@ function handleValidateError(
       return options?.strict ? e.exitCode : (e.exitCode === 2 ? 0 : e.exitCode);
     }),
     Match.tag('OutputError', (e) => {
-      Output.error('❌ Output failed:');
+      Output.error('Output failed:');
       Output.error(e.message);
       Output.muted(`Path: ${e.outputPath}`);
       return 3;
     }),
     Match.tag('ValidationError', (e) => {
-      Output.error('❌ Validation error:');
+      Output.error('Validation error:');
       Output.error(e.message);
       return 1;
     }),
     Match.tag('ConfigNotFoundError', (e) => {
-      Output.error('❌ Configuration not found:');
+      Output.error('Configuration not found:');
       Output.error(e.message);
       Output.blank();
 
@@ -194,22 +200,22 @@ function handleValidateError(
         Output.muted(`Searched from: ${e.startDirectory}`);
         Output.muted(`Paths checked:\n${e.searchDescription}`);
         Output.blank();
-        Output.warning('💡 Hint: Create a darwinkit.yaml configuration file.');
+        Output.warning('Hint: Create a darwinkit.yaml configuration file.');
       } else {
         Output.muted(`Path: ${e.searchedPaths[0]}`);
         Output.blank();
-        Output.warning('💡 Hint: Check that the file path is correct.');
+        Output.warning('Hint: Check that the file path is correct.');
       }
       return 3;
     }),
     Match.tag('ConfigParseError', (e) => {
-      Output.error('❌ Configuration parse error:');
+      Output.error('Configuration parse error:');
       Output.error(e.message);
       Output.muted(`File: ${e.configPath}`);
       return 3;
     }),
     Match.tag('ConfigValidationError', (e) => {
-      Output.error('❌ Configuration validation failed:');
+      Output.error('Configuration validation failed:');
       Output.error(e.message);
       Output.muted(`File: ${e.configPath}`);
       if (e.validationErrors.length > 0) {
@@ -220,7 +226,7 @@ function handleValidateError(
       return 3;
     }),
     Match.tag('DatasetFileNotFoundError', (e) => {
-      Output.error('❌ Dataset file not found:');
+      Output.error('Dataset file not found:');
       Output.error(e.message);
       Output.muted(`Dataset: ${e.datasetName}`);
       Output.muted(`Path: ${e.filePath}`);
@@ -228,7 +234,7 @@ function handleValidateError(
       return 3;
     }),
     Match.tag('TransformInputNotFoundError', (e) => {
-      Output.error('❌ Transform input not found:');
+      Output.error('Transform input not found:');
       Output.error(e.message);
       Output.muted(`Input: ${e.inputName}`);
       Output.muted(`Path: ${e.filePath}`);
@@ -236,18 +242,18 @@ function handleValidateError(
       return 3;
     }),
     Match.tag('ValidationConfigMissingError', (e) => {
-      Output.error('❌ Validation configuration missing:');
+      Output.error('Validation configuration missing:');
       Output.error(e.message);
       Output.muted(`Workspace: ${e.workspaceName}`);
       Output.blank();
-      Output.warning('💡 Hint: Add a "validation" section to darwinkit.yaml.');
+      Output.warning('Hint: Add a "validation" section to darwinkit.yaml.');
       return 3;
     }),
     Match.tag('NoDatasetsDefinedError', (e) => {
-      Output.error('❌ No datasets defined:');
+      Output.error('No datasets defined:');
       Output.error(e.message);
       Output.blank();
-      Output.warning('💡 Hint: Add datasets to the "validation.datasets" array in darwinkit.yaml.');
+      Output.warning('Hint: Add datasets to the "validation.datasets" array in darwinkit.yaml.');
       return 3;
     }),
     Match.exhaustive,
@@ -323,19 +329,19 @@ export async function validate(options: {
       handleValidateError(failureOption.value, { strict: options.strict });
     } else {
       Output.blank();
-      Output.error('❌ Unexpected error occurred');
+      Output.error('Unexpected error occurred');
       Output.line(Cause.pretty(result.cause));
       Deno.exit(3);
     }
   } else {
-    Output.success('✅ Overall status: PASSED');
+    Output.success('Overall status: PASSED');
     Deno.exit(0);
   }
 }
 
 function outputTableResults(results: WorkspaceValidationResult) {
   Output.blank();
-  Output.section('📂', 'Workspace validation completed');
+  Output.bold('Workspace validation completed');
   Output.muted(`Configuration: ${results.configPath}`);
   Output.blank();
 
@@ -344,8 +350,12 @@ function outputTableResults(results: WorkspaceValidationResult) {
     .border(true);
 
   for (const dataset of results.datasetResults) {
-    const statusIcon = getStatusIcon(dataset.status);
-    const statusText = `${statusIcon} ${dataset.status.toUpperCase()}`;
+    const statusText = dataset.status.toUpperCase();
+    const coloredStatus = dataset.status === 'fail'
+      ? colors.red(statusText)
+      : dataset.status === 'warn'
+      ? colors.yellow(statusText)
+      : colors.green(statusText);
 
     const errorCount = dataset.schemaViolations.errors.length +
       dataset.fieldViolations.errors.length;
@@ -359,7 +369,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
     table.push([
       dataset.datasetName,
       dataset.class,
-      statusText,
+      coloredStatus,
       errorCount > 0 ? colors.red(errorCount.toString()) : errorCount.toString(),
       warningCount > 0 ? colors.yellow(warningCount.toString()) : warningCount.toString(),
       infoCount > 0 ? colors.blue(infoCount.toString()) : infoCount.toString(),
@@ -381,14 +391,14 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
     if (hasErrors || hasWarnings || hasInfo) {
       Output.blank();
-      Output.bold(`📊 ${dataset.datasetName} (${dataset.class})`);
+      Output.bold(`${dataset.datasetName} (${dataset.class})`);
       Output.blank();
     }
 
     if (hasErrors) {
       const totalErrors = dataset.schemaViolations.errors.length +
         dataset.fieldViolations.errors.length;
-      Output.error(`❌ ERRORS (${totalErrors}):`);
+      Output.error(`ERRORS (${totalErrors}):`);
 
       if (dataset.schemaViolations.errors.length > 0) {
         Output.error('  Schema Issues:');
@@ -426,7 +436,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
     if (hasWarnings) {
       const totalWarnings = dataset.schemaViolations.warnings.length +
         dataset.fieldViolations.warnings.length;
-      Output.warning(`⚠️  WARNINGS (${totalWarnings}):`);
+      Output.warning(`WARNINGS (${totalWarnings}):`);
 
       if (dataset.schemaViolations.warnings.length > 0) {
         Output.warning('  Schema Issues:');
@@ -463,7 +473,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
     if (hasInfo) {
       const totalInfo = dataset.schemaViolations.info.length +
         dataset.fieldViolations.info.length;
-      Output.info(`ℹ️  INFO (${totalInfo}):`);
+      Output.info(`INFO (${totalInfo}):`);
 
       // Show schema info first
       if (dataset.schemaViolations.info.length > 0) {
@@ -514,23 +524,21 @@ function outputTableResults(results: WorkspaceValidationResult) {
     return grouped;
   }
 
-  Output.bold('📊 Summary:');
+  Output.bold('Summary:');
   Output.line(`  Datasets processed: ${results.summary.totalDatasets}`);
-  Output.line(
-    `  ${colors.green('Passed')}: ${results.summary.datasetsPassedCount}`,
-  );
-  Output.line(
-    `  ${colors.yellow('Warnings')}: ${results.summary.datasetsWithWarningsCount}`,
-  );
+  const passedLabel = results.summary.datasetsWithWarningsCount > 0
+    ? `${results.summary.datasetsPassedCount} (${results.summary.datasetsWithWarningsCount} with warnings)`
+    : `${results.summary.datasetsPassedCount}`;
+  Output.line(`  ${colors.green('Passed')}: ${passedLabel}`);
   Output.line(
     `  ${colors.red('Failed')}: ${results.summary.datasetsFailedCount}`,
   );
   Output.blank();
-  Output.line(`  ${colors.red('❌ Errors')}: ${results.summary.totalErrors}`);
+  Output.line(`  ${colors.red('Errors')}: ${results.summary.totalErrors}`);
   Output.line(
-    `  ${colors.yellow('⚠️  Warnings')}: ${results.summary.totalWarnings}`,
+    `  ${colors.yellow('Warnings')}: ${results.summary.totalWarnings}`,
   );
-  Output.line(`  ${colors.blue('ℹ️  Info')}: ${results.summary.totalInfo}`);
+  Output.line(`  ${colors.blue('Info')}: ${results.summary.totalInfo}`);
   Output.blank();
   Output.line(`  Total rows processed: ${results.summary.totalRowsProcessed}`);
   Output.line(`  Processing time: ${results.totalProcessingTimeMs}ms`);

@@ -10,6 +10,7 @@ import type {
 } from "../../schemas/spec-types.ts";
 import { mergeProfileConstraints } from "../constraints.ts";
 import { normalizeField, type SpecField } from "../field-definition.ts";
+import { OBIS_EMOF_PROFILE } from "./obis-emof.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
 
@@ -27,6 +28,7 @@ function loadDwcSchema(): Record<string, unknown> {
 export const PROFILE_REGISTRY: Readonly<ProfileRegistry> = {
   "obis": OBIS_BASE_PROFILE,
   "obis-event": OBIS_EVENT_PROFILE,
+  "obis-extendedmeasurementorfact": OBIS_EMOF_PROFILE,
 } as const;
 
 function mergeFieldOverrides(
@@ -169,14 +171,30 @@ function buildResolvedSpec(
   mergedOverrides?: Record<string, FieldOverride>,
   warnings?: string[],
 ): ResolvedSpec {
+  const allOverrides = mergedOverrides ?? profile?.fieldOverrides ?? {};
+
+  // Add stub specFields for fields in overrides that don't exist in the base spec.
+  // This allows profiles to introduce new fields (e.g., eventID in OBIS-eMoF)
+  // without them being flagged as "unknown".
+  const specFields = { ...spec.specFields };
+  for (const fieldName of Object.keys(allOverrides)) {
+    if (!(fieldName in specFields)) {
+      specFields[fieldName] = {
+        name: fieldName,
+        constraints: [],
+      };
+    }
+  }
+
   return {
     id: profile?.id ?? spec.id,
     name: spec.name,
     spec: spec.id,
     profile: profile?.id,
-    fieldOverrides: mergedOverrides ?? profile?.fieldOverrides ?? {},
-    specFields: spec.specFields,
+    fieldOverrides: allOverrides,
+    specFields,
     rawFields: spec.rawFields,
+    ...(profile?.datasetRules ? { datasetRules: profile.datasetRules } : {}),
     ...(warnings && warnings.length > 0 ? { warnings } : {}),
   };
 }

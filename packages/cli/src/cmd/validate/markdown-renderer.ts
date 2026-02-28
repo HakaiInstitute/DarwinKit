@@ -170,8 +170,11 @@ function renderOverallSummary(
     '## 📊 Overall Summary',
     '',
     `**Datasets processed:** ${summary.totalDatasets}  `,
-    `**Passed:** ${summary.datasetsPassedCount}  `,
-    `**Warnings:** ${summary.datasetsWithWarningsCount}  `,
+    `**Passed:** ${summary.datasetsPassedCount}${
+      summary.datasetsWithWarningsCount > 0
+        ? ` (${summary.datasetsWithWarningsCount} with warnings)`
+        : ''
+    }  `,
     `**Failed:** ${summary.datasetsFailedCount}  `,
     '  ',
     `**❌ Errors:** ${summary.totalErrors}  `,

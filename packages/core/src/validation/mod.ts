@@ -13,5 +13,8 @@ export { findSuggestedValue } from "./string-matching.ts";
 // Row-by-row data loading with violation collection
 export { type ColumnMapping, insertRowByRow } from "./data-loader.ts";
 
+// Dataset rule validators (oneOfRequired, etc.)
+export { validateOneOfRequired } from "./dataset-rule-validators.ts";
+
 // Workspace validation (main entry point)
 export { WorkspaceValidator } from "./workspace-validator.ts";

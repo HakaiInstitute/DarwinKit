@@ -153,8 +153,8 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
       "basisOfRecord should not be NOT NULL without profile override",
     );
 
-    // Note: FK constraints are only created when explicit crossDatasetRules are configured.
-    // Transform workflow doesn't use crossDatasetRules, so no FK constraints are created.
+    // Note: FK constraints are only created when explicit datasetRules are configured.
+    // Transform workflow doesn't use datasetRules, so no FK constraints are created.
     // This is by design - FK validation happens in the validation workflow, not transform.
   } finally {
     // 4. Teardown
@@ -230,8 +230,8 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
       "mof.measurementID should be PK",
     );
 
-    // Note: FK constraints are only created when explicit crossDatasetRules are configured.
-    // Transform workflow doesn't use crossDatasetRules, so no FK constraints are created.
+    // Note: FK constraints are only created when explicit datasetRules are configured.
+    // Transform workflow doesn't use datasetRules, so no FK constraints are created.
     // This is by design - FK validation happens in the validation workflow, not transform.
   } finally {
     connection.closeSync();
@@ -239,9 +239,9 @@ Deno.test("createTableFromSchema - handles complex schema with multiple tables a
   }
 });
 
-Deno.test("createTableFromSchema - no FK constraints without crossDatasetRules", async () => {
-  // FK constraints are only created when explicit crossDatasetRules are configured.
-  // Transform workflow doesn't use crossDatasetRules, so no FK constraints should be created.
+Deno.test("createTableFromSchema - no FK constraints without datasetRules", async () => {
+  // FK constraints are only created when explicit datasetRules are configured.
+  // Transform workflow doesn't use datasetRules, so no FK constraints should be created.
   const instance = await DuckDBInstance.create(":memory:");
   const connection = await instance.connect();
 
@@ -270,9 +270,9 @@ Deno.test("createTableFromSchema - no FK constraints without crossDatasetRules",
   try {
     await Effect.runPromise(createTableFromSchema(connection, config));
 
-    // Verify no FKs are created when crossDatasetRules are not configured
+    // Verify no FKs are created when datasetRules are not configured
     const occurrenceFKCount = await countForeignKeys(connection, "occurrence");
-    assertEquals(occurrenceFKCount, 0, "Occurrence should have no FKs without crossDatasetRules");
+    assertEquals(occurrenceFKCount, 0, "Occurrence should have no FKs without datasetRules");
 
     const eventFKCount = await countForeignKeys(connection, "event");
     assertEquals(eventFKCount, 0, "Event table should have no foreign keys");

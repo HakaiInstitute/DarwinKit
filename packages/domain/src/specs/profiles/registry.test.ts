@@ -2,7 +2,7 @@
  * Tests for the spec/profile registry resolution logic.
  */
 
-import { assert, assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertExists, assertThrows } from "@std/assert";
 import { getResolvedSpec, getSpecNames, PROFILE_REGISTRY, resolveProfile } from "./registry.ts";
 
 // --- getSpecNames ---
@@ -168,4 +168,30 @@ Deno.test("getResolvedSpec - resolved spec includes warnings array", () => {
     result.warnings === undefined || Array.isArray(result.warnings),
     "warnings should be undefined or an array",
   );
+});
+
+// --- OBIS-eMoF profile ---
+
+Deno.test("resolveProfile - obis + ExtendedMeasurementOrFact resolves OBIS-eMoF profile", () => {
+  const resolved = resolveProfile("obis", "ExtendedMeasurementOrFact");
+  assertExists(resolved);
+  assertEquals(resolved.profile, "obis-extendedmeasurementorfact");
+});
+
+Deno.test("resolveProfile - OBIS-eMoF profile has datasetRules with oneOfRequired", () => {
+  const resolved = resolveProfile("obis", "ExtendedMeasurementOrFact");
+  assertExists(resolved);
+  assertExists(resolved.datasetRules);
+  assertEquals(resolved.datasetRules!.length, 1);
+  const rule = resolved.datasetRules![0];
+  assertEquals(rule._tag, "oneOfRequired");
+});
+
+Deno.test("resolveProfile - OBIS-eMoF profile overrides eventID and occurrenceID to recommended", () => {
+  const resolved = resolveProfile("obis", "ExtendedMeasurementOrFact");
+  assertExists(resolved);
+  assertExists(resolved.fieldOverrides.eventID);
+  assertEquals(resolved.fieldOverrides.eventID.requirement, "recommended");
+  assertExists(resolved.fieldOverrides.occurrenceID);
+  assertEquals(resolved.fieldOverrides.occurrenceID.requirement, "recommended");
 });

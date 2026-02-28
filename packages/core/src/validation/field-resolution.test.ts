@@ -1085,7 +1085,7 @@ Deno.test("Required-if-exists: uses fieldName as fallback when label is absent",
 // Profile Cannot Weaken Spec Requirements (Strictest-Wins for RequiredConstraint)
 // =============================================================================
 
-Deno.test("resolveSpecFields - profile cannot weaken spec required to recommended", () => {
+Deno.test("resolveSpecFields - profile override replaces spec requirement level", () => {
   const profile = makeResolvedSpec({
     specFields: {
       eventDate: {
@@ -1107,8 +1107,11 @@ Deno.test("resolveSpecFields - profile cannot weaken spec required to recommende
     c._tag === "required"
   ) as RequiredConstraint[];
 
+  // Profile overrides are authoritative — they replace spec obligations.
+  // This allows profiles to weaken per-field requirements when a group rule
+  // (e.g., oneOfRequired) replaces individual required constraints.
   assertEquals(required?.length, 1);
-  assertEquals(required?.[0]?.level, "required");
+  assertEquals(required?.[0]?.level, "recommended");
 });
 
 Deno.test("resolveSpecFields - profile can strengthen spec recommended to required", () => {

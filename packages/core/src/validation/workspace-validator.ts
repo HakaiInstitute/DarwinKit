@@ -14,10 +14,10 @@ import type { WorkspaceOperationError } from "@dwkt/domain/errors";
 import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
 import type {
   DatasetConfig,
+  DatasetRule,
   ResolvedSpec,
   ResolvedStandard,
   ValidationSettings,
-  WorkspaceCrossDatasetRule,
 } from "@dwkt/domain/schemas";
 import { getPreset, getPresetNames, getResolvedSpec, getSpecNames } from "@dwkt/domain/specs";
 import type {
@@ -45,6 +45,8 @@ import { Workspace } from "../workspace/workspace.ts";
 import { importSchema } from "../loading/schema.ts";
 import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
+import { validateOneOfRequired } from "./dataset-rule-validators.ts";
+import type { OneOfRequiredRule } from "@dwkt/domain/specs";
 
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { ResolvedFieldsEntry } from "./field-resolution.ts";
@@ -74,7 +76,7 @@ export class WorkspaceValidator {
     basePath: string,
     standard: ResolvedStandard,
     workspaceId?: string,
-    crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+    datasetRules?: readonly DatasetRule[],
     configPath?: string,
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
@@ -91,7 +93,7 @@ export class WorkspaceValidator {
           basePath,
           standard,
           resolvedFieldsMap,
-          crossDatasetRules,
+          datasetRules,
         ),
       );
 
@@ -104,7 +106,7 @@ export class WorkspaceValidator {
           standard,
           wsId,
           resolvedFieldsMap,
-          crossDatasetRules,
+          datasetRules,
           configPath,
         )
           .pipe(
@@ -129,7 +131,7 @@ export class WorkspaceValidator {
     basePath: string,
     standard: ResolvedStandard,
     workspaceId?: string,
-    crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+    datasetRules?: readonly DatasetRule[],
     configPath?: string,
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* (_) {
@@ -158,7 +160,7 @@ export class WorkspaceValidator {
               datasets,
               standard,
               entry.resolvedSpec,
-              crossDatasetRules,
+              datasetRules,
               entry.mapped,
             ),
           );
@@ -174,7 +176,7 @@ export class WorkspaceValidator {
           standard,
           resolvedWorkspaceId,
           resolvedFieldsMap,
-          crossDatasetRules,
+          datasetRules,
           configPath,
         ),
       );
@@ -223,7 +225,7 @@ function _validateDatasetsCore(
   standard: ResolvedStandard,
   workspaceId: string,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
-  crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+  datasetRules?: readonly DatasetRule[],
   configPath?: string,
 ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
   return Effect.gen(function* (_) {
@@ -242,7 +244,7 @@ function _validateDatasetsCore(
           standard,
           settings,
           preResolved,
-          crossDatasetRules,
+          datasetRules,
         ),
       );
 
@@ -296,7 +298,7 @@ function createWorkspaceFromConfig(
   basePath: string,
   standard: ResolvedStandard,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
-  crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+  datasetRules?: readonly DatasetRule[],
 ): Effect.Effect<
   {
     workspaceId: string;
@@ -337,7 +339,7 @@ function createWorkspaceFromConfig(
             datasets,
             standard,
             entry.resolvedSpec,
-            crossDatasetRules,
+            datasetRules,
             entry.mapped,
           ),
         );
@@ -355,7 +357,7 @@ function validateDataset(
   standard: ResolvedStandard,
   validationSettings?: ValidationSettings,
   preResolved?: ResolvedFieldsEntry,
-  crossDatasetRules?: readonly WorkspaceCrossDatasetRule[],
+  datasetRules?: readonly DatasetRule[],
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* (_) {
     const startTime = Date.now();
@@ -486,7 +488,7 @@ function validateDataset(
             resolvedSpec,
             activeStandard,
             dataset.name,
-            crossDatasetRules ?? [],
+            datasetRules ?? [],
             validationSettings,
           ).pipe(
             Effect.catchAll((violations) => {
@@ -660,6 +662,31 @@ function validateDataset(
       for (const result of results) {
         if (result._tag === "Left") {
           allFieldViolations.push(...result.left);
+        }
+      }
+    }
+
+    // Validate dataset rules (oneOfRequired, etc.)
+    if (resolvedSpec?.datasetRules) {
+      for (const rule of resolvedSpec.datasetRules) {
+        if (rule._tag === "oneOfRequired") {
+          // Only validate if at least one of the rule's fields exists in the table
+          const ruleFieldsInTable = (rule as OneOfRequiredRule).fields.filter(
+            (f) => originTableColumns.includes(f),
+          );
+          if (ruleFieldsInTable.length > 0) {
+            const ruleResult = yield* _(Effect.either(
+              validateOneOfRequired(
+                connection,
+                tableName,
+                rule as OneOfRequiredRule,
+                validationSettings?.maxViolationsPerField,
+              ),
+            ));
+            if (ruleResult._tag === "Left") {
+              allFieldViolations.push(...ruleResult.left);
+            }
+          }
         }
       }
     }

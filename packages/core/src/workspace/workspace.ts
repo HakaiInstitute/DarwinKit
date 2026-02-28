@@ -86,7 +86,7 @@ export class Workspace {
         ? { ...configSettings, failFast: options.failFast }
         : configSettings;
 
-      const crossDatasetRules = this.config.crossDatasetRules;
+      const datasetRules = this.config.datasetRules;
 
       const validator = new WorkspaceValidator();
       const result = yield* validator.validateDatasetsWithConnection(
@@ -96,7 +96,7 @@ export class Workspace {
         this.basePath,
         this.config.standard ?? { base: "darwin-core", variant: "obis" },
         this.config.id,
-        crossDatasetRules,
+        datasetRules,
         this.configPath,
       ).pipe(
         Effect.mapError((error) =>

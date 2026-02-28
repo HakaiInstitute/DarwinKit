@@ -4,7 +4,7 @@
  * @module loading/sql
  */
 
-import type { ForeignKeyRuleMatch, WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
+import type { DatasetRule, ForeignKeyRuleMatch } from "@dwkt/domain/schemas";
 import * as Match from "effect/Match";
 
 export function sanitizeTableName(name: string): string {
@@ -22,7 +22,7 @@ export function formatNullValues(nullValues: readonly string[]): string {
 export function findForeignKeyRule(
   sourceDataset: string,
   sourceField: string,
-  rules?: readonly WorkspaceCrossDatasetRule[],
+  rules?: readonly DatasetRule[],
 ): ForeignKeyRuleMatch | undefined {
   if (!rules) return undefined;
 

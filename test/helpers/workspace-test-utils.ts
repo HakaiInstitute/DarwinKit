@@ -2,11 +2,7 @@
  * Shared workspace test utilities for workspace-validator tests.
  */
 
-import type {
-  DatasetConfig,
-  ValidationSettingsInput,
-  WorkspaceCrossDatasetRule,
-} from "@dwkt/domain/schemas";
+import type { DatasetConfig, DatasetRule, ValidationSettingsInput } from "@dwkt/domain/schemas";
 import { isPrimaryKeyViolation } from "@dwkt/domain/types";
 import type { WorkspaceValidationResult } from "@dwkt/domain/types";
 import { assertEquals } from "@std/assert";
@@ -22,7 +18,7 @@ export type TestWorkspaceOptions = {
   eventData?: Array<Record<string, unknown>>;
   occurrenceData?: Array<Record<string, unknown>>;
   datasets?: DatasetConfig[];
-  crossDatasetRules?: WorkspaceCrossDatasetRule[];
+  datasetRules?: DatasetRule[];
   validation?: ValidationSettingsInput;
 };
 
@@ -231,7 +227,7 @@ export async function createMultiDatasetWorkspace(
     },
   ];
 
-  const crossDatasetRules = options?.crossDatasetRules ?? [
+  const datasetRules = options?.datasetRules ?? [
     {
       ruleType: "foreignKey",
       sourceDataset: "occurrences",
@@ -248,7 +244,7 @@ export async function createMultiDatasetWorkspace(
       nullValues: ["", "NA"],
       datasets,
     },
-    crossDatasetRules,
+    datasetRules,
   };
 
   await writeConfig(tempDir, rawConfig);

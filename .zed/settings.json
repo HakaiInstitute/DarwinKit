@@ -5,10 +5,8 @@
 {
   // Enable format on save
   "format_on_save": "on",
-  // Configure ESLint to run fixes on save
   "code_actions_on_format": {
-    "source.fixAll.eslint": true,
-    "source.organizeImports": true
+    "source.organizeImports": true,
   },
   // Language-specific configurations
   "languages": {
@@ -41,25 +39,12 @@
       ]
     },
     "JavaScript": {
-      // Use Prettier as the formatter for JavaScript files
-      "formatter": {
-        "external": {
-          "command": "node_modules/.bin/prettier",
-          "arguments": [
-            "--stdin-filepath",
-            "{buffer_path}"
-          ]
-        }
-      },
-      // Run ESLint fixes on format
       "code_actions_on_format": {
-        "source.fixAll.eslint": true,
         "source.organizeImports": true
       },
       // Language servers for JavaScript
       "language_servers": [
         "vtsls",
-        "eslint"
       ]
     }
   },
@@ -144,32 +129,6 @@
           "updateImportsOnFileMove": {
             "enabled": "always"
           }
-        }
-      }
-    },
-    // ESLint configuration
-    "eslint": {
-      "settings": {
-        // Auto-fix on save
-        "codeActionOnSave": {
-          "mode": "all"
-        },
-        // Enable ESLint for these file types
-        "probe": [
-          "javascript",
-          "javascriptreact",
-          "typescript",
-          "typescriptreact"
-        ],
-        // Use the project's ESLint configuration
-        "workingDirectory": {
-          "mode": "auto"
-        },
-        // Validate on save
-        "validate": "on",
-        // Use flat config (ESLint 9+)
-        "experimental": {
-          "useFlatConfig": true
         }
       }
     }

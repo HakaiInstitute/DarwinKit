@@ -200,7 +200,7 @@ validation:
           targetName: otu_seq_comp_appr
         - originName: otu_db
           targetName: otu_db
-crossDatasetRules:
+datasetRules:
   - ruleType: foreignKey
     sourceDataset: occurrence_data
     sourceField: eventID

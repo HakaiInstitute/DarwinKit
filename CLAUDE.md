@@ -102,7 +102,9 @@ The foundation of DarwinKit's validation system comes from official Darwin Core 
 TypeScript-defined `Profile` objects extend base specs with community-specific requirements:
 - **OBIS** (`obis.ts`) - Ocean Biodiversity Information System base profile
 - **OBIS-Event** (`obis-event.ts`) - OBIS sampling event profile extending Event + OBIS
-- Profiles contain only `fieldOverrides` — they strengthen requirements or add constraints, not define new fields
+- **OBIS-eMoF** (`obis-emof.ts`) - OBIS ExtendedMeasurementOrFact profile with `oneOfRequired` dataset rule for eventID/occurrenceID
+- Profiles contain `fieldOverrides` (requirement/constraint changes) and optionally `datasetRules` (group-level validation rules)
+- Field overrides can introduce new fields not in the base spec (stub `SpecField` entries are auto-created)
 - Support profile inheritance via `extends` property for composition
 
 **Standard + Class Resolution:**
@@ -137,11 +139,20 @@ Constraints are `Data.TaggedClass` instances discriminated by `_tag` (consistent
 - Controlled vocabularies are enforced at the DuckDB schema level via ENUM types, only for fields with "required" or "strongly recommended" obligation in the active standard. Optional vocabulary fields use TEXT columns and accept any value.
 - Obligation mapping: `required` → level `"required"`, `strongly recommended` → `"recommended"`, `recommended` → `"optional"`, `optional` → no constraint
 
+**Dataset Rules (`DatasetRule` — `packages/domain/src/specs/dataset-rules.ts`):**
+
+Dataset rules are group-level validation rules that span multiple fields or datasets:
+- `OneOfRequiredRule` — "at least one of these fields must be present" (intra-dataset). Validated via SQL query in `dataset-rule-validators.ts`.
+- `foreignKey` — referential integrity between datasets (cross-dataset). Defined in config `datasetRules` section.
+- Rules come from two sources: **profiles** (auto-applied via `profile.datasetRules`) and **config** (user-defined via `datasetRules` in YAML).
+- When a profile uses `oneOfRequired`, individual field requirements for member fields should be set to `"recommended"` via `fieldOverrides` (the group rule replaces per-field required).
+- Violations produce `OneOfRequiredViolation` (`Schema.TaggedClass`) with severity based on the rule's `level`.
+
 **3-Tier Constraint Resolution (packages/core/src/validation/field-resolution.ts):**
 
 At validation time, constraints are resolved through a 3-tier merge pipeline:
 1. **Spec** (SpecField constraints + obligations): Base constraints from the Darwin Core schema, plus obligation-derived `RequiredConstraint`s
-2. **Profile** (fieldOverrides): Community-specific overrides using `mergeProfileConstraints()` — strictest-wins for required, replacement for others (trusted, curated)
+2. **Profile** (fieldOverrides): Community-specific overrides using `overrideConstraints()` for requirement level (profiles are authoritative and can weaken spec requirements), `mergeProfileConstraints()` for other constraints
 3. **Config** (fieldMappings): User config using `addConstraints()` — additive only, cannot weaken spec/profile constraints
 
 **Profile Inheritance Example:**
@@ -181,6 +192,9 @@ This fetches the latest Darwin Core XML schemas and OBIS checklist, then generat
 - `packages/domain/src/specs/profiles/registry.ts` - Spec/Profile registries, resolution, and merging
 - `packages/core/src/validation/field-resolution.ts` - 3-tier constraint merge pipeline
 - `packages/core/src/validation/field-validators.ts` - Constraint-dispatched SQL validation
+- `packages/domain/src/specs/dataset-rules.ts` - `OneOfRequiredRule` and `DatasetRule` type definitions
+- `packages/core/src/validation/dataset-rule-validators.ts` - SQL-based dataset rule validation
+- `packages/domain/src/specs/profiles/obis-emof.ts` - OBIS-eMoF profile with `oneOfRequired` rule
 
 ### Key Development Patterns
 
@@ -261,7 +275,7 @@ validation:
           targetName: country
           requirement: required
 
-crossDatasetRules:
+datasetRules:
   - ruleType: foreignKey
     sourceDataset: occurrence_data
     sourceField: eventID

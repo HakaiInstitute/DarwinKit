@@ -83,7 +83,7 @@ validation:
         - originName: species_name
           targetName: scientificName
           requirement: required
-crossDatasetRules:
+datasetRules:
   - ruleType: foreignKey
     sourceDataset: occurrences
     sourceField: eventID

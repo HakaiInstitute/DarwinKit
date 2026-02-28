@@ -30,10 +30,11 @@ export function calculateSummary(
       result.fieldViolations.warnings.length;
     totalInfo += result.schemaViolations.info.length + result.fieldViolations.info.length;
 
-    if (result.status === "pass") {
+    if (result.status === "pass" || result.status === "warn") {
       datasetsPassedCount++;
-    } else if (result.status === "warn") {
-      datasetsWithWarningsCount++;
+      if (result.status === "warn") {
+        datasetsWithWarningsCount++;
+      }
     } else {
       datasetsFailedCount++;
     }

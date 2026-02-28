@@ -74,7 +74,7 @@ export const workspaceFieldMappingSchema = S.Struct({
   preset: S.optional(S.String),
 });
 
-export const workspaceCrossDatasetRuleSchema = S.Struct({
+export const datasetRuleSchema = S.Struct({
   ruleType: S.Literal("foreignKey").annotations({
     description: "Type of cross-dataset rule.",
   }),
@@ -85,9 +85,12 @@ export const workspaceCrossDatasetRuleSchema = S.Struct({
   requirement: S.optional(RequirementLevel),
   description: S.optional(S.String),
 }).annotations({
-  title: "Cross-Dataset Rule",
+  title: "Dataset Rule",
   description: "Defines a foreign key constraint between two datasets.",
 });
+
+/** @deprecated Use `datasetRuleSchema` instead. */
+export const workspaceCrossDatasetRuleSchema = datasetRuleSchema;
 
 export const datasetConfigSchema = S.Struct({
   name: S.String.annotations({ description: "Unique name for this dataset." }),
@@ -254,8 +257,8 @@ export const workspaceConfigSchema = S.Struct({
   ).pipe(
     S.withConstructorDefault(() => ({ base: "darwin-core", variant: "obis" }) as ResolvedStandard),
   ),
-  crossDatasetRules: S.optional(
-    S.Array(workspaceCrossDatasetRuleSchema).annotations({
+  datasetRules: S.optional(
+    S.Array(datasetRuleSchema).annotations({
       description: "Foreign key constraints between datasets.",
     }),
   ),
@@ -290,13 +293,13 @@ export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
 export type ValidationSettingsInput = S.Schema.Encoded<typeof validationSettingsSchema>;
 export type TransformSettings = S.Schema.Type<typeof transformSettingsSchema>;
 export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
-export type WorkspaceCrossDatasetRule = S.Schema.Type<typeof workspaceCrossDatasetRuleSchema>;
+export type DatasetRule = S.Schema.Type<typeof datasetRuleSchema>;
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
 export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
 
 export type ForeignKeyRuleMatch =
-  & Pick<WorkspaceCrossDatasetRule, "targetDataset" | "targetField">
-  & Required<Pick<WorkspaceCrossDatasetRule, "requirement">>;
+  & Pick<DatasetRule, "targetDataset" | "targetField">
+  & Required<Pick<DatasetRule, "requirement">>;
 
 export type ConfigWithValidation = WorkspaceConfig & { validation: ValidationSettings };
 
@@ -339,5 +342,6 @@ export function makeWorkspaceConfig(input: WorkspaceConfigInput): WorkspaceConfi
  * @returns Decoded WorkspaceConfig with defaults applied
  * @throws ParseError if the input doesn't match the schema
  */
-export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig =>
-  S.decodeUnknownSync(workspaceConfigSchema)(input);
+export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig => {
+  return S.decodeUnknownSync(workspaceConfigSchema)(input);
+};
