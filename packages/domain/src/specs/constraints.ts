@@ -102,6 +102,7 @@ const RangeConstraintSchema = S.transform(
         path: [],
       };
     }
+    return undefined;
   })),
   S.typeSchema(S.instanceOf(RangeConstraint)),
   {
@@ -139,6 +140,7 @@ const PatternConstraintSchema = S.transform(
         path: [],
       };
     }
+    return undefined;
   })),
   S.typeSchema(S.instanceOf(PatternConstraint)),
   {
@@ -171,6 +173,7 @@ const LengthConstraintSchema = S.transform(
         path: [],
       };
     }
+    return undefined;
   })),
   S.typeSchema(S.instanceOf(LengthConstraint)),
   {
