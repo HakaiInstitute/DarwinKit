@@ -4,6 +4,7 @@ version: 1.0.0
 description: Rocky Sub-tidal fish and invertebrate OBIS Event validation profile
 createdAt: '2024-10-06T00:00:00.000Z'
 updatedAt: '2024-10-06T00:00:00.000Z'
+standard: obis
 validation:
   nullValues:
     - NA
@@ -15,10 +16,9 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: occurrence
-      spec: dwc-occurrence
+      class: Occurrence
       path: ./2022-FalseCreek-eDNA/obis/interim_obis/edna/FC2022_occ_core.csv
       description: Marine sampling occurrence for OBIS
-      profile: Occurrence
       fieldMappings:
         - originName: scientificName
           targetName: scientificName
@@ -151,10 +151,9 @@ validation:
 
 
     - name: dnaDerivedData
-      spec: dwc-dna
+      class: DnaDerivedData
       path: ./2022-FalseCreek-eDNA/obis/interim_obis/edna/FC2022_DNA.csv
       description: Dna dervied data for OBIS
-      profile: dnaDerivedData
       fieldMappings:
         # - originName: eventID
         #   targetName: eventID

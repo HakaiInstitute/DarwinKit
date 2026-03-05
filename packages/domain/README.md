@@ -25,7 +25,6 @@ src/
 ├── errors/       # Error codes and type definitions
 ├── schemas/      # Effect validation schemas
 ├── specs/        # Darwin Core specifications and profiles
-│   ├── dwc/      # Base Darwin Core definitions
 │   └── profiles/ # Validation profiles (OBIS, GBIF, etc.)
 └── types/        # TypeScript interfaces and types
 ```
@@ -93,8 +92,10 @@ import {
   // Types
   type FieldMapping,
   // Specs
-  getValidationProfile,
-  type ValidationProfile,
+  getResolvedSpec,
+  type Profile,
+  type ResolvedSpec,
+  type Spec,
   type WorkspaceConfig,
   // Schemas
   workspaceConfigSchema,
@@ -113,13 +114,13 @@ const result = Schema.decodeUnknownEither(workspaceConfigSchema)(configData);
 ### Working with Profiles
 
 ```typescript
-import { getValidationProfile } from "@dwkt/domain";
+import { getResolvedSpec } from "@dwkt/domain";
 
 // Get a specific profile (inheritance is resolved automatically)
-const eventProfile = getValidationProfile("Event");
+const eventProfile = getResolvedSpec("Event");
 
 // Get a profile that extends another (e.g., obis-event extends Event)
-const obisEventProfile = getValidationProfile("obis-event");
+const obisEventProfile = getResolvedSpec("obis-event");
 ```
 
 ## Dependencies

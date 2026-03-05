@@ -34,7 +34,7 @@ transform:
     dropNullColumns: true
   datasets:
     - name: event_project
-      profile: Event
+      class: Event
       source:
         project: SELECT MIN(date) as mindate, 
                     MAX(date) as maxdate, 
@@ -77,7 +77,7 @@ transform:
         samplingProtocol: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/docs/Protocol.pdf'"
 
     - name: event_survey
-      profile: Event
+      class: Event
       source:
         survey: SELECT DISTINCT fish_inverts.site, date, longitude, latitude 
                 FROM fish_inverts 
@@ -115,7 +115,7 @@ transform:
         year: strftime(survey.date, '%Y')
 
     - name: event_transect
-      profile: Event
+      class: Event
       source:
         transect: SELECT min(time_start) AS time_start, max(time_end) AS time_end, fish_inverts.site, date, transect, pass, swath_type, 
                       AVG(latitude) as latitude, AVG(longitude) as longitude, string_agg(comment) as comment 
@@ -154,7 +154,7 @@ transform:
         year: strftime(transect.date, '%Y')
 
     - name: occurrence
-      profile: Occurrence
+      class: Occurrence
       source:
         occ: SELECT row_number() OVER () as rn, date, site, size, swath_type, transect, species_name_original, scientificName, common_name, comment, 
                 fish_inverts.species_name, lsid, taxonomicStatus, authority, kingdom, phylum, class, "order", family, genus, pass, diver_name 
@@ -187,7 +187,7 @@ transform:
         occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
 
     - name: eMOF_event_visibility
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         transect: SELECT row_number() OVER() as rn, * from fish_inverts WHERE fish_inverts.visibility IS NOT NULL
       fields:
@@ -203,7 +203,7 @@ transform:
         measurementMethod: "'visually'"
 
     - name: eMOF_occurrence_measurements
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         occ: SELECT row_number() OVER () as rn, date, site, size, swath_type, transect, pass, fish_inverts.measure FROM fish_inverts LEFT JOIN taxa on fish_inverts.species_name = taxa.species_name LEFT JOIN accepted_taxa on fish_inverts.common_name = accepted_taxa.common_name WHERE fish_inverts.species_name != 'no organisms' AND fish_inverts.species_name != 'SHELL Haliotus kamtschatkana' AND fish_inverts.species_name IS NOT NULL
       fields:

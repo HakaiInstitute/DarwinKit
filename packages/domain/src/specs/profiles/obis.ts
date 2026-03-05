@@ -11,189 +11,173 @@
  * Version: 2024
  */
 
-import type { ValidationProfile } from "../../schemas/validation-profile.ts";
-import { FieldRequirementLevel } from "../../schemas/validation-profile.ts";
+import type { Profile } from "../../schemas/spec-types.ts";
+import { FormatConstraint, RangeConstraint, RequiredConstraint } from "../constraints.ts";
 
-/**
- * OBIS Base Profile
- *
- * Universal requirements for all OBIS data submissions.
- */
-export const OBIS_BASE_PROFILE: ValidationProfile = {
+export const OBIS_BASE_PROFILE: Profile = {
   id: "obis",
   name: "OBIS Base Requirements",
   description:
     "Core validation requirements for all data to be published to the Ocean Biodiversity Information System (OBIS)",
-  targetSchema: "obis",
-  extends: "Event", // Inherit field definitions from Event core
+  extends: "Event",
   documentationUrl: "https://manual.obis.org/",
   version: "2024",
 
   fieldOverrides: {
-    // === Geographic Location (Required for all OBIS data) ===
     decimalLatitude: {
-      requirement: FieldRequirementLevel.Required,
-      validators: [
-        {
-          type: "range",
-          enforcement: "required",
-          params: { min: -90, max: 90 },
+      requirement: "required",
+      constraints: [
+        new RangeConstraint({
+          min: -90,
+          max: 90,
+          inclusive: true,
           message: "Latitude must be between -90 and 90 degrees",
-        },
+        }),
       ],
     },
 
     decimalLongitude: {
-      requirement: FieldRequirementLevel.Required,
-      validators: [
-        {
-          type: "range",
-          enforcement: "required",
-          params: { min: -180, max: 180 },
+      requirement: "required",
+      constraints: [
+        new RangeConstraint({
+          min: -180,
+          max: 180,
+          inclusive: true,
           message: "Longitude must be between -180 and 180 degrees",
-        },
+        }),
       ],
     },
 
     geodeticDatum: {
-      requirement: FieldRequirementLevel.Required,
-      validators: [
-        {
-          type: "required",
-          enforcement: "required",
+      requirement: "required",
+      constraints: [
+        new RequiredConstraint({
+          level: "required",
+          allowEmpty: false,
+          allowWhitespace: false,
           message: "OBIS requires geodeticDatum (e.g., WGS84, EPSG:4326)",
-        },
+        }),
       ],
     },
 
     coordinateUncertaintyInMeters: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
-      validators: [
-        {
-          type: "range",
-          enforcement: "recommended",
-          params: { min: 0 },
+      requirement: "recommended",
+      constraints: [
+        new RangeConstraint({
+          min: 0,
+          inclusive: true,
           message: "Coordinate uncertainty should be a positive number",
-        },
+        }),
       ],
     },
 
-    // === Temporal Information ===
     eventDate: {
-      requirement: FieldRequirementLevel.Required,
-      validators: [
-        {
-          type: "format",
-          enforcement: "required",
-          params: { format: "iso8601" },
+      requirement: "required",
+      constraints: [
+        new FormatConstraint({
+          format: "iso8601",
           message:
             "OBIS requires eventDate in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD)",
-        },
+        }),
       ],
     },
 
     year: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "recommended",
     },
 
     month: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     day: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
-    // === Taxonomic Information ===
     scientificName: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
-      validators: [
-        {
-          type: "required",
-          enforcement: "recommended",
+      requirement: "recommended",
+      constraints: [
+        new RequiredConstraint({
+          level: "recommended",
+          allowEmpty: false,
+          allowWhitespace: false,
           message: "Scientific name is strongly recommended for taxonomic identification",
-        },
+        }),
       ],
     },
 
     scientificNameID: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
-      validators: [
-        {
-          type: "format",
-          enforcement: "recommended",
-          params: { format: "url" },
+      requirement: "recommended",
+      constraints: [
+        new FormatConstraint({
+          format: "url",
           message: "Scientific name ID should be a valid URI (e.g., WoRMS LSID)",
-        },
+        }),
       ],
     },
 
     kingdom: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
-    // === Occurrence Information ===
     basisOfRecord: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "recommended",
     },
 
     occurrenceStatus: {
-      requirement: FieldRequirementLevel.StronglyRecommended,
+      requirement: "recommended",
     },
 
-    // === Depth Information (Marine-specific) ===
     minimumDepthInMeters: {
-      requirement: FieldRequirementLevel.Recommended,
-      validators: [
-        {
-          type: "range",
-          enforcement: "recommended",
-          params: { min: 0, max: 11000 },
+      requirement: "optional",
+      constraints: [
+        new RangeConstraint({
+          min: 0,
+          max: 11000,
+          inclusive: true,
           message: "Depth should be between 0 and 11000 meters (Mariana Trench)",
-        },
+        }),
       ],
     },
 
     maximumDepthInMeters: {
-      requirement: FieldRequirementLevel.Recommended,
-      validators: [
-        {
-          type: "range",
-          enforcement: "recommended",
-          params: { min: 0, max: 11000 },
+      requirement: "optional",
+      constraints: [
+        new RangeConstraint({
+          min: 0,
+          max: 11000,
+          inclusive: true,
           message: "Depth should be between 0 and 11000 meters",
-        },
+        }),
       ],
     },
 
-    // === Dataset/Record Metadata ===
     datasetName: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     institutionCode: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     collectionCode: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
-    // === Location Details ===
     country: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     countryCode: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     locality: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
 
     waterBody: {
-      requirement: FieldRequirementLevel.Recommended,
+      requirement: "optional",
     },
   },
 

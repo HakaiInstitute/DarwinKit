@@ -4,7 +4,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import type { WorkspaceCrossDatasetRule } from "@dwkt/domain/schemas";
+import type { DatasetRule } from "@dwkt/domain/schemas";
 import { assertEquals } from "@std/assert";
 import {
   findForeignKeyRule,
@@ -15,27 +15,31 @@ import {
   sanitizeTableName,
 } from "./sql.ts";
 
-Deno.test("sanitizeTableName - replaces special characters with underscores", () => {
-  assertEquals(sanitizeTableName("my-dataset"), "my_dataset");
-  assertEquals(sanitizeTableName("data.csv"), "data_csv");
-  assertEquals(sanitizeTableName("events 2024"), "events_2024");
-  assertEquals(sanitizeTableName("table@name!"), "table_name_");
+Deno.test("sanitizeTableName - replaces special chars, preserves valid ones", () => {
+  const cases: Array<[string, string]> = [
+    ["my-dataset", "my_dataset"],
+    ["data.csv", "data_csv"],
+    ["events 2024", "events_2024"],
+    ["table@name!", "table_name_"],
+    ["valid_name", "valid_name"],
+    ["Table123", "Table123"],
+    ["_underscore", "_underscore"],
+  ];
+  for (const [input, expected] of cases) {
+    assertEquals(sanitizeTableName(input), expected, input);
+  }
 });
 
-Deno.test("sanitizeTableName - preserves valid characters", () => {
-  assertEquals(sanitizeTableName("valid_name"), "valid_name");
-  assertEquals(sanitizeTableName("Table123"), "Table123");
-  assertEquals(sanitizeTableName("_underscore"), "_underscore");
-});
-
-Deno.test("formatNullValues - formats array for DuckDB nullstr", () => {
-  assertEquals(formatNullValues(["NA", "N/A", ""]), "'NA', 'N/A', ''");
-  assertEquals(formatNullValues(["NULL"]), "'NULL'");
-  assertEquals(formatNullValues([]), "");
-});
-
-Deno.test("formatNullValues - escapes quotes in values", () => {
-  assertEquals(formatNullValues(["it's null"]), "'it''s null'");
+Deno.test("formatNullValues - formats and escapes for DuckDB nullstr", () => {
+  const cases: Array<[string[], string]> = [
+    [["NA", "N/A", ""], "'NA', 'N/A', ''"],
+    [["NULL"], "'NULL'"],
+    [[], ""],
+    [["it's null"], "'it''s null'"],
+  ];
+  for (const [input, expected] of cases) {
+    assertEquals(formatNullValues(input), expected, JSON.stringify(input));
+  }
 });
 
 // parseDuckDBError tests
@@ -170,14 +174,14 @@ for (const testCase of constraintTestCases) {
 
 // findForeignKeyRule tests
 
-const sampleRules: WorkspaceCrossDatasetRule[] = [
+const sampleRules: DatasetRule[] = [
   {
     ruleType: "foreignKey",
     sourceDataset: "occurrence",
     sourceField: "eventID",
     targetDataset: "event",
     targetField: "eventID",
-    enforcement: "required",
+    requirement: "required",
   },
   {
     ruleType: "foreignKey",
@@ -185,14 +189,7 @@ const sampleRules: WorkspaceCrossDatasetRule[] = [
     sourceField: "occurrenceID",
     targetDataset: "occurrence",
     targetField: "occurrenceID",
-    enforcement: "recommended",
-  },
-  {
-    ruleType: "referentialIntegrity",
-    sourceDataset: "event",
-    sourceField: "eventID",
-    targetDataset: "event",
-    targetField: "eventID",
+    requirement: "recommended",
   },
 ];
 
@@ -201,13 +198,13 @@ Deno.test("findForeignKeyRule - finds matching rule", () => {
 
   assertEquals(result?.targetDataset, "event");
   assertEquals(result?.targetField, "eventID");
-  assertEquals(result?.enforcement, "required");
+  assertEquals(result?.requirement, "required");
 });
 
-Deno.test("findForeignKeyRule - returns enforcement from rule", () => {
+Deno.test("findForeignKeyRule - returns requirement from rule", () => {
   const result = findForeignKeyRule("measurement", "occurrenceID", sampleRules);
 
-  assertEquals(result?.enforcement, "recommended");
+  assertEquals(result?.requirement, "recommended");
 });
 
 Deno.test("findForeignKeyRule - returns undefined for non-matching dataset", () => {
@@ -218,12 +215,6 @@ Deno.test("findForeignKeyRule - returns undefined for non-matching dataset", () 
 
 Deno.test("findForeignKeyRule - returns undefined for non-matching field", () => {
   const result = findForeignKeyRule("occurrence", "nonexistentID", sampleRules);
-
-  assertEquals(result, undefined);
-});
-
-Deno.test("findForeignKeyRule - ignores referentialIntegrity rules", () => {
-  const result = findForeignKeyRule("event", "eventID", sampleRules);
 
   assertEquals(result, undefined);
 });
@@ -240,8 +231,8 @@ Deno.test("findForeignKeyRule - returns undefined when rules are empty", () => {
   assertEquals(result, undefined);
 });
 
-Deno.test("findForeignKeyRule - defaults enforcement to required", () => {
-  const rulesWithoutEnforcement: WorkspaceCrossDatasetRule[] = [
+Deno.test("findForeignKeyRule - defaults requirement to required", () => {
+  const rulesWithoutRequirement: DatasetRule[] = [
     {
       ruleType: "foreignKey",
       sourceDataset: "test",
@@ -251,7 +242,7 @@ Deno.test("findForeignKeyRule - defaults enforcement to required", () => {
     },
   ];
 
-  const result = findForeignKeyRule("test", "refID", rulesWithoutEnforcement);
+  const result = findForeignKeyRule("test", "refID", rulesWithoutRequirement);
 
-  assertEquals(result?.enforcement, "required");
+  assertEquals(result?.requirement, "required");
 });

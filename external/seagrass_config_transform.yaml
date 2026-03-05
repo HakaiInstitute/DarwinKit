@@ -74,7 +74,7 @@ transform:
     #     samplingProtocol: "'https://github.com/HakaiInstitute/rocky-subtidal-fish-invertebrate/blob/main/docs/Protocol.pdf'"
 
     - name: event_density
-      profile: Event
+      class: Event
       source:
         density: density
       fields:
@@ -110,7 +110,7 @@ transform:
         # year: strftime(survey.date, '%Y')
 
     - name: event_habitat
-      profile: Event
+      class: Event
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE
       fields:
@@ -155,7 +155,7 @@ transform:
 
 
     - name: occurrence
-      profile: Occurrence
+      class: Occurrence
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE
       fields:
@@ -196,7 +196,7 @@ transform:
         # occurrenceID: concat_ws('-',' hakaiFI', occ.site, occ.date, 'transect', occ.transect, occ.pass, occ.swath_type, 'occ', occ.rn)
 
     - name: eMOF_SubstrateTypeA
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE AND split_part(habitat.substrate,',',1) is not null
       fields:
@@ -213,7 +213,7 @@ transform:
         measurementMethod: "''"
 
     - name: eMOF_SubstrateTypeB
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE AND split_part(habitat.substrate,',',2) is not null
       fields:
@@ -230,7 +230,7 @@ transform:
         measurementMethod: "''"
 
     - name: eMOF_BarePatchLengthWithinSeagrass
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.patchiness is not null
       fields:
@@ -247,7 +247,7 @@ transform:
         measurementMethod: "''"
 
     - name: eMOF_PrimaryAdjacentHabitat
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.adj_habitat_1 is not null
       fields:
@@ -264,7 +264,7 @@ transform:
         measurementMethod: "''"
 
     - name: eMOF_SecondaryAdjacentHabitat
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.adj_habitat_2 is not null
       fields:
@@ -281,7 +281,7 @@ transform:
         measurementMethod: "''"
 
     - name: eMOF_PrimaryAlgaeSp
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.vegetation_1 is not null
       fields:
@@ -298,7 +298,7 @@ transform:
         measurementMethod: "''"
 
     - name: eMOF_SecondaryAlgaeSp
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         habitat: SELECT * from habitat where sample_collected = TRUE AND habitat.vegetation_2 is not null
       fields:
@@ -315,7 +315,7 @@ transform:
         measurementMethod: "''"
 
     - name: eMOF_BedAbund
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         density: SELECT * from density where density.density__m2_ is not null
       fields:
@@ -332,7 +332,7 @@ transform:
         measurementMethod: "'25cmx25cm quadrat count'"
 
     - name: eMOF_CanopyHeight
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         density: SELECT * from density where density.canopy_height_cm is not null
       fields:
@@ -350,7 +350,7 @@ transform:
         measurementMethod: "'in situ with ruler'"
 
     - name: eMOF_FloweringBedAbund
-      profile: ExtendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       source:
         density: SELECT * from density where density.flowering_shoots is not null
       fields:

@@ -26,7 +26,7 @@ interface Thesaurus {
   [key: string]: unknown;
 }
 
-interface FieldDefinition {
+interface ImportRawField {
   group?: string;
   name: string;
   label: string;
@@ -43,7 +43,7 @@ interface FieldDefinition {
 interface SchemaTable {
   name: string;
   fieldOverrides: Record<string, unknown>;
-  fields: Record<string, FieldDefinition>;
+  fields: Record<string, ImportRawField>;
   [key: string]: unknown;
 }
 
@@ -63,7 +63,6 @@ interface OBISChecklistRow {
 
 interface RangeValidator {
   type: "range";
-  enforcement: string;
   params: { min: number; max: number };
   message: string;
 }
@@ -71,6 +70,7 @@ interface RangeValidator {
 interface Options {
   group?: string;
   idFieldName: string;
+  nameOverride?: string;
 }
 
 // ============================================================================
@@ -167,7 +167,7 @@ function xmlThesaurusToJson(inputID: string, externalDir: string): Thesaurus {
  * Parses XML extension/core definitions and extracts field properties.
  */
 function xmlSchemaToJson(filePath: string, options: Options, externalDir: string): SchemaJson {
-  const { group, idFieldName } = options;
+  const { group, idFieldName, nameOverride } = options;
   Effect.logInfo(`Reading Schema file ${filePath}`);
 
   const inputXML = Deno.readTextFileSync(filePath);
@@ -181,10 +181,10 @@ function xmlSchemaToJson(filePath: string, options: Options, externalDir: string
     throw new Error(`No extension or core element found in ${filePath}`);
   }
 
-  const extensionName = extension._attributes?.name || "Unknown";
+  const extensionName = nameOverride ?? extension._attributes?.name ?? "Unknown";
 
   // Extract field properties from property elements
-  const fields: Record<string, FieldDefinition> = {};
+  const fields: Record<string, ImportRawField> = {};
   // deno-lint-ignore no-explicit-any
   getArray(extension.property).forEach((prop: any) => {
     const attrs = prop._attributes;
@@ -198,7 +198,7 @@ function xmlSchemaToJson(filePath: string, options: Options, externalDir: string
     label = label[0].toUpperCase() + label.slice(1);
 
     // Build field definition with all attributes
-    const field: FieldDefinition = {
+    const field: ImportRawField = {
       group: group || attrs.group || undefined,
       name,
       label,
@@ -344,14 +344,6 @@ function assignValidators(schemaJson: SchemaJson): void {
         validators.push("required");
       }
 
-      // Recommended validators
-      if (
-        field.obis_required === "recommended" ||
-        field.obis_required === "strongly recommended"
-      ) {
-        validators.push("recommended");
-      }
-
       // Type-based validators
       if (field.unique === "true") validators.push("uniqueIdentifier");
       if (field.type === "integer") validators.push("integer");
@@ -366,7 +358,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "decimalLatitude") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: -90, max: 90 },
           message: "Latitude must be between -90 and +90 degrees",
         });
@@ -374,7 +365,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "decimalLongitude") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: -180, max: 180 },
           message: "Longitude must be between -180 and +180 degrees",
         });
@@ -382,7 +372,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "year") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: 1600, max: currentYear },
           message: "Year must be between 1600 and current year",
         });
@@ -390,7 +379,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "month") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: 1, max: 12 },
           message: "Month must be between 1 and 12",
         });
@@ -398,7 +386,6 @@ function assignValidators(schemaJson: SchemaJson): void {
       if (field.name === "day") {
         validators.push({
           type: "range",
-          enforcement: "required",
           params: { min: 1, max: 31 },
           message: "Day must be between 1 and 31",
         });

@@ -4,6 +4,7 @@ version: 1.0.0
 description: Rocky Inter-tidal Motile invertebrate OBIS Event validation profile
 createdAt: '2025-12-15T00:00:00.000Z'
 updatedAt: '2025-12-15T00:00:00.000Z'
+standard: obis
 validation:
   nullValues:
     - NA
@@ -12,23 +13,20 @@ validation:
     - 'NULL'
     - 'null'
   failFast: false
-  debug: true
+  debug: false
   outputDir: ./validation_results
   datasets:
     - name: events
-      spec: dwc-event
+      class: Event
       path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/event.csv
       description: Marine sampling events for OBIS
-      profile: Event
 
     - name: occurrence
-      spec: dwc-occurrence
+      class: Occurrence
       path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/occurrence.csv
       description: Marine sampling occurrence for OBIS
-      profile: Occurrence
 
     - name: extendedMeasurementOrFact
-      spec: dwc-eMOF
+      class: ExtendedMeasurementOrFact
       path: ./nearshore-RI_motileInvertebrates/obis/obis_outputs/eMoF.csv
       description: Marine sampling Extended Measurement Or Fact for OBIS
-      profile: ExtendedMeasurementOrFact

@@ -12,23 +12,16 @@
  * 4. Complex nested structures - Creating schemas would add complexity without benefit
  *
  * The types aggregate results from multiple validators and datasets, providing
- * a comprehensive view of validation outcomes partitioned by enforcement level
+ * a comprehensive view of validation outcomes partitioned by severity
  * (errors, warnings, info).
  */
 
-import type {
-  CrossDatasetViolation,
-  FieldViolation,
-  PartitionedViolations,
-} from "./validation-violation.ts";
+import type { FieldViolation, PartitionedViolations } from "./validation-violation.ts";
 import type { SchemaViolation } from "./schema-violation.ts";
 
-/**
- * Validation result for a single dataset within a workspace
- */
 export interface DatasetValidationResult {
   readonly datasetName: string;
-  readonly spec: string;
+  readonly class: string;
   readonly filePath: string;
   readonly rowsProcessed: number;
   readonly processingTimeMs: number;
@@ -37,30 +30,10 @@ export interface DatasetValidationResult {
   /** Schema-level violations (structural issues: missing fields, unknown profiles) */
   readonly schemaViolations: PartitionedViolations<SchemaViolation>;
 
-  /** Field-level violations (data issues: range, vocabulary, uniqueness) */
+  /** Field-level violations (data issues: range, format, pattern, length, required, uniqueness) */
   readonly fieldViolations: PartitionedViolations<FieldViolation>;
 }
 
-/**
- * Cross-dataset validation result
- *
- * Uses CrossDatasetViolation[] directly for violations, which includes:
- * - rowNumber, value, errorMessage (from ViolationBase)
- * - params.sourceDataset, params.targetDataset, params.targetField
- * - enforcement and severity for consistent handling with other violations
- */
-export interface CrossDatasetValidationResult {
-  readonly ruleType: "foreignKey" | "referentialIntegrity";
-  readonly sourceDataset: string;
-  readonly sourceField: string;
-  readonly targetDataset: string;
-  readonly targetField: string;
-  readonly violations: ReadonlyArray<CrossDatasetViolation>;
-}
-
-/**
- * Complete workspace validation result
- */
 export interface WorkspaceValidationResult {
   readonly workspaceId: string;
   readonly configPath: string;
@@ -68,13 +41,7 @@ export interface WorkspaceValidationResult {
   readonly totalProcessingTimeMs: number;
   readonly overallStatus: "pass" | "warn" | "fail";
 
-  /** Per-dataset results */
   readonly datasetResults: ReadonlyArray<DatasetValidationResult>;
-
-  /** Cross-dataset results */
-  readonly crossDatasetResults: ReadonlyArray<CrossDatasetValidationResult>;
-
-  /** Summary statistics */
   readonly summary: {
     readonly totalDatasets: number;
     readonly datasetsPassedCount: number;
@@ -84,17 +51,5 @@ export interface WorkspaceValidationResult {
     readonly totalWarnings: number;
     readonly totalInfo: number;
     readonly totalRowsProcessed: number;
-  };
-
-  /** Transformation statistics (optional, populated when transformation tracking is enabled) */
-  readonly transformationSummary?: {
-    readonly totalValues: number;
-    readonly transformedValues: number;
-    readonly byType: {
-      readonly [transformationType: string]: {
-        readonly count: number;
-        readonly percentage: number;
-      };
-    };
   };
 }

@@ -60,30 +60,30 @@ validation:
       fieldMappings:
         - originName: event_id
           targetName: eventID
-          isRequired: true
+          requirement: required
         - originName: sample_date
           targetName: eventDate
-          isRequired: true
+          requirement: required
         - originName: latitude
           targetName: decimalLatitude
-          isRequired: true
+          requirement: required
         - originName: longitude
           targetName: decimalLongitude
-          isRequired: true
+          requirement: required
     - name: occurrences
       spec: dwc-occurrence
       path: ./data/occurrences.csv
       fieldMappings:
         - originName: occurrence_id
           targetName: occurrenceID
-          isRequired: true
+          requirement: required
         - originName: event_id
           targetName: eventID
-          isRequired: true
+          requirement: required
         - originName: species_name
           targetName: scientificName
-          isRequired: true
-crossDatasetRules:
+          requirement: required
+datasetRules:
   - ruleType: foreignKey
     sourceDataset: occurrences
     sourceField: eventID

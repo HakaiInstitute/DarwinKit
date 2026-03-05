@@ -10,7 +10,6 @@ export const primitiveType = S.Literal(
   "null",
 );
 
-// Field schema validation
 export const fieldSchemaSchema = S.Struct({
   name: S.String,
   inferredType: S.String,
@@ -20,10 +19,9 @@ export const fieldSchemaSchema = S.Struct({
   sampleValues: S.optional(S.Array(S.String)),
 });
 
-// Helper type for the FieldSchema
 type FieldSchemaType = S.Schema.Type<typeof fieldSchemaSchema>;
 
-// Dataset schema validation (using array format for JSON compatibility)
+// Using array format for JSON compatibility
 export const datasetSchemaSchema = S.Struct({
   fields: S.transform(
     S.Array(S.Tuple(S.String, fieldSchemaSchema)),
@@ -39,8 +37,5 @@ export const datasetSchemaSchema = S.Struct({
   inferredAt: S.Date,
 });
 
-// Field schema derived from DuckDB column metadata
 export type FieldSchema = S.Schema.Type<typeof fieldSchemaSchema>;
-
-// Schema for the entire dataset
 export type DatasetSchema = S.Schema.Type<typeof datasetSchemaSchema>;

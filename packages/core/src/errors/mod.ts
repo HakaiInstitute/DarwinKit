@@ -15,7 +15,6 @@
 import * as Data from "effect/Data";
 
 // Core-specific error types
-export { ParseError } from "../loading/csv-parser.ts";
 export type { OutputError, TransformationError } from "../transform/transform.ts";
 
 /**

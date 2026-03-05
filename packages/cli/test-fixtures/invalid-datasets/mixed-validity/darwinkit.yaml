@@ -4,6 +4,7 @@ version: 1.0.0
 description: Dataset with both valid and invalid records for testing validation error detection
 createdAt: '2024-01-01T00:00:00.000Z'
 updatedAt: '2025-01-22T00:00:00.000Z'
+standard: obis
 validation:
   nullValues:
     - NA
@@ -15,22 +16,18 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: occurrence_data
-      spec: dwc-occurrence
+      class: Occurrence
       path: data/mixed_occ.csv
       description: Mixed occurrence data with both valid and invalid records
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
         - originName: occurrenceID
           targetName: occurrenceID
-          isRequired: true
         - originName: basisOfRecord
           targetName: basisOfRecord
-          isRequired: true
         - originName: scientificName
           targetName: scientificName
-          isRequired: true
         - originName: scientificNameID
           targetName: scientificNameID
         - originName: taxonRank

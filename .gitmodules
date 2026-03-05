@@ -13,3 +13,6 @@
 [submodule "external/2022-FalseCreek-eDNA"]
 	path = external/2022-FalseCreek-eDNA
 	url = git@github.com:HakaiInstitute/2022-FalseCreek-eDNA.git
+[submodule "external/hakai-zooplankton-microscopy-dataset"]
+	path = external/hakai-zooplankton-microscopy-dataset
+	url = git@github.com:HakaiInstitute/hakai-zooplankton-microscopy-dataset.git

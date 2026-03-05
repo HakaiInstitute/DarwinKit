@@ -15,63 +15,55 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 
-import type {
-  ValidationProfile,
-  ValidationSettings,
-  WorkspaceCrossDatasetRule,
-} from "@dwkt/domain/schemas";
-import { vocabularyEnforcementToStandard } from "@dwkt/domain/specs";
+import type { DatasetRule, ResolvedSpec, ValidationSettings } from "@dwkt/domain/schemas";
 import type { FieldViolation } from "@dwkt/domain/types";
 import {
-  enforcementToSeverity,
   EnumViolation,
   ForeignKeyViolation,
   NotNullViolation,
   PrimaryKeyViolation,
+  requirementToSeverity,
 } from "@dwkt/domain/types";
+import { obligationForStandard } from "@dwkt/domain/specs";
 
 import { getCsvValue } from "../loading/csv-import.ts";
 import type { ParsedErrorInfo } from "../loading/sql.ts";
-import { findForeignKeyRule, formatConstraintViolation, parseDuckDBError } from "../loading/sql.ts";
+import {
+  escapeString,
+  findForeignKeyRule,
+  formatConstraintViolation,
+  parseDuckDBError,
+} from "../loading/sql.ts";
 import { findSuggestedValue } from "./string-matching.ts";
 
-/**
- * Column mapping for data insertion
- */
 export interface ColumnMapping {
   readonly origin: string;
   readonly target: string;
 }
 
-/**
- * Context for creating violations from parsed errors
- */
 interface ViolationContext {
   readonly connection: DuckDBConnection;
   readonly rawTableName: string;
   readonly schemaTableName: string;
   readonly columnMappings: ColumnMapping[];
-  readonly profile: ValidationProfile;
+  readonly resolvedSpec: ResolvedSpec;
+  readonly activeStandard: "obis" | "gbif";
   readonly enableSuggestions: boolean;
   readonly rowNum: number;
   readonly processedDuplicates: Set<string>;
   readonly currentDataset: string;
-  readonly crossDatasetRules: readonly WorkspaceCrossDatasetRule[];
+  readonly datasetRules: readonly DatasetRule[];
 }
 
-/**
- * Handle primary key violation
- */
 function handlePrimaryKeyViolation(
   parsed: ParsedErrorInfo,
   ctx: ViolationContext,
 ): Effect.Effect<FieldViolation[]> {
   return Effect.gen(function* (_) {
-    // Find the PK field from mappings
     const pkMapping = ctx.columnMappings.find((m) =>
       m.target === ctx.schemaTableName + "ID" ||
       (m.target.endsWith("ID") &&
-        ctx.profile.fields?.[m.target]?.unique === "true")
+        ctx.resolvedSpec.rawFields?.[m.target]?.unique === "true")
     );
 
     if (
@@ -81,17 +73,15 @@ function handlePrimaryKeyViolation(
       return [];
     }
 
-    const specField = ctx.profile.normalizedFields?.[pkMapping.target];
+    const specField = ctx.resolvedSpec.specFields?.[pkMapping.target];
     if (!specField) return [];
 
-    // Mark this duplicate value as processed
     ctx.processedDuplicates.add(parsed.value);
 
-    // Query the raw table to find ALL rows with this duplicate value
     const duplicateQuery = `
       SELECT _row_number
       FROM ${ctx.rawTableName}
-      WHERE "${pkMapping.origin}" = '${parsed.value}'
+      WHERE "${pkMapping.origin}" = '${escapeString(parsed.value)}'
     `;
 
     const duplicateResult = yield* _(
@@ -104,7 +94,6 @@ function handlePrimaryKeyViolation(
     const duplicateCount = duplicateRows.length;
     const violations: FieldViolation[] = [];
 
-    // Create a violation for each row that has the duplicate value
     for (const dupRow of duplicateRows) {
       const dupRowNum = Number(dupRow._row_number);
       const csvValue = yield* _(
@@ -113,8 +102,7 @@ function handlePrimaryKeyViolation(
 
       violations.push(
         new PrimaryKeyViolation({
-          enforcement: "required",
-          severity: enforcementToSeverity("required"),
+          severity: requirementToSeverity("required"),
           fieldName: pkMapping.origin,
           targetName: pkMapping.target,
           rowNumber: dupRowNum,
@@ -123,7 +111,6 @@ function handlePrimaryKeyViolation(
           constraintType: "duplicate",
           duplicateCount,
           errorMessage: `Duplicate primary key: "${parsed.value}"`,
-          validatorType: "primary-key",
         }),
       );
     }
@@ -132,35 +119,29 @@ function handlePrimaryKeyViolation(
   });
 }
 
-/**
- * Handle not null violation
- */
 function handleNotNullViolation(
   parsed: ParsedErrorInfo,
   ctx: ViolationContext,
 ): Effect.Effect<FieldViolation[]> {
   return Effect.sync(() => {
-    // Find the field that caused the NOT NULL violation
     const notNullMapping = ctx.columnMappings.find((m) =>
       parsed.fieldName ? m.target === parsed.fieldName : false
     );
 
     if (!notNullMapping) return [];
 
-    const specField = ctx.profile.normalizedFields?.[notNullMapping.target];
+    const specField = ctx.resolvedSpec.specFields?.[notNullMapping.target];
     if (!specField) return [];
 
     return [
       new NotNullViolation({
-        enforcement: "required",
-        severity: enforcementToSeverity("required"),
+        severity: requirementToSeverity("required"),
         fieldName: notNullMapping.origin,
         targetName: notNullMapping.target,
         rowNumber: ctx.rowNum,
         value: "",
         csvValue: "",
         errorMessage: `Required field "${notNullMapping.origin}" cannot be NULL`,
-        validatorType: "not-null",
       }),
     ];
   });
@@ -168,48 +149,41 @@ function handleNotNullViolation(
 
 /**
  * Handle enum violation
+ *
+ * ENUMs are only created for fields whose obligation warrants strict validation
+ * (see `shouldEnforceVocabulary` in schema.ts). If DuckDB rejected a row
+ * due to an ENUM constraint, the violation is always worth reporting.
+ * Severity is derived from the field's obligation in the active standard.
  */
 function handleEnumViolation(
   parsed: ParsedErrorInfo,
   ctx: ViolationContext,
 ): Effect.Effect<FieldViolation[]> {
   return Effect.sync(() => {
-    // Find the field that caused the ENUM violation
     const enumMapping = ctx.columnMappings.find((m) =>
       m.origin === parsed.fieldName || m.target === parsed.fieldName
     );
 
     if (!enumMapping || !parsed.value) return [];
 
-    const specField = ctx.profile.normalizedFields?.[enumMapping.target];
-    const rawField = ctx.profile.fields?.[enumMapping.target];
+    const specField = ctx.resolvedSpec.specFields?.[enumMapping.target];
+    const rawField = ctx.resolvedSpec.rawFields?.[enumMapping.target];
 
     if (!specField || !rawField?.values) return [];
 
-    // Get vocabulary enforcement level - determines how strictly to validate
-    const vocabEnforcement = specField.vocabulary?.enforcement ?? "strict";
-
-    // Skip violations for loose enforcement - any value is accepted
-    if (vocabEnforcement === "loose") {
-      return [];
-    }
+    // Derive severity from obligation. Default to "recommended" (WARNING) since the
+    // ENUM's existence already implies the field has sufficient obligation.
+    const obligationResult = obligationForStandard(specField, ctx.activeStandard);
+    const requirement = obligationResult?.requirement ?? "recommended";
 
     const allowedValues = Object.keys(rawField.values);
     const suggestedValue = ctx.enableSuggestions
       ? findSuggestedValue(parsed.value, allowedValues)
       : undefined;
 
-    // Get enforcement from the field's validators first, fall back to vocabulary enforcement
-    const vocabValidator = specField.validators?.find((v) =>
-      v.type === "required" || v.type === "unique"
-    );
-    const enforcement = vocabValidator?.enforcement ??
-      vocabularyEnforcementToStandard(vocabEnforcement);
-
     return [
       new EnumViolation({
-        enforcement,
-        severity: enforcementToSeverity(enforcement),
+        severity: requirementToSeverity(requirement),
         fieldName: enumMapping.origin,
         targetName: enumMapping.target,
         rowNumber: ctx.rowNum,
@@ -221,53 +195,38 @@ function handleEnumViolation(
         errorMessage: suggestedValue
           ? `Invalid value "${parsed.value}" (did you mean "${suggestedValue}"?)`
           : `Invalid value "${parsed.value}" (must be one of: ${allowedValues.join(", ")})`,
-        validatorType: "enum",
       }),
     ];
   });
 }
 
-/**
- * Handle foreign key violation
- *
- * Creates a ForeignKeyViolation when a row references a value that doesn't
- * exist in the referenced table. FK constraints only exist when explicit
- * crossDatasetRules are configured, so we look up the matching rule for
- * proper error context.
- */
 function handleForeignKeyViolation(
   parsed: ParsedErrorInfo,
   ctx: ViolationContext,
 ): Effect.Effect<FieldViolation[]> {
   return Effect.gen(function* (_) {
-    // Find the mapping for the FK field from the parsed error
     const fkMapping = parsed.fieldName
       ? ctx.columnMappings.find((m) =>
         m.target === parsed.fieldName || m.origin === parsed.fieldName
       )
       : undefined;
 
-    // Look up the FK rule from config if we have a mapping
     const fkRule = fkMapping
-      ? findForeignKeyRule(ctx.currentDataset, fkMapping.target, ctx.crossDatasetRules)
+      ? findForeignKeyRule(ctx.currentDataset, fkMapping.target, ctx.datasetRules)
       : undefined;
 
-    // Resolve field names - prefer mapping, fall back to parsed info
     const originField = fkMapping?.origin ?? parsed.fieldName ?? "unknown";
     const targetField = fkMapping?.target ?? parsed.fieldName ?? "unknown";
 
-    // Get the CSV value - fetch from DB if we have a mapping, otherwise use parsed value
     const csvValue = parsed.value ??
       (fkMapping
         ? yield* _(getCsvValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum))
         : "");
 
-    // Determine enforcement and referenced table/field from rule or parsed info
-    const enforcement = fkRule?.enforcement ?? "required";
+    const requirement = fkRule?.requirement ?? "required";
     const referencedTable = fkRule?.targetDataset ?? parsed.referencedTable ?? "unknown";
     const referencedField = fkRule?.targetField ?? parsed.referencedField ?? targetField;
 
-    // Use shared formatting for error message
     const errorMessage = formatConstraintViolation({
       type: "foreign-key",
       fieldName: targetField,
@@ -281,8 +240,7 @@ function handleForeignKeyViolation(
 
     return [
       new ForeignKeyViolation({
-        enforcement,
-        severity: enforcementToSeverity(enforcement),
+        severity: requirementToSeverity(requirement),
         fieldName: originField,
         targetName: targetField,
         rowNumber: ctx.rowNum,
@@ -291,7 +249,6 @@ function handleForeignKeyViolation(
         referencedTable,
         referencedField,
         errorMessage,
-        validatorType: "foreign-key",
         // Include rule params when available for downstream consumers
         ...(fkRule && {
           params: {
@@ -326,32 +283,18 @@ function createViolationsFromError(
 }
 
 /**
- * Insert rows one-by-one, collecting violations for any that fail
- *
- * This function is used as a fallback when bulk insertion fails due to
- * constraint violations. It inserts each row individually, capturing
- * detailed information about any violations that occur.
- *
- * Uses the error channel pattern for violations:
- * - Success: All rows inserted without constraint violations
- * - Failure: Contains array of FieldViolation objects found during insertion
- *
- * @param connection - DuckDB connection for write operations
- * @param rawTableName - Name of the raw CSV table
- * @param schemaTableName - Name of the schema table to insert into
- * @param columnMappings - Mapping of origin columns to target columns
- * @param profile - Validation profile with field definitions
- * @param validationSettings - Optional validation settings
- * @returns Effect that succeeds with void or fails with FieldViolation[]
+ * Fallback for when bulk INSERT fails — inserts each row individually,
+ * collecting constraint violations in the error channel.
  */
 export function insertRowByRow(
   connection: DuckDBConnection,
   rawTableName: string,
   schemaTableName: string,
   columnMappings: ColumnMapping[],
-  profile: ValidationProfile,
+  resolvedSpec: ResolvedSpec,
+  activeStandard: "obis" | "gbif",
   currentDataset: string,
-  crossDatasetRules: readonly WorkspaceCrossDatasetRule[],
+  datasetRules: readonly DatasetRule[],
   validationSettings?: ValidationSettings,
 ): Effect.Effect<void, FieldViolation[]> {
   return Effect.gen(function* (_) {
@@ -359,7 +302,6 @@ export function insertRowByRow(
     const enableSuggestions = validationSettings?.enableSuggestions ?? true;
     const processedDuplicates = new Set<string>();
 
-    // Get maximum _row_number to determine iteration range
     const maxRowResult = yield* _(
       Effect.tryPromise(() =>
         connection.runAndReadAll(
@@ -369,11 +311,9 @@ export function insertRowByRow(
     );
     const maxRow = Number(maxRowResult.getRowObjects()[0]?.max_row ?? 0);
 
-    // Build column lists for INSERT
     const targetColumns = columnMappings.map((m) => `"${m.target}"`).join(", ");
     const originColumns = columnMappings.map((m) => `"${m.origin}"`).join(", ");
 
-    // Insert each row individually by _row_number
     for (let rowNum = 1; rowNum <= maxRow; rowNum++) {
       const insertSQL = `
         INSERT INTO ${schemaTableName} (${targetColumns}, _row_number)
@@ -396,29 +336,25 @@ export function insertRowByRow(
       const error = result.left;
       if (!(error instanceof Error)) continue;
 
-      // Parse the error to determine violation type
       const parsed = parseDuckDBError(error);
-
-      // Create context for violation handling
       const ctx: ViolationContext = {
         connection,
         rawTableName,
         schemaTableName,
         columnMappings,
-        profile,
+        resolvedSpec,
+        activeStandard,
         enableSuggestions,
         rowNum,
         processedDuplicates,
         currentDataset,
-        crossDatasetRules,
+        datasetRules,
       };
 
-      // Create violations using Match.exhaustive pattern
       const newViolations = yield* _(createViolationsFromError(parsed, ctx));
       violations.push(...newViolations);
     }
 
-    // Use error channel: succeed if no violations, fail with violations otherwise
     if (violations.length > 0) {
       return yield* _(Effect.fail(violations));
     }

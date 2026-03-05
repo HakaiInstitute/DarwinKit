@@ -4,6 +4,9 @@ version: 1.0.0
 description: Hakai Institute Fish Creek 2022 survey data validation configuration
 createdAt: '2024-01-01T00:00:00.000Z'
 updatedAt: '2025-01-22T00:00:00.000Z'
+standard:
+  base: darwin-core
+  variant: obis
 validation:
   nullValues:
     - NA
@@ -15,13 +18,12 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: event_data
-      spec: dwc-event
+      class: Event
       path: data/FC2022_event.csv
       description: Event data containing sampling locations and metadata
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
         - originName: language
           targetName: language
         - originName: license
@@ -34,10 +36,8 @@ validation:
           targetName: modified
         - originName: country
           targetName: country
-          isRequired: true
         - originName: countryCode
           targetName: countryCode
-          isRequired: true
         - originName: geodeticDatum
           targetName: geodeticDatum
         - originName: stateProvince
@@ -85,22 +85,18 @@ validation:
         - originName: eventRemarks
           targetName: eventRemarks
     - name: occurrence_data
-      spec: dwc-occurrence
+      class: Occurrence
       path: data/FC2022_occ.csv
       description: Species occurrence records from eDNA analysis
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
         - originName: occurrenceID
           targetName: occurrenceID
-          isRequired: true
         - originName: basisOfRecord
           targetName: basisOfRecord
-          isRequired: true
         - originName: scientificName
           targetName: scientificName
-          isRequired: true
         - originName: scientificNameID
           targetName: scientificNameID
         - originName: taxonRank
@@ -160,13 +156,12 @@ validation:
         - originName: recordedBy
           targetName: recordedBy
     - name: emof_data
-      spec: dwc-extendedMeasurementOrFact
+      class: ExtendedMeasurementOrFact
       path: data/FC2022_eMOF.csv
       description: Extended measurement or fact data
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
         - originName: occurrenceID
           targetName: occurrenceID
         - originName: DNA_sequence
@@ -205,7 +200,7 @@ validation:
           targetName: otu_seq_comp_appr
         - originName: otu_db
           targetName: otu_db
-crossDatasetRules:
+datasetRules:
   - ruleType: foreignKey
     sourceDataset: occurrence_data
     sourceField: eventID

@@ -1,196 +1,193 @@
-/**
- * Field Definition
- *
- * A normalized field structure derived from JSON schema fields.
- * Used by validation logic to work with a consistent format.
- *
- * ## Purpose
- *
- * FieldDefinition provides a unified representation for validation by:
- * - Converting string validators → ValidatorConfig objects
- * - Converting values object → VocabularyConfig
- * - Providing consistent property names and structure
- *
- * ## Usage
- *
- * - Validation code uses `profile.normalizedFields` (FieldDefinition)
- * - Transformation code uses `profile.fields` (raw JSON schema format)
- *
- * See validation-profile.ts for details on the dual-purpose field storage.
- */
-
 import * as S from "effect/Schema";
-import type { Field } from "../schemas/validation-profile.ts";
-import type { ValidatorConfig } from "./validators.ts";
-import { ValidatorConfigSchema } from "./validators.ts";
-import type { VocabularyConfig } from "./vocabularies/config.ts";
-import type { VocabularyKey } from "./vocabularies/registry.ts";
+import type { RawField } from "../schemas/spec-types.ts";
+import {
+  type Constraint,
+  ConstraintSchema,
+  FieldDataType,
+  FormatConstraint,
+  type Obligation,
+  ObligationsMap,
+  obligationToRequirement,
+  RequiredConstraint,
+  type RequirementLevel,
+  UniqueConstraint,
+} from "./constraints.ts";
 
-export const FieldDefinitionSchema = S.Struct({
+export const SpecFieldSchema = S.Struct({
   name: S.String,
   label: S.optional(S.String),
-  validators: S.Array(ValidatorConfigSchema),
-  vocabulary: S.optional(S.Struct({
-    vocabularyKey: S.String,
-    caseSensitive: S.optional(S.Boolean),
-    enforcement: S.optional(S.Literal("strict", "recommended", "loose")),
-  })),
-  type: S.optional(S.String),
-  requirement: S.optional(S.String),
+  constraints: S.Array(ConstraintSchema),
+  dataType: S.optional(FieldDataType),
+  obligations: S.optional(ObligationsMap),
   comments: S.optional(S.String),
   examples: S.optional(S.String),
 });
 
-export type FieldDefinition = S.Schema.Type<typeof FieldDefinitionSchema>;
+export type SpecField = S.Schema.Type<typeof SpecFieldSchema>;
 
 /**
- * Normalize a JSON schema field to a FieldDefinition
+ * Result of looking up a field's obligation for a given standard.
  *
- * Converts:
- * - validators: string[] → ValidatorConfig[]
- * - values: Record<string, unknown> → vocabulary: VocabularyConfig
+ * Returns both the raw obligation (for conditional logic like "required (if exists)")
+ * and the derived requirement level (for constraint generation).
  */
-export function normalizeField(jsonField: Field): FieldDefinition {
-  // Convert validators to ValidatorConfig objects
-  // JSON schema validators can be either strings or objects
-  const validators: ValidatorConfig[] = jsonField.validators?.map((v) => {
-    // If already an object, use as-is (already ValidatorConfig format)
-    if (typeof v === "object" && v !== null && "type" in v) {
-      return v as unknown as ValidatorConfig;
-    }
+export interface ObligationResult {
+  readonly obligation: Obligation;
+  readonly requirement: RequirementLevel | undefined;
+}
 
-    // Convert string validators to ValidatorConfig objects
-    if (typeof v === "string") {
-      switch (v) {
-        case "uniqueIdentifier":
-        case "unique":
-          return {
-            type: "unique" as const,
-            enforcement: "required" as const,
-          };
-        case "required":
-          return {
-            type: "required" as const,
-            enforcement: "required" as const,
-          };
-        case "recommended":
-          return {
-            type: "required" as const,
-            enforcement: "recommended" as const,
-          };
-        case "optional":
-          return {
-            type: "required" as const,
-            enforcement: "optional" as const,
-          };
-        case "integer":
-        case "decimal":
-        case "date":
-        case "url":
-        case "iso8601Date":
-          // Type validators - these validate the data type
-          // Note: Some like "url" and "iso8601Date" are not in ValidatorType enum
-          // but are used in legacy schemas. We treat them as optional validators.
-          return {
-            type: v as ValidatorConfig["type"],
-            enforcement: "optional" as const,
-          };
-        default:
-          // Unknown validator string - use a no-op validator
-          return {
-            type: "required" as const,
-            enforcement: "optional" as const,
-          };
+export function obligationForStandard(
+  field: SpecField,
+  standard: "obis" | "gbif",
+): ObligationResult | undefined {
+  if (!field.obligations) return undefined;
+  const obligation = standard === "obis" ? field.obligations.obis : field.obligations.gbif;
+  if (!obligation) return undefined;
+  return { obligation, requirement: obligationToRequirement(obligation) };
+}
+
+/**
+ * Map JSON schema type strings to FieldDataType values.
+ *
+ * JSON schemas use different naming than our FieldDataType enum:
+ * - "controlled-vocabulary" → "string"
+ * - "decimal" → "number"
+ * - "uri" → "uri"
+ * - etc.
+ */
+export function mapJsonTypeToFieldDataType(
+  jsonType: string | undefined,
+): S.Schema.Type<typeof FieldDataType> | undefined {
+  if (!jsonType) return undefined;
+  const mapping: Record<string, S.Schema.Type<typeof FieldDataType>> = {
+    "string": "string",
+    "controlled-vocabulary": "string",
+    "decimal": "number",
+    "integer": "integer",
+    "date": "date",
+    "boolean": "boolean",
+    "uri": "uri",
+    "identifier": "identifier",
+    "coordinate": "coordinate",
+  };
+  return mapping[jsonType];
+}
+
+const VALID_OBLIGATIONS: ReadonlySet<string> = new Set([
+  "required",
+  "strongly recommended",
+  "recommended",
+  "optional",
+  "required (if exists)",
+  "optional (required for imaging data)",
+]);
+
+function isValidObligation(value: string): value is Obligation {
+  return VALID_OBLIGATIONS.has(value);
+}
+
+const STRING_VALIDATOR_MAP: Record<string, Constraint | null> = {
+  uniqueIdentifier: new UniqueConstraint({}),
+  unique: new UniqueConstraint({}),
+  required: new RequiredConstraint({
+    level: "required",
+    allowEmpty: false,
+    allowWhitespace: false,
+  }),
+  // "recommended" obligation maps to RequirementLevel "optional" because:
+  // RequirementLevel is a strictness scale (required > recommended > optional).
+  // The obligation "recommended" is the weakest level that still generates a
+  // constraint, which corresponds to RequirementLevel "optional" (INFO severity).
+  // The obligation "strongly recommended" maps to RequirementLevel "recommended" (WARNING).
+  recommended: new RequiredConstraint({
+    level: "optional",
+    allowEmpty: false,
+    allowWhitespace: false,
+  }),
+  optional: null,
+  integer: new FormatConstraint({ format: "integer" }),
+  date: new FormatConstraint({ format: "iso8601" }),
+  iso8601Date: new FormatConstraint({ format: "iso8601" }),
+  url: new FormatConstraint({ format: "url" }),
+  // "decimal" in Darwin Core schemas maps to "decimal-degrees" format validation
+  // because all decimal fields in the schema are geographic coordinates.
+  decimal: new FormatConstraint({ format: "decimal-degrees" }),
+};
+
+export interface NormalizeFieldResult {
+  readonly field: SpecField;
+  readonly warnings: readonly string[];
+}
+
+export function normalizeField(jsonField: RawField): NormalizeFieldResult {
+  const constraints: Constraint[] = [];
+  const warnings: string[] = [];
+
+  if (jsonField.validators) {
+    for (const v of jsonField.validators) {
+      if (typeof v === "object" && v !== null && "type" in v) {
+        const obj = v as Record<string, unknown>;
+        const params = (obj.params as Record<string, unknown>) || {};
+
+        const raw: Record<string, unknown> = {
+          ...params,
+          ...obj,
+        };
+        delete raw.params;
+
+        if (raw.type !== "required") {
+          delete raw.level;
+        }
+        delete raw.requirement;
+        try {
+          constraints.push(S.decodeUnknownSync(ConstraintSchema)(raw));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          warnings.push(
+            `Invalid constraint object for field "${jsonField.name}" — skipping: ${message}`,
+          );
+        }
+        continue;
+      }
+
+      if (typeof v === "string") {
+        const mapped = STRING_VALIDATOR_MAP[v];
+        if (mapped === undefined) {
+          warnings.push(
+            `Unknown validator string "${v}" for field "${jsonField.name}" — skipping`,
+          );
+        } else if (mapped !== null) {
+          constraints.push(mapped);
+        }
       }
     }
+  }
 
-    // Fallback for unexpected format
-    return v as unknown as ValidatorConfig;
-  }) || [];
-
-  // Convert values object to vocabulary config
-  const vocabulary: VocabularyConfig | undefined = jsonField.values
-    ? {
-      // Derive vocabulary key from field type (cast to any valid key)
-      vocabularyKey: deriveVocabularyKey(jsonField),
-      caseSensitive: false,
-      enforcement: deriveVocabularyEnforcement(jsonField),
+  const obligations: { obis?: Obligation; gbif?: Obligation } = {};
+  if (jsonField.obis_required && isValidObligation(jsonField.obis_required)) {
+    obligations.obis = jsonField.obis_required;
+  }
+  if (jsonField.gbif_required) {
+    // gbif_required uses "true"/"false" strings — map to standard obligation values
+    if (jsonField.gbif_required === "true") {
+      obligations.gbif = "required";
+    } else if (jsonField.gbif_required === "false") {
+      obligations.gbif = "optional";
+    } else if (isValidObligation(jsonField.gbif_required)) {
+      obligations.gbif = jsonField.gbif_required;
     }
-    : undefined;
+  }
 
   return {
-    name: jsonField.name,
-    label: jsonField.label,
-    validators,
-    vocabulary,
-    type: jsonField.type,
-    requirement: jsonField.obis_required,
-    comments: jsonField.comments,
-    examples: jsonField.examples,
+    field: {
+      name: jsonField.name,
+      label: jsonField.label,
+      constraints,
+      dataType: mapJsonTypeToFieldDataType(jsonField.type),
+      obligations: Object.keys(obligations).length > 0 ? obligations : undefined,
+      comments: jsonField.comments,
+      examples: jsonField.examples,
+    },
+    warnings,
   };
-}
-
-/**
- * Derive vocabulary key from field
- *
- * Maps Darwin Core field names to their vocabulary keys.
- * Returns the mapped key or the field name as a fallback (cast to any valid key).
- */
-function deriveVocabularyKey(field: Field): VocabularyKey {
-  // Common Darwin Core vocabulary mappings
-  const vocabularyMap: Record<string, string> = {
-    "type": "dctype",
-    "basisOfRecord": "basisOfRecord",
-    "occurrenceStatus": "occurrenceStatus",
-    "establishmentMeans": "establishmentMeans",
-    "degreeOfEstablishment": "degreeOfEstablishment",
-    "pathway": "pathway",
-    "reproductiveCondition": "reproductiveCondition",
-    "sex": "sex",
-    "lifeStage": "lifeStage",
-    "behavior": "behavior",
-    "vitality": "vitality",
-    "typeStatus": "typeStatus",
-    "disposition": "disposition",
-    "preparations": "preparations",
-    "georeferenceProtocol": "georeferenceProtocol",
-    "geodeticDatum": "geodeticDatum",
-    "identificationQualifier": "identificationQualifier",
-    "measurementType": "measurementType",
-    "measurementUnit": "measurementUnit",
-    "measurementMethod": "measurementMethod",
-  };
-
-  return (vocabularyMap[field.name] || field.name) as VocabularyKey;
-}
-
-/**
- * Derive vocabulary enforcement level from field metadata
- *
- * Determines the appropriate enforcement level based on obis_required and gbif_required.
- * This ensures that vocabulary violations produce appropriate severity levels:
- * - strict: errors for required/strongly recommended fields
- * - recommended: warnings for recommended fields
- * - loose: info messages for optional fields
- */
-function deriveVocabularyEnforcement(field: Field): "strict" | "recommended" | "loose" {
-  const obisRequired = field.obis_required;
-  const gbifRequired = field.gbif_required;
-
-  // Check OBIS requirements first (preferred for marine biodiversity)
-  if (obisRequired === "required" || obisRequired === "strongly recommended") {
-    return "strict";
-  }
-  if (obisRequired === "recommended") {
-    return "recommended";
-  }
-
-  // Fall back to GBIF requirements
-  if (gbifRequired === "true") {
-    return "strict";
-  }
-
-  // Default to loose for optional or unspecified fields
-  // This allows custom values with info-level notifications
-  return "loose";
 }

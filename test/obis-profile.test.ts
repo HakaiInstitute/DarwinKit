@@ -2,14 +2,122 @@
  * Test OBIS validation profile
  */
 
-import { isRangeViolation } from "@dwkt/domain/types";
 import { makeWorkspaceConfig } from "@dwkt/domain/schemas";
+import { isMissingFieldViolation, isRangeViolation } from "@dwkt/domain/types";
 import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
+import { getResolvedSpec, resolveProfile } from "../packages/domain/src/specs/profiles/registry.ts";
 import { WorkspaceValidator } from "../packages/core/src/validation/workspace-validator.ts";
 import { prepareConfigForYaml } from "./helpers/config-utils.ts";
+
+// =============================================================================
+// Profile Inheritance Chain Tests
+// =============================================================================
+
+Deno.test("Profile inheritance - obis-event resolves with Event base fields", () => {
+  const profile = getResolvedSpec("obis-event");
+  assertExists(profile, "obis-event profile should resolve");
+
+  // Should have fields inherited from Event (JSON base)
+  assertExists(profile.specFields, "Should have fields from Event base");
+
+  // Event base defines eventID, eventDate, decimalLatitude, etc.
+  assert(
+    "eventID" in profile.specFields!,
+    "Should inherit eventID from Event base",
+  );
+  assert(
+    "eventDate" in profile.specFields!,
+    "Should inherit eventDate from Event base",
+  );
+});
+
+Deno.test("Profile inheritance - obis-event field overrides take precedence over Event base", () => {
+  const profile = getResolvedSpec("obis-event");
+  assertExists(profile);
+
+  // decimalLatitude is defined in Event base AND overridden by OBIS base profile.
+  // The OBIS override should win (adds range constraint + required requirement).
+  const latOverride = profile.fieldOverrides?.["decimalLatitude"];
+  assertExists(latOverride, "decimalLatitude should have an override from OBIS");
+  assertExists(latOverride.constraints, "Override should include constraints");
+  const rangeConstraints = latOverride.constraints!.filter((c) => c._tag === "range");
+  assertEquals(rangeConstraints.length, 1, "Should have exactly one range constraint");
+  if (rangeConstraints[0]._tag === "range") {
+    assertEquals(rangeConstraints[0].min, -90);
+    assertEquals(rangeConstraints[0].max, 90);
+  }
+});
+
+Deno.test("Profile inheritance - obis-event preserves non-overlapping fields from all ancestors", () => {
+  const profile = getResolvedSpec("obis-event");
+  assertExists(profile);
+
+  // eventID override comes from obis-event (not in obis base or Event base overrides)
+  const eventIdOverride = profile.fieldOverrides?.["eventID"];
+  assertExists(eventIdOverride, "eventID override from obis-event should be present");
+
+  // geodeticDatum override comes from obis base (not overridden by obis-event)
+  const geodeticOverride = profile.fieldOverrides?.["geodeticDatum"];
+  assertExists(geodeticOverride, "geodeticDatum override from obis base should be preserved");
+
+  // samplingProtocol comes from obis-event only
+  const samplingOverride = profile.fieldOverrides?.["samplingProtocol"];
+  assertExists(samplingOverride, "samplingProtocol override from obis-event should be present");
+});
+
+Deno.test("Profile inheritance - obis resolves with Event base fields", () => {
+  const profile = getResolvedSpec("obis");
+  assertExists(profile, "obis profile should resolve");
+  assertExists(profile.specFields, "obis should inherit fields from Event");
+
+  // Verify Event base fields are present
+  assert("eventID" in profile.specFields!, "Should have eventID from Event");
+  assert("decimalLatitude" in profile.specFields!, "Should have decimalLatitude from Event");
+});
+
+// =============================================================================
+// resolveProfile(standard, type) Tests
+// =============================================================================
+
+Deno.test("resolveProfile - obis + Event resolves to OBIS-Event profile", () => {
+  const profile = resolveProfile("obis", "Event");
+  assertExists(profile, "Should resolve a profile");
+  assertEquals(profile.id, "obis-event", "Should resolve to OBIS-Event profile");
+
+  // Should have OBIS-specific field overrides (e.g., geodeticDatum required)
+  assertExists(profile.fieldOverrides, "Should have fieldOverrides");
+  assertEquals(
+    profile.fieldOverrides.decimalLatitude?.requirement,
+    "required",
+    "decimalLatitude should be required in OBIS",
+  );
+});
+
+Deno.test("resolveProfile - obis + Occurrence falls back to base Occurrence profile", () => {
+  // No "obis-occurrence" TypeScript profile exists, so should fall back to JSON base
+  const profile = resolveProfile("obis", "Occurrence");
+  assertExists(profile, "Should resolve a profile");
+  // Base JSON profile has name "Occurrence" (not "obis-occurrence")
+  assertEquals(profile.name, "Occurrence", "Should fall back to base Occurrence profile");
+});
+
+Deno.test("resolveProfile - undefined standard falls back to base profile", () => {
+  const profile = resolveProfile(undefined, "Event");
+  assertExists(profile, "Should resolve a profile");
+  assertEquals(profile.name, "Event", "Should use base Event profile when no standard");
+});
+
+Deno.test("resolveProfile - unknown type returns undefined", () => {
+  const profile = resolveProfile("obis", "NonExistentType");
+  assertEquals(profile, undefined, "Should return undefined for unknown type");
+});
+
+// =============================================================================
+// Integration: Validation with standard-driven profile resolution
+// =============================================================================
 
 Deno.test({
   name: "OBIS Profile - validates required fields",
@@ -19,10 +127,11 @@ Deno.test({
 
     try {
       // Create test CSV with OBIS-required fields
-      const eventCsv = `eventID,eventDate,decimalLatitude,decimalLongitude,geodeticDatum,locality
-E1,2022-09-15,49.8954,-125.4567,WGS84,Salish Sea
-E2,2022-09-16,49.9012,-125.4789,WGS84,Strait of Georgia
-E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
+      const eventCsv =
+        `eventID,parentEventID,eventDate,decimalLatitude,decimalLongitude,geodeticDatum,locality
+E1,P1,2022-09-15,49.8954,-125.4567,WGS84,Salish Sea
+E2,P1,2022-09-16,49.9012,-125.4789,WGS84,Strait of Georgia
+E3,P1,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
 
       Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
 
@@ -34,12 +143,12 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
           datasets: [
             {
               name: "events",
-              spec: "dwc-event",
+              class: "Event",
               path: "./events.csv",
-              profile: "Event",
               description: "Marine sampling events",
               fieldMappings: [
                 { originName: "eventID", targetName: "eventID" },
+                { originName: "parentEventID", targetName: "parentEventID" },
                 { originName: "eventDate", targetName: "eventDate" },
                 { originName: "decimalLatitude", targetName: "decimalLatitude" },
                 { originName: "decimalLongitude", targetName: "decimalLongitude" },
@@ -73,7 +182,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
         "Should have no required field errors",
       );
 
-      // With the new profile system, we expect warnings for missing strongly-recommended fields
+      // With OBIS profile, we expect warnings for missing strongly-recommended fields
       // (scientificName, scientificNameID, etc. from the base OBIS profile)
       assert(
         eventsResult.schemaViolations.warnings.length > 0,
@@ -87,81 +196,67 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
   },
 });
 
-// this test no longer makes sense as it field mapping is populated from the schema and so can't be missing a field
-// Deno.test({
-//   name: "OBIS Profile - detects missing required fields",
-//   fn: async () => {
-//     // Create temp directory for test workspace
-//     const tempDir = await Deno.makeTempDir({ prefix: "obis-test-" });
+Deno.test({
+  name: "OBIS Profile - detects missing required fields",
+  fn: async () => {
+    const tempDir = await Deno.makeTempDir({ prefix: "obis-test-" });
 
-//     try {
-//       // Create test CSV WITHOUT geodeticDatum (required by OBIS)
-//       const eventCsv = `eventID,eventDate,decimalLatitude,decimalLongitude
-// E1,2022-09-15,49.8954,-125.4567
-// E2,2022-09-16,49.9012,-125.4789`;
+    try {
+      // Create test CSV WITHOUT geodeticDatum column (required by OBIS profile)
+      const eventCsv = `eventID,eventDate,decimalLatitude,decimalLongitude
+E1,2022-09-15,49.8954,-125.4567
+E2,2022-09-16,49.9012,-125.4789`;
 
-//       Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
+      Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
 
-//       // Create config with OBIS profile
-//       const config = makeWorkspaceConfig({
-//         name: "OBIS Missing Field Test",
-//         description: "Test OBIS validation profile with missing required field",
-//         validation: {
-//           datasets: [
-//             {
-//               name: "events",
-//               spec: "dwc-event",
-//               path: "./events.csv",
-//               profile: "Event",
-//               description: "Marine sampling events",
-//               fieldMappings: [
-//                 { originName: "eventID", targetName: "eventID" },
-//                 { originName: "eventDate", targetName: "eventDate" },
-//                 { originName: "decimalLatitude", targetName: "decimalLatitude" },
-//                 //{ originName: "decimalLongitude", targetName: "decimalLongitude" },
-//                 // Missing geodeticDatum mapping!
-//               ],
-//             },
-//           ],
-//         },
-//       });
+      // Config uses obis-event profile. No fieldMappings for geodeticDatum —
+      // auto-mapping creates an entry from the profile, but the CSV lacks the column.
+      const config = makeWorkspaceConfig({
+        name: "OBIS Missing Field Test",
+        description: "Test OBIS validation profile with missing required field",
+        validation: {
+          datasets: [
+            {
+              name: "events",
+              class: "Event",
+              path: "./events.csv",
+              description: "Marine sampling events",
+            },
+          ],
+        },
+      });
 
-//       Deno.writeTextFileSync(
-//         join(tempDir, "darwinkit.yaml"),
-//         stringifyYAML(prepareConfigForYaml(config)),
-//       );
+      Deno.writeTextFileSync(
+        join(tempDir, "darwinkit.yaml"),
+        stringifyYAML(prepareConfigForYaml(config)),
+      );
 
-//       // Validate
-//       const validator = new WorkspaceValidator();
+      const validator = new WorkspaceValidator();
+      const result = await Effect.runPromise(
+        validator.validateFromConfig(tempDir),
+      );
 
-//       // NOTE: This test is missing the geodeticDatum field mapping, and geodeticDatum
-//       // is marked as NOT NULL in the OBIS Event Core profile schema.
-//       // The validation detects this as a required field error and marks the dataset as failed.
-//       const result = await Effect.runPromise(
-//         validator.validateFromConfig(tempDir),
-//       );
+      assertExists(result);
+      assertEquals(result.datasetResults.length, 1);
 
-//       // Verify we get a failed validation result
-//       // assertEquals(result.overallStatus, "fail", "Should fail when required fields are missing"); // this no longer makes sense as the mappings are populated from the schema and so can't be missing
-//       assertEquals(result.datasetResults.length, 1, "Should have 1 dataset");
+      const eventsResult = result.datasetResults[0];
 
-//       const eventsResult = result.datasetResults[0];
-//       // assertEquals(eventsResult.status, "fail", "Events dataset should fail");
-
-//       // Verify that geodeticDatum is reported as a missing required field
-//       const missingFieldError = eventsResult.schemaViolations.errors.find((e) =>
-//         e.fieldName === "geodeticDatum" || e.targetName === "geodeticDatum"
-//       );
-//       assert(
-//         missingFieldError,
-//         "Should have error about missing geodeticDatum field",
-//       );
-//     } finally {
-//       // Cleanup
-//       await Deno.remove(tempDir, { recursive: true });
-//     }
-//   },
-// });
+      // geodeticDatum is required by OBIS — should appear as a MissingFieldViolation
+      const missingGeodeticDatum = eventsResult.schemaViolations.errors.find(
+        (v) =>
+          isMissingFieldViolation(v) &&
+          v.fieldName === "geodeticDatum" &&
+          v.severity === "error",
+      );
+      assert(
+        missingGeodeticDatum,
+        "Should report geodeticDatum as missing required field",
+      );
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+});
 
 Deno.test("OBIS Profile - applies depth range constraints", async () => {
   // Create temp directory for test workspace
@@ -177,16 +272,15 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
 
     Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
 
-    // Create config with OBIS profile
-    const config = makeWorkspaceConfig({
+    // Write raw config — the validator decodes from YAML
+    const rawConfig = {
       name: "OBIS Depth Validation Test",
       description: "Test OBIS depth range constraints",
       validation: {
         datasets: [
           {
             name: "events",
-            spec: "dwc-event",
-            profile: "Event",
+            class: "Event",
             path: "./events.csv",
             description: "Marine sampling events",
             fieldMappings: [
@@ -198,30 +292,22 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
               {
                 originName: "minimumDepthInMeters",
                 targetName: "minimumDepthInMeters",
-                validators: [{
-                  type: "range",
-                  enforcement: "recommended",
-                  params: { min: 0, max: 11000 },
-                }],
+                constraints: [{ type: "range", min: 0, max: 11000 }],
               },
               {
                 originName: "maximumDepthInMeters",
                 targetName: "maximumDepthInMeters",
-                validators: [{
-                  type: "range",
-                  enforcement: "recommended",
-                  params: { min: 0, max: 11000 },
-                }],
+                constraints: [{ type: "range", min: 0, max: 11000 }],
               },
             ],
           },
         ],
       },
-    });
+    };
 
     Deno.writeTextFileSync(
       join(tempDir, "darwinkit.yaml"),
-      stringifyYAML(prepareConfigForYaml(config)),
+      stringifyYAML(rawConfig),
     );
 
     // Validate
@@ -230,7 +316,9 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
       validator.validateFromConfig(tempDir),
     );
 
-    // TODO WE DONT DO THIS CURRENTLY. NO CHECK constraints are created when creating tables. Not sure if anything else runs???
+    // Range constraints are validated post-insert via SQL queries in field-validators.ts
+    // (not via DuckDB CHECK constraints). The validators query for out-of-range values
+    // after data is loaded into the table.
 
     // Should detect depth constraint violations
     assertExists(result);
@@ -239,7 +327,7 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
     const eventsResult = result.datasetResults[0];
 
     // Should have constraint violations for depths > 11000m
-    // Depth constraints are "recommended" enforcement, so they appear in warnings
+    // Depth violations are always errors (value validity is unconditional)
     const depthViolations = [
       ...eventsResult.fieldViolations.errors,
       ...eventsResult.fieldViolations.warnings,

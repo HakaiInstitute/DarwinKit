@@ -38,6 +38,9 @@ packages/cli/transform_results
 # AI references - not tracked in repository
 .context/*
 
+# Git worktrees
+.worktrees/
+
 packages/cli/validation_results/
-packages/domain/src/specs/generated/*
-!packages/domain/src/specs/generated/.gitkeep
+# Duplicate generated artifacts at repo root
+darwinkit.schema.json

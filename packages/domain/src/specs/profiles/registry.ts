@@ -1,18 +1,16 @@
-/**
- * Validation Profile Registry
- *
- * Central registry for all available validation profiles with support
- * for profile inheritance and composition.
- */
-
 import { join } from "@std/path";
 import type {
-  Field,
   FieldOverride,
-  ValidationProfile,
-  ValidationProfileRegistry,
-} from "../../schemas/validation-profile.ts";
-import { type FieldDefinition, normalizeField } from "../field-definition.ts";
+  Profile,
+  ProfileRegistry,
+  RawField,
+  ResolvedSpec,
+  Spec,
+  TransformField,
+} from "../../schemas/spec-types.ts";
+import { mergeProfileConstraints } from "../constraints.ts";
+import { normalizeField, type SpecField } from "../field-definition.ts";
+import { OBIS_EMOF_PROFILE } from "./obis-emof.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
 
@@ -26,17 +24,13 @@ function loadDwcSchema(): Record<string, unknown> {
   }
   return _dwcSchemaCache;
 }
-/**
- * All available validation profiles
- */
-export const VALIDATION_PROFILES: ValidationProfileRegistry = {
+
+export const PROFILE_REGISTRY: Readonly<ProfileRegistry> = {
   "obis": OBIS_BASE_PROFILE,
   "obis-event": OBIS_EVENT_PROFILE,
+  "obis-extendedmeasurementorfact": OBIS_EMOF_PROFILE,
 } as const;
 
-/**
- * Merge two field override objects (child overrides parent)
- */
 function mergeFieldOverrides(
   parent: Record<string, FieldOverride>,
   child: Record<string, FieldOverride>,
@@ -47,16 +41,13 @@ function mergeFieldOverrides(
     const parentOverride = merged[fieldName];
 
     if (!parentOverride) {
-      // Field only in child
       merged[fieldName] = childOverride;
     } else {
-      // Merge parent and child overrides (child takes precedence)
       merged[fieldName] = {
         requirement: childOverride.requirement ?? parentOverride.requirement,
-        validators: childOverride.validators
-          ? [...(parentOverride.validators || []), ...childOverride.validators]
-          : parentOverride.validators,
-        enforcement: childOverride.enforcement ?? parentOverride.enforcement,
+        constraints: childOverride.constraints
+          ? mergeProfileConstraints(parentOverride.constraints || [], childOverride.constraints)
+          : parentOverride.constraints,
       };
     }
   }
@@ -64,106 +55,190 @@ function mergeFieldOverrides(
   return merged;
 }
 
-/**
- * Merge parent and child profiles (child overrides parent)
- *
- * Inherits fields and normalizedFields from parent, then applies child's fieldOverrides.
- */
-function mergeProfiles(parent: ValidationProfile, child: ValidationProfile): ValidationProfile {
-  return {
-    ...child,
-    // Inherit field definitions from parent (used for SQL DDL generation)
-    fields: child.fields || parent.fields,
-    // Inherit normalized fields from parent (used for validation)
-    normalizedFields: child.normalizedFields || parent.normalizedFields,
-    // Merge field overrides (child takes precedence)
-    fieldOverrides: mergeFieldOverrides(parent.fieldOverrides, child.fieldOverrides),
-  };
+interface NormalizeResult {
+  spec: Spec;
+  warnings: string[];
 }
 
-/**
- * Normalize a JSON profile by converting field objects to NormalizedField
- *
- * This ensures consistent field structure regardless of source (JSON vs TypeScript).
- * Preserves raw fields for transformation while adding normalized fields for validation.
- */
-function normalizeJsonProfile(jsonProfile: unknown): ValidationProfile {
-  // Type guard: ensure jsonProfile is an object
-  if (typeof jsonProfile !== "object" || jsonProfile === null) {
+function normalizeJsonToSpec(jsonSpec: unknown): NormalizeResult {
+  if (typeof jsonSpec !== "object" || jsonSpec === null) {
     throw new Error("Invalid JSON profile: expected object");
   }
 
-  const profile = jsonProfile as Record<string, unknown>;
+  const spec = jsonSpec as Record<string, unknown>;
 
-  // Normalize fields if they exist
-  const normalizedFields: Record<string, FieldDefinition> = {};
+  const specFields: Record<string, SpecField> = {};
+  const rawFields: Record<string, TransformField> = {};
+  const warnings: string[] = [];
 
   if (
-    "fields" in profile &&
-    typeof profile.fields === "object" &&
-    profile.fields !== null
+    "fields" in spec &&
+    typeof spec.fields === "object" &&
+    spec.fields !== null
   ) {
-    for (const [fieldName, fieldValue] of Object.entries(profile.fields)) {
+    for (const [fieldName, fieldValue] of Object.entries(spec.fields)) {
       try {
-        normalizedFields[fieldName] = normalizeField(fieldValue as Field);
-      } catch {
-        // Skip invalid fields rather than failing the entire profile
-        // TODO: When imlementing issue #64 (https://github.com/HakaiInstitute/DarwinKit/issues/64):
-        // Surface logs here
-        // Effect.logWarning(`Invalid field "${fieldName}" in profile "${profile.id}"`);
+        const result = normalizeField(fieldValue as RawField);
+        specFields[fieldName] = result.field;
+        if (result.warnings.length > 0) {
+          warnings.push(
+            `Warnings normalizing field "${fieldName}": ${result.warnings.join(", ")}`,
+          );
+        }
+      } catch (e) {
+        warnings.push(
+          `Failed to normalize field "${fieldName}": ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
+      const raw = fieldValue as Record<string, unknown>;
+      rawFields[fieldName] = {
+        type: typeof raw.type === "string" ? raw.type : undefined,
+        unique: typeof raw.unique === "string" ? raw.unique : undefined,
+        values: typeof raw.values === "object" && raw.values !== null
+          ? raw.values as Record<string, unknown>
+          : undefined,
+      };
+    }
+  }
+
+  const id = spec.id ?? spec.name;
+  if (typeof id !== "string") {
+    throw new Error("JSON spec missing both 'id' and 'name'");
+  }
+
+  return {
+    spec: {
+      id,
+      name: (spec.name ?? id) as string,
+      description: spec.description as string | undefined,
+      specFields,
+      rawFields: Object.keys(rawFields).length > 0 ? rawFields : undefined,
+    },
+    warnings,
+  };
+}
+
+export function getSpecNames(): string[] {
+  return Object.keys(loadDwcSchema());
+}
+
+function getJsonSpec(specId: string): NormalizeResult | undefined {
+  const rawJsonSpec = loadDwcSchema()[specId];
+  if (!rawJsonSpec) return undefined;
+  return normalizeJsonToSpec(rawJsonSpec);
+}
+
+function resolveProfileChain(
+  profile: Profile,
+  visited: Set<string> = new Set(),
+): {
+  fieldOverrides: Record<string, FieldOverride>;
+  spec: Spec | undefined;
+  warnings: string[];
+} {
+  if (visited.has(profile.id)) {
+    throw new Error(
+      `Circular profile inheritance detected: ${[...visited].join(" -> ")} -> ${profile.id}`,
+    );
+  }
+  visited.add(profile.id);
+
+  if (!profile.extends) {
+    return { fieldOverrides: profile.fieldOverrides, spec: undefined, warnings: [] };
+  }
+
+  const parentProfile = PROFILE_REGISTRY[profile.extends];
+  if (parentProfile) {
+    const parentResolved = resolveProfileChain(parentProfile, visited);
+    return {
+      fieldOverrides: mergeFieldOverrides(parentResolved.fieldOverrides, profile.fieldOverrides),
+      spec: parentResolved.spec,
+      warnings: parentResolved.warnings,
+    };
+  }
+
+  const result = getJsonSpec(profile.extends);
+  return {
+    fieldOverrides: profile.fieldOverrides,
+    spec: result?.spec,
+    warnings: result?.warnings ?? [],
+  };
+}
+
+function buildResolvedSpec(
+  spec: Spec,
+  profile?: Profile,
+  mergedOverrides?: Record<string, FieldOverride>,
+  warnings?: string[],
+): ResolvedSpec {
+  const allOverrides = mergedOverrides ?? profile?.fieldOverrides ?? {};
+
+  // Add stub specFields for fields in overrides that don't exist in the base spec.
+  // This allows profiles to introduce new fields (e.g., eventID in OBIS-eMoF)
+  // without them being flagged as "unknown".
+  const specFields = { ...spec.specFields };
+  for (const fieldName of Object.keys(allOverrides)) {
+    if (!(fieldName in specFields)) {
+      specFields[fieldName] = {
+        name: fieldName,
+        constraints: [],
+      };
     }
   }
 
   return {
-    ...profile,
-    // Ensure id is set (JSON profiles may only have 'name', not 'id')
-    id: profile.id ?? profile.name,
-    // Keep raw fields for transformation (SQL DDL generation)
-    fields: "fields" in profile ? profile.fields : undefined,
-    // Add normalized fields for validation
-    normalizedFields: normalizedFields,
-  } as ValidationProfile;
+    id: profile?.id ?? spec.id,
+    name: spec.name,
+    spec: spec.id,
+    profile: profile?.id,
+    fieldOverrides: allOverrides,
+    specFields,
+    rawFields: spec.rawFields,
+    ...(profile?.datasetRules ? { datasetRules: profile.datasetRules } : {}),
+    ...(warnings && warnings.length > 0 ? { warnings } : {}),
+  };
+}
+
+export function getResolvedSpec(specOrProfileId: string): ResolvedSpec | undefined {
+  // Try TypeScript profile registry first
+  const tsProfile = PROFILE_REGISTRY[specOrProfileId];
+  if (tsProfile) {
+    const { fieldOverrides, spec, warnings } = resolveProfileChain(tsProfile);
+    if (spec) {
+      return buildResolvedSpec(spec, tsProfile, fieldOverrides, warnings);
+    }
+    // Profile's inheritance chain did not resolve to a base JSON spec.
+    // This indicates a misconfigured profile (e.g., extends a non-existent spec).
+    throw new Error(
+      `Profile "${tsProfile.id}" resolved without a base spec. ` +
+        `Check that the "extends" chain terminates at a known JSON spec (e.g., "Event", "Occurrence").`,
+    );
+  }
+
+  const result = getJsonSpec(specOrProfileId);
+  if (!result) return undefined;
+  return buildResolvedSpec(result.spec, undefined, undefined, result.warnings);
 }
 
 /**
- * Get a validation profile by ID with inheritance resolution
+ * Resolve a validation profile using standard + class combination.
  *
- * If a profile extends another profile, the parent's field overrides
- * are merged with the child's (child takes precedence).
+ * Resolution order:
+ * 1. Try `"${standard}-${dwcClass}"` in TypeScript registry (e.g., "obis-event")
+ * 2. Fall back to base JSON profile using capitalized class key (e.g., "Event")
+ *
+ * This allows `standard: "obis"` + `class: "Event"` to automatically load
+ * the OBIS-Event TypeScript profile with its field overrides.
  */
-export function getValidationProfile(profileId: string): ValidationProfile | undefined {
-  // Try to get profile from TypeScript registry first
-  const tsProfile = VALIDATION_PROFILES[profileId];
-  if (tsProfile) {
-    // Resolve inheritance chain for TypeScript profiles
-    if (tsProfile.extends) {
-      const parent = getValidationProfile(tsProfile.extends);
-      if (parent) {
-        return mergeProfiles(parent, tsProfile);
-      }
-    }
-    return tsProfile;
+export function resolveProfile(
+  standard: string | undefined,
+  dwcClass: string,
+): ResolvedSpec | undefined {
+  if (standard) {
+    const compositeKey = `${standard}-${dwcClass.toLowerCase()}`;
+    const tsProfile = getResolvedSpec(compositeKey);
+    if (tsProfile) return tsProfile;
   }
 
-  // Fall back to JSON schema (for base Darwin Core profiles like "Event", "Occurrence")
-  const rawJsonProfile = loadDwcSchema()[profileId];
-
-  if (!rawJsonProfile) return undefined;
-
-  // Normalize JSON profile to ensure consistent field structure
-  const jsonProfile = normalizeJsonProfile(rawJsonProfile);
-
-  // JSON profiles use the schema as-is without extracting obis_required metadata
-  // obis_required is only enforced when using explicit OBIS profiles like "obis-event"
-
-  // Resolve inheritance chain
-  if (jsonProfile.extends) {
-    const parent = getValidationProfile(jsonProfile.extends);
-    if (parent) {
-      return mergeProfiles(parent, jsonProfile);
-    }
-  }
-
-  return jsonProfile;
+  return getResolvedSpec(dwcClass);
 }

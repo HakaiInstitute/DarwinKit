@@ -20,11 +20,6 @@ import type { PartitionedViolations } from "./validation-violation.ts";
  * Note: No rowNumber since schema violations are structural, not row-level.
  */
 const baseSchemaViolationFields = {
-  enforcement: Schema.Union(
-    Schema.Literal("required"),
-    Schema.Literal("recommended"),
-    Schema.Literal("optional"),
-  ),
   severity: Schema.Union(
     Schema.Literal("error"),
     Schema.Literal("warning"),
@@ -33,7 +28,6 @@ const baseSchemaViolationFields = {
   fieldName: Schema.String,
   targetName: Schema.String,
   errorMessage: Schema.String,
-  validatorType: Schema.Literal("schema"),
 };
 
 /**
@@ -134,10 +128,10 @@ export function isMissingMappingViolation(v: SchemaViolation): v is MissingMappi
 }
 
 /**
- * Partition schema violations by enforcement level
+ * Partition schema violations by severity level
  *
- * Groups violations into errors (required), warnings (recommended),
- * and info (optional) based on their enforcement level.
+ * Groups violations into errors, warnings, and info based on their
+ * severity level.
  *
  * @param violations - Array of violations to partition
  * @returns Partitioned violations object
@@ -150,25 +144,18 @@ export function partitionSchemaViolations(
   const info: SchemaViolation[] = [];
 
   for (const violation of violations) {
-    switch (violation.enforcement) {
-      case "required":
+    switch (violation.severity) {
+      case "error":
         errors.push(violation);
         break;
-      case "recommended":
+      case "warning":
         warnings.push(violation);
         break;
-      case "optional":
+      case "info":
         info.push(violation);
         break;
     }
   }
 
   return { errors, warnings, info };
-}
-
-/**
- * Create an empty partitioned schema violations object
- */
-export function emptyPartitionedSchemaViolations(): PartitionedViolations<SchemaViolation> {
-  return { errors: [], warnings: [], info: [] };
 }

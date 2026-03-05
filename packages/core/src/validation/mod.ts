@@ -10,21 +10,11 @@
 // String matching utilities
 export { findSuggestedValue } from "./string-matching.ts";
 
-// Summary utilities (resolveSchemaTableName is core-specific due to DuckDB dependency)
-export { resolveSchemaTableName } from "./summary.ts";
-
-// Field-level validators
-export {
-  findRangeViolations,
-  findUniquenessViolations,
-  findVocabularyViolations,
-  validateRangeConstraints,
-  validateUniqueness,
-  validateVocabulary,
-} from "./field-validators.ts";
-
 // Row-by-row data loading with violation collection
 export { type ColumnMapping, insertRowByRow } from "./data-loader.ts";
+
+// Dataset rule validators (oneOfRequired, etc.)
+export { validateOneOfRequired } from "./dataset-rule-validators.ts";
 
 // Workspace validation (main entry point)
 export { WorkspaceValidator } from "./workspace-validator.ts";

@@ -36,9 +36,8 @@ E4,2022,6,32,2022-06-32`;
           datasets: [
             {
               name: "events",
-              spec: "dwc-event",
+              class: "Event",
               path: "./events.csv",
-              profile: "Event",
               fieldMappings: [
                 { originName: "eventID", targetName: "eventID" },
                 { originName: "year", targetName: "year" },

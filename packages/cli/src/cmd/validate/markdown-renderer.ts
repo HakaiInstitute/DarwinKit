@@ -1,5 +1,4 @@
 import type {
-  CrossDatasetValidationResult,
   DatasetValidationResult,
   FieldViolation,
   WorkspaceValidationResult,
@@ -36,7 +35,7 @@ function renderSummaryTable(
   const lines: string[] = [
     '## Summary Table',
     '',
-    '| Dataset | Spec | Status | Errors | Warnings | Info |',
+    '| Dataset | Type | Status | Errors | Warnings | Info |',
     '|---------|------|--------|--------|----------|------|',
   ];
 
@@ -52,7 +51,7 @@ function renderSummaryTable(
       dataset.fieldViolations.info.length;
 
     lines.push(
-      `| ${dataset.datasetName} | ${dataset.spec} | ${statusText} | ${errorCount} | ${warningCount} | ${infoCount} |`,
+      `| ${dataset.datasetName} | ${dataset.class} | ${statusText} | ${errorCount} | ${warningCount} | ${infoCount} |`,
     );
   }
 
@@ -103,7 +102,7 @@ function renderViolationSection(
     for (const [fieldName, violations] of byField) {
       const firstViolation = violations[0];
       lines.push(
-        `- **${fieldName}** (${firstViolation.validatorType}): ${violations.length} violations`,
+        `- **${fieldName}** (${firstViolation._tag}): ${violations.length} violations`,
       );
 
       const examples = violations.slice(0, 3);
@@ -138,7 +137,7 @@ function renderDatasetDetails(
   }
 
   const sections = [
-    `## 📊 ${dataset.datasetName} (${dataset.spec})`,
+    `## 📊 ${dataset.datasetName} (${dataset.class})`,
     '',
     renderViolationSection(
       'ERRORS',
@@ -163,46 +162,6 @@ function renderDatasetDetails(
   return sections.filter(Boolean).join('\n');
 }
 
-export function renderCrossDatasetResults(
-  crossResults: ReadonlyArray<CrossDatasetValidationResult>,
-): string {
-  if (crossResults.length === 0) {
-    return '';
-  }
-
-  const lines: string[] = ['## 🔗 Cross-dataset Validation', ''];
-
-  for (const crossResult of crossResults) {
-    if (crossResult.violations.length > 0) {
-      lines.push('### ❌ Foreign Key Violation', '');
-      lines.push(
-        `**${crossResult.sourceDataset}.${crossResult.sourceField}** → **${crossResult.targetDataset}.${crossResult.targetField}**`,
-        '',
-      );
-
-      const sampleViolations = crossResult.violations.slice(0, 5);
-      for (const violation of sampleViolations) {
-        lines.push(`- Row ${violation.rowNumber}: ${violation.errorMessage}`);
-      }
-
-      if (crossResult.violations.length > 5) {
-        lines.push(
-          `- ... and ${crossResult.violations.length - 5} more violations`,
-        );
-      }
-      lines.push('');
-    } else {
-      lines.push('### ✅ Foreign Key Valid', '');
-      lines.push(
-        `**${crossResult.sourceDataset}.${crossResult.sourceField}** → **${crossResult.targetDataset}.${crossResult.targetField}**`,
-        '',
-      );
-    }
-  }
-
-  return lines.join('\n');
-}
-
 function renderOverallSummary(
   summary: WorkspaceValidationResult['summary'],
   totalProcessingTimeMs: number,
@@ -211,8 +170,11 @@ function renderOverallSummary(
     '## 📊 Overall Summary',
     '',
     `**Datasets processed:** ${summary.totalDatasets}  `,
-    `**Passed:** ${summary.datasetsPassedCount}  `,
-    `**Warnings:** ${summary.datasetsWithWarningsCount}  `,
+    `**Passed:** ${summary.datasetsPassedCount}${
+      summary.datasetsWithWarningsCount > 0
+        ? ` (${summary.datasetsWithWarningsCount} with warnings)`
+        : ''
+    }  `,
     `**Failed:** ${summary.datasetsFailedCount}  `,
     '  ',
     `**❌ Errors:** ${summary.totalErrors}  `,
@@ -231,7 +193,6 @@ export function renderValidationMarkdown(
     renderHeader(results.configPath),
     renderSummaryTable(results.datasetResults),
     ...results.datasetResults.map(renderDatasetDetails),
-    renderCrossDatasetResults(results.crossDatasetResults),
     renderOverallSummary(results.summary, results.totalProcessingTimeMs),
   ].filter(Boolean).join('\n');
 }

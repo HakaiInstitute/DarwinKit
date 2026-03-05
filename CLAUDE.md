@@ -22,7 +22,7 @@ DarwinKit is a modular TypeScript application organized as a Deno workspace for 
 
 - **Runtime**: Deno 2.0+ with workspace support
 - **CLI**: Cliffy CLI with Effect for data, schema, and error handling
-- **Validation**: Effect Data and Schema with custom biodiversity validators
+- **Validation**: Effect Data and Schema with typed constraint system
 - **Data Processing**: DuckDB for CSV parsing, schema inference, and validation operations
 - **Testing**: Deno test runner
 - **Error Handling**: Effect library for functional error handling
@@ -86,59 +86,89 @@ packages/
 
 ### Darwin Core Specifications
 
-DarwinKit uses a hybrid specification system combining external JSON schemas with TypeScript validation profiles.
+DarwinKit uses a three-layer specification system: **Specs** (base schemas from Darwin Core), **Profiles** (variant overlays like OBIS/GBIF), and **ResolvedSpecs** (merged results consumed by validation).
 
-**Base Schemas (packages/domain/src/specs/generated/dwcSchema.json):**
+**Specs — Base Schemas (packages/domain/src/specs/generated/dwcSchema.json):**
 
 The foundation of DarwinKit's validation system comes from official Darwin Core schemas:
 - Generated from Darwin Core XML schemas via `deno task cli import` (or `import_schema()` from `@dwkt/core/import`)
-- Contains 6 standard profiles: `Event`, `Occurrence`, `Taxon`, `ExtendedMeasurementOrFact`, `dnaDerivedData`, `ResourceRelationship`
-- Provides canonical field definitions with types, descriptions, OBIS requirements, and range validators
-- Imported as JSON into `packages/domain/src/specs/profiles/registry.ts`
+- Contains 6 standard specs: `Event`, `Occurrence`, `Taxon`, `ExtendedMeasurementOrFact`, `dnaDerivedData`, `ResourceRelationship`
+- Each `Spec` provides canonical field definitions (`SpecField` records) with types, descriptions, obligations, and constraints
+- Loaded from JSON into `packages/domain/src/specs/profiles/registry.ts`
 - **Gitignored** — must be regenerated before running tests (CI does this automatically)
 
-**Custom Profiles (packages/domain/src/specs/profiles/):**
+**Profiles — Variant Overlays (packages/domain/src/specs/profiles/):**
 
-TypeScript-defined profiles extend base Darwin Core with community-specific requirements:
+TypeScript-defined `Profile` objects extend base specs with community-specific requirements:
 - **OBIS** (`obis.ts`) - Ocean Biodiversity Information System base profile
 - **OBIS-Event** (`obis-event.ts`) - OBIS sampling event profile extending Event + OBIS
-- Custom profiles can add fields, strengthen validation rules, or mark additional fields as required
+- **OBIS-eMoF** (`obis-emof.ts`) - OBIS ExtendedMeasurementOrFact profile with `oneOfRequired` dataset rule for eventID/occurrenceID
+- Profiles contain `fieldOverrides` (requirement/constraint changes) and optionally `datasetRules` (group-level validation rules)
+- Field overrides can introduce new fields not in the base spec (stub `SpecField` entries are auto-created)
 - Support profile inheritance via `extends` property for composition
 
-**Two-Tier Profile Resolution:**
+**Standard + Class Resolution:**
 
-The profile registry in `registry.ts` implements a sophisticated resolution system:
+The config uses `standard` (root-level, e.g., `{ base: "darwin-core", variant: "obis" }`) and `class` (per-dataset, e.g., `"Event"`) to drive resolution. The registry in `registry.ts` implements `resolveProfile(variant, class)` → `ResolvedSpec`:
 
-1. **TypeScript Profile Priority**: Check TypeScript profile registry first (OBIS, GBIF, etc.)
-2. **JSON Fallback**: If not found, look up profile in imported `dwcSchema.json`
-3. **Inheritance Resolution**: Recursively resolve parent profiles via `extends` property
-4. **Normalization**: Convert JSON validators to `ValidatorConfig` objects via `normalizeField()`
-5. **Profile Merging**: Combine parent and child profiles with child taking precedence
+1. **Profile Lookup**: Try composite key `"${variant}-${class.toLowerCase()}"` in profile registry (e.g., `"obis-event"` → OBIS_EVENT_PROFILE)
+2. **Base Spec Lookup**: Look up base spec using class key directly (e.g., `"Event"`)
+3. **Inheritance Resolution**: Walk profile `extends` chain, collecting field overrides
+4. **Normalization**: Convert JSON validators to typed `Constraint` objects via `normalizeField()`
+5. **Merging**: Combine spec + profile overrides → `ResolvedSpec` with `SpecField` records + `FieldOverride` map
 
-**Field Normalization:**
+**Field Type Progression:**
 
-JSON schemas use different field formats than TypeScript profiles, requiring normalization:
-- `normalizeJsonProfile()` converts raw JSON profiles to `ValidationProfile` format
-- `normalizeField()` (in `field-definition.ts`) transforms JSON validators:
-  - String validators: `"date"`, `"url"`, `"coordinate"` → `ValidatorConfig` objects
-  - Type definitions: Maps JSON types to Effect schema validators
-  - Controlled vocabularies: Links to vocabulary registry
-- **Dual-purpose storage**:
-  - `fields`: Raw JSON format (used for SQL DDL generation)
-  - `normalizedFields`: Processed format (used for validation logic)
+```
+RawField → (normalize) → SpecField → (resolve with FieldOverride) → WorkspaceFieldMapping
+```
+
+- **`RawField`** — raw JSON from `dwcSchema.json`, string-based validators. Only used during import/DDL generation.
+- **`SpecField`** — normalized field with typed constraints and `ObligationsMap`. Lives on `Spec` and carried through to `ResolvedSpec`.
+- **`FieldOverride`** — partial overlay on a `Profile` (requirement and/or constraint changes). Lives on `ResolvedSpec`.
+- **`WorkspaceFieldMapping`** — final field with fully merged constraints from the 3-tier pipeline (spec + profile + config). Produced by `resolveSpecFields()` in `field-resolution.ts`.
+
+**Constraint System:**
+
+Constraints are `Data.TaggedClass` instances discriminated by `_tag` (consistent with violation types and Effect conventions):
+- `RangeConstraint`, `RequiredConstraint`, `UniqueConstraint`, `PatternConstraint`, `LengthConstraint`, `FormatConstraint`
+- Each constraint carries its own typed fields flat (no nested params)
+- Only `RequiredConstraint` has `level`: `"required"` (ERROR) | `"recommended"` (WARNING) | `"optional"` (INFO) — controls *presence* severity
+- Value constraints (Range, Pattern, Format, Length, Unique) have no level — value validity is unconditional (always ERROR)
+- YAML configs use `type: range` etc.; the config parse boundary transforms to `_tag` and constructs tagged class instances
+- Controlled vocabularies are enforced at the DuckDB schema level via ENUM types, only for fields with "required" or "strongly recommended" obligation in the active standard. Optional vocabulary fields use TEXT columns and accept any value.
+- Obligation mapping: `required` → level `"required"`, `strongly recommended` → `"recommended"`, `recommended` → `"optional"`, `optional` → no constraint
+
+**Dataset Rules (`DatasetRule` — `packages/domain/src/specs/dataset-rules.ts`):**
+
+Dataset rules are group-level validation rules that span multiple fields or datasets:
+- `OneOfRequiredRule` — "at least one of these fields must be present" (intra-dataset). Validated via SQL query in `dataset-rule-validators.ts`.
+- `foreignKey` — referential integrity between datasets (cross-dataset). Defined in config `datasetRules` section.
+- Rules come from two sources: **profiles** (auto-applied via `profile.datasetRules`) and **config** (user-defined via `datasetRules` in YAML).
+- When a profile uses `oneOfRequired`, individual field requirements for member fields should be set to `"recommended"` via `fieldOverrides` (the group rule replaces per-field required).
+- Violations produce `OneOfRequiredViolation` (`Schema.TaggedClass`) with severity based on the rule's `level`.
+
+**3-Tier Constraint Resolution (packages/core/src/validation/field-resolution.ts):**
+
+At validation time, constraints are resolved through a 3-tier merge pipeline:
+1. **Spec** (SpecField constraints + obligations): Base constraints from the Darwin Core schema, plus obligation-derived `RequiredConstraint`s
+2. **Profile** (fieldOverrides): Community-specific overrides using `overrideConstraints()` for requirement level (profiles are authoritative and can weaken spec requirements), `mergeProfileConstraints()` for other constraints
+3. **Config** (fieldMappings): User config using `addConstraints()` — additive only, cannot weaken spec/profile constraints
 
 **Profile Inheritance Example:**
 
 ```typescript
 // OBIS-Event profile extends both Event and OBIS
-{
+const OBIS_EVENT_PROFILE: Profile = {
   id: "obis-event",
-  extends: "Event",  // Inherits all Event fields
-  fields: {
-    // Additional OBIS-specific requirements
-    decimalLatitude: { required: true },
-    decimalLongitude: { required: true },
-    eventDate: { required: true }
+  extends: "obis",
+  fieldOverrides: {
+    decimalLatitude: {
+      requirement: "required",
+      constraints: [
+        new RangeConstraint({ min: -90, max: 90, inclusive: true })
+      ]
+    }
   }
 }
 ```
@@ -151,14 +181,20 @@ When Darwin Core standards are updated, regenerate the base schemas:
 deno task cli import
 ```
 
-This fetches the latest Darwin Core XML schemas and OBIS checklist, then generates `dwcSchema.json` with all standard profiles, field definitions, OBIS requirements, and range validators. The integration test `test/schema-generation.test.ts` validates the generated output.
+This fetches the latest Darwin Core XML schemas and OBIS checklist, then generates `dwcSchema.json` with all standard specs, field definitions, OBIS requirements, and constraints. The integration test `test/schema-generation.test.ts` validates the generated output.
 
 **Key Files:**
 - `packages/domain/src/specs/generated/dwcSchema.json` - Generated Darwin Core specifications (gitignored)
 - `packages/core/src/import/get_dwc_schema.ts` - Schema generation logic
-- `packages/domain/src/specs/profiles/registry.ts` - Profile resolution and merging
-- `packages/domain/src/specs/field-definition.ts` - JSON field normalization
-- `packages/domain/src/specs/vocabularies/registry.ts` - Controlled vocabularies
+- `packages/domain/src/specs/constraints.ts` - Constraint `Data.TaggedClass` definitions and merge logic
+- `packages/domain/src/specs/constraint-presets.ts` - Named constraint bundles for YAML configs
+- `packages/domain/src/specs/field-definition.ts` - JSON field normalization (`RawField` → `SpecField`), `SpecField` type
+- `packages/domain/src/specs/profiles/registry.ts` - Spec/Profile registries, resolution, and merging
+- `packages/core/src/validation/field-resolution.ts` - 3-tier constraint merge pipeline
+- `packages/core/src/validation/field-validators.ts` - Constraint-dispatched SQL validation
+- `packages/domain/src/specs/dataset-rules.ts` - `OneOfRequiredRule` and `DatasetRule` type definitions
+- `packages/core/src/validation/dataset-rule-validators.ts` - SQL-based dataset rule validation
+- `packages/domain/src/specs/profiles/obis-emof.ts` - OBIS-eMoF profile with `oneOfRequired` rule
 
 ### Key Development Patterns
 
@@ -213,6 +249,9 @@ DarwinKit supports configuration-driven validation for multi-dataset projects us
 name: Marine Biodiversity Dataset
 version: 1.0.0
 description: Survey data validation configuration
+standard:
+  base: darwin-core
+  variant: obis          # Drives obligation lookup (OBIS, GBIF, etc.)
 
 validation:
   nullValues:
@@ -225,24 +264,26 @@ validation:
   outputDir: ./validation_results
   datasets:
     - name: event_data
-      spec: dwc-event
+      class: Event       # Darwin Core class (Event, Occurrence, Taxon, etc.)
       path: ../data/FC2022_event.csv
       description: Sampling events
       fieldMappings:
         - originName: eventID
           targetName: eventID
-          isRequired: true
+          requirement: required
         - originName: country
           targetName: country
-          isRequired: true
+          requirement: required
 
-crossDatasetRules:
+datasetRules:
   - ruleType: foreignKey
     sourceDataset: occurrence_data
     sourceField: eventID
     targetDataset: event_data
     targetField: eventID
 ```
+
+The `standard` field accepts either a string (`"darwin-core"`) or an object (`{ base, variant }`). Known variant names like `"obis"` or `"gbif"` as bare strings are normalized to `{ base: "darwin-core", variant: "obis" }` for backward compatibility.
 
 ### CLI Validation Workflow
 
@@ -346,8 +387,15 @@ The following enhancements are under consideration:
 - **Additional validation profiles** - Support for more biodiversity data standards (GBIF, iNaturalist, etc.)
 - **Data transformation pipelines** - Advanced transformation capabilities for complex data workflows
 - **Performance optimizations** - Caching and incremental validation for large datasets
+- **Transform workflow config migration** - Transform configs still use `profile:` instead of `class:`, and transform profile resolution ignores the `standard` field
+- **Constraint tightening warnings** - Warn users when config constraints are semantically meaningless (e.g. wider range than spec)
+- **DuckDB CHECK constraints** - Schema creation runs before constraint resolution; restructuring would allow range/format constraints to reject bad data at INSERT time
 
 ## Development Guidelines
+
+### Security Context
+
+SQL injection is not a risk in DarwinKit — the application processes user-owned CSV files against local in-memory DuckDB instances with no multi-tenant or network-exposed SQL surface. Table and column names are sanitized via `sanitizeTableName()` as a defense-in-depth measure.
 
 ### Effect Library References
 

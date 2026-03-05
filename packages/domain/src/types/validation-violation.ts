@@ -24,32 +24,31 @@
  */
 
 import { Schema } from "effect";
-import { ErrorSeverity } from "../errors/severity.ts";
-import type { EnforcementLevel } from "../specs/validators.ts";
+import type { RequirementLevel } from "../specs/constraints.ts";
 
 /**
  * Partitioned violations by severity level
  *
  * Generic interface for grouping violations into errors, warnings, and info
- * based on their enforcement level.
+ * based on their severity.
  */
 export interface PartitionedViolations<T> {
-  readonly errors: ReadonlyArray<T>; // enforcement: "required"
-  readonly warnings: ReadonlyArray<T>; // enforcement: "recommended"
-  readonly info: ReadonlyArray<T>; // enforcement: "optional"
+  readonly errors: ReadonlyArray<T>; // severity: "error"
+  readonly warnings: ReadonlyArray<T>; // severity: "warning"
+  readonly info: ReadonlyArray<T>; // severity: "info"
 }
 
 /**
  * Base fields shared by all field violations
  *
  * These schema fields are used to construct all violation types.
+ *
+ * **severity** is the sole behavioral field — it determines how the violation
+ * is reported (error, warning, or info). Derived from requirement level via
+ * `requirementToSeverity()`: "required" → ERROR, "recommended" → WARNING,
+ * "optional" → INFO.
  */
 const baseViolationFields = {
-  enforcement: Schema.Union(
-    Schema.Literal("required"),
-    Schema.Literal("recommended"),
-    Schema.Literal("optional"),
-  ),
   severity: Schema.Union(
     Schema.Literal("error"),
     Schema.Literal("warning"),
@@ -62,12 +61,8 @@ const baseViolationFields = {
   csvValue: Schema.optional(Schema.String),
   transformedValue: Schema.optional(Schema.Unknown),
   errorMessage: Schema.String,
-  validatorType: Schema.String,
 };
 
-/**
- * Range validation violation (numeric/date range constraints)
- */
 export class RangeViolation extends Schema.TaggedClass<RangeViolation>()("RangeViolation", {
   ...baseViolationFields,
   params: Schema.optional(
@@ -78,43 +73,12 @@ export class RangeViolation extends Schema.TaggedClass<RangeViolation>()("RangeV
   ),
 }) {}
 
-/**
- * Vocabulary validation violation (controlled vocabulary constraints)
- */
-export class VocabularyViolation
-  extends Schema.TaggedClass<VocabularyViolation>()("VocabularyViolation", {
-    ...baseViolationFields,
-    suggestedValues: Schema.optional(Schema.Array(Schema.String)),
-    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
-  }) {}
-
-/**
- * Uniqueness validation violation (duplicate identifier constraints)
- */
 export class UniquenessViolation
   extends Schema.TaggedClass<UniquenessViolation>()("UniquenessViolation", {
     ...baseViolationFields,
     params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
   }) {}
 
-/**
- * Cross-dataset validation violation (foreign key/referential integrity)
- */
-export class CrossDatasetViolation
-  extends Schema.TaggedClass<CrossDatasetViolation>()("CrossDatasetViolation", {
-    ...baseViolationFields,
-    params: Schema.optional(
-      Schema.Struct({
-        sourceDataset: Schema.optional(Schema.String),
-        targetDataset: Schema.optional(Schema.String),
-        targetField: Schema.optional(Schema.String),
-      }),
-    ),
-  }) {}
-
-/**
- * Primary key constraint violation (duplicate or null primary key)
- */
 export class PrimaryKeyViolation
   extends Schema.TaggedClass<PrimaryKeyViolation>()("PrimaryKeyViolation", {
     ...baseViolationFields,
@@ -123,17 +87,11 @@ export class PrimaryKeyViolation
     params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
   }) {}
 
-/**
- * Not null constraint violation (required field is null)
- */
 export class NotNullViolation extends Schema.TaggedClass<NotNullViolation>()("NotNullViolation", {
   ...baseViolationFields,
   params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
 }) {}
 
-/**
- * Enum constraint violation (value not in controlled vocabulary)
- */
 export class EnumViolation extends Schema.TaggedClass<EnumViolation>()("EnumViolation", {
   ...baseViolationFields,
   enumType: Schema.String,
@@ -142,9 +100,41 @@ export class EnumViolation extends Schema.TaggedClass<EnumViolation>()("EnumViol
   params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
 }) {}
 
-/**
- * Foreign key constraint violation (referenced value doesn't exist)
- */
+export class FormatViolation extends Schema.TaggedClass<FormatViolation>()("FormatViolation", {
+  ...baseViolationFields,
+  format: Schema.String,
+  params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+}) {}
+
+export class PatternViolation extends Schema.TaggedClass<PatternViolation>()("PatternViolation", {
+  ...baseViolationFields,
+  pattern: Schema.String,
+  flags: Schema.optional(Schema.String),
+  params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+}) {}
+
+export class LengthViolation extends Schema.TaggedClass<LengthViolation>()("LengthViolation", {
+  ...baseViolationFields,
+  params: Schema.optional(
+    Schema.Struct({
+      minLength: Schema.optional(Schema.Number),
+      maxLength: Schema.optional(Schema.Number),
+      actualLength: Schema.optional(Schema.Number),
+    }),
+  ),
+}) {}
+
+export class RequiredFieldViolation
+  extends Schema.TaggedClass<RequiredFieldViolation>()("RequiredFieldViolation", {
+    ...baseViolationFields,
+    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  }) {}
+
+export class OneOfRequiredViolation
+  extends Schema.TaggedClass<OneOfRequiredViolation>()("OneOfRequiredViolation", {
+    ...baseViolationFields,
+  }) {}
+
 export class ForeignKeyViolation
   extends Schema.TaggedClass<ForeignKeyViolation>()("ForeignKeyViolation", {
     ...baseViolationFields,
@@ -158,11 +148,6 @@ export class ForeignKeyViolation
     ),
   }) {}
 
-/**
- * Represents a field that passed validation
- *
- * Used as the success type when validators find no violations.
- */
 export interface ValidField {
   readonly fieldName: string;
   readonly targetName: string;
@@ -180,131 +165,76 @@ export interface ValidField {
  * @example Type guard filtering
  * ```typescript
  * const rangeErrors = violations.filter(isRangeViolation);
- * const vocabErrors = violations.filter(isVocabularyViolation);
  * ```
  */
 export type FieldViolation =
   | RangeViolation
-  | VocabularyViolation
   | UniquenessViolation
-  | CrossDatasetViolation
   | PrimaryKeyViolation
   | NotNullViolation
   | EnumViolation
-  | ForeignKeyViolation;
+  | ForeignKeyViolation
+  | FormatViolation
+  | PatternViolation
+  | LengthViolation
+  | RequiredFieldViolation
+  | OneOfRequiredViolation;
 
-/**
- * Type guard helper for RangeViolation
- *
- * @example
- * ```typescript
- * const rangeErrors = violations.filter(isRangeViolation);
- * // TypeScript knows rangeErrors is RangeViolation[]
- * ```
- */
 export function isRangeViolation(v: FieldViolation): v is RangeViolation {
   return v._tag === "RangeViolation";
 }
 
-/**
- * Type guard helper for PrimaryKeyViolation
- *
- * @example
- * ```typescript
- * const pkErrors = violations.filter(isPrimaryKeyViolation);
- * // TypeScript knows pkErrors is PrimaryKeyViolation[]
- * ```
- */
 export function isPrimaryKeyViolation(v: FieldViolation): v is PrimaryKeyViolation {
   return v._tag === "PrimaryKeyViolation";
 }
 
-/**
- * Type guard helper for EnumViolation
- *
- * @example
- * ```typescript
- * const enumErrors = violations.filter(isEnumViolation);
- * // TypeScript knows enumErrors is EnumViolation[]
- * ```
- */
 export function isEnumViolation(v: FieldViolation): v is EnumViolation {
   return v._tag === "EnumViolation";
 }
 
-/**
- * Type guard helper for VocabularyViolation
- */
-export function isVocabularyViolation(v: FieldViolation): v is VocabularyViolation {
-  return v._tag === "VocabularyViolation";
-}
-
-/**
- * Type guard helper for UniquenessViolation
- */
 export function isUniquenessViolation(v: FieldViolation): v is UniquenessViolation {
   return v._tag === "UniquenessViolation";
 }
 
-/**
- * Type guard helper for NotNullViolation
- */
 export function isNotNullViolation(v: FieldViolation): v is NotNullViolation {
   return v._tag === "NotNullViolation";
 }
 
-/**
- * Type guard helper for ForeignKeyViolation
- */
 export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolation {
   return v._tag === "ForeignKeyViolation";
 }
 
-/**
- * Type guard helper for CrossDatasetViolation
- */
-export function isCrossDatasetViolation(v: FieldViolation): v is CrossDatasetViolation {
-  return v._tag === "CrossDatasetViolation";
+export function isFormatViolation(v: FieldViolation): v is FormatViolation {
+  return v._tag === "FormatViolation";
 }
 
-/**
- * Convert enforcement level to severity
- *
- * Maps validation domain enforcement levels to error severity
- * for consistent error handling across the system.
- *
- * @param enforcement - The enforcement level from validator config
- * @returns The corresponding error severity
- *
- * @example
- * ```typescript
- * enforcementToSeverity("required")    // => ErrorSeverity.ERROR
- * enforcementToSeverity("recommended") // => ErrorSeverity.WARNING
- * enforcementToSeverity("optional")    // => ErrorSeverity.INFO
- * ```
- */
-export function enforcementToSeverity(enforcement: EnforcementLevel): ErrorSeverity {
-  switch (enforcement) {
+export function isPatternViolation(v: FieldViolation): v is PatternViolation {
+  return v._tag === "PatternViolation";
+}
+
+export function isLengthViolation(v: FieldViolation): v is LengthViolation {
+  return v._tag === "LengthViolation";
+}
+
+export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldViolation {
+  return v._tag === "RequiredFieldViolation";
+}
+
+export function isOneOfRequiredViolation(v: FieldViolation): v is OneOfRequiredViolation {
+  return v._tag === "OneOfRequiredViolation";
+}
+
+export function requirementToSeverity(requirement: RequirementLevel): "error" | "warning" | "info" {
+  switch (requirement) {
     case "required":
-      return ErrorSeverity.ERROR;
+      return "error";
     case "recommended":
-      return ErrorSeverity.WARNING;
+      return "warning";
     case "optional":
-      return ErrorSeverity.INFO;
+      return "info";
   }
 }
 
-/**
- * Partition field violations by severity level
- *
- * Groups violations into errors, warnings, and info based on their
- * severity level. This is more semantically correct than partitioning
- * by enforcement since severity is the actual categorization used
- * for reporting.
- *
- * @param violations - Array of violations to partition
- * @returns Partitioned violations object
- */
 export function partitionFieldViolations(
   violations: ReadonlyArray<FieldViolation>,
 ): PartitionedViolations<FieldViolation> {
@@ -327,11 +257,4 @@ export function partitionFieldViolations(
   }
 
   return { errors, warnings, info };
-}
-
-/**
- * Create an empty partitioned field violations object
- */
-export function emptyPartitionedFieldViolations(): PartitionedViolations<FieldViolation> {
-  return { errors: [], warnings: [], info: [] };
 }

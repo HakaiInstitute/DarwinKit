@@ -22,6 +22,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 
   const config: WorkspaceConfig = {
     version: "1",
+    standard: { base: "darwin-core", variant: "obis" },
     createdAt: new Date(),
     updatedAt: new Date(),
     id: "test-workspace",
@@ -36,7 +37,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
       datasets: [
         {
           name: "Event",
-          profile: "Event",
+          class: "Event",
           source: { "source_data": "source_data" },
           fields: {
             "eventID": "source_data.event_id",
@@ -45,7 +46,7 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
         },
         {
           name: "Occurrence",
-          profile: "Occurrence",
+          class: "Occurrence",
           source: { "source_data": "source_data" },
           fields: {
             "occurrenceID": "source_data.occ_id",

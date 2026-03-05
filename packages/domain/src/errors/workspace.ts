@@ -1,60 +1,31 @@
-/**
- * Workspace Error Types
- *
- * Specialized error types for workspace operations with rich context.
- * Uses Effect's Data.TaggedError for pattern matching support.
- *
- * @module errors/workspace
- */
-
-import type * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
-import { createTaggedFormatter, prettyPrintCause } from "./cause-formatter.ts";
 
-/**
- * Error when configuration file is not found after searching
- */
 export class ConfigNotFoundError extends Data.TaggedError("ConfigNotFoundError")<{
   readonly message: string;
   readonly searchedPaths: readonly string[];
   readonly startDirectory: string;
 }> {
-  /**
-   * Get a human-readable description of where we searched
-   */
   get searchDescription(): string {
     return this.searchedPaths.map((p) => `  - ${p}`).join("\n");
   }
 }
 
-/**
- * Error when configuration file cannot be parsed (invalid YAML)
- */
 export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
   readonly message: string;
   readonly configPath: string;
   readonly cause?: Error;
 }> {}
 
-/**
- * Error when configuration fails schema validation
- */
 export class ConfigValidationError extends Data.TaggedError("ConfigValidationError")<{
   readonly message: string;
   readonly configPath: string;
   readonly validationErrors: readonly string[];
 }> {
-  /**
-   * Get formatted list of validation errors
-   */
   get errorList(): string {
     return this.validationErrors.map((e) => `  - ${e}`).join("\n");
   }
 }
 
-/**
- * Error when a dataset file referenced in config does not exist
- */
 export class DatasetFileNotFoundError extends Data.TaggedError("DatasetFileNotFoundError")<{
   readonly message: string;
   readonly datasetName: string;
@@ -62,9 +33,6 @@ export class DatasetFileNotFoundError extends Data.TaggedError("DatasetFileNotFo
   readonly configPath: string;
 }> {}
 
-/**
- * Error when a transform input file does not exist
- */
 export class TransformInputNotFoundError extends Data.TaggedError("TransformInputNotFoundError")<{
   readonly message: string;
   readonly inputName: string;
@@ -72,56 +40,26 @@ export class TransformInputNotFoundError extends Data.TaggedError("TransformInpu
   readonly configPath: string;
 }> {}
 
-/**
- * Error when workspace validation configuration is missing
- */
 export class ValidationConfigMissingError extends Data.TaggedError("ValidationConfigMissingError")<{
   readonly message: string;
   readonly workspaceName: string;
 }> {}
 
-/**
- * Error when validation config exists but has no datasets defined
- */
 export class NoDatasetsDefinedError
   extends Data.TaggedError("NoDatasetsDefinedError")<{ message: string }> {}
 
-/**
- * Error that occurs during workspace validation
- */
 export class WorkspaceValidationError extends Data.TaggedClass("WorkspaceValidationError")<{
   readonly message: string;
   readonly cause?: Error;
 }> {}
 
-/**
- * Error that occurs during the data importing process
- */
 export class WorkspaceImportError extends Data.TaggedClass("WorkspaceImportError")<{
   readonly message: string;
   readonly cause?: Error;
 }> {}
 
-/**
- * Union type of workspace operation errors (validation and import)
- *
- * Use this for functions that may fail with either validation or import errors.
- */
 export type WorkspaceOperationError = WorkspaceValidationError | WorkspaceImportError;
 
-/**
- * Union type of all workspace configuration errors for pattern matching
- *
- * @example
- * ```typescript
- * Effect.catchTags({
- *   ConfigNotFoundError: (e) => Effect.succeed(`Not found: ${e.searchDescription}`),
- *   ConfigParseError: (e) => Effect.succeed(`Parse error in ${e.configPath}`),
- *   ConfigValidationError: (e) => Effect.succeed(`Invalid config: ${e.errorList}`),
- *   DatasetFileNotFoundError: (e) => Effect.succeed(`Missing: ${e.filePath}`),
- * })
- * ```
- */
 export type WorkspaceConfigError =
   | ConfigNotFoundError
   | ConfigParseError
@@ -130,72 +68,3 @@ export type WorkspaceConfigError =
   | TransformInputNotFoundError
   | ValidationConfigMissingError
   | NoDatasetsDefinedError;
-
-/**
- * Formatter for workspace configuration errors
- *
- * Uses createTaggedFormatter for consistent error message formatting.
- */
-export const formatWorkspaceConfigError = createTaggedFormatter<WorkspaceConfigError>({
-  ConfigNotFoundError: (error) =>
-    `Configuration file not found\n\n` +
-    `Started searching from: ${error.startDirectory}\n\n` +
-    `Searched paths:\n${error.searchDescription}\n\n` +
-    `Create a darwinkit.yaml file to define your workspace configuration.`,
-
-  ConfigParseError: (error) =>
-    `Failed to parse configuration file\n\n` +
-    `File: ${error.configPath}\n` +
-    `${error.cause?.message ?? error.message}\n\n` +
-    `Check that the file contains valid YAML syntax.`,
-
-  ConfigValidationError: (error) =>
-    `Configuration validation failed\n\n` +
-    `File: ${error.configPath}\n\n` +
-    `Validation errors:\n${error.errorList}\n\n` +
-    `Review the configuration schema and fix the errors above.`,
-
-  DatasetFileNotFoundError: (error) =>
-    `Dataset file not found\n\n` +
-    `Dataset: ${error.datasetName}\n` +
-    `Path: ${error.filePath}\n` +
-    `Config: ${error.configPath}\n\n` +
-    `Check that the path in darwinkit.yaml is correct and the file exists.`,
-
-  TransformInputNotFoundError: (error) =>
-    `Transform input file not found\n\n` +
-    `Input: ${error.inputName}\n` +
-    `Path: ${error.filePath}\n` +
-    `Config: ${error.configPath}\n\n` +
-    `Check that the path in darwinkit.yaml is correct and the file exists.`,
-
-  ValidationConfigMissingError: (error) =>
-    `Validation configuration missing\n\n` +
-    // TODO: No need to include workspace name; only one is operated on at a time
-    `Workspace: ${error.workspaceName}\n\n` +
-    `Add a "validation" section to darwinkit.yaml with datasets to validate.`,
-
-  NoDatasetsDefinedError: (_error) =>
-    `No datasets defined for validation\n\n` +
-    `Add at least one dataset to the "validation.datasets" array in darwinkit.yaml.`,
-});
-
-/**
- * Pretty print a workspace configuration error Cause
- *
- * @param cause - The Effect Cause containing the error
- * @returns Human-readable error message
- *
- * @example
- * ```typescript
- * const result = await Effect.runPromiseExit(loadWorkspace());
- * if (result._tag === "Failure") {
- *   console.error(prettyPrintWorkspaceError(result.cause));
- * }
- * ```
- */
-export function prettyPrintWorkspaceError(
-  cause: Cause.Cause<WorkspaceConfigError>,
-): string {
-  return prettyPrintCause(cause, formatWorkspaceConfigError);
-}

@@ -28,7 +28,7 @@ Deno.test("makeWorkspaceConfig", async (t) => {
 
     // Optional fields remain undefined
     assertEquals(config1.description, undefined);
-    assertEquals(config1.crossDatasetRules, undefined);
+    assertEquals(config1.datasetRules, undefined);
     assertEquals(config1.transform, undefined);
   });
 
@@ -42,7 +42,7 @@ Deno.test("makeWorkspaceConfig", async (t) => {
       updatedAt: customDate.toISOString(),
       description: "Test description",
       validation: {},
-      crossDatasetRules: [
+      datasetRules: [
         {
           ruleType: "foreignKey",
           sourceDataset: "a",
@@ -58,7 +58,7 @@ Deno.test("makeWorkspaceConfig", async (t) => {
     assertEquals(config.version, "2.0.0");
     assertEquals(config.createdAt, customDate);
     assertEquals(config.description, "Test description");
-    assertEquals(config.crossDatasetRules?.length, 1);
+    assertEquals(config.datasetRules?.length, 1);
   });
 
   await t.step("applies validation defaults and preserves overrides", () => {
@@ -111,6 +111,51 @@ Deno.test("makeWorkspaceConfig", async (t) => {
   });
 });
 
+Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
+  await t.step("requirement field accepts valid requirement levels", () => {
+    const config = makeWorkspaceConfig({
+      validation: {
+        datasets: [{
+          name: "events",
+          class: "Event",
+          path: "./events.csv",
+          fieldMappings: [{
+            originName: "eventID",
+            targetName: "eventID",
+            requirement: "required",
+          }],
+        }],
+      },
+    });
+
+    const mapping = config.validation?.datasets[0]?.fieldMappings?.[0];
+    assertEquals(mapping?.originName, "eventID");
+    assertEquals(mapping?.requirement, "required");
+  });
+
+  await t.step("unknown properties on field mappings are stripped by schema", () => {
+    const config = makeWorkspaceConfig({
+      validation: {
+        datasets: [{
+          name: "events",
+          class: "Event",
+          path: "./events.csv",
+          fieldMappings: [{
+            originName: "eventID",
+            targetName: "eventID",
+            // @ts-expect-error — intentionally passing unknown property to verify schema strips it
+            bogusProperty: true,
+          }],
+        }],
+      },
+    });
+
+    const mapping = config.validation?.datasets[0]?.fieldMappings?.[0];
+    assertEquals(mapping?.originName, "eventID");
+    assertEquals("bogusProperty" in (mapping ?? {}), false);
+  });
+});
+
 Deno.test("makeWorkspaceConfig - invalid input", async (t) => {
   await t.step("throws when neither validation nor transform provided", () => {
     assertThrows(
@@ -128,5 +173,83 @@ Deno.test("makeWorkspaceConfig - invalid input", async (t) => {
     );
 
     assertThrows(() => makeWorkspaceConfig({ transform: {} as unknown } as WorkspaceConfigInput));
+  });
+});
+
+Deno.test("makeWorkspaceConfig - standard field normalization", () => {
+  const cases: Array<{
+    label: string;
+    input: WorkspaceConfigInput["standard"];
+    expected: { base: string; variant?: string };
+  }> = [
+    {
+      label: "omitted → default",
+      input: undefined,
+      expected: { base: "darwin-core", variant: "obis" },
+    },
+    { label: "string 'obis'", input: "obis", expected: { base: "darwin-core", variant: "obis" } },
+    { label: "string 'gbif'", input: "gbif", expected: { base: "darwin-core", variant: "gbif" } },
+    { label: "string 'darwin-core'", input: "darwin-core", expected: { base: "darwin-core" } },
+    {
+      label: "object { base, variant }",
+      input: { base: "darwin-core", variant: "obis" },
+      expected: { base: "darwin-core", variant: "obis" },
+    },
+    {
+      label: "object without variant",
+      input: { base: "darwin-core" },
+      expected: { base: "darwin-core" },
+    },
+  ];
+
+  for (const { label, input, expected } of cases) {
+    const config = makeWorkspaceConfig({ standard: input, validation: {} });
+    assertEquals(config.standard, expected, label);
+  }
+});
+
+Deno.test("makeWorkspaceConfig - class field on datasets", async (t) => {
+  await t.step("accepts class field on validation datasets", () => {
+    const config = makeWorkspaceConfig({
+      validation: {
+        datasets: [{
+          name: "events",
+          class: "Event",
+          path: "./events.csv",
+        }],
+      },
+    });
+    assertEquals(config.validation?.datasets[0]?.class, "Event");
+  });
+
+  await t.step("rejects dataset without class field", () => {
+    assertThrows(() =>
+      makeWorkspaceConfig({
+        validation: {
+          datasets: [{ name: "events", path: "./events.csv" } as unknown],
+        },
+      } as WorkspaceConfigInput)
+    );
+  });
+});
+
+Deno.test("makeWorkspaceConfig - datasetRules", async (t) => {
+  await t.step("accepts datasetRules with foreignKey rules", () => {
+    const config = makeWorkspaceConfig({
+      validation: {},
+      datasetRules: [
+        {
+          ruleType: "foreignKey",
+          sourceDataset: "occurrences",
+          sourceField: "eventID",
+          targetDataset: "events",
+          targetField: "eventID",
+        },
+      ],
+    });
+
+    assertEquals(config.datasetRules?.length, 1);
+    assertEquals(config.datasetRules?.[0].ruleType, "foreignKey");
+    assertEquals(config.datasetRules?.[0].sourceDataset, "occurrences");
   });
 });

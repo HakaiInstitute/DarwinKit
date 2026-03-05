@@ -9,6 +9,6 @@
   },
   "imports": {},
   "tasks": {
-    "test": "deno test --parallel"
+    "test": "deno test --parallel --allow-read"
   }
 }

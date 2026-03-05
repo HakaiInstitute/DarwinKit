@@ -1,7 +1,3 @@
-/**
- * Spinner utility for long-running operations
- */
-
 import { Spinner } from '@std/cli/unstable-spinner';
 import { colors } from '@cliffy/ansi/colors';
 
@@ -10,9 +6,6 @@ export interface SpinnerOptions {
   color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray';
 }
 
-/**
- * Create and manage a spinner for progress indication
- */
 export class ProgressSpinner {
   private spinner: Spinner;
   private isRunning = false;
@@ -41,9 +34,6 @@ export class ProgressSpinner {
     }
   }
 
-  /**
-   * Start the spinner
-   */
   start(): void {
     if (!this.isRunning) {
       this.spinner.start();
@@ -51,9 +41,6 @@ export class ProgressSpinner {
     }
   }
 
-  /**
-   * Update spinner message
-   */
   update(message: string, color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray'): void {
     if (this.isRunning) {
       const colorFn = this.getColorFunction(color || 'blue');
@@ -61,9 +48,6 @@ export class ProgressSpinner {
     }
   }
 
-  /**
-   * Stop the spinner with success
-   */
   succeed(message?: string): void {
     if (this.isRunning) {
       this.spinner.stop();
@@ -74,9 +58,6 @@ export class ProgressSpinner {
     }
   }
 
-  /**
-   * Stop the spinner with failure
-   */
   fail(message?: string): void {
     if (this.isRunning) {
       this.spinner.stop();
@@ -87,9 +68,6 @@ export class ProgressSpinner {
     }
   }
 
-  /**
-   * Stop the spinner with warning
-   */
   warn(message?: string): void {
     if (this.isRunning) {
       this.spinner.stop();
@@ -100,9 +78,6 @@ export class ProgressSpinner {
     }
   }
 
-  /**
-   * Stop the spinner without message
-   */
   stop(): void {
     if (this.isRunning) {
       this.spinner.stop();
@@ -111,9 +86,6 @@ export class ProgressSpinner {
   }
 }
 
-/**
- * Helper to create and run a spinner during an async operation
- */
 export async function withSpinner<T>(
   options: SpinnerOptions,
   operation: () => Promise<T>,

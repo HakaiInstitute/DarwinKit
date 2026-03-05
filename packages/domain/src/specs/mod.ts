@@ -1,21 +1,13 @@
-/**
- * @dwkt/domain/specs - Darwin Core specifications, profiles, and vocabularies
- */
-
-// Darwin Core field definitions and barrel exports
-export * from "./dwc/mod.ts";
-
-// Field normalization
 export * from "./field-definition.ts";
-
-// Validators
-export * from "./validators.ts";
-
-// Validation Profiles
+export * from "./constraints.ts";
+export * from "./constraint-presets.ts";
+export * from "./dataset-rules.ts";
+export { OBIS_EMOF_PROFILE } from "./profiles/obis-emof.ts";
 export { OBIS_EVENT_PROFILE } from "./profiles/obis-event.ts";
 export { OBIS_BASE_PROFILE } from "./profiles/obis.ts";
-export { getValidationProfile, VALIDATION_PROFILES } from "./profiles/registry.ts";
-
-// Vocabularies
-export * from "./vocabularies/config.ts";
-export * from "./vocabularies/registry.ts";
+export {
+  getResolvedSpec,
+  getSpecNames,
+  PROFILE_REGISTRY,
+  resolveProfile,
+} from "./profiles/registry.ts";
