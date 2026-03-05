@@ -42,4 +42,5 @@ packages/cli/transform_results
 .worktrees/
 
 packages/cli/validation_results/
-!packages/domain/src/specs/generated/.gitkeep
+# Duplicate generated artifacts at repo root
+darwinkit.schema.json
