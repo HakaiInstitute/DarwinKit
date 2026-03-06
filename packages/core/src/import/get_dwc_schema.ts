@@ -289,6 +289,14 @@ async function fetchObisChecklist(): Promise<OBISChecklistRow[]> {
 
 /**
  * Join OBIS checklist requirements with schema fields.
+ *
+ * Note: The OBIS checklist marks both eventID and occurrenceID as individually
+ * "required" for the eMoF table, but the actual OBIS intent (per their manual)
+ * is "at least one must be present" — a measurement can link to just an event
+ * (e.g. environmental readings) or just an occurrence (e.g. organism-specific
+ * measurements). The OBIS-eMoF profile in obis-emof.ts corrects this by
+ * overriding both fields to "recommended" and adding a dependency rule with
+ * oneOf semantics.
  */
 function joinObisRequirements(
   schemaJson: SchemaJson,
