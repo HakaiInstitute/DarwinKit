@@ -45,8 +45,8 @@ import { Workspace } from "../workspace/workspace.ts";
 import { importSchema } from "../loading/schema.ts";
 import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
-import { validateOneOfRequired } from "./dataset-rule-validators.ts";
-import type { OneOfRequiredRule } from "@dwkt/domain/specs";
+import { validateDependencyRule } from "./dataset-rule-validators.ts";
+import type { DependencyRule } from "@dwkt/domain/specs";
 
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { ResolvedFieldsEntry } from "./field-resolution.ts";
@@ -666,20 +666,28 @@ function validateDataset(
       }
     }
 
-    // Validate dataset rules (oneOfRequired, etc.)
+    // Validate dataset rules (dependency rules)
     if (resolvedSpec?.datasetRules) {
       for (const rule of resolvedSpec.datasetRules) {
-        if (rule._tag === "oneOfRequired") {
+        if (rule._tag === "dependency") {
+          const depRule = rule as DependencyRule;
+          // Determine which fields the rule references
+          const ruleFields = "oneOf" in depRule.require
+            ? [...depRule.require.oneOf]
+            : [...depRule.require];
+          if (depRule.when !== undefined) {
+            const whenField = typeof depRule.when === "string" ? depRule.when : depRule.when.field;
+            ruleFields.push(whenField);
+          }
+
           // Only validate if at least one of the rule's fields exists in the table
-          const ruleFieldsInTable = (rule as OneOfRequiredRule).fields.filter(
-            (f) => originTableColumns.includes(f),
-          );
-          if (ruleFieldsInTable.length > 0) {
+          const fieldsInTable = ruleFields.filter((f) => originTableColumns.includes(f));
+          if (fieldsInTable.length > 0) {
             const ruleResult = yield* _(Effect.either(
-              validateOneOfRequired(
+              validateDependencyRule(
                 connection,
                 tableName,
-                rule as OneOfRequiredRule,
+                depRule,
                 validationSettings?.maxViolationsPerField,
               ),
             ));

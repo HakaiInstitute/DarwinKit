@@ -230,7 +230,7 @@ export function resolveSpecFields(
       if (override.requirement) {
         // Profile requirement overrides replace spec obligations (not strictest-wins).
         // This allows profiles to weaken per-field requirements when a group rule
-        // (e.g., oneOfRequired) replaces individual required constraints.
+        // (e.g., dependency rule) replaces individual required constraints.
         constraints = overrideConstraints(constraints, [
           requirementToConstraint(override.requirement),
         ]);

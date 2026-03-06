@@ -1109,7 +1109,7 @@ Deno.test("resolveSpecFields - profile override replaces spec requirement level"
 
   // Profile overrides are authoritative — they replace spec obligations.
   // This allows profiles to weaken per-field requirements when a group rule
-  // (e.g., oneOfRequired) replaces individual required constraints.
+  // (e.g., dependency rule) replaces individual required constraints.
   assertEquals(required?.length, 1);
   assertEquals(required?.[0]?.level, "recommended");
 });

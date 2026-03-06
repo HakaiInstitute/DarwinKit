@@ -26,20 +26,21 @@ export function findForeignKeyRule(
 ): ForeignKeyRuleMatch | undefined {
   if (!rules) return undefined;
 
-  const rule = rules.find(
-    (r) =>
+  for (const r of rules) {
+    if (
       r.ruleType === "foreignKey" &&
       r.sourceDataset === sourceDataset &&
-      r.sourceField === sourceField,
-  );
+      r.sourceField === sourceField
+    ) {
+      return {
+        targetDataset: r.targetDataset,
+        targetField: r.targetField,
+        requirement: r.requirement ?? "required",
+      };
+    }
+  }
 
-  if (!rule) return undefined;
-
-  return {
-    targetDataset: rule.targetDataset,
-    targetField: rule.targetField,
-    requirement: rule.requirement ?? "required",
-  };
+  return undefined;
 }
 
 export type ParsedErrorType =

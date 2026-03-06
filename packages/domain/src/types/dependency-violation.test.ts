@@ -1,8 +1,8 @@
 import { assertEquals } from "@std/assert";
-import { OneOfRequiredViolation } from "./validation-violation.ts";
+import { DependencyViolation } from "./validation-violation.ts";
 
-Deno.test("OneOfRequiredViolation - creates tagged instance", () => {
-  const v = new OneOfRequiredViolation({
+Deno.test("DependencyViolation - creates tagged instance", () => {
+  const v = new DependencyViolation({
     severity: "error",
     fieldName: "eventID, occurrenceID",
     targetName: "eventID, occurrenceID",
@@ -10,7 +10,7 @@ Deno.test("OneOfRequiredViolation - creates tagged instance", () => {
     value: "",
     errorMessage: 'At least one of "eventID" or "occurrenceID" must be present',
   });
-  assertEquals(v._tag, "OneOfRequiredViolation");
+  assertEquals(v._tag, "DependencyViolation");
   assertEquals(v.severity, "error");
   assertEquals(v.fieldName, "eventID, occurrenceID");
   assertEquals(v.rowNumber, 1);

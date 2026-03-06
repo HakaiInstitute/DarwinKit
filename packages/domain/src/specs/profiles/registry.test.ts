@@ -178,13 +178,13 @@ Deno.test("resolveProfile - obis + ExtendedMeasurementOrFact resolves OBIS-eMoF 
   assertEquals(resolved.profile, "obis-extendedmeasurementorfact");
 });
 
-Deno.test("resolveProfile - OBIS-eMoF profile has datasetRules with oneOfRequired", () => {
+Deno.test("resolveProfile - OBIS-eMoF profile has datasetRules with dependency rule", () => {
   const resolved = resolveProfile("obis", "ExtendedMeasurementOrFact");
   assertExists(resolved);
   assertExists(resolved.datasetRules);
   assertEquals(resolved.datasetRules!.length, 1);
   const rule = resolved.datasetRules![0];
-  assertEquals(rule._tag, "oneOfRequired");
+  assertEquals(rule._tag, "dependency");
 });
 
 Deno.test("resolveProfile - OBIS-eMoF profile overrides eventID and occurrenceID to recommended", () => {

@@ -3,7 +3,11 @@
  */
 
 import { assertEquals, assertExists, assertNotEquals, assertThrows } from "@std/assert";
-import { makeWorkspaceConfig, type WorkspaceConfigInput } from "./workspace-config.ts";
+import {
+  decodeWorkspaceConfig,
+  makeWorkspaceConfig,
+  type WorkspaceConfigInput,
+} from "./workspace-config.ts";
 
 const DEFAULT_NULL_VALUES = ["NA", "N/A", "", "NULL", "null"];
 
@@ -252,4 +256,98 @@ Deno.test("makeWorkspaceConfig - datasetRules", async (t) => {
     assertEquals(config.datasetRules?.[0].ruleType, "foreignKey");
     assertEquals(config.datasetRules?.[0].sourceDataset, "occurrences");
   });
+});
+
+Deno.test("config schema - parses dependency rule with presence trigger", () => {
+  const config = decodeWorkspaceConfig({
+    validation: {
+      datasets: [{ name: "occ", class: "Occurrence", path: "./occ.csv" }],
+    },
+    datasetRules: [
+      {
+        ruleType: "dependency",
+        sourceDataset: "occ",
+        when: "decimalLatitude",
+        require: ["decimalLongitude", "geodeticDatum"],
+      },
+    ],
+  });
+  assertEquals(config.datasetRules?.length, 1);
+  const rule = config.datasetRules![0];
+  assertEquals(rule.ruleType, "dependency");
+});
+
+Deno.test("config schema - parses dependency rule with value equals", () => {
+  const config = decodeWorkspaceConfig({
+    validation: {
+      datasets: [{ name: "occ", class: "Occurrence", path: "./occ.csv" }],
+    },
+    datasetRules: [
+      {
+        ruleType: "dependency",
+        sourceDataset: "occ",
+        when: { field: "basisOfRecord", equals: "PreservedSpecimen" },
+        require: ["catalogNumber"],
+      },
+    ],
+  });
+  const rule = config.datasetRules![0];
+  assertEquals(rule.ruleType, "dependency");
+});
+
+Deno.test("config schema - parses dependency rule with value in", () => {
+  const config = decodeWorkspaceConfig({
+    validation: {
+      datasets: [{ name: "occ", class: "Occurrence", path: "./occ.csv" }],
+    },
+    datasetRules: [
+      {
+        ruleType: "dependency",
+        sourceDataset: "occ",
+        when: { field: "basisOfRecord", in: ["PreservedSpecimen", "FossilSpecimen"] },
+        require: ["catalogNumber"],
+      },
+    ],
+  });
+  const rule = config.datasetRules![0];
+  assertEquals(rule.ruleType, "dependency");
+});
+
+Deno.test("config schema - parses unconditional oneOf dependency rule", () => {
+  const config = decodeWorkspaceConfig({
+    validation: {
+      datasets: [{ name: "emof", class: "ExtendedMeasurementOrFact", path: "./emof.csv" }],
+    },
+    datasetRules: [
+      {
+        ruleType: "dependency",
+        sourceDataset: "emof",
+        require: { oneOf: ["eventID", "occurrenceID"] },
+      },
+    ],
+  });
+  const rule = config.datasetRules![0];
+  assertEquals(rule.ruleType, "dependency");
+});
+
+Deno.test("config schema - foreignKey rules still parse", () => {
+  const config = decodeWorkspaceConfig({
+    validation: {
+      datasets: [
+        { name: "events", class: "Event", path: "./events.csv" },
+        { name: "occ", class: "Occurrence", path: "./occ.csv" },
+      ],
+    },
+    datasetRules: [
+      {
+        ruleType: "foreignKey",
+        sourceDataset: "occ",
+        sourceField: "eventID",
+        targetDataset: "events",
+        targetField: "eventID",
+      },
+    ],
+  });
+  assertEquals(config.datasetRules?.length, 1);
+  assertEquals(config.datasetRules![0].ruleType, "foreignKey");
 });
