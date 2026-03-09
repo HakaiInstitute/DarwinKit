@@ -2,35 +2,28 @@ import { assertEquals } from "@std/assert";
 import type { Profile, ResolvedSpec } from "../schemas/spec-types.ts";
 import { DependencyRule } from "./dataset-rules.ts";
 
-Deno.test("Profile - accepts datasetRules property", () => {
+Deno.test("Profile and ResolvedSpec accept datasetRules with DependencyRule", () => {
+  const rule = new DependencyRule({
+    require: { oneOf: ["eventID", "occurrenceID"] },
+    level: "required",
+  });
+
   const profile: Profile = {
     id: "test-profile",
     name: "Test",
     fieldOverrides: {},
-    datasetRules: [
-      new DependencyRule({
-        require: { oneOf: ["eventID", "occurrenceID"] },
-        level: "required",
-      }),
-    ],
+    datasetRules: [rule],
   };
-  assertEquals(profile.datasetRules?.length, 1);
-  assertEquals(profile.datasetRules![0]._tag, "dependency");
-});
 
-Deno.test("ResolvedSpec - accepts datasetRules property", () => {
   const spec: ResolvedSpec = {
     id: "test",
     name: "Test",
     spec: "Test",
     fieldOverrides: {},
     specFields: {},
-    datasetRules: [
-      new DependencyRule({
-        require: { oneOf: ["eventID", "occurrenceID"] },
-        level: "required",
-      }),
-    ],
+    datasetRules: [rule],
   };
-  assertEquals(spec.datasetRules?.length, 1);
+
+  assertEquals(profile.datasetRules![0]._tag, "dependency");
+  assertEquals(spec.datasetRules![0]._tag, "dependency");
 });

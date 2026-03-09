@@ -680,9 +680,9 @@ function validateDataset(
             ruleFields.push(whenField);
           }
 
-          // Only validate if at least one of the rule's fields exists in the table
-          const fieldsInTable = ruleFields.filter((f) => originTableColumns.includes(f));
-          if (fieldsInTable.length > 0) {
+          // Only validate if all fields referenced by the rule exist in the table
+          const allFieldsPresent = ruleFields.every((f) => originTableColumns.includes(f));
+          if (allFieldsPresent) {
             const ruleResult = yield* _(Effect.either(
               validateDependencyRule(
                 connection,

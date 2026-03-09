@@ -7,6 +7,7 @@ import {
   type FieldViolation,
   requirementToSeverity,
 } from "@dwkt/domain/types";
+import { escapeString } from "../loading/sql.ts";
 
 function isOneOf(
   r: DependencyRequire,
@@ -33,10 +34,10 @@ function buildWhereClause(rule: DependencyRule): string {
       conditions.push(isFieldPresent(rule.when));
     } else if ("equals" in rule.when) {
       conditions.push(
-        `CAST("${rule.when.field}" AS VARCHAR) = '${rule.when.equals}'`,
+        `CAST("${rule.when.field}" AS VARCHAR) = '${escapeString(rule.when.equals)}'`,
       );
     } else if ("in" in rule.when) {
-      const values = rule.when.in.map((v) => `'${v}'`).join(", ");
+      const values = rule.when.in.map((v) => `'${escapeString(v)}'`).join(", ");
       conditions.push(
         `CAST("${rule.when.field}" AS VARCHAR) IN (${values})`,
       );
@@ -58,23 +59,23 @@ function buildWhereClause(rule: DependencyRule): string {
 }
 
 function buildDefaultMessage(rule: DependencyRule): string {
-  const requireDesc = isOneOf(rule.require)
-    ? `one of [${rule.require.oneOf.join(", ")}]`
-    : rule.require.join(", ");
-
-  if (rule.when === undefined) {
-    return isOneOf(rule.require)
-      ? `At least one of [${rule.require.oneOf.join(", ")}] must be present`
-      : `Fields [${requireDesc}] are required`;
-  }
-
-  const whenDesc = typeof rule.when === "string"
+  const whenDesc = rule.when === undefined
+    ? undefined
+    : typeof rule.when === "string"
     ? `when ${rule.when} is present`
     : "equals" in rule.when
     ? `when ${rule.when.field} equals '${rule.when.equals}'`
     : `when ${rule.when.field} is one of [${rule.when.in.join(", ")}]`;
 
-  return `[${requireDesc}] required ${whenDesc}`;
+  if (isOneOf(rule.require)) {
+    const fields = rule.require.oneOf.join(", ");
+    return whenDesc
+      ? `At least one of [${fields}] required ${whenDesc}`
+      : `At least one of [${fields}] must be present`;
+  }
+
+  const fields = rule.require.join(", ");
+  return whenDesc ? `[${fields}] required ${whenDesc}` : `Fields [${fields}] are required`;
 }
 
 export function validateDependencyRule(

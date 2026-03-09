@@ -77,12 +77,12 @@ export const workspaceFieldMappingSchema = S.Struct({
 const whenConditionSchema = S.Union(
   S.String,
   S.Struct({ field: S.String, equals: S.String }),
-  S.Struct({ field: S.String, in: S.Array(S.String) }),
+  S.Struct({ field: S.String, in: S.NonEmptyArray(S.String) }),
 );
 
 const dependencyRequireSchema = S.Union(
-  S.Array(S.String),
-  S.Struct({ oneOf: S.Array(S.String) }),
+  S.NonEmptyArray(S.String),
+  S.Struct({ oneOf: S.NonEmptyArray(S.String) }),
 );
 
 const foreignKeyRuleSchema = S.Struct({
