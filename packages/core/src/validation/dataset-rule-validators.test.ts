@@ -199,3 +199,54 @@ Deno.test("dependency - recommended level produces warnings", async () => {
     }
   });
 });
+
+// --- Values with single quotes ---
+
+Deno.test("dependency - equals condition handles single quotes in values", async () => {
+  await withConnection(async (connection) => {
+    await connection.run(`
+      CREATE TABLE test_t AS SELECT * FROM (VALUES
+        (1, 'O''Brien', NULL),
+        (2, 'Smith', NULL)
+      ) AS t(_row_number, collector, catalogNumber)
+    `);
+    const rule = new DependencyRule({
+      when: { field: "collector", equals: "O'Brien" },
+      require: ["catalogNumber"],
+      level: "required",
+    });
+    const result = await Effect.runPromise(
+      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+    );
+    assertEquals(Either.isLeft(result), true);
+    if (Either.isLeft(result)) {
+      assertEquals(result.left.length, 1);
+      assertEquals(result.left[0].rowNumber, 1);
+    }
+  });
+});
+
+Deno.test("dependency - in condition handles single quotes in values", async () => {
+  await withConnection(async (connection) => {
+    await connection.run(`
+      CREATE TABLE test_t AS SELECT * FROM (VALUES
+        (1, 'O''Brien', NULL),
+        (2, 'D''Angelo', 'CAT-1'),
+        (3, 'Smith', NULL)
+      ) AS t(_row_number, collector, catalogNumber)
+    `);
+    const rule = new DependencyRule({
+      when: { field: "collector", in: ["O'Brien", "D'Angelo"] },
+      require: ["catalogNumber"],
+      level: "required",
+    });
+    const result = await Effect.runPromise(
+      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+    );
+    assertEquals(Either.isLeft(result), true);
+    if (Either.isLeft(result)) {
+      assertEquals(result.left.length, 1);
+      assertEquals(result.left[0].rowNumber, 1);
+    }
+  });
+});
