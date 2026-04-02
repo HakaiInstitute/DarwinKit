@@ -3,7 +3,11 @@
  */
 
 import { assertEquals, assertExists, assertNotEquals, assertThrows } from "@std/assert";
-import { makeWorkspaceConfig, type WorkspaceConfigInput } from "./workspace-config.ts";
+import {
+  decodeWorkspaceConfig,
+  makeWorkspaceConfig,
+  type WorkspaceConfigInput,
+} from "./workspace-config.ts";
 
 const DEFAULT_NULL_VALUES = ["NA", "N/A", "", "NULL", "null"];
 
@@ -252,4 +256,151 @@ Deno.test("makeWorkspaceConfig - datasetRules", async (t) => {
     assertEquals(config.datasetRules?.[0].ruleType, "foreignKey");
     assertEquals(config.datasetRules?.[0].sourceDataset, "occurrences");
   });
+});
+
+Deno.test("config schema - dependency rules", async (t) => {
+  await t.step("decodes presence trigger with allOf require", () => {
+    const config = decodeWorkspaceConfig({
+      validation: {
+        datasets: [{ name: "occ", class: "Occurrence", path: "./occ.csv" }],
+      },
+      datasetRules: [
+        {
+          ruleType: "dependency",
+          sourceDataset: "occ",
+          when: "decimalLatitude",
+          require: ["decimalLongitude", "geodeticDatum"],
+        },
+      ],
+    });
+    const rule = config.datasetRules![0];
+    assertEquals(rule.ruleType, "dependency");
+    if (rule.ruleType === "dependency") {
+      assertEquals(rule.when, "decimalLatitude");
+      assertEquals(rule.require, ["decimalLongitude", "geodeticDatum"]);
+      assertEquals(rule.sourceDataset, "occ");
+    }
+  });
+
+  await t.step("decodes value equals condition", () => {
+    const config = decodeWorkspaceConfig({
+      validation: {
+        datasets: [{ name: "occ", class: "Occurrence", path: "./occ.csv" }],
+      },
+      datasetRules: [
+        {
+          ruleType: "dependency",
+          when: { field: "basisOfRecord", equals: "PreservedSpecimen" },
+          require: ["catalogNumber"],
+        },
+      ],
+    });
+    const rule = config.datasetRules![0];
+    if (rule.ruleType === "dependency") {
+      assertEquals(rule.when, { field: "basisOfRecord", equals: "PreservedSpecimen" });
+      assertEquals(rule.require, ["catalogNumber"]);
+    }
+  });
+
+  await t.step("decodes value in condition", () => {
+    const config = decodeWorkspaceConfig({
+      validation: {
+        datasets: [{ name: "occ", class: "Occurrence", path: "./occ.csv" }],
+      },
+      datasetRules: [
+        {
+          ruleType: "dependency",
+          when: { field: "basisOfRecord", in: ["PreservedSpecimen", "FossilSpecimen"] },
+          require: ["catalogNumber"],
+        },
+      ],
+    });
+    const rule = config.datasetRules![0];
+    if (rule.ruleType === "dependency") {
+      assertEquals(rule.when, {
+        field: "basisOfRecord",
+        in: ["PreservedSpecimen", "FossilSpecimen"],
+      });
+    }
+  });
+
+  await t.step("decodes unconditional oneOf require", () => {
+    const config = decodeWorkspaceConfig({
+      validation: {
+        datasets: [{ name: "emof", class: "ExtendedMeasurementOrFact", path: "./emof.csv" }],
+      },
+      datasetRules: [
+        {
+          ruleType: "dependency",
+          sourceDataset: "emof",
+          require: { oneOf: ["eventID", "occurrenceID"] },
+        },
+      ],
+    });
+    const rule = config.datasetRules![0];
+    if (rule.ruleType === "dependency") {
+      assertEquals(rule.require, { oneOf: ["eventID", "occurrenceID"] });
+      assertEquals(rule.when, undefined);
+    }
+  });
+
+  await t.step("rejects empty require array", () => {
+    assertThrows(() =>
+      decodeWorkspaceConfig({
+        validation: {},
+        datasetRules: [{ ruleType: "dependency", require: [] }],
+      })
+    );
+  });
+
+  await t.step("rejects empty oneOf array", () => {
+    assertThrows(() =>
+      decodeWorkspaceConfig({
+        validation: {},
+        datasetRules: [{ ruleType: "dependency", require: { oneOf: [] } }],
+      })
+    );
+  });
+
+  await t.step("rejects empty in array", () => {
+    assertThrows(() =>
+      decodeWorkspaceConfig({
+        validation: {},
+        datasetRules: [{
+          ruleType: "dependency",
+          when: { field: "f", in: [] },
+          require: ["x"],
+        }],
+      })
+    );
+  });
+});
+
+Deno.test("config schema - foreignKey rules parse correctly", () => {
+  const config = decodeWorkspaceConfig({
+    validation: {
+      datasets: [
+        { name: "events", class: "Event", path: "./events.csv" },
+        { name: "occ", class: "Occurrence", path: "./occ.csv" },
+      ],
+    },
+    datasetRules: [
+      {
+        ruleType: "foreignKey",
+        sourceDataset: "occ",
+        sourceField: "eventID",
+        targetDataset: "events",
+        targetField: "eventID",
+      },
+    ],
+  });
+  assertEquals(config.datasetRules?.length, 1);
+  const rule = config.datasetRules![0];
+  assertEquals(rule.ruleType, "foreignKey");
+  if (rule.ruleType === "foreignKey") {
+    assertEquals(rule.sourceDataset, "occ");
+    assertEquals(rule.sourceField, "eventID");
+    assertEquals(rule.targetDataset, "events");
+    assertEquals(rule.targetField, "eventID");
+  }
 });

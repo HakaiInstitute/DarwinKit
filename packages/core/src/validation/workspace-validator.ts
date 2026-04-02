@@ -45,8 +45,8 @@ import { Workspace } from "../workspace/workspace.ts";
 import { importSchema } from "../loading/schema.ts";
 import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
-import { validateOneOfRequired } from "./dataset-rule-validators.ts";
-import type { OneOfRequiredRule } from "@dwkt/domain/specs";
+import { validateDependencyRule } from "./dataset-rule-validators.ts";
+import { DependencyRule } from "@dwkt/domain/specs";
 
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { ResolvedFieldsEntry } from "./field-resolution.ts";
@@ -666,27 +666,54 @@ function validateDataset(
       }
     }
 
-    // Validate dataset rules (oneOfRequired, etc.)
+    // Collect dependency rules from both profile and config sources
+    const dependencyRules: DependencyRule[] = [];
+
     if (resolvedSpec?.datasetRules) {
       for (const rule of resolvedSpec.datasetRules) {
-        if (rule._tag === "oneOfRequired") {
-          // Only validate if at least one of the rule's fields exists in the table
-          const ruleFieldsInTable = (rule as OneOfRequiredRule).fields.filter(
-            (f) => originTableColumns.includes(f),
-          );
-          if (ruleFieldsInTable.length > 0) {
-            const ruleResult = yield* _(Effect.either(
-              validateOneOfRequired(
-                connection,
-                tableName,
-                rule as OneOfRequiredRule,
-                validationSettings?.maxViolationsPerField,
-              ),
-            ));
-            if (ruleResult._tag === "Left") {
-              allFieldViolations.push(...ruleResult.left);
-            }
-          }
+        if (rule._tag === "dependency") {
+          dependencyRules.push(rule as DependencyRule);
+        }
+      }
+    }
+
+    if (datasetRules) {
+      for (const rule of datasetRules) {
+        if (rule.ruleType !== "dependency") continue;
+        if (rule.sourceDataset !== undefined && rule.sourceDataset !== dataset.name) continue;
+        dependencyRules.push(
+          new DependencyRule({
+            sourceDataset: rule.sourceDataset,
+            when: rule.when,
+            require: rule.require,
+            level: rule.level ?? "required",
+            message: rule.message,
+          }),
+        );
+      }
+    }
+
+    for (const depRule of dependencyRules) {
+      const ruleFields = "oneOf" in depRule.require
+        ? [...depRule.require.oneOf]
+        : [...depRule.require];
+      if (depRule.when !== undefined) {
+        const whenField = typeof depRule.when === "string" ? depRule.when : depRule.when.field;
+        ruleFields.push(whenField);
+      }
+
+      const allFieldsPresent = ruleFields.every((f) => originTableColumns.includes(f));
+      if (allFieldsPresent) {
+        const ruleResult = yield* _(Effect.either(
+          validateDependencyRule(
+            connection,
+            tableName,
+            depRule,
+            validationSettings?.maxViolationsPerField,
+          ),
+        ));
+        if (ruleResult._tag === "Left") {
+          allFieldViolations.push(...ruleResult.left);
         }
       }
     }

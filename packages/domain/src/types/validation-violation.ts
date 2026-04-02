@@ -130,8 +130,8 @@ export class RequiredFieldViolation
     params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
   }) {}
 
-export class OneOfRequiredViolation
-  extends Schema.TaggedClass<OneOfRequiredViolation>()("OneOfRequiredViolation", {
+export class DependencyViolation
+  extends Schema.TaggedClass<DependencyViolation>()("DependencyViolation", {
     ...baseViolationFields,
   }) {}
 
@@ -178,7 +178,7 @@ export type FieldViolation =
   | PatternViolation
   | LengthViolation
   | RequiredFieldViolation
-  | OneOfRequiredViolation;
+  | DependencyViolation;
 
 export function isRangeViolation(v: FieldViolation): v is RangeViolation {
   return v._tag === "RangeViolation";
@@ -220,8 +220,8 @@ export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldV
   return v._tag === "RequiredFieldViolation";
 }
 
-export function isOneOfRequiredViolation(v: FieldViolation): v is OneOfRequiredViolation {
-  return v._tag === "OneOfRequiredViolation";
+export function isDependencyViolation(v: FieldViolation): v is DependencyViolation {
+  return v._tag === "DependencyViolation";
 }
 
 export function requirementToSeverity(requirement: RequirementLevel): "error" | "warning" | "info" {

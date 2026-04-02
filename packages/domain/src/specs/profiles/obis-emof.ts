@@ -5,14 +5,14 @@
  * Extends the base OBIS profile with eMoF-specific requirements.
  *
  * Key rule: At least one of eventID or occurrenceID must be present per row.
- * Neither field is individually required — the oneOfRequired rule handles this.
+ * Neither field is individually required — the dependency rule handles this.
  *
  * Based on: https://manual.obis.org/format_emof.html
  * Version: 2024
  */
 
 import type { Profile } from "../../schemas/spec-types.ts";
-import { OneOfRequiredRule } from "../dataset-rules.ts";
+import { DependencyRule } from "../dataset-rules.ts";
 
 export const OBIS_EMOF_PROFILE: Profile = {
   id: "obis-extendedmeasurementorfact",
@@ -24,17 +24,13 @@ export const OBIS_EMOF_PROFILE: Profile = {
   version: "2024",
 
   fieldOverrides: {
-    eventID: {
-      requirement: "recommended",
-    },
-    occurrenceID: {
-      requirement: "recommended",
-    },
+    eventID: { requirement: "recommended" },
+    occurrenceID: { requirement: "recommended" },
   },
 
   datasetRules: [
-    new OneOfRequiredRule({
-      fields: ["eventID", "occurrenceID"],
+    new DependencyRule({
+      require: { oneOf: ["eventID", "occurrenceID"] },
       level: "required",
       message: 'At least one of "eventID" or "occurrenceID" must be present',
     }),

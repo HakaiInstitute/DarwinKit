@@ -74,7 +74,18 @@ export const workspaceFieldMappingSchema = S.Struct({
   preset: S.optional(S.String),
 });
 
-export const datasetRuleSchema = S.Struct({
+const whenConditionSchema = S.Union(
+  S.String,
+  S.Struct({ field: S.String, equals: S.String }),
+  S.Struct({ field: S.String, in: S.NonEmptyArray(S.String) }),
+);
+
+const dependencyRequireSchema = S.Union(
+  S.NonEmptyArray(S.String),
+  S.Struct({ oneOf: S.NonEmptyArray(S.String) }),
+);
+
+const foreignKeyRuleSchema = S.Struct({
   ruleType: S.Literal("foreignKey").annotations({
     description: "Type of cross-dataset rule.",
   }),
@@ -84,9 +95,29 @@ export const datasetRuleSchema = S.Struct({
   targetField: S.String.annotations({ description: "Field name in the target dataset." }),
   requirement: S.optional(RequirementLevel),
   description: S.optional(S.String),
-}).annotations({
+});
+
+const dependencyRuleSchema = S.Struct({
+  ruleType: S.Literal("dependency").annotations({
+    description: "Type of intra-dataset dependency rule.",
+  }),
+  sourceDataset: S.optional(
+    S.String.annotations({ description: "Name of the dataset this rule applies to." }),
+  ),
+  when: S.optional(whenConditionSchema.annotations({
+    description: "Condition that triggers this rule. Omit for unconditional rules.",
+  })),
+  require: dependencyRequireSchema.annotations({
+    description:
+      "Fields that must be present. Array means all required; { oneOf: [...] } means at least one.",
+  }),
+  level: S.optional(RequirementLevel),
+  message: S.optional(S.String.annotations({ description: "Custom error message." })),
+});
+
+export const datasetRuleSchema = S.Union(foreignKeyRuleSchema, dependencyRuleSchema).annotations({
   title: "Dataset Rule",
-  description: "Defines a foreign key constraint between two datasets.",
+  description: "Defines a cross-dataset foreign key or intra-dataset dependency rule.",
 });
 
 /** @deprecated Use `datasetRuleSchema` instead. */
@@ -259,7 +290,7 @@ export const workspaceConfigSchema = S.Struct({
   ),
   datasetRules: S.optional(
     S.Array(datasetRuleSchema).annotations({
-      description: "Foreign key constraints between datasets.",
+      description: "Foreign key and dependency rules across or within datasets.",
     }),
   ),
   createdAt: S.optionalWith(
@@ -294,12 +325,15 @@ export type ValidationSettingsInput = S.Schema.Encoded<typeof validationSettings
 export type TransformSettings = S.Schema.Type<typeof transformSettingsSchema>;
 export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
 export type DatasetRule = S.Schema.Type<typeof datasetRuleSchema>;
+export type DependencyRuleConfig = S.Schema.Type<typeof dependencyRuleSchema>;
 export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
 export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
 
-export type ForeignKeyRuleMatch =
-  & Pick<DatasetRule, "targetDataset" | "targetField">
-  & Required<Pick<DatasetRule, "requirement">>;
+export interface ForeignKeyRuleMatch {
+  readonly targetDataset: string;
+  readonly targetField: string;
+  readonly requirement: "required" | "recommended" | "optional";
+}
 
 export type ConfigWithValidation = WorkspaceConfig & { validation: ValidationSettings };
 
