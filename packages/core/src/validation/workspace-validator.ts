@@ -46,7 +46,7 @@ import { importSchema } from "../loading/schema.ts";
 import { insertRowByRow } from "./data-loader.ts";
 import { validateField } from "./field-validators.ts";
 import { validateDependencyRule } from "./dataset-rule-validators.ts";
-import type { DependencyRule } from "@dwkt/domain/specs";
+import { DependencyRule } from "@dwkt/domain/specs";
 
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { ResolvedFieldsEntry } from "./field-resolution.ts";
@@ -666,35 +666,54 @@ function validateDataset(
       }
     }
 
-    // Validate dataset rules (dependency rules)
+    // Collect dependency rules from both profile and config sources
+    const dependencyRules: DependencyRule[] = [];
+
     if (resolvedSpec?.datasetRules) {
       for (const rule of resolvedSpec.datasetRules) {
         if (rule._tag === "dependency") {
-          const depRule = rule as DependencyRule;
-          // Determine which fields the rule references
-          const ruleFields = "oneOf" in depRule.require
-            ? [...depRule.require.oneOf]
-            : [...depRule.require];
-          if (depRule.when !== undefined) {
-            const whenField = typeof depRule.when === "string" ? depRule.when : depRule.when.field;
-            ruleFields.push(whenField);
-          }
+          dependencyRules.push(rule as DependencyRule);
+        }
+      }
+    }
 
-          // Only validate if all fields referenced by the rule exist in the table
-          const allFieldsPresent = ruleFields.every((f) => originTableColumns.includes(f));
-          if (allFieldsPresent) {
-            const ruleResult = yield* _(Effect.either(
-              validateDependencyRule(
-                connection,
-                tableName,
-                depRule,
-                validationSettings?.maxViolationsPerField,
-              ),
-            ));
-            if (ruleResult._tag === "Left") {
-              allFieldViolations.push(...ruleResult.left);
-            }
-          }
+    if (datasetRules) {
+      for (const rule of datasetRules) {
+        if (rule.ruleType !== "dependency") continue;
+        if (rule.sourceDataset !== undefined && rule.sourceDataset !== dataset.name) continue;
+        dependencyRules.push(
+          new DependencyRule({
+            sourceDataset: rule.sourceDataset,
+            when: rule.when,
+            require: rule.require,
+            level: rule.level ?? "required",
+            message: rule.message,
+          }),
+        );
+      }
+    }
+
+    for (const depRule of dependencyRules) {
+      const ruleFields = "oneOf" in depRule.require
+        ? [...depRule.require.oneOf]
+        : [...depRule.require];
+      if (depRule.when !== undefined) {
+        const whenField = typeof depRule.when === "string" ? depRule.when : depRule.when.field;
+        ruleFields.push(whenField);
+      }
+
+      const allFieldsPresent = ruleFields.every((f) => originTableColumns.includes(f));
+      if (allFieldsPresent) {
+        const ruleResult = yield* _(Effect.either(
+          validateDependencyRule(
+            connection,
+            tableName,
+            depRule,
+            validationSettings?.maxViolationsPerField,
+          ),
+        ));
+        if (ruleResult._tag === "Left") {
+          allFieldViolations.push(...ruleResult.left);
         }
       }
     }
