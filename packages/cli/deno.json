@@ -2,8 +2,8 @@
   "version": "1.2.2",
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net main.ts",
-    "compile:macos": "deno compile --target aarch64-apple-darwin --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/darwinkit_aarch64-apple-darwin main.ts",
-    "compile:linux": "deno compile --target x86_64-unknown-linux-gnu --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/darwinkit_x86_64-unknown-linux-gnu main.ts",
+    "compile:macos": "deno compile --target aarch64-apple-darwin --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --self-extracting --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/darwinkit_aarch64-apple-darwin main.ts",
+    "compile:linux": "deno compile --target x86_64-unknown-linux-gnu --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --self-extracting --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/darwinkit_x86_64-unknown-linux-gnu main.ts",
     "test": "deno test --allow-write --allow-env --allow-read --allow-run --allow-ffi --allow-net --fail-fast --reporter=dot"
   },
   "imports": {
