@@ -490,7 +490,7 @@ export function import_schema(sourceDir: string, outputDir: string): Effect.Effe
     yield* Effect.promise(() =>
       Deno.writeTextFile(
         obisChecklistPath,
-        JSON.stringify(obisChecklist, null, 2),
+        JSON.stringify(obisChecklist, null, 2) + "\n",
       )
     );
 
@@ -501,7 +501,7 @@ export function import_schema(sourceDir: string, outputDir: string): Effect.Effe
     // Write final schema
     const schemaPath = join(outputDir, "dwcSchema.json");
     yield* Effect.promise(() =>
-      Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2))
+      Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2) + "\n")
     );
 
     Effect.logInfo(`Schema with OBIS checklist written to ${schemaPath}`);
