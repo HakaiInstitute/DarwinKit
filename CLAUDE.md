@@ -21,11 +21,11 @@ DarwinKit is a modular TypeScript application organized as a Deno workspace for 
 ### Tech Stack
 
 - **Runtime**: Deno 2.0+ with workspace support
-- **CLI**: Cliffy CLI with Effect for data, schema, and error handling
+- **CLI**: Cliffy CLI with Effect (v4 beta, `effect@4.0.0-beta.78`) for data, schema, and error handling
 - **Validation**: Effect Data and Schema with typed constraint system
 - **Data Processing**: DuckDB for CSV parsing, schema inference, and validation operations
 - **Testing**: Deno test runner
-- **Error Handling**: Effect library for functional error handling
+- **Error Handling**: Effect library (v4 beta) for functional error handling
 
 ### Project Structure
 
@@ -102,7 +102,7 @@ The foundation of DarwinKit's validation system comes from official Darwin Core 
 TypeScript-defined `Profile` objects extend base specs with community-specific requirements:
 - **OBIS** (`obis.ts`) - Ocean Biodiversity Information System base profile
 - **OBIS-Event** (`obis-event.ts`) - OBIS sampling event profile extending Event + OBIS
-- **OBIS-eMoF** (`obis-emof.ts`) - OBIS ExtendedMeasurementOrFact profile with `oneOfRequired` dataset rule for eventID/occurrenceID
+- **OBIS-eMoF** (`obis-emof.ts`) - OBIS ExtendedMeasurementOrFact profile with a `DependencyRule` (`require: { oneOf: ["eventID", "occurrenceID"] }`) requiring at least one of eventID/occurrenceID
 - Profiles contain `fieldOverrides` (requirement/constraint changes) and optionally `datasetRules` (group-level validation rules)
 - Field overrides can introduce new fields not in the base spec (stub `SpecField` entries are auto-created)
 - Support profile inheritance via `extends` property for composition
@@ -141,12 +141,11 @@ Constraints are `Data.TaggedClass` instances discriminated by `_tag` (consistent
 
 **Dataset Rules (`DatasetRule` — `packages/domain/src/specs/dataset-rules.ts`):**
 
-Dataset rules are group-level validation rules that span multiple fields or datasets:
-- `OneOfRequiredRule` — "at least one of these fields must be present" (intra-dataset). Validated via SQL query in `dataset-rule-validators.ts`.
-- `foreignKey` — referential integrity between datasets (cross-dataset). Defined in config `datasetRules` section.
+Dataset rules are group-level validation rules. The single rule type is `DependencyRule` (`Data.TaggedClass("dependency")`); `DatasetRule` is an alias for `DependencyRule`:
+- `DependencyRule` — a conditional presence rule. An optional `when` condition (`DependencyCondition`) gates the rule; `require` (`DependencyRequire`) specifies what must be present: a `readonly string[]` (all listed fields required) or `{ oneOf: readonly string[] }` (at least one required). An optional `sourceDataset` and `message` are also supported, and `level` (`RequirementLevel`) sets severity. Validated via SQL query in `dataset-rule-validators.ts`.
 - Rules come from two sources: **profiles** (auto-applied via `profile.datasetRules`) and **config** (user-defined via `datasetRules` in YAML).
-- When a profile uses `oneOfRequired`, individual field requirements for member fields should be set to `"recommended"` via `fieldOverrides` (the group rule replaces per-field required).
-- Violations produce `OneOfRequiredViolation` (`Schema.TaggedClass`) with severity based on the rule's `level`.
+- When a profile uses a `{ oneOf: [...] }` `DependencyRule`, individual field requirements for member fields should be set to `"recommended"` via `fieldOverrides` (the group rule replaces per-field required).
+- Violations produce `DependencyViolation` (`Schema.TaggedClass`) with severity based on the rule's `level` (use `isDependencyViolation()` to narrow).
 
 **3-Tier Constraint Resolution (packages/core/src/validation/field-resolution.ts):**
 
@@ -192,9 +191,9 @@ This fetches the latest Darwin Core XML schemas and OBIS checklist, then generat
 - `packages/domain/src/specs/profiles/registry.ts` - Spec/Profile registries, resolution, and merging
 - `packages/core/src/validation/field-resolution.ts` - 3-tier constraint merge pipeline
 - `packages/core/src/validation/field-validators.ts` - Constraint-dispatched SQL validation
-- `packages/domain/src/specs/dataset-rules.ts` - `OneOfRequiredRule` and `DatasetRule` type definitions
+- `packages/domain/src/specs/dataset-rules.ts` - `DependencyRule` (and `DatasetRule` alias) type definitions
 - `packages/core/src/validation/dataset-rule-validators.ts` - SQL-based dataset rule validation
-- `packages/domain/src/specs/profiles/obis-emof.ts` - OBIS-eMoF profile with `oneOfRequired` rule
+- `packages/domain/src/specs/profiles/obis-emof.ts` - OBIS-eMoF profile with a `{ oneOf: [...] }` `DependencyRule`
 
 ### Key Development Patterns
 
@@ -209,20 +208,21 @@ This fetches the latest Darwin Core XML schemas and OBIS checklist, then generat
 
 DarwinKit uses Effect's resource management patterns for workspace operations:
 
-**Workspace** - Workspace with automatic DuckDB lifecycle:
-- Uses `Effect.acquireRelease` for connection management
-- Requires `Scope.Scope` - use `Effect.scoped` for automatic cleanup
-- Best for CLI commands and short-lived operations
+**Workspace** (`packages/core/src/workspace/workspace.ts`) - Workspace with automatic DuckDB lifecycle:
+- `Workspace.open(configPath?)` returns `Effect.Effect<Workspace, WorkspaceConfigError, Scope.Scope>`
+- Uses `Effect.acquireRelease` for DuckDB instance/connection management; the connection is released when the enclosing `Scope` closes
+- Requires `Scope.Scope` - wrap usage in `Effect.scoped` for automatic cleanup
+- `workspace.validate(options?)` runs validation via the internal `WorkspaceValidator`
 
-**WorkspaceService** - Service layer for dependency injection:
-- Uses `Context.Tag` pattern for DI
-- `makeWorkspaceLayer(configPath)` creates a scoped layer
-- Best for long-lived applications or when multiple operations share a connection
+**WorkspaceValidator** (`packages/core/src/validation/workspace-validator.ts`) - The validation engine:
+- `validateFromConfig(configPath)` loads a config and runs validation end-to-end
+- Used internally by `Workspace.validate()`; can also be invoked directly for config-only validation
 
 **Key Files:**
-- `packages/core/src/workspace/workspace.ts` - `Workspace` class
-- `packages/core/src/workspace/workspace-service.ts` - Service layer
-- `packages/core/src/workspace/errors.ts` - Workspace error types
+- `packages/core/src/workspace/workspace.ts` - `Workspace` class (`Workspace.open`, `.validate`)
+- `packages/core/src/workspace/mod.ts` - re-exports `Workspace` and `ValidationOptions`
+- `packages/core/src/validation/workspace-validator.ts` - `WorkspaceValidator`
+- Workspace error types are defined in `@dwkt/domain` (imported by the workspace module)
 
 ### Environment Setup
 
@@ -326,31 +326,31 @@ const result = await Effect.runPromise(
 );
 ```
 
-**Using WorkspaceService (recommended for dependency injection/long-lived scenarios):**
+**Using Workspace with explicit options:**
 
 ```typescript
-import { makeWorkspaceLayer, WorkspaceService } from "@dwkt/core";
+import { Workspace } from "@dwkt/core";
 import * as Effect from "effect/Effect";
 
-// Create a layer for a specific workspace
-const WorkspaceLive = makeWorkspaceLayer("./darwinkit.yaml");
-
-// Use in Effect programs - connection stays open for layer lifetime
-const program = Effect.gen(function* () {
-  const workspace = yield* WorkspaceService;
-  return yield* workspace.validate();
-}).pipe(
-  Effect.provide(WorkspaceLive)
+// Workspace.open returns Effect<Workspace, WorkspaceConfigError, Scope.Scope>;
+// Effect.scoped supplies the Scope and releases the DuckDB connection on exit.
+const result = await Effect.runPromise(
+  Effect.scoped(
+    Effect.gen(function* () {
+      const workspace = yield* Workspace.open("./darwinkit.yaml");
+      return yield* workspace.validate({ failFast: true });
+    })
+  )
 );
-
-await Effect.runPromise(program);
 ```
 
-**Using WorkspaceValidator (alternative approach):**
+**Using WorkspaceValidator (config-only validation):**
 
 ```typescript
-import { WorkspaceValidator } from "@dwkt/core";
+import { WorkspaceValidator } from "@dwkt/core/validation";
+import * as Effect from "effect/Effect";
 
+// validateFromConfig loads the config and runs validation end-to-end.
 const validator = new WorkspaceValidator();
 const result = await Effect.runPromise(
   validator.validateFromConfig("./path/to/darwinkit.yaml")
@@ -404,6 +404,7 @@ DarwinKit uses the Effect library extensively for functional program pipelines, 
 **Available References:**
 
 - **`.context/effect/`** - Complete Effect library source code for deep dives into implementation details
+  - **Pinned at `effect@3.19.15` (v3)** — the cloned source reflects the v3 API, NOT the v4 beta the project now targets. Use it only for v3-era patterns; for v4 API lookups consult the effect-smol migration guides (`MIGRATION.md` in the effect repo / effect-smol docs) and the installed `node_modules/.deno/effect@4.0.0-beta.78` `.d.ts` files.
   - Explore core modules: Effect, Schema, Data, Match, etc.
   - Understand internal patterns and advanced usage
   - Reference when debugging complex Effect chains or type issues
@@ -429,9 +430,10 @@ DarwinKit uses the Effect library extensively for functional program pipelines, 
 
 **How to Reference:**
 
-- If looking for Effect API specifics, search in ./context/effect to examine implementation details
+- The `.context/effect` clone is pinned at `effect@3.19.15` (v3). The project targets the v4 beta (`effect@4.0.0-beta.78`), so for v4 API specifics rely on the effect-smol migration guides and the installed `node_modules/.deno/effect@4.0.0-beta.78` `.d.ts` files rather than the v3 source.
+- If looking for v3 Effect API specifics, search in ./context/effect to examine implementation details
 - If exploring options for how to implement Effect-based patterns, search in ./context/effect-patterns and ./context/effect-solutions
-- Prefer narrow, targeted searches of broad, inclusive searches until you've found relevant information to avoid saturating context
+- Prefer narrow, targeted searches over broad, inclusive searches until you've found relevant information to avoid saturating context
 
 **Setup Instructions:**
 
@@ -466,14 +468,12 @@ DarwinKit uses Effect's two-error-types model to distinguish between expected an
 
 ```typescript
 // Example: User-provided file not found
-yield* _(
-  Effect.tryPromise({
-    try: () => fs.access(userFilePath),
-    catch: () => new ParseError({
-      message: `File not found: ${userFilePath}`,
-    })
+yield* Effect.tryPromise({
+  try: () => fs.access(userFilePath),
+  catch: () => new ParseError({
+    message: `File not found: ${userFilePath}`,
   })
-);
+});
 ```
 
 **Unexpected Errors / Defects (Effect.die)** - System failures:
@@ -485,10 +485,8 @@ yield* _(
 
 ```typescript
 // Example: Infrastructure query should always work
-const schema = yield* _(
-  Effect.tryPromise(() => connection.runAndReadAll(schemaQuery)).pipe(
-    Effect.orDie  // Query failure is a defect, not a user error
-  )
+const schema = yield* Effect.tryPromise(() => connection.runAndReadAll(schemaQuery)).pipe(
+  Effect.orDie  // Query failure is a defect, not a user error
 );
 ```
 
@@ -498,7 +496,7 @@ const schema = yield* _(
 - Is this normal program flow? → Expected error
 - Would this indicate a programming error? → Defect
 
-See `docs/error-handling-guide.md` for comprehensive guidelines.
+**Recovery combinators (Effect v4):** error recovery uses `Effect.catch` (the v3 `Effect.catchAll`; signature identical) and `Effect.result` (the v3 `Effect.either`). `Effect.result(e)` yields a `Result` (from `effect/Result`), not an `Either` — inspect it with `Result.isFailure`/`Result.isSuccess` and read `.failure`/`.success` (not `.left`/`.right`). For `Effect.all(es, { mode: ... })`, the v4 mode is `"result"` (the v3 `"either"`), and the elements become `Result` values. Note: in v4 a `SchemaError` is no longer an `instanceof Error`, so match on it via Effect's error channel / `_tag` rather than `instanceof Error`.
 
 ### Development Patterns
 

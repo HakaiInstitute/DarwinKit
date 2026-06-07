@@ -45,7 +45,7 @@ packages/cli/validation_results/
 # Duplicate generated artifacts at repo root
 darwinkit.schema.json
 
-# Local CLI binary and run artifacts (repo root) — not committed
+# Local CLI binary and run artifacts
 /dwkt
 /.dwkt/
 /validation_results/
