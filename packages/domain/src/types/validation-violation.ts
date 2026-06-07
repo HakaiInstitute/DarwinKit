@@ -11,15 +11,15 @@
  * ERROR CHANNEL PATTERN:
  * Field validators use Effect's error channel for violations:
  * - Validators return Effect<ValidField, FieldViolation[]>
- * - Success (Right): Field passed validation
- * - Failure (Left): Field has violations
+ * - Success: Field passed validation
+ * - Failure: Field has violations (carried in the Effect error channel)
  *
  * This enables idiomatic Effect composition:
- * - Effect.all({ mode: "either" }) for concurrent validation with aggregation
+ * - Effect.all({ mode: "result" }) for concurrent validation with aggregation
  * - Type-safe error handling at call sites
  * - Clear separation between "valid" and "has violations"
  *
- * The orchestrator (WorkspaceValidator) catches violations via Effect.catchAll
+ * The orchestrator (WorkspaceValidator) catches violations via Effect.catch
  * and aggregates them into the final WorkspaceValidationResult data structure.
  */
 
@@ -49,11 +49,7 @@ export interface PartitionedViolations<T> {
  * "optional" → INFO.
  */
 const baseViolationFields = {
-  severity: Schema.Union(
-    Schema.Literal("error"),
-    Schema.Literal("warning"),
-    Schema.Literal("info"),
-  ),
+  severity: Schema.Literals(["error", "warning", "info"]),
   fieldName: Schema.String,
   targetName: Schema.String,
   rowNumber: Schema.Number,
@@ -76,20 +72,20 @@ export class RangeViolation extends Schema.TaggedClass<RangeViolation>()("RangeV
 export class UniquenessViolation
   extends Schema.TaggedClass<UniquenessViolation>()("UniquenessViolation", {
     ...baseViolationFields,
-    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+    params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   }) {}
 
 export class PrimaryKeyViolation
   extends Schema.TaggedClass<PrimaryKeyViolation>()("PrimaryKeyViolation", {
     ...baseViolationFields,
-    constraintType: Schema.Union(Schema.Literal("duplicate"), Schema.Literal("null")),
+    constraintType: Schema.Literals(["duplicate", "null"]),
     duplicateCount: Schema.optional(Schema.Number),
-    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+    params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   }) {}
 
 export class NotNullViolation extends Schema.TaggedClass<NotNullViolation>()("NotNullViolation", {
   ...baseViolationFields,
-  params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 }) {}
 
 export class EnumViolation extends Schema.TaggedClass<EnumViolation>()("EnumViolation", {
@@ -97,20 +93,20 @@ export class EnumViolation extends Schema.TaggedClass<EnumViolation>()("EnumViol
   enumType: Schema.String,
   allowedValues: Schema.Array(Schema.String),
   suggestedValue: Schema.optional(Schema.String),
-  params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 }) {}
 
 export class FormatViolation extends Schema.TaggedClass<FormatViolation>()("FormatViolation", {
   ...baseViolationFields,
   format: Schema.String,
-  params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 }) {}
 
 export class PatternViolation extends Schema.TaggedClass<PatternViolation>()("PatternViolation", {
   ...baseViolationFields,
   pattern: Schema.String,
   flags: Schema.optional(Schema.String),
-  params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 }) {}
 
 export class LengthViolation extends Schema.TaggedClass<LengthViolation>()("LengthViolation", {
@@ -127,7 +123,7 @@ export class LengthViolation extends Schema.TaggedClass<LengthViolation>()("Leng
 export class RequiredFieldViolation
   extends Schema.TaggedClass<RequiredFieldViolation>()("RequiredFieldViolation", {
     ...baseViolationFields,
-    params: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+    params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   }) {}
 
 export class DependencyViolation

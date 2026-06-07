@@ -11,11 +11,11 @@ export const fieldOverrideSchema = S.Struct({
 export const transformFieldSchema = S.Struct({
   type: S.optional(S.String),
   unique: S.optional(S.String),
-  values: S.optional(S.Record({ key: S.String, value: S.Unknown })),
+  values: S.optional(S.Record(S.String, S.Unknown)),
 });
 
-export type FieldOverride = S.Schema.Type<typeof fieldOverrideSchema>;
-export type TransformField = S.Schema.Type<typeof transformFieldSchema>;
+export type FieldOverride = typeof fieldOverrideSchema.Type;
+export type TransformField = typeof transformFieldSchema.Type;
 
 /**
  * @internal Use SpecField instead for validation logic.

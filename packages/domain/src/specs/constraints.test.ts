@@ -2,7 +2,8 @@
  * Tests for the typed constraint system
  */
 
-import { assert, assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
+import * as Result from "effect/Result";
 import * as S from "effect/Schema";
 import type { RawField } from "../schemas/spec-types.ts";
 import {
@@ -476,25 +477,29 @@ Deno.test("mergeProfileConstraints", async (t) => {
 // Inverted Bounds & Invalid Regex Tests
 // =============================================================================
 
+// decodeUnknownSync throws a SchemaError (not an `instanceof Error`), so a string passed as
+// assertThrows' 2nd arg becomes the failure message — never a substring matcher. Decode to a
+// Result instead so the rejection message is genuinely asserted.
 Deno.test("RangeConstraintSchema - rejects min > max", () => {
-  assertThrows(
-    () => S.decodeUnknownSync(ConstraintSchema)({ type: "range", min: 100, max: 0 }),
-    Error,
-  );
+  const result = S.decodeUnknownResult(ConstraintSchema)({ type: "range", min: 100, max: 0 });
+  assert(Result.isFailure(result));
+  assertStringIncludes(result.failure.message, "must not exceed");
 });
 
 Deno.test("LengthConstraintSchema - rejects minLength > maxLength", () => {
-  assertThrows(
-    () => S.decodeUnknownSync(ConstraintSchema)({ type: "length", minLength: 100, maxLength: 5 }),
-    Error,
-  );
+  const result = S.decodeUnknownResult(ConstraintSchema)({
+    type: "length",
+    minLength: 100,
+    maxLength: 5,
+  });
+  assert(Result.isFailure(result));
+  assertStringIncludes(result.failure.message, "must not exceed");
 });
 
 Deno.test("PatternConstraintSchema - rejects invalid regex", () => {
-  assertThrows(
-    () => S.decodeUnknownSync(ConstraintSchema)({ type: "pattern", pattern: "[unclosed" }),
-    Error,
-  );
+  const result = S.decodeUnknownResult(ConstraintSchema)({ type: "pattern", pattern: "[unclosed" });
+  assert(Result.isFailure(result));
+  assertStringIncludes(result.failure.message, "invalid regex");
 });
 
 Deno.test("normalizeField - object validator with params flattened to Constraint (no warning)", () => {
@@ -508,4 +513,28 @@ Deno.test("normalizeField - object validator with params flattened to Constraint
   assertEquals((range[0] as RangeConstraint).min, -90);
   assertEquals((range[0] as RangeConstraint).max, 90);
   assertEquals(warnings.length, 0, "no warning when no requirement on value constraint");
+});
+
+// =============================================================================
+// Encode/Decode Round-Trip (locks in S.tag-driven discriminator handling)
+// =============================================================================
+
+Deno.test("ConstraintSchema - round-trips encode(decode(input)) for every type", () => {
+  const inputs: Array<Record<string, unknown>> = [
+    { type: "range", min: -90, max: 90, inclusive: true },
+    { type: "required", level: "recommended", allowEmpty: false, allowWhitespace: false },
+    { type: "unique" },
+    { type: "pattern", pattern: "^[A-Z]+$", flags: "i" },
+    { type: "length", minLength: 1, maxLength: 255 },
+    { type: "format", format: "iso8601", message: "Must be ISO 8601" },
+  ];
+
+  for (const input of inputs) {
+    const decoded = S.decodeUnknownSync(ConstraintSchema)(input);
+    const encoded = S.encodeUnknownSync(ConstraintSchema)(decoded) as Record<string, unknown>;
+    assertEquals(encoded.type, input.type, `discriminator preserved for ${input.type}`);
+    for (const [key, value] of Object.entries(input)) {
+      assertEquals(encoded[key], value, `${input.type}.${key} round-trips`);
+    }
+  }
 });

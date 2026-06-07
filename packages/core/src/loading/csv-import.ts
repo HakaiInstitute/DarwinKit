@@ -55,7 +55,7 @@ export function getCsvValue(
   fieldName: string,
   rowNumber: number,
 ): Effect.Effect<string> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const safeName = sanitizeTableName(tableName);
     const query = `
       SELECT "${fieldName}" as value
@@ -63,8 +63,8 @@ export function getCsvValue(
       WHERE _row_number = ${rowNumber}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+      Effect.orDie,
     );
 
     const rows = result.getRowObjects();

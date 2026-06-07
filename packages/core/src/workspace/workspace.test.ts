@@ -21,7 +21,7 @@ Deno.test("Workspace.open fails with clear error when config file path doesn't e
   );
 
   assert(Exit.isFailure(result));
-  const error = Cause.failureOption(result.cause);
+  const error = Cause.findErrorOption(result.cause);
   assert(Option.isSome(error));
   assertEquals(error.value._tag, "ConfigNotFoundError");
 
@@ -40,7 +40,7 @@ Deno.test("Workspace.open searches for darwinkit.yaml when given a directory pat
   );
 
   assert(Exit.isFailure(result));
-  const error = Cause.failureOption(result.cause);
+  const error = Cause.findErrorOption(result.cause);
   assert(Option.isSome(error));
   assertEquals(error.value._tag, "ConfigNotFoundError");
 
@@ -49,6 +49,44 @@ Deno.test("Workspace.open searches for darwinkit.yaml when given a directory pat
     error.value.message.includes("darwinkit.yaml"),
     `Expected message to mention darwinkit.yaml, got: ${error.value.message}`,
   );
+});
+
+Deno.test("Workspace.open reports schema violations with their field path", async () => {
+  // A dataset is missing the required `class` field. The error should pinpoint
+  // exactly which field failed, not a stringified dump of the whole SchemaError.
+  const dir = await Deno.makeTempDir();
+  const configPath = join(dir, "darwinkit.yaml");
+  await Deno.writeTextFile(
+    configPath,
+    [
+      "validation:",
+      "  datasets:",
+      "    - name: events",
+      "      path: ./events.csv",
+      "",
+    ].join("\n"),
+  );
+
+  try {
+    const result = await Effect.runPromiseExit(
+      Effect.scoped(Workspace.open(configPath)),
+    );
+
+    assert(Exit.isFailure(result));
+    const error = Cause.findErrorOption(result.cause);
+    assert(Option.isSome(error));
+    const err = error.value;
+    assert(
+      err._tag === "ConfigValidationError",
+      `Expected ConfigValidationError, got: ${err._tag}`,
+    );
+    assert(
+      err.validationErrors.includes("validation.datasets.0.class: Missing key"),
+      `Expected a path-qualified validation error, got: ${JSON.stringify(err.validationErrors)}`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
 });
 
 Deno.test("Workspace.open succeeds with existing config file", async () => {

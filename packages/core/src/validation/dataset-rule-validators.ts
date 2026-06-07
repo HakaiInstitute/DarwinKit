@@ -84,7 +84,7 @@ export function validateDependencyRule(
   rule: DependencyRule,
   maxViolations = 100,
 ): Effect.Effect<void, FieldViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const whereClause = buildWhereClause(rule);
     const query = `
       SELECT _row_number
@@ -94,10 +94,8 @@ export function validateDependencyRule(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
+    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+      Effect.orDie,
     );
 
     const rows = result.getRowObjects();
@@ -115,7 +113,8 @@ export function validateDependencyRule(
           errorMessage: message,
         })
       );
-      return yield* _(Effect.fail(violations));
+
+      return yield* Effect.fail(violations);
     }
   });
 }

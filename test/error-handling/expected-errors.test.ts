@@ -1,7 +1,7 @@
 /**
  * Comprehensive tests for expected errors
  *
- * Verifies that all expected errors in DarwinKit are catchable with Effect.catchAll
+ * Verifies that all expected errors in DarwinKit are catchable with Effect.catch
  * and represent recoverable domain errors rather than programming defects.
  */
 
@@ -11,7 +11,7 @@ import { assert, assertEquals, assertMatch } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
 
-Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
+Deno.test("Expected errors - all catchable with Effect.catch", async (t) => {
   const tempDir = await Deno.makeTempDir({ prefix: "expected_errors_test_" });
 
   await t.step("Workspace not found", async () => {
@@ -26,14 +26,14 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
     await Effect.runPromise(
       program.pipe(
-        Effect.catchAll((_error) => {
+        Effect.catch((_error) => {
           errorCaught = true;
           return Effect.succeed<null>(null);
         }),
       ),
     );
 
-    assert(errorCaught, "Should catch with Effect.catchAll");
+    assert(errorCaught, "Should catch with Effect.catch");
   });
 
   await t.step("Invalid workspace configuration", async () => {
@@ -51,7 +51,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
     await Effect.runPromise(
       validator.validateFromConfig(configPath).pipe(
-        Effect.catchAll((_error) => {
+        Effect.catch((_error) => {
           errorCaught = true;
           return Effect.succeed(null);
         }),
@@ -70,7 +70,7 @@ Deno.test("Expected errors - all catchable with Effect.catchAll", async (t) => {
 
     await Effect.runPromise(
       validator.validateFromConfig(nonExistentConfig).pipe(
-        Effect.catchAll((_error) => {
+        Effect.catch((_error) => {
           errorCaught = true;
           return Effect.succeed(null);
         }),
@@ -96,7 +96,7 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
 
     const result = await Effect.runPromise(
       program.pipe(
-        Effect.catchAll((error) => Effect.succeed(error.message as string)),
+        Effect.catch((error) => Effect.succeed(error.message as string)),
       ),
     );
 
@@ -141,7 +141,7 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
 
     const result = await Effect.runPromise(
       program.pipe(
-        Effect.catchAll(() => Effect.succeed(defaultWorkspace)),
+        Effect.catch(() => Effect.succeed(defaultWorkspace)),
       ),
     );
 

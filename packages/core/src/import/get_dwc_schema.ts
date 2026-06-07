@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import { parse as parseXml, simplifyLostLess } from "txml";
 
 const obisChecklistUrl =
-  "https://raw.githubusercontent.com/iobis/manual/master/docs/OBIS-termchecklist.csv";
+  "https://raw.githubusercontent.com/iobis/manual/master/OBIS-termchecklist.csv";
 
 // ============================================================================
 // Types

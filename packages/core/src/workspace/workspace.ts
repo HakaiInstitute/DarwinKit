@@ -21,7 +21,11 @@ import type {
   ValidationSettings,
   WorkspaceConfig,
 } from "@dwkt/domain/schemas";
-import { decodeWorkspaceConfig, hasValidationConfig } from "@dwkt/domain/schemas";
+import {
+  decodeWorkspaceConfigEffect,
+  formatConfigValidationErrors,
+  hasValidationConfig,
+} from "@dwkt/domain/schemas";
 import type { WorkspaceValidationResult } from "@dwkt/domain/types";
 
 import { ValidationError } from "../errors/mod.ts";
@@ -61,7 +65,7 @@ export class Workspace {
     WorkspaceValidationResult,
     ValidationError | ValidationConfigMissingError | NoDatasetsDefinedError
   > {
-    return Effect.gen(this, function* () {
+    return Effect.gen({ self: this }, function* () {
       if (!this.hasValidation) {
         return yield* Effect.fail(
           new ValidationConfigMissingError({
@@ -275,21 +279,15 @@ function loadConfig(
         }),
     });
 
-    const config = yield* Effect.try({
-      try: () => decodeWorkspaceConfig(parsedConfig),
-      catch: (error) => {
-        const errorStr = String(error);
-        const validationErrors = errorStr
-          .split("\n")
-          .filter((line) => line.trim().length > 0);
-
-        return new ConfigValidationError({
+    const config = yield* decodeWorkspaceConfigEffect(parsedConfig).pipe(
+      Effect.mapError((schemaError) =>
+        new ConfigValidationError({
           message: `Configuration schema validation failed`,
           configPath,
-          validationErrors,
-        });
-      },
-    });
+          validationErrors: formatConfigValidationErrors(schemaError),
+        })
+      ),
+    );
 
     return config;
   });

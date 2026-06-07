@@ -7,7 +7,6 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import type { SpecField } from "@dwkt/domain/specs";
 import * as Exit from "effect/Exit";
 import * as Cause from "effect/Cause";
-import { Chunk } from "effect";
 
 export const TABLE = "test_data";
 
@@ -46,7 +45,9 @@ export function extractViolations(
   if (Exit.isSuccess(result)) {
     throw new Error("expected Failure exit");
   }
-  const failures = Chunk.toArray(Cause.failures(result.cause));
+  const failures = result.cause.reasons
+    .filter(Cause.isFailReason)
+    .map((reason) => reason.error);
   const flat = failures.flat();
   return flat as Array<Record<string, unknown>>;
 }

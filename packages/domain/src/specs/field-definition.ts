@@ -23,7 +23,7 @@ export const SpecFieldSchema = S.Struct({
   examples: S.optional(S.String),
 });
 
-export type SpecField = S.Schema.Type<typeof SpecFieldSchema>;
+export type SpecField = typeof SpecFieldSchema.Type;
 
 /**
  * Result of looking up a field's obligation for a given standard.
@@ -57,9 +57,9 @@ export function obligationForStandard(
  */
 export function mapJsonTypeToFieldDataType(
   jsonType: string | undefined,
-): S.Schema.Type<typeof FieldDataType> | undefined {
+): typeof FieldDataType.Type | undefined {
   if (!jsonType) return undefined;
-  const mapping: Record<string, S.Schema.Type<typeof FieldDataType>> = {
+  const mapping: Record<string, typeof FieldDataType.Type> = {
     "string": "string",
     "controlled-vocabulary": "string",
     "decimal": "number",

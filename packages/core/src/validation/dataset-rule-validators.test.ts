@@ -1,7 +1,7 @@
+import { DependencyRule } from "@dwkt/domain/specs";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
-import * as Either from "effect/Either";
-import { DependencyRule } from "@dwkt/domain/specs";
+import * as Result from "effect/Result";
 import { withConnection } from "../../../../test/helpers/duckdb-test-utils.ts";
 import { validateDependencyRule } from "./dataset-rule-validators.ts";
 
@@ -21,9 +21,9 @@ Deno.test("dependency - unconditional oneOf: no violations when at least one pre
       level: "required",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isRight(result), true);
+    assertEquals(Result.isSuccess(result), true);
   });
 });
 
@@ -42,15 +42,17 @@ Deno.test("dependency - unconditional oneOf: violations when all null/empty", as
       level: "required",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isLeft(result), true);
-    if (Either.isLeft(result)) {
-      assertEquals(result.left.length, 2);
-      assertEquals(result.left[0].rowNumber, 2);
-      assertEquals(result.left[1].rowNumber, 3);
-      assertEquals(result.left[0].severity, "error");
-      assertEquals(result.left[0]._tag, "DependencyViolation");
+
+    assertEquals(Result.isFailure(result), true);
+
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure.length, 2);
+      assertEquals(result.failure[0].rowNumber, 2);
+      assertEquals(result.failure[1].rowNumber, 3);
+      assertEquals(result.failure[0].severity, "error");
+      assertEquals(result.failure[0]._tag, "DependencyViolation");
     }
   });
 });
@@ -70,9 +72,9 @@ Deno.test("dependency - presence trigger: no violation when trigger absent", asy
       level: "required",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isRight(result), true);
+    assertEquals(Result.isSuccess(result), true);
   });
 });
 
@@ -91,12 +93,12 @@ Deno.test("dependency - presence trigger: violation when trigger present but req
       level: "required",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isLeft(result), true);
-    if (Either.isLeft(result)) {
-      assertEquals(result.left.length, 1);
-      assertEquals(result.left[0].rowNumber, 2);
+    assertEquals(Result.isFailure(result), true);
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure.length, 1);
+      assertEquals(result.failure[0].rowNumber, 2);
     }
   });
 });
@@ -118,12 +120,12 @@ Deno.test("dependency - equals condition: violation when value matches and requi
       level: "required",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isLeft(result), true);
-    if (Either.isLeft(result)) {
-      assertEquals(result.left.length, 1);
-      assertEquals(result.left[0].rowNumber, 2);
+    assertEquals(Result.isFailure(result), true);
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure.length, 1);
+      assertEquals(result.failure[0].rowNumber, 2);
     }
   });
 });
@@ -145,12 +147,12 @@ Deno.test("dependency - in condition: violation when value in set and required m
       level: "required",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isLeft(result), true);
-    if (Either.isLeft(result)) {
-      assertEquals(result.left.length, 1);
-      assertEquals(result.left[0].rowNumber, 2);
+    assertEquals(Result.isFailure(result), true);
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure.length, 1);
+      assertEquals(result.failure[0].rowNumber, 2);
     }
   });
 });
@@ -170,11 +172,11 @@ Deno.test("dependency - custom message", async () => {
       message: "Custom error message",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isLeft(result), true);
-    if (Either.isLeft(result)) {
-      assertEquals(result.left[0].errorMessage, "Custom error message");
+    assertEquals(Result.isFailure(result), true);
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure[0].errorMessage, "Custom error message");
     }
   });
 });
@@ -191,11 +193,11 @@ Deno.test("dependency - recommended level produces warnings", async () => {
       level: "recommended",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isLeft(result), true);
-    if (Either.isLeft(result)) {
-      assertEquals(result.left[0].severity, "warning");
+    assertEquals(Result.isFailure(result), true);
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure[0].severity, "warning");
     }
   });
 });
@@ -216,12 +218,12 @@ Deno.test("dependency - equals condition handles single quotes in values", async
       level: "required",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isLeft(result), true);
-    if (Either.isLeft(result)) {
-      assertEquals(result.left.length, 1);
-      assertEquals(result.left[0].rowNumber, 1);
+    assertEquals(Result.isFailure(result), true);
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure.length, 1);
+      assertEquals(result.failure[0].rowNumber, 1);
     }
   });
 });
@@ -241,12 +243,53 @@ Deno.test("dependency - in condition handles single quotes in values", async () 
       level: "required",
     });
     const result = await Effect.runPromise(
-      Effect.either(validateDependencyRule(connection, "test_t", rule)),
+      Effect.result(validateDependencyRule(connection, "test_t", rule)),
     );
-    assertEquals(Either.isLeft(result), true);
-    if (Either.isLeft(result)) {
-      assertEquals(result.left.length, 1);
-      assertEquals(result.left[0].rowNumber, 1);
+    assertEquals(Result.isFailure(result), true);
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure.length, 1);
+      assertEquals(result.failure[0].rowNumber, 1);
+    }
+  });
+});
+
+// --- v4 migration regression: Effect.result yields a Result, not an Either ---
+
+Deno.test("dependency - Effect.result returns a v4 Result (Success/Failure tags)", async () => {
+  await withConnection(async (connection) => {
+    // Passing table: at least one of the oneOf fields present on every row.
+    await connection.run(`
+      CREATE TABLE pass_t AS SELECT * FROM (VALUES
+        (1, 'EVT-1', NULL),
+        (2, NULL, 'OCC-1')
+      ) AS t(_row_number, eventID, occurrenceID)
+    `);
+    // Failing table: a row with both oneOf fields null.
+    await connection.run(`
+      CREATE TABLE fail_t AS SELECT * FROM (VALUES
+        (1, NULL, NULL)
+      ) AS t(_row_number, eventID, occurrenceID)
+    `);
+    const rule = new DependencyRule({
+      require: { oneOf: ["eventID", "occurrenceID"] },
+      level: "required",
+    });
+
+    const pass = await Effect.runPromise(
+      Effect.result(validateDependencyRule(connection, "pass_t", rule)),
+    );
+    // v4 Result success is tagged "Success" (v3 Either would be "Right")
+    assertEquals(pass._tag, "Success");
+    assertEquals(Result.isSuccess(pass), true);
+
+    const fail = await Effect.runPromise(
+      Effect.result(validateDependencyRule(connection, "fail_t", rule)),
+    );
+    // v4 Result failure is tagged "Failure" (v3 Either would be "Left")
+    assertEquals(fail._tag, "Failure");
+    assertEquals(Result.isFailure(fail), true);
+    if (Result.isFailure(fail)) {
+      assertEquals(fail.failure[0]._tag, "DependencyViolation");
     }
   });
 });

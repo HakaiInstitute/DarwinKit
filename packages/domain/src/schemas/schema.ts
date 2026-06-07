@@ -1,6 +1,7 @@
 import * as S from "effect/Schema";
+import * as SchemaTransformation from "effect/SchemaTransformation";
 
-export const primitiveType = S.Literal(
+export const primitiveType = S.Literals([
   "number",
   "string",
   "boolean",
@@ -8,7 +9,7 @@ export const primitiveType = S.Literal(
   "object",
   "binary",
   "null",
-);
+]);
 
 export const fieldSchemaSchema = S.Struct({
   name: S.String,
@@ -19,23 +20,26 @@ export const fieldSchemaSchema = S.Struct({
   sampleValues: S.optional(S.Array(S.String)),
 });
 
-type FieldSchemaType = S.Schema.Type<typeof fieldSchemaSchema>;
+type FieldSchemaType = typeof fieldSchemaSchema.Type;
 
 // Using array format for JSON compatibility
 export const datasetSchemaSchema = S.Struct({
-  fields: S.transform(
-    S.Array(S.Tuple(S.String, fieldSchemaSchema)),
-    S.instanceOf(Map<string, FieldSchemaType>),
-    {
-      strict: true,
-      decode: (arr) => new Map(arr),
-      encode: (map) => Array.from(map.entries()),
-    },
+  fields: S.Array(S.Tuple([S.String, fieldSchemaSchema])).pipe(
+    S.decodeTo(
+      S.instanceOf(Map<string, FieldSchemaType>),
+      SchemaTransformation.transform<
+        Map<string, FieldSchemaType>,
+        ReadonlyArray<readonly [string, FieldSchemaType]>
+      >({
+        decode: (arr) => new Map(arr),
+        encode: (map) => Array.from(map.entries()),
+      }),
+    ),
   ),
   rowCount: S.Number,
   tableName: S.String,
-  inferredAt: S.Date,
+  inferredAt: S.DateFromString,
 });
 
-export type FieldSchema = S.Schema.Type<typeof fieldSchemaSchema>;
-export type DatasetSchema = S.Schema.Type<typeof datasetSchemaSchema>;
+export type FieldSchema = typeof fieldSchemaSchema.Type;
+export type DatasetSchema = typeof datasetSchemaSchema.Type;

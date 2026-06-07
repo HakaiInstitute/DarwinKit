@@ -20,11 +20,7 @@ import type { PartitionedViolations } from "./validation-violation.ts";
  * Note: No rowNumber since schema violations are structural, not row-level.
  */
 const baseSchemaViolationFields = {
-  severity: Schema.Union(
-    Schema.Literal("error"),
-    Schema.Literal("warning"),
-    Schema.Literal("info"),
-  ),
+  severity: Schema.Literals(["error", "warning", "info"]),
   fieldName: Schema.String,
   targetName: Schema.String,
   errorMessage: Schema.String,
@@ -36,10 +32,7 @@ const baseSchemaViolationFields = {
 export class MissingFieldViolation
   extends Schema.TaggedClass<MissingFieldViolation>()("MissingFieldViolation", {
     ...baseSchemaViolationFields,
-    reason: Schema.Union(
-      Schema.Literal("not_in_csv"),
-      Schema.Literal("not_mapped"),
-    ),
+    reason: Schema.Literals(["not_in_csv", "not_mapped"]),
   }) {}
 
 /**
@@ -49,10 +42,7 @@ export class UnknownProfileViolation
   extends Schema.TaggedClass<UnknownProfileViolation>()("UnknownProfileViolation", {
     ...baseSchemaViolationFields,
     profileId: Schema.String,
-    reason: Schema.Union(
-      Schema.Literal("not_found"),
-      Schema.Literal("invalid"),
-    ),
+    reason: Schema.Literals(["not_found", "invalid"]),
   }) {}
 
 /**

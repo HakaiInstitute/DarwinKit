@@ -22,6 +22,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import type { Constraint, SpecField } from "@dwkt/domain/specs";
 import { type RequiredConstraint, strictestRequired } from "@dwkt/domain/specs";
@@ -48,7 +49,7 @@ export function findRangeViolations(
   specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, RangeViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const { min, max, inclusive = true } = constraint;
 
     if (min === undefined && max === undefined) {
@@ -82,10 +83,8 @@ export function findRangeViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
+    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+      Effect.orDie,
     );
 
     const rows = result.getRowObjects();
@@ -103,7 +102,7 @@ export function findRangeViolations(
           params: { min: constraint.min, max: constraint.max },
         })
       );
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
 
     return validField(fieldName, specField.name);
@@ -132,7 +131,7 @@ function validateConstraintsByType<TType extends Constraint["_tag"]>(
   specField: SpecField,
   maxViolations: number,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const filtered = (specField.constraints ?? []).filter(
       (c): c is Extract<Constraint, { _tag: TType }> => c._tag === constraintType,
     );
@@ -142,16 +141,16 @@ function validateConstraintsByType<TType extends Constraint["_tag"]>(
 
     const violations: FieldViolation[] = [];
     for (const constraint of filtered) {
-      const result = yield* _(Effect.either(
+      const result = yield* Effect.result(
         findViolations(connection, tableName, fieldName, constraint, specField, maxViolations),
-      ));
-      if (result._tag === "Left") {
-        violations.push(...result.left);
+      );
+      if (Result.isFailure(result)) {
+        violations.push(...result.failure);
       }
     }
 
     if (violations.length > 0) {
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
 
     return validField(fieldName, specField.name);
@@ -186,7 +185,7 @@ export function findUniquenessViolations(
   specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, UniquenessViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const query = `
       SELECT
         "${fieldName}" as duplicate_value,
@@ -200,10 +199,8 @@ export function findUniquenessViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
+    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+      Effect.orDie,
     );
 
     const rows = result.getRowObjects();
@@ -236,7 +233,7 @@ export function findUniquenessViolations(
     }
 
     if (violations.length > 0) {
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
 
     return validField(fieldName, specField.name);
@@ -337,7 +334,7 @@ export function findFormatViolations(
   specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, FormatViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const condition = formatSqlCondition(fieldName, constraint.format);
     if (!condition) {
       return validField(fieldName, specField.name);
@@ -350,8 +347,8 @@ export function findFormatViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+      Effect.orDie,
     );
 
     const rows = result.getRowObjects();
@@ -369,7 +366,7 @@ export function findFormatViolations(
           format: constraint.format,
         })
       );
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
 
     return validField(fieldName, specField.name);
@@ -402,7 +399,7 @@ export function findPatternViolations(
   specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, PatternViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const asText = `CAST("${fieldName}" AS VARCHAR)`;
     const query = `
       SELECT _row_number, ${asText} as value
@@ -413,15 +410,15 @@ export function findPatternViolations(
       LIMIT ${maxViolations}
     `;
 
-    const queryResult = yield* _(Effect.either(
+    const queryResult = yield* Effect.result(
       Effect.tryPromise(() => connection.runAndReadAll(query)),
-    ));
+    );
 
-    if (queryResult._tag === "Left") {
-      const errorMsg = queryResult.left instanceof Error
-        ? queryResult.left.message
-        : String(queryResult.left);
-      return yield* _(Effect.fail([
+    if (Result.isFailure(queryResult)) {
+      const errorMsg = queryResult.failure instanceof Error
+        ? queryResult.failure.message
+        : String(queryResult.failure);
+      return yield* Effect.fail([
         new PatternViolation({
           severity: requirementToSeverity("required"),
           fieldName,
@@ -432,10 +429,10 @@ export function findPatternViolations(
           pattern: constraint.pattern,
           flags: constraint.flags,
         }),
-      ]));
+      ]);
     }
 
-    const rows = queryResult.right.getRowObjects();
+    const rows = queryResult.success.getRowObjects();
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new PatternViolation({
@@ -451,7 +448,7 @@ export function findPatternViolations(
           flags: constraint.flags,
         })
       );
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
 
     return validField(fieldName, specField.name);
@@ -484,7 +481,7 @@ export function findLengthViolations(
   specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, LengthViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const { minLength, maxLength } = constraint;
     if (minLength === undefined && maxLength === undefined) {
       return validField(fieldName, specField.name);
@@ -507,8 +504,8 @@ export function findLengthViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+      Effect.orDie,
     );
 
     const rows = result.getRowObjects();
@@ -532,7 +529,7 @@ export function findLengthViolations(
           },
         })
       );
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
 
     return validField(fieldName, specField.name);
@@ -565,7 +562,7 @@ export function findRequiredViolations(
   specField: SpecField,
   maxViolations = 100,
 ): Effect.Effect<ValidField, RequiredFieldViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const asText = `CAST("${fieldName}" AS VARCHAR)`;
     const conditions: string[] = [`"${fieldName}" IS NULL`];
     if (!constraint.allowEmpty) {
@@ -581,8 +578,8 @@ export function findRequiredViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
+    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
+      Effect.orDie,
     );
 
     const rows = result.getRowObjects();
@@ -598,7 +595,7 @@ export function findRequiredViolations(
           errorMessage: constraint.message || `Required field "${fieldName}" is empty or null`,
         })
       );
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
 
     return validField(fieldName, specField.name);
@@ -653,7 +650,7 @@ export function validateField(
   specField: SpecField,
   context: FieldValidationContext,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const maxViolations = context.maxViolations ?? 100;
 
     const validators: Effect.Effect<ValidField, FieldViolation[]>[] = [
@@ -673,14 +670,14 @@ export function validateField(
 
     const violations: FieldViolation[] = [];
     for (const validator of validators) {
-      const result = yield* _(Effect.either(validator));
-      if (result._tag === "Left") {
-        violations.push(...result.left);
+      const result = yield* Effect.result(validator);
+      if (Result.isFailure(result)) {
+        violations.push(...result.failure);
       }
     }
 
     if (violations.length > 0) {
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
 
     return validField(fieldName, specField.name);

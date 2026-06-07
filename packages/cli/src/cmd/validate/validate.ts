@@ -18,13 +18,13 @@ function outputResults(
   format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
   outputDir?: string,
 ): Effect.Effect<void, OutputError> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     if (format === 'json') {
-      yield* _(outputJsonResultsEffect(results, outputDir));
+      yield* outputJsonResultsEffect(results, outputDir);
     } else if (format === 'markdown') {
-      yield* _(outputMarkdownResultsEffect(results, outputDir, false));
+      yield* outputMarkdownResultsEffect(results, outputDir, false);
     } else if (format === 'markdown_summary_action') {
-      yield* _(outputMarkdownResultsEffect(results, outputDir, true));
+      yield* outputMarkdownResultsEffect(results, outputDir, true);
     } else {
       outputTableResults(results);
     }
@@ -35,35 +35,31 @@ function outputJsonResultsEffect(
   results: WorkspaceValidationResult,
   outputDir?: string,
 ): Effect.Effect<void, OutputError> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const outputPath = outputDir ?? './validation_results';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `validation-results-${timestamp}.json`;
     const fullPath = join(outputPath, filename);
 
-    yield* _(
-      Effect.tryPromise({
-        try: () => Deno.mkdir(outputPath, { recursive: true }),
-        catch: (error) =>
-          new OutputError({
-            message: `Failed to create output directory: ${error}`,
-            outputPath,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      }),
-    );
+    yield* Effect.tryPromise({
+      try: () => Deno.mkdir(outputPath, { recursive: true }),
+      catch: (error) =>
+        new OutputError({
+          message: `Failed to create output directory: ${error}`,
+          outputPath,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        }),
+    });
 
-    yield* _(
-      Effect.tryPromise({
-        try: () => Deno.writeTextFile(fullPath, JSON.stringify(results, null, 2)),
-        catch: (error) =>
-          new OutputError({
-            message: `Failed to write results file: ${error}`,
-            outputPath: fullPath,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      }),
-    );
+    yield* Effect.tryPromise({
+      try: () => Deno.writeTextFile(fullPath, JSON.stringify(results, null, 2)),
+      catch: (error) =>
+        new OutputError({
+          message: `Failed to write results file: ${error}`,
+          outputPath: fullPath,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        }),
+    });
 
     Output.success(`Results written to: ${fullPath}`);
     Output.blank();
@@ -82,7 +78,7 @@ function outputMarkdownResultsEffect(
   outputDir?: string,
   github_action?: boolean,
 ): Effect.Effect<void, OutputError> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const outputPath = outputDir || './validation_results';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = github_action ? 'validation-results.md' : `validation-results-${timestamp}.md`;
@@ -90,29 +86,25 @@ function outputMarkdownResultsEffect(
 
     const markdown = renderValidationMarkdown(results);
 
-    yield* _(
-      Effect.tryPromise({
-        try: () => Deno.mkdir(outputPath, { recursive: true }),
-        catch: (error) =>
-          new OutputError({
-            message: `Failed to create output directory: ${error}`,
-            outputPath,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      }),
-    );
+    yield* Effect.tryPromise({
+      try: () => Deno.mkdir(outputPath, { recursive: true }),
+      catch: (error) =>
+        new OutputError({
+          message: `Failed to create output directory: ${error}`,
+          outputPath,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        }),
+    });
 
-    yield* _(
-      Effect.tryPromise({
-        try: () => Deno.writeTextFile(fullPath, markdown),
-        catch: (error) =>
-          new OutputError({
-            message: `Failed to write markdown file: ${error}`,
-            outputPath: fullPath,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      }),
-    );
+    yield* Effect.tryPromise({
+      try: () => Deno.writeTextFile(fullPath, markdown),
+      catch: (error) =>
+        new OutputError({
+          message: `Failed to write markdown file: ${error}`,
+          outputPath: fullPath,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        }),
+    });
 
     Output.success(`Markdown results written to: ${fullPath}`);
     Output.blank();
@@ -129,41 +121,41 @@ function outputMarkdownResultsEffect(
 function handleValidationResults(
   results: WorkspaceValidationResult,
 ): Effect.Effect<void, CLIError> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     switch (results.overallStatus) {
       case 'fail':
-        yield* _(Effect.fail(
+        yield* Effect.fail(
           new CLIError({
             message: 'Validation failed',
             hint: 'Fix the errors above before proceeding.',
             exitCode: 1,
           }),
-        ));
+        );
         break;
       case 'warn':
-        yield* _(Effect.fail(
+        yield* Effect.fail(
           new CLIError({
             message: 'Validation passed with warnings',
             hint: 'Consider reviewing the warnings above.',
             exitCode: 2,
           }),
-        ));
+        );
         break;
       case 'pass':
         break;
       default:
-        yield* _(Effect.fail(
+        yield* Effect.fail(
           new CLIError({
             message: 'Unknown validation status',
             exitCode: 3,
           }),
-        ));
+        );
     }
   });
 }
 
 function handleValidateError(
-  error: Effect.Effect.Error<ReturnType<typeof buildValidationEffect>>,
+  error: Effect.Error<ReturnType<typeof buildValidationEffect>>,
   options?: { strict?: boolean },
 ): never {
   Output.blank();
@@ -268,19 +260,19 @@ function buildValidationEffect(
   outputDir: string | undefined,
   spinner: ProgressSpinner,
 ) {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     spinner.update('Loading workspace configuration...');
 
-    const workspace = yield* _(Workspace.open(configPath));
+    const workspace = yield* Workspace.open(configPath);
 
     spinner.update('Validating datasets...');
 
-    const results = yield* _(workspace.validate());
+    const results = yield* workspace.validate();
 
     spinner.stop();
 
-    yield* _(outputResults(results, format, outputDir));
-    yield* _(handleValidationResults(results));
+    yield* outputResults(results, format, outputDir);
+    yield* handleValidationResults(results);
   });
 }
 
@@ -324,7 +316,7 @@ export async function validate(options: {
   if (Exit.isFailure(result)) {
     spinner.stop();
 
-    const failureOption = Cause.failureOption(result.cause);
+    const failureOption = Cause.findErrorOption(result.cause);
     if (failureOption._tag === 'Some') {
       handleValidateError(failureOption.value, { strict: options.strict });
     } else {
