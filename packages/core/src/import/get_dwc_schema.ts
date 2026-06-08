@@ -4,6 +4,7 @@
 //  deno task cli import
 //
 
+import { WorkspaceImportError } from "@dwkt/domain/errors";
 import { parse as parseCsv } from "@std/csv";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
@@ -11,6 +12,10 @@ import { parse as parseXml, simplifyLostLess } from "txml";
 
 const obisChecklistUrl =
   "https://raw.githubusercontent.com/iobis/manual/master/OBIS-termchecklist.csv";
+
+/** Normalize an unknown thrown value into an Error for a tagged error `cause`. */
+const toError = (cause: unknown): Error =>
+  cause instanceof Error ? cause : new Error(String(cause));
 
 // ============================================================================
 // Types
@@ -96,8 +101,6 @@ function xmlThesaurusToJson(inputID: string, externalDir: string): Thesaurus {
     .replace("http://rs.gbif.org/", `${externalDir}/rs_gbif/`)
     .replace("https://rs.gbif.org/", `${externalDir}/rs_gbif/`);
 
-  Effect.logInfo(`    Getting vocabulary from ${thesaurusPath}`);
-
   const thesaurusXml = Deno.readTextFileSync(thesaurusPath);
   // Remove voc: namespace prefix for easier parsing
   const cleanedXml = thesaurusXml
@@ -168,7 +171,6 @@ function xmlThesaurusToJson(inputID: string, externalDir: string): Thesaurus {
  */
 function xmlSchemaToJson(filePath: string, options: Options, externalDir: string): SchemaJson {
   const { group, idFieldName, nameOverride } = options;
-  Effect.logInfo(`Reading Schema file ${filePath}`);
 
   const inputXML = Deno.readTextFileSync(filePath);
   const parsed = parseXml(inputXML);
@@ -256,8 +258,6 @@ function xmlSchemaToJson(filePath: string, options: Options, externalDir: string
  * Fetch and parse OBIS checklist CSV.
  */
 async function fetchObisChecklist(): Promise<OBISChecklistRow[]> {
-  Effect.logInfo("Fetching OBIS checklist...");
-
   const response = await fetch(obisChecklistUrl);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${obisChecklistUrl}: ${response.statusText}`);
@@ -302,8 +302,6 @@ function joinObisRequirements(
   schemaJson: SchemaJson,
   obisChecklist: OBISChecklistRow[],
 ): void {
-  Effect.logInfo("    Joining OBIS checklist with schema");
-
   obisChecklist.forEach((item) => {
     const term = item.Term;
 
@@ -336,8 +334,6 @@ function joinObisRequirements(
  * Assign validators to fields based on field attributes and naming patterns.
  */
 function assignValidators(schemaJson: SchemaJson): void {
-  Effect.logInfo("Assign Validators");
-
   const currentYear = new Date().getFullYear();
 
   Object.values(schemaJson).forEach((table) => {
@@ -420,8 +416,21 @@ function assignValidators(schemaJson: SchemaJson): void {
  * @param sourceDir - Path to the directory containing XML schemas (rs_gbif/)
  * @param outputDir - Path to the directory where generated files are written
  */
-export function import_schema(sourceDir: string, outputDir: string): Effect.Effect<void, Error> {
+export function import_schema(
+  sourceDir: string,
+  outputDir: string,
+): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* () {
+    const parseSchema = (filePath: string, options: Options) =>
+      Effect.try({
+        try: () => xmlSchemaToJson(filePath, options, sourceDir),
+        catch: (cause) =>
+          new WorkspaceImportError({
+            message: `Failed to parse Darwin Core schema: ${filePath}`,
+            cause: toError(cause),
+          }),
+      });
+
     // Build XML file paths
     const exMoFxml = join(
       sourceDir,
@@ -440,37 +449,22 @@ export function import_schema(sourceDir: string, outputDir: string): Effect.Effe
     );
 
     // Parse all XML schemas
-    const exMoFjson = xmlSchemaToJson(
-      exMoFxml,
-      {
-        group: "ExtendedMeasurementOrFact",
-        idFieldName: "measurementID",
-      },
-      sourceDir,
-    );
-    const eventJson = xmlSchemaToJson(eventXml, { idFieldName: "eventID" }, sourceDir);
-    const occurrenceJson = xmlSchemaToJson(
-      occurrenceXml,
-      { idFieldName: "occurrenceID" },
-      sourceDir,
-    );
-    const taxonJson = xmlSchemaToJson(taxonXml, { idFieldName: "taxonID" }, sourceDir);
-    const DNAJson = xmlSchemaToJson(
-      DNAXml,
-      {
-        group: "dnaDerivedData",
-        idFieldName: "samp_name",
-      },
-      sourceDir,
-    );
-    const relatedJson = xmlSchemaToJson(
-      relatedXml,
-      {
-        group: "ResourceRelationship",
-        idFieldName: "resourceRelationshipID",
-      },
-      sourceDir,
-    );
+    yield* Effect.logInfo("Parsing Darwin Core XML schemas...");
+    const exMoFjson = yield* parseSchema(exMoFxml, {
+      group: "ExtendedMeasurementOrFact",
+      idFieldName: "measurementID",
+    });
+    const eventJson = yield* parseSchema(eventXml, { idFieldName: "eventID" });
+    const occurrenceJson = yield* parseSchema(occurrenceXml, { idFieldName: "occurrenceID" });
+    const taxonJson = yield* parseSchema(taxonXml, { idFieldName: "taxonID" });
+    const DNAJson = yield* parseSchema(DNAXml, {
+      group: "dnaDerivedData",
+      idFieldName: "samp_name",
+    });
+    const relatedJson = yield* parseSchema(relatedXml, {
+      group: "ResourceRelationship",
+      idFieldName: "resourceRelationshipID",
+    });
 
     // Combine all schemas
     const schemaJson: SchemaJson = {
@@ -483,27 +477,42 @@ export function import_schema(sourceDir: string, outputDir: string): Effect.Effe
     };
 
     // Fetch and apply OBIS requirements
-    const obisChecklist = yield* Effect.promise(() => fetchObisChecklist());
+    yield* Effect.logInfo("Fetching OBIS checklist...");
+    const obisChecklist = yield* Effect.tryPromise({
+      try: () => fetchObisChecklist(),
+      catch: (cause) =>
+        new WorkspaceImportError({
+          message: `Failed to fetch OBIS checklist from ${obisChecklistUrl}`,
+          cause: toError(cause),
+        }),
+    });
 
-    Effect.logInfo("    Writing OBIS checklist to file");
     const obisChecklistPath = join(outputDir, "obisChecklist.json");
-    yield* Effect.promise(() =>
-      Deno.writeTextFile(
-        obisChecklistPath,
-        JSON.stringify(obisChecklist, null, 2),
-      )
-    );
+    yield* Effect.logInfo(`Writing OBIS checklist to ${obisChecklistPath}`);
+    yield* Effect.tryPromise({
+      try: () => Deno.writeTextFile(obisChecklistPath, JSON.stringify(obisChecklist, null, 2)),
+      catch: (cause) =>
+        new WorkspaceImportError({
+          message: `Failed to write OBIS checklist to ${obisChecklistPath}`,
+          cause: toError(cause),
+        }),
+    });
 
-    // Apply OBIS requirements and assign validators
+    // Apply OBIS requirements and assign validators (pure, in-place transforms)
     joinObisRequirements(schemaJson, obisChecklist);
     assignValidators(schemaJson);
 
     // Write final schema
     const schemaPath = join(outputDir, "dwcSchema.json");
-    yield* Effect.promise(() =>
-      Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2))
-    );
+    yield* Effect.tryPromise({
+      try: () => Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2)),
+      catch: (cause) =>
+        new WorkspaceImportError({
+          message: `Failed to write schema to ${schemaPath}`,
+          cause: toError(cause),
+        }),
+    });
 
-    Effect.logInfo(`Schema with OBIS checklist written to ${schemaPath}`);
+    yield* Effect.logInfo(`Schema with OBIS checklist written to ${schemaPath}`);
   });
 }

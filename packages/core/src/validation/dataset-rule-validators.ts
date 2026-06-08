@@ -7,7 +7,7 @@ import {
   type FieldViolation,
   requirementToSeverity,
 } from "@dwkt/domain/types";
-import { escapeString } from "../loading/sql.ts";
+import { escapeString, queryRows } from "../loading/sql.ts";
 
 function isOneOf(
   r: DependencyRequire,
@@ -94,11 +94,7 @@ export function validateDependencyRule(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-      Effect.orDie,
-    );
-
-    const rows = result.getRowObjects();
+    const rows = yield* queryRows(connection, query);
     if (rows.length > 0) {
       const fields = isOneOf(rule.require) ? rule.require.oneOf : rule.require;
       const fieldLabel = Array.from(fields).join(", ");

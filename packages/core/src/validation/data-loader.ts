@@ -16,7 +16,7 @@ import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 import * as Result from "effect/Result";
 
-import type { DatasetRule, ResolvedSpec, ValidationSettings } from "@dwkt/domain/schemas";
+import type { DatasetRuleConfig, ResolvedSpec, ValidationSettings } from "@dwkt/domain/schemas";
 import type { FieldViolation } from "@dwkt/domain/types";
 import {
   EnumViolation,
@@ -34,10 +34,11 @@ import {
   findForeignKeyRule,
   formatConstraintViolation,
   parseDuckDBError,
+  queryRows,
 } from "../loading/sql.ts";
 import { findSuggestedValue } from "./string-matching.ts";
 
-export interface ColumnMapping {
+interface ColumnMapping {
   readonly origin: string;
   readonly target: string;
 }
@@ -53,7 +54,7 @@ interface ViolationContext {
   readonly rowNum: number;
   readonly processedDuplicates: Set<string>;
   readonly currentDataset: string;
-  readonly datasetRules: readonly DatasetRule[];
+  readonly datasetRules: readonly DatasetRuleConfig[];
 }
 
 function handlePrimaryKeyViolation(
@@ -85,22 +86,12 @@ function handlePrimaryKeyViolation(
       WHERE "${pkMapping.origin}" = '${escapeString(parsed.value)}'
     `;
 
-    const duplicateResult = yield* Effect.tryPromise(() =>
-      ctx.connection.runAndReadAll(duplicateQuery)
-    ).pipe(Effect.orDie);
-
-    const duplicateRows = duplicateResult.getRowObjects();
+    const duplicateRows = yield* queryRows(ctx.connection, duplicateQuery);
     const duplicateCount = duplicateRows.length;
     const violations: FieldViolation[] = [];
 
     for (const dupRow of duplicateRows) {
       const dupRowNum = Number(dupRow._row_number);
-      const csvValue = yield* getCsvValue(
-        ctx.connection,
-        ctx.rawTableName,
-        pkMapping.origin,
-        dupRowNum,
-      );
 
       violations.push(
         new PrimaryKeyViolation({
@@ -109,7 +100,6 @@ function handlePrimaryKeyViolation(
           targetName: pkMapping.target,
           rowNumber: dupRowNum,
           value: parsed.value,
-          csvValue,
           constraintType: "duplicate",
           duplicateCount,
           errorMessage: `Duplicate primary key: "${parsed.value}"`,
@@ -142,7 +132,6 @@ function handleNotNullViolation(
         targetName: notNullMapping.target,
         rowNumber: ctx.rowNum,
         value: "",
-        csvValue: "",
         errorMessage: `Required field "${notNullMapping.origin}" cannot be NULL`,
       }),
     ];
@@ -190,7 +179,6 @@ function handleEnumViolation(
         targetName: enumMapping.target,
         rowNumber: ctx.rowNum,
         value: parsed.value,
-        csvValue: parsed.value,
         enumType: `${ctx.schemaTableName}_${enumMapping.target.toLowerCase()}_enum`,
         allowedValues,
         suggestedValue,
@@ -247,7 +235,6 @@ function handleForeignKeyViolation(
         targetName: targetField,
         rowNumber: ctx.rowNum,
         value: csvValue,
-        csvValue,
         referencedTable,
         referencedField,
         errorMessage,
@@ -296,7 +283,7 @@ export function insertRowByRow(
   resolvedSpec: ResolvedSpec,
   activeStandard: "obis" | "gbif",
   currentDataset: string,
-  datasetRules: readonly DatasetRule[],
+  datasetRules: readonly DatasetRuleConfig[],
   validationSettings?: ValidationSettings,
 ): Effect.Effect<void, FieldViolation[]> {
   return Effect.gen(function* () {
@@ -304,12 +291,11 @@ export function insertRowByRow(
     const enableSuggestions = validationSettings?.enableSuggestions ?? true;
     const processedDuplicates = new Set<string>();
 
-    const maxRowResult = yield* Effect.tryPromise(() =>
-      connection.runAndReadAll(
-        `SELECT MAX(_row_number) as max_row FROM ${rawTableName}`,
-      )
-    ).pipe(Effect.orDie);
-    const maxRow = Number(maxRowResult.getRowObjects()[0]?.max_row ?? 0);
+    const maxRows = yield* queryRows(
+      connection,
+      `SELECT MAX(_row_number) as max_row FROM ${rawTableName}`,
+    );
+    const maxRow = Number(maxRows[0]?.max_row ?? 0);
 
     const targetColumns = columnMappings.map((m) => `"${m.target}"`).join(", ");
     const originColumns = columnMappings.map((m) => `"${m.origin}"`).join(", ");

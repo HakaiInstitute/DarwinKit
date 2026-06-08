@@ -3,12 +3,12 @@ import { ConstraintSchema, RequirementLevel } from "../specs/constraints.ts";
 import type { DatasetRule } from "../specs/dataset-rules.ts";
 import type { SpecField } from "../specs/field-definition.ts";
 
-export const fieldOverrideSchema = S.Struct({
+const fieldOverrideSchema = S.Struct({
   requirement: S.optional(RequirementLevel),
   constraints: S.optional(S.Array(ConstraintSchema)),
 });
 
-export const transformFieldSchema = S.Struct({
+const transformFieldSchema = S.Struct({
   type: S.optional(S.String),
   unique: S.optional(S.String),
   values: S.optional(S.Record(S.String, S.Unknown)),
@@ -47,8 +47,6 @@ export interface Spec {
   readonly rawFields?: Record<string, TransformField>;
   readonly metadata?: { createdAt?: Date; updatedAt?: Date; author?: string };
 }
-
-export type SpecRegistry = Record<string, Spec>;
 
 export interface Profile {
   readonly id: string;

@@ -7,7 +7,7 @@ import {
   UniqueConstraint,
 } from "./constraints.ts";
 
-export interface ConstraintPreset {
+interface ConstraintPreset {
   readonly description: string;
   readonly constraints: readonly Constraint[];
 }

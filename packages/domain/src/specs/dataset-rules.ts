@@ -8,7 +8,7 @@ import type { RequirementLevel } from "./constraints.ts";
  * - `{ field, equals }` — value match: rule fires when field equals the value
  * - `{ field, in }` — set membership: rule fires when field value is in the set
  */
-export type DependencyCondition =
+type DependencyCondition =
   | string
   | { readonly field: string; readonly equals: string }
   | { readonly field: string; readonly in: readonly string[] };

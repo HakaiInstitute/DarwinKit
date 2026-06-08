@@ -21,8 +21,6 @@
     "@dwkt/domain/specs": "./packages/domain/src/specs/mod.ts",
     "@dwkt/core/workspace": "./packages/core/src/workspace/mod.ts",
     "@dwkt/core/validation": "./packages/core/src/validation/mod.ts",
-    "@dwkt/core/loading": "./packages/core/src/loading/mod.ts",
-    "@dwkt/core/errors": "./packages/core/src/errors/mod.ts",
     "@dwkt/core/transform": "./packages/core/src/transform/mod.ts",
     "@dwkt/core/import": "./packages/core/src/import/mod.ts",
     "@std/assert": "jsr:@std/assert@^1.0.6",

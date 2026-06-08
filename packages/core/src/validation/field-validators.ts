@@ -36,6 +36,7 @@ import {
   requirementToSeverity,
   UniquenessViolation,
 } from "@dwkt/domain/types";
+import { queryRows } from "../loading/sql.ts";
 
 function validField(fieldName: string, targetName: string): ValidField {
   return { fieldName, targetName, status: "valid" };
@@ -83,11 +84,7 @@ export function findRangeViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-      Effect.orDie,
-    );
-
-    const rows = result.getRowObjects();
+    const rows = yield* queryRows(connection, query);
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new RangeViolation({
@@ -96,7 +93,6 @@ export function findRangeViolations(
           targetName: specField.name,
           rowNumber: Number(row._row_number),
           value: String(row.value),
-          csvValue: String(row.value),
           errorMessage: constraint.message || `Value out of range`,
 
           params: { min: constraint.min, max: constraint.max },
@@ -157,7 +153,7 @@ function validateConstraintsByType<TType extends Constraint["_tag"]>(
   });
 }
 
-export function validateRangeConstraints(
+function validateRangeConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
@@ -199,11 +195,7 @@ export function findUniquenessViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-      Effect.orDie,
-    );
-
-    const rows = result.getRowObjects();
+    const rows = yield* queryRows(connection, query);
     const violations: UniquenessViolation[] = [];
 
     for (const row of rows) {
@@ -225,7 +217,6 @@ export function findUniquenessViolations(
             targetName: specField.name,
             rowNumber: Number(rowNum),
             value,
-            csvValue: value,
             errorMessage: `Duplicate value: "${value}"`,
           }),
         );
@@ -257,7 +248,7 @@ function findUniquenessConstraintViolations(
   );
 }
 
-export function validateUniqueness(
+function validateUniqueness(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
@@ -347,11 +338,7 @@ export function findFormatViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-      Effect.orDie,
-    );
-
-    const rows = result.getRowObjects();
+    const rows = yield* queryRows(connection, query);
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new FormatViolation({
@@ -360,7 +347,6 @@ export function findFormatViolations(
           targetName: specField.name,
           rowNumber: Number(row._row_number),
           value: String(row.value),
-          csvValue: String(row.value),
           errorMessage: constraint.message ||
             `Value "${String(row.value)}" does not match ${constraint.format} format`,
           format: constraint.format,
@@ -373,7 +359,7 @@ export function findFormatViolations(
   });
 }
 
-export function validateFormatConstraints(
+function validateFormatConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
@@ -411,7 +397,12 @@ export function findPatternViolations(
     `;
 
     const queryResult = yield* Effect.result(
-      Effect.tryPromise(() => connection.runAndReadAll(query)),
+      Effect.tryPromise({
+        try: () => connection.runAndReadAll(query),
+        // Surface the raw DuckDB error (an Error) rather than the generic
+        // UnknownError wrapper, so the regex diagnostic reaches the user.
+        catch: (e) => e,
+      }),
     );
 
     if (Result.isFailure(queryResult)) {
@@ -441,7 +432,6 @@ export function findPatternViolations(
           targetName: specField.name,
           rowNumber: Number(row._row_number),
           value: String(row.value),
-          csvValue: String(row.value),
           errorMessage: constraint.message ||
             `Value "${String(row.value)}" does not match pattern /${constraint.pattern}/`,
           pattern: constraint.pattern,
@@ -455,7 +445,7 @@ export function findPatternViolations(
   });
 }
 
-export function validatePatternConstraints(
+function validatePatternConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
@@ -504,11 +494,7 @@ export function findLengthViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-      Effect.orDie,
-    );
-
-    const rows = result.getRowObjects();
+    const rows = yield* queryRows(connection, query);
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new LengthViolation({
@@ -517,7 +503,6 @@ export function findLengthViolations(
           targetName: specField.name,
           rowNumber: Number(row._row_number),
           value: String(row.value),
-          csvValue: String(row.value),
           errorMessage: constraint.message ||
             `Value length ${row.actual_length} is outside bounds [${minLength ?? ""}..${
               maxLength ?? ""
@@ -536,7 +521,7 @@ export function findLengthViolations(
   });
 }
 
-export function validateLengthConstraints(
+function validateLengthConstraints(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
@@ -578,11 +563,7 @@ export function findRequiredViolations(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-      Effect.orDie,
-    );
-
-    const rows = result.getRowObjects();
+    const rows = yield* queryRows(connection, query);
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new RequiredFieldViolation({
@@ -591,7 +572,6 @@ export function findRequiredViolations(
           targetName: specField.name,
           rowNumber: Number(row._row_number),
           value: row.value == null ? "" : String(row.value),
-          csvValue: row.value == null ? "" : String(row.value),
           errorMessage: constraint.message || `Required field "${fieldName}" is empty or null`,
         })
       );
@@ -638,7 +618,7 @@ export function validateRequiredConstraints(
   );
 }
 
-export interface FieldValidationContext {
+interface FieldValidationContext {
   readonly isDbPrimaryKey: boolean;
   readonly maxViolations?: number;
 }

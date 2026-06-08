@@ -17,8 +17,6 @@
     "@dwkt/domain/specs": "../domain/src/specs/mod.ts",
     "@dwkt/core/workspace": "../core/src/workspace/mod.ts",
     "@dwkt/core/validation": "../core/src/validation/mod.ts",
-    "@dwkt/core/loading": "../core/src/loading/mod.ts",
-    "@dwkt/core/errors": "../core/src/errors/mod.ts",
     "@dwkt/core/transform": "../core/src/transform/mod.ts",
     "@dwkt/core/import": "../core/src/import/mod.ts",
     "@std/cli": "jsr:@std/cli@^1.0.7",

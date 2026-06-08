@@ -1,7 +1,7 @@
 import { Spinner } from '@std/cli/unstable-spinner';
 import { colors } from '@cliffy/ansi/colors';
 
-export interface SpinnerOptions {
+interface SpinnerOptions {
   message: string;
   color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray';
 }
@@ -48,57 +48,10 @@ export class ProgressSpinner {
     }
   }
 
-  succeed(message?: string): void {
-    if (this.isRunning) {
-      this.spinner.stop();
-      this.isRunning = false;
-      if (message) {
-        console.log(colors.green(`✅ ${message}`));
-      }
-    }
-  }
-
-  fail(message?: string): void {
-    if (this.isRunning) {
-      this.spinner.stop();
-      this.isRunning = false;
-      if (message) {
-        console.log(colors.red(`❌ ${message}`));
-      }
-    }
-  }
-
-  warn(message?: string): void {
-    if (this.isRunning) {
-      this.spinner.stop();
-      this.isRunning = false;
-      if (message) {
-        console.log(colors.yellow(`⚠️  ${message}`));
-      }
-    }
-  }
-
   stop(): void {
     if (this.isRunning) {
       this.spinner.stop();
       this.isRunning = false;
     }
-  }
-}
-
-export async function withSpinner<T>(
-  options: SpinnerOptions,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const spinner = new ProgressSpinner(options);
-  spinner.start();
-
-  try {
-    const result = await operation();
-    spinner.stop();
-    return result;
-  } catch (error) {
-    spinner.stop();
-    throw error;
   }
 }

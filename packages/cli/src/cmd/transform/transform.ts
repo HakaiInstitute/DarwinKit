@@ -1,19 +1,30 @@
 import { Command } from '@cliffy/command';
 import { transformFile } from '@dwkt/core/transform';
 import { Output } from '../../utils/output.ts';
+import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
 
 async function transform(options: {
   config?: string;
 }) {
   Output.section('🚀', 'Starting transformation...');
-  await Effect.runPromise(
-    transformFile(options.config).pipe(
-      Effect.tapError((error) =>
-        Effect.sync(() => Output.error(`Transformation failed: ${error.message}`))
-      ),
-    ),
-  );
+
+  const result = await Effect.runPromiseExit(transformFile(options.config));
+
+  if (Exit.isFailure(result)) {
+    Output.blank();
+    const failure = Cause.findErrorOption(result.cause);
+    if (failure._tag === 'Some') {
+      Output.error('Transformation failed:');
+      Output.error(failure.value.message);
+      Deno.exit(1);
+    }
+    Output.error('Unexpected error during transformation');
+    Output.line(Cause.pretty(result.cause));
+    Deno.exit(3);
+  }
+
   Output.success('✅ Transformation complete.');
 }
 

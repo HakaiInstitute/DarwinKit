@@ -2,7 +2,11 @@ import { colors } from '@cliffy/ansi/colors';
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
 import { Workspace } from '@dwkt/core/workspace';
-import type { FieldViolation, WorkspaceValidationResult } from '@dwkt/domain/types';
+import type {
+  FieldViolation,
+  SchemaViolation,
+  WorkspaceValidationResult,
+} from '@dwkt/domain/types';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
@@ -11,7 +15,46 @@ import * as Match from 'effect/Match';
 import { CLIError, OutputError } from '../../errors.ts';
 import { Output } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
-import { renderValidationMarkdown } from './markdown-renderer.ts';
+import { groupViolationsByField, renderValidationMarkdown } from './markdown-renderer.ts';
+
+/**
+ * Render one severity section (errors/warnings/info) of the table output.
+ * Terminal counterpart to markdown-renderer's renderViolationSection.
+ */
+function renderTableViolationSection(
+  label: string,
+  write: (msg: string) => void,
+  schemaViolations: ReadonlyArray<SchemaViolation>,
+  fieldViolations: ReadonlyArray<FieldViolation>,
+): void {
+  const total = schemaViolations.length + fieldViolations.length;
+  if (total === 0) return;
+
+  write(`${label.toUpperCase()} (${total}):`);
+
+  if (schemaViolations.length > 0) {
+    write('  Schema Issues:');
+    for (const violation of schemaViolations) {
+      write(`    • ${violation.fieldName}: ${violation.errorMessage}`);
+    }
+  }
+
+  if (fieldViolations.length > 0) {
+    write(`  Data Validation ${label}:`);
+    for (const [fieldName, violations] of groupViolationsByField(fieldViolations)) {
+      const firstViolation = violations[0];
+      write(`    • ${fieldName} (${firstViolation._tag}): ${violations.length} violations`);
+      for (const violation of violations.slice(0, 3)) {
+        Output.muted(`      - Row ${violation.rowNumber}: ${violation.errorMessage}`);
+      }
+      if (violations.length > 3) {
+        Output.muted(`      ... and ${violations.length - 3} more violations`);
+      }
+    }
+  }
+
+  Output.blank();
+}
 
 function outputResults(
   results: WorkspaceValidationResult,
@@ -31,14 +74,16 @@ function outputResults(
   });
 }
 
-function outputJsonResultsEffect(
+/** Shared: write a results file (mkdir + write) and print the summary footer. */
+function writeResultsFile(
   results: WorkspaceValidationResult,
-  outputDir?: string,
+  outputDir: string | undefined,
+  filename: string,
+  content: string,
+  label: string,
 ): Effect.Effect<void, OutputError> {
   return Effect.gen(function* () {
     const outputPath = outputDir ?? './validation_results';
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `validation-results-${timestamp}.json`;
     const fullPath = join(outputPath, filename);
 
     yield* Effect.tryPromise({
@@ -52,7 +97,7 @@ function outputJsonResultsEffect(
     });
 
     yield* Effect.tryPromise({
-      try: () => Deno.writeTextFile(fullPath, JSON.stringify(results, null, 2)),
+      try: () => Deno.writeTextFile(fullPath, content),
       catch: (error) =>
         new OutputError({
           message: `Failed to write results file: ${error}`,
@@ -61,7 +106,7 @@ function outputJsonResultsEffect(
         }),
     });
 
-    Output.success(`Results written to: ${fullPath}`);
+    Output.success(`${label} written to: ${fullPath}`);
     Output.blank();
     Output.line(`Overall status: ${results.overallStatus}`);
     const warningNote = results.summary.datasetsWithWarningsCount > 0
@@ -73,49 +118,34 @@ function outputJsonResultsEffect(
   });
 }
 
+function outputJsonResultsEffect(
+  results: WorkspaceValidationResult,
+  outputDir?: string,
+): Effect.Effect<void, OutputError> {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return writeResultsFile(
+    results,
+    outputDir,
+    `validation-results-${timestamp}.json`,
+    JSON.stringify(results, null, 2),
+    'Results',
+  );
+}
+
 function outputMarkdownResultsEffect(
   results: WorkspaceValidationResult,
   outputDir?: string,
   github_action?: boolean,
 ): Effect.Effect<void, OutputError> {
-  return Effect.gen(function* () {
-    const outputPath = outputDir || './validation_results';
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = github_action ? 'validation-results.md' : `validation-results-${timestamp}.md`;
-    const fullPath = join(outputPath, filename);
-
-    const markdown = renderValidationMarkdown(results);
-
-    yield* Effect.tryPromise({
-      try: () => Deno.mkdir(outputPath, { recursive: true }),
-      catch: (error) =>
-        new OutputError({
-          message: `Failed to create output directory: ${error}`,
-          outputPath,
-          cause: error instanceof Error ? error : new Error(String(error)),
-        }),
-    });
-
-    yield* Effect.tryPromise({
-      try: () => Deno.writeTextFile(fullPath, markdown),
-      catch: (error) =>
-        new OutputError({
-          message: `Failed to write markdown file: ${error}`,
-          outputPath: fullPath,
-          cause: error instanceof Error ? error : new Error(String(error)),
-        }),
-    });
-
-    Output.success(`Markdown results written to: ${fullPath}`);
-    Output.blank();
-    Output.line(`Overall status: ${results.overallStatus}`);
-    const warningNote = results.summary.datasetsWithWarningsCount > 0
-      ? ` (${results.summary.datasetsWithWarningsCount} with warnings)`
-      : '';
-    Output.line(
-      `Datasets: ${results.summary.datasetsPassedCount} passed${warningNote}, ${results.summary.datasetsFailedCount} failed`,
-    );
-  });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = github_action ? 'validation-results.md' : `validation-results-${timestamp}.md`;
+  return writeResultsFile(
+    results,
+    outputDir,
+    filename,
+    renderValidationMarkdown(results),
+    'Markdown results',
+  );
 }
 
 function handleValidationResults(
@@ -259,6 +289,7 @@ function buildValidationEffect(
   format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
   outputDir: string | undefined,
   spinner: ProgressSpinner,
+  failFast?: boolean,
 ) {
   return Effect.gen(function* () {
     spinner.update('Loading workspace configuration...');
@@ -267,7 +298,7 @@ function buildValidationEffect(
 
     spinner.update('Validating datasets...');
 
-    const results = yield* workspace.validate();
+    const results = yield* workspace.validate({ failFast });
 
     spinner.stop();
 
@@ -276,10 +307,8 @@ function buildValidationEffect(
   });
 }
 
-export async function validate(options: {
+async function validate(options: {
   config?: string;
-  files?: string;
-  watch?: boolean;
   format?: string;
   outputDir?: string;
   failFast?: boolean;
@@ -308,7 +337,13 @@ export async function validate(options: {
   spinner.start();
 
   const runValidation = Effect.scoped(
-    buildValidationEffect(options.config, validFormat, options.outputDir, spinner),
+    buildValidationEffect(
+      options.config,
+      validFormat,
+      options.outputDir,
+      spinner,
+      options.failFast,
+    ),
   );
 
   const result = await Effect.runPromiseExit(runValidation);
@@ -387,133 +422,26 @@ function outputTableResults(results: WorkspaceValidationResult) {
       Output.blank();
     }
 
-    if (hasErrors) {
-      const totalErrors = dataset.schemaViolations.errors.length +
-        dataset.fieldViolations.errors.length;
-      Output.error(`ERRORS (${totalErrors}):`);
+    renderTableViolationSection(
+      'Errors',
+      (m) => Output.error(m),
+      dataset.schemaViolations.errors,
+      dataset.fieldViolations.errors,
+    );
 
-      if (dataset.schemaViolations.errors.length > 0) {
-        Output.error('  Schema Issues:');
-        for (const violation of dataset.schemaViolations.errors) {
-          Output.error(`    • ${violation.fieldName}: ${violation.errorMessage}`);
-        }
-      }
+    renderTableViolationSection(
+      'Warnings',
+      (m) => Output.warning(m),
+      dataset.schemaViolations.warnings,
+      dataset.fieldViolations.warnings,
+    );
 
-      if (dataset.fieldViolations.errors.length > 0) {
-        Output.error('  Data Validation Errors:');
-        const errorsByField = groupViolationsByField(dataset.fieldViolations.errors);
-        for (const [fieldName, violations] of errorsByField) {
-          const firstViolation = violations[0];
-          Output.error(
-            `    • ${fieldName} (${firstViolation._tag}): ${violations.length} violations`,
-          );
-
-          // Show first few violations as examples
-          const examples = violations.slice(0, 3);
-          for (const violation of examples) {
-            Output.muted(
-              `      - Row ${violation.rowNumber}: ${violation.errorMessage}`,
-            );
-          }
-
-          if (violations.length > 3) {
-            Output.muted(`      ... and ${violations.length - 3} more violations`);
-          }
-        }
-      }
-
-      Output.blank();
-    }
-
-    if (hasWarnings) {
-      const totalWarnings = dataset.schemaViolations.warnings.length +
-        dataset.fieldViolations.warnings.length;
-      Output.warning(`WARNINGS (${totalWarnings}):`);
-
-      if (dataset.schemaViolations.warnings.length > 0) {
-        Output.warning('  Schema Issues:');
-        for (const violation of dataset.schemaViolations.warnings) {
-          Output.warning(`    • ${violation.fieldName}: ${violation.errorMessage}`);
-        }
-      }
-
-      if (dataset.fieldViolations.warnings.length > 0) {
-        Output.warning('  Data Validation Warnings:');
-        const warningsByField = groupViolationsByField(dataset.fieldViolations.warnings);
-        for (const [fieldName, violations] of warningsByField) {
-          const firstViolation = violations[0];
-          Output.warning(
-            `    • ${fieldName} (${firstViolation._tag}): ${violations.length} violations`,
-          );
-
-          const examples = violations.slice(0, 3);
-          for (const violation of examples) {
-            Output.muted(
-              `      - Row ${violation.rowNumber}: ${violation.errorMessage}`,
-            );
-          }
-
-          if (violations.length > 3) {
-            Output.muted(`      ... and ${violations.length - 3} more violations`);
-          }
-        }
-      }
-
-      Output.blank();
-    }
-
-    if (hasInfo) {
-      const totalInfo = dataset.schemaViolations.info.length +
-        dataset.fieldViolations.info.length;
-      Output.info(`INFO (${totalInfo}):`);
-
-      // Show schema info first
-      if (dataset.schemaViolations.info.length > 0) {
-        Output.info('  Schema Issues:');
-        for (const violation of dataset.schemaViolations.info) {
-          Output.info(`    • ${violation.fieldName}: ${violation.errorMessage}`);
-        }
-      }
-
-      if (dataset.fieldViolations.info.length > 0) {
-        Output.info('  Data Validation Info:');
-        const infoByField = groupViolationsByField(dataset.fieldViolations.info);
-        for (const [fieldName, violations] of infoByField) {
-          const firstViolation = violations[0];
-          Output.info(
-            `    • ${fieldName} (${firstViolation._tag}): ${violations.length} violations`,
-          );
-
-          const examples = violations.slice(0, 3);
-          for (const violation of examples) {
-            Output.muted(
-              `      - Row ${violation.rowNumber}: ${violation.errorMessage}`,
-            );
-          }
-
-          if (violations.length > 3) {
-            Output.muted(`      ... and ${violations.length - 3} more violations`);
-          }
-        }
-      }
-
-      Output.blank();
-    }
-  }
-
-  function groupViolationsByField(
-    violations: ReadonlyArray<FieldViolation>,
-  ): Map<string, FieldViolation[]> {
-    const grouped = new Map<string, FieldViolation[]>();
-
-    for (const violation of violations) {
-      if (!grouped.has(violation.fieldName)) {
-        grouped.set(violation.fieldName, []);
-      }
-      grouped.get(violation.fieldName)!.push(violation);
-    }
-
-    return grouped;
+    renderTableViolationSection(
+      'Info',
+      (m) => Output.info(m),
+      dataset.schemaViolations.info,
+      dataset.fieldViolations.info,
+    );
   }
 
   Output.bold('Summary:');
@@ -544,15 +472,6 @@ export const validateCommand = new Command()
   .option(
     '--config <path:string>',
     'Path to configuration directory (defaults to current directory)',
-  )
-  .option(
-    '--files <files:string>',
-    'Comma-separated list of specific files to validate (validates all by default)',
-  )
-  .option(
-    '--watch',
-    'Watch files for changes and validate continuously',
-    { default: false },
   )
   .option(
     '--format <format:string>',

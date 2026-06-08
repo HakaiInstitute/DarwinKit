@@ -1,6 +1,6 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import type {
-  DatasetRule,
+  DatasetRuleConfig,
   ResolvedSpec,
   TransformField,
   WorkspaceFieldMapping,
@@ -52,7 +52,7 @@ export function importSchema(
   datasets: readonly DatasetWithClass[],
   standard: ResolvedStandard,
   spec: ResolvedSpec,
-  datasetRules?: readonly DatasetRule[],
+  datasetRules?: readonly DatasetRuleConfig[],
   resolvedFields?: Record<string, WorkspaceFieldMapping>,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.gen(function* () {

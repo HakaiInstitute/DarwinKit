@@ -15,12 +15,7 @@ import {
   TransformInputNotFoundError,
   ValidationConfigMissingError,
 } from "@dwkt/domain/errors";
-import type {
-  ConfigWithValidation,
-  DatasetConfig,
-  ValidationSettings,
-  WorkspaceConfig,
-} from "@dwkt/domain/schemas";
+import type { ConfigWithValidation, WorkspaceConfig } from "@dwkt/domain/schemas";
 import {
   decodeWorkspaceConfigEffect,
   formatConfigValidationErrors,
@@ -115,20 +110,6 @@ export class Workspace {
     });
   }
 
-  getValidationDatasets(): readonly DatasetConfig[] {
-    if (!this.hasValidation) {
-      return [];
-    }
-    return (this.config as ConfigWithValidation).validation.datasets;
-  }
-
-  getValidationSettings(): ValidationSettings | undefined {
-    if (!this.hasValidation) {
-      return undefined;
-    }
-    return (this.config as ConfigWithValidation).validation;
-  }
-
   static open(
     configPath?: string,
   ): Effect.Effect<Workspace, WorkspaceConfigError, Scope.Scope> {
@@ -140,23 +121,13 @@ export class Workspace {
 
         yield* validateDatasetPaths(config, basePath);
 
-        const instance = yield* Effect.tryPromise({
-          try: () => DuckDBInstance.create(":memory:"),
-          catch: () =>
-            new ConfigParseError({
-              message: "Failed to create DuckDB instance",
-              configPath: resolvedPath,
-            }),
-        });
+        // Creating an in-memory DuckDB is infrastructure: a failure here is a
+        // defect, not a user-fixable config problem. (Matches createWorkspaceFromConfig.)
+        const instance = yield* Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(
+          Effect.orDie,
+        );
 
-        const connection = yield* Effect.tryPromise({
-          try: () => instance.connect(),
-          catch: () =>
-            new ConfigParseError({
-              message: "Failed to connect to DuckDB",
-              configPath: resolvedPath,
-            }),
-        });
+        const connection = yield* Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie);
 
         return new Workspace(config, resolvedPath, basePath, connection, instance);
       }),

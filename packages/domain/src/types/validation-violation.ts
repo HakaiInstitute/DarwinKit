@@ -3,9 +3,9 @@
  *
  * Defines typed data classes for field-level validation violations.
  *
- * DESIGN DECISION: FieldViolation uses Effect's Schema.TaggedClass for:
+ * DESIGN DECISION: FieldViolation uses Effect's S.TaggedClass for:
  * 1. TYPE-SAFE pattern matching - Use switch on _tag for exhaustive case handling
- * 2. SERIALIZATION - Schema.TaggedClass provides encode/decode for persistence
+ * 2. SERIALIZATION - S.TaggedClass provides encode/decode for persistence
  * 3. TYPE GUARDS - Use provided helper functions (isRangeViolation, etc.) for filtering
  *
  * ERROR CHANNEL PATTERN:
@@ -23,7 +23,7 @@
  * and aggregates them into the final WorkspaceValidationResult data structure.
  */
 
-import { Schema } from "effect";
+import * as S from "effect/Schema";
 import type { RequirementLevel } from "../specs/constraints.ts";
 
 /**
@@ -49,97 +49,88 @@ export interface PartitionedViolations<T> {
  * "optional" → INFO.
  */
 const baseViolationFields = {
-  severity: Schema.Literals(["error", "warning", "info"]),
-  fieldName: Schema.String,
-  targetName: Schema.String,
-  rowNumber: Schema.Number,
-  value: Schema.String,
-  csvValue: Schema.optional(Schema.String),
-  transformedValue: Schema.optional(Schema.Unknown),
-  errorMessage: Schema.String,
+  severity: S.Literals(["error", "warning", "info"]),
+  fieldName: S.String,
+  targetName: S.String,
+  rowNumber: S.Number,
+  value: S.String,
+  errorMessage: S.String,
 };
 
-export class RangeViolation extends Schema.TaggedClass<RangeViolation>()("RangeViolation", {
+export class RangeViolation extends S.TaggedClass<RangeViolation>()("RangeViolation", {
   ...baseViolationFields,
-  params: Schema.optional(
-    Schema.Struct({
-      min: Schema.optional(Schema.Number),
-      max: Schema.optional(Schema.Number),
+  params: S.optional(
+    S.Struct({
+      min: S.optional(S.Number),
+      max: S.optional(S.Number),
     }),
   ),
 }) {}
 
 export class UniquenessViolation
-  extends Schema.TaggedClass<UniquenessViolation>()("UniquenessViolation", {
+  extends S.TaggedClass<UniquenessViolation>()("UniquenessViolation", {
     ...baseViolationFields,
-    params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   }) {}
 
 export class PrimaryKeyViolation
-  extends Schema.TaggedClass<PrimaryKeyViolation>()("PrimaryKeyViolation", {
+  extends S.TaggedClass<PrimaryKeyViolation>()("PrimaryKeyViolation", {
     ...baseViolationFields,
-    constraintType: Schema.Literals(["duplicate", "null"]),
-    duplicateCount: Schema.optional(Schema.Number),
-    params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+    constraintType: S.Literals(["duplicate", "null"]),
+    duplicateCount: S.optional(S.Number),
   }) {}
 
-export class NotNullViolation extends Schema.TaggedClass<NotNullViolation>()("NotNullViolation", {
+export class NotNullViolation extends S.TaggedClass<NotNullViolation>()("NotNullViolation", {
   ...baseViolationFields,
-  params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 }) {}
 
-export class EnumViolation extends Schema.TaggedClass<EnumViolation>()("EnumViolation", {
+export class EnumViolation extends S.TaggedClass<EnumViolation>()("EnumViolation", {
   ...baseViolationFields,
-  enumType: Schema.String,
-  allowedValues: Schema.Array(Schema.String),
-  suggestedValue: Schema.optional(Schema.String),
-  params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  enumType: S.String,
+  allowedValues: S.Array(S.String),
+  suggestedValue: S.optional(S.String),
 }) {}
 
-export class FormatViolation extends Schema.TaggedClass<FormatViolation>()("FormatViolation", {
+export class FormatViolation extends S.TaggedClass<FormatViolation>()("FormatViolation", {
   ...baseViolationFields,
-  format: Schema.String,
-  params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  format: S.String,
 }) {}
 
-export class PatternViolation extends Schema.TaggedClass<PatternViolation>()("PatternViolation", {
+export class PatternViolation extends S.TaggedClass<PatternViolation>()("PatternViolation", {
   ...baseViolationFields,
-  pattern: Schema.String,
-  flags: Schema.optional(Schema.String),
-  params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  pattern: S.String,
+  flags: S.optional(S.String),
 }) {}
 
-export class LengthViolation extends Schema.TaggedClass<LengthViolation>()("LengthViolation", {
+export class LengthViolation extends S.TaggedClass<LengthViolation>()("LengthViolation", {
   ...baseViolationFields,
-  params: Schema.optional(
-    Schema.Struct({
-      minLength: Schema.optional(Schema.Number),
-      maxLength: Schema.optional(Schema.Number),
-      actualLength: Schema.optional(Schema.Number),
+  params: S.optional(
+    S.Struct({
+      minLength: S.optional(S.Number),
+      maxLength: S.optional(S.Number),
+      actualLength: S.optional(S.Number),
     }),
   ),
 }) {}
 
 export class RequiredFieldViolation
-  extends Schema.TaggedClass<RequiredFieldViolation>()("RequiredFieldViolation", {
+  extends S.TaggedClass<RequiredFieldViolation>()("RequiredFieldViolation", {
     ...baseViolationFields,
-    params: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   }) {}
 
 export class DependencyViolation
-  extends Schema.TaggedClass<DependencyViolation>()("DependencyViolation", {
+  extends S.TaggedClass<DependencyViolation>()("DependencyViolation", {
     ...baseViolationFields,
   }) {}
 
 export class ForeignKeyViolation
-  extends Schema.TaggedClass<ForeignKeyViolation>()("ForeignKeyViolation", {
+  extends S.TaggedClass<ForeignKeyViolation>()("ForeignKeyViolation", {
     ...baseViolationFields,
-    referencedTable: Schema.String,
-    referencedField: Schema.String,
-    params: Schema.optional(
-      Schema.Struct({
-        targetDataset: Schema.optional(Schema.String),
-        targetField: Schema.optional(Schema.String),
+    referencedTable: S.String,
+    referencedField: S.String,
+    params: S.optional(
+      S.Struct({
+        targetDataset: S.optional(S.String),
+        targetField: S.optional(S.String),
       }),
     ),
   }) {}
@@ -188,18 +179,6 @@ export function isEnumViolation(v: FieldViolation): v is EnumViolation {
   return v._tag === "EnumViolation";
 }
 
-export function isUniquenessViolation(v: FieldViolation): v is UniquenessViolation {
-  return v._tag === "UniquenessViolation";
-}
-
-export function isNotNullViolation(v: FieldViolation): v is NotNullViolation {
-  return v._tag === "NotNullViolation";
-}
-
-export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolation {
-  return v._tag === "ForeignKeyViolation";
-}
-
 export function isFormatViolation(v: FieldViolation): v is FormatViolation {
   return v._tag === "FormatViolation";
 }
@@ -216,10 +195,6 @@ export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldV
   return v._tag === "RequiredFieldViolation";
 }
 
-export function isDependencyViolation(v: FieldViolation): v is DependencyViolation {
-  return v._tag === "DependencyViolation";
-}
-
 export function requirementToSeverity(requirement: RequirementLevel): "error" | "warning" | "info" {
   switch (requirement) {
     case "required":
@@ -231,12 +206,16 @@ export function requirementToSeverity(requirement: RequirementLevel): "error" | 
   }
 }
 
-export function partitionFieldViolations(
-  violations: ReadonlyArray<FieldViolation>,
-): PartitionedViolations<FieldViolation> {
-  const errors: FieldViolation[] = [];
-  const warnings: FieldViolation[] = [];
-  const info: FieldViolation[] = [];
+/**
+ * Partition any severity-bearing violations into errors/warnings/info.
+ * Shared by {@link partitionFieldViolations} and `partitionSchemaViolations`.
+ */
+export function partitionViolationsBySeverity<
+  T extends { readonly severity: "error" | "warning" | "info" },
+>(violations: ReadonlyArray<T>): PartitionedViolations<T> {
+  const errors: T[] = [];
+  const warnings: T[] = [];
+  const info: T[] = [];
 
   for (const violation of violations) {
     switch (violation.severity) {
@@ -253,4 +232,10 @@ export function partitionFieldViolations(
   }
 
   return { errors, warnings, info };
+}
+
+export function partitionFieldViolations(
+  violations: ReadonlyArray<FieldViolation>,
+): PartitionedViolations<FieldViolation> {
+  return partitionViolationsBySeverity(violations);
 }

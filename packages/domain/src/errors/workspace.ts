@@ -48,12 +48,12 @@ export class ValidationConfigMissingError extends Data.TaggedError("ValidationCo
 export class NoDatasetsDefinedError
   extends Data.TaggedError("NoDatasetsDefinedError")<{ message: string }> {}
 
-export class WorkspaceValidationError extends Data.TaggedClass("WorkspaceValidationError")<{
+export class WorkspaceValidationError extends Data.TaggedError("WorkspaceValidationError")<{
   readonly message: string;
   readonly cause?: Error;
 }> {}
 
-export class WorkspaceImportError extends Data.TaggedClass("WorkspaceImportError")<{
+export class WorkspaceImportError extends Data.TaggedError("WorkspaceImportError")<{
   readonly message: string;
   readonly cause?: Error;
 }> {}

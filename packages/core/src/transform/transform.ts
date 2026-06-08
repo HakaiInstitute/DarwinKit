@@ -4,13 +4,13 @@ import { join, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import { Workspace } from "../workspace/mod.ts";
+import { Workspace } from "../workspace/workspace.ts";
 import type { WorkspaceConfig } from "@dwkt/domain/schemas";
 import { hasTransformationConfig } from "@dwkt/domain/schemas";
 import { getSpecNames, resolveProfile } from "@dwkt/domain/specs";
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
-import { WorkspaceImportError } from "@dwkt/domain/errors";
+import type { WorkspaceImportError } from "@dwkt/domain/errors";
 import { importCsv } from "../loading/csv-import.ts";
 import { importSchema } from "../loading/schema.ts";
 import { findForeignKeyRule, formatConstraintViolation, parseDuckDBError } from "../loading/sql.ts";
@@ -26,7 +26,7 @@ export class OutputError extends Data.TaggedError("OutputError")<{
   readonly cause?: Error;
 }> {}
 
-export function createTablesFromCSV( // Export for testing
+function createTablesFromCSV(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
   basePath: string,
@@ -50,9 +50,7 @@ export function createTablesFromCSV( // Export for testing
 
       const fullPath = resolve(basePath, csvPath);
 
-      yield* importCsv(connection, tableName, fullPath, config.transform.nullValues).pipe(
-        Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
-      );
+      yield* importCsv(connection, tableName, fullPath, config.transform.nullValues);
     }
   });
 }
@@ -106,7 +104,7 @@ export function createTableFromSchema(
   });
 }
 
-export function populateSchemaFromDataTables( // Export for testing
+export function populateSchemaFromDataTables(
   connection: duckdb.DuckDBConnection,
   config: WorkspaceConfig,
 ): Effect.Effect<void, TransformationError> {
@@ -119,7 +117,7 @@ export function populateSchemaFromDataTables( // Export for testing
       if (!dataset.fields) {
         return yield* Effect.fail(
           new TransformationError({
-            message: `No field definitions found in '${dataset?.name}'`,
+            message: `No field definitions found in '${dataset.name}'`,
           }),
         );
       }
@@ -201,9 +199,7 @@ export function exportTablesToCSV(
     }
 
     const output = transformSettings.output;
-    const outputFilesWithTimestamp = output.outputFilesWithTimestamp ?? true;
-
-    const withTimestamp = outputFilesWithTimestamp ?? true;
+    const withTimestamp = output.outputFilesWithTimestamp ?? true;
     const tables = [
       ...new Set(datasets.map((ds) => ds.class.toLowerCase())),
     ];
@@ -225,17 +221,9 @@ export function exportTablesToCSV(
     );
 
     for (const tableName of tables) {
-      const columnNamesResult = yield* Effect.tryPromise({
-        try: () => connection.runAndReadAll(`PRAGMA table_info(${tableName});`),
-        catch: (error) =>
-          new OutputError({
-            message: `Failed to read table schema for ${tableName}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            outputPath,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      });
+      const columnNamesResult = yield* Effect.tryPromise(() =>
+        connection.runAndReadAll(`PRAGMA table_info(${tableName});`)
+      ).pipe(Effect.orDie);
       const allColumnNames: string[] = columnNamesResult.getRowObjectsJson().map((row) =>
         String(row.name)
       );
@@ -246,20 +234,11 @@ export function exportTablesToCSV(
       if (output.dropNullColumns) {
         const nonNullColumns: string[] = [];
         for (const columnName of allColumnNames) {
-          const nullCountResult = yield* Effect.tryPromise({
-            try: () =>
-              connection.runAndReadAll(
-                `SELECT COUNT(*) AS null_count FROM ${tableName} WHERE "${columnName}" IS NOT NULL;`,
-              ),
-            catch: (error) =>
-              new OutputError({
-                message: `Failed to count non-null values for ${tableName}.${columnName}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-                outputPath,
-                cause: error instanceof Error ? error : new Error(String(error)),
-              }),
-          });
+          const nullCountResult = yield* Effect.tryPromise(() =>
+            connection.runAndReadAll(
+              `SELECT COUNT(*) AS null_count FROM ${tableName} WHERE "${columnName}" IS NOT NULL;`,
+            )
+          ).pipe(Effect.orDie);
           const notNullCount = Number(nullCountResult.getRowObjectsJson()[0].null_count ?? 0);
           if (notNullCount > 0) {
             nonNullColumns.push(columnName);
@@ -271,17 +250,9 @@ export function exportTablesToCSV(
         selectColumns.push("*");
       }
 
-      const result = yield* Effect.tryPromise({
-        try: () => connection.runAndReadAll(`SELECT ${selectColumns.join(",")} FROM ${tableName}`),
-        catch: (error) =>
-          new OutputError({
-            message: `Failed to select data from ${tableName}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            outputPath,
-            cause: error instanceof Error ? error : new Error(String(error)),
-          }),
-      });
+      const result = yield* Effect.tryPromise(() =>
+        connection.runAndReadAll(`SELECT ${selectColumns.join(",")} FROM ${tableName}`)
+      ).pipe(Effect.orDie);
       const filename = withTimestamp ? `${tableName}-${timestamp}.csv` : `${tableName}.csv`;
       const fullPath: string = join(outputPath, filename);
 
@@ -374,7 +345,6 @@ export function exportToPersistentDB(
       }
       const tableName = transformProfile.name.toLowerCase();
       yield* Effect.tryPromise({
-        // try: () => connection.run(`ATTACH '${fullPath}'; COPY FROM DATABASE memory TO ${dbName}; DETACH ${dbName};`),
         try: () =>
           connection.run(`
             ATTACH '${fullPath}' as ${dbAttachAlias};

@@ -72,7 +72,7 @@ const ResolvedStandardSchema = S.Union([
  * Config-specified fields are implicitly required — if a field is listed in
  * fieldMappings but missing from the CSV, it is always reported as an error.
  */
-export const workspaceFieldMappingSchema = S.Struct({
+const workspaceFieldMappingSchema = S.Struct({
   originName: S.String.annotate({ description: "Source column name in the CSV file." }),
   targetName: S.String.annotate({ description: "Target Darwin Core field name." }),
   requirement: S.optional(RequirementLevel),
@@ -121,15 +121,12 @@ const dependencyRuleSchema = S.Struct({
   message: S.optional(S.String.annotate({ description: "Custom error message." })),
 });
 
-export const datasetRuleSchema = S.Union([foreignKeyRuleSchema, dependencyRuleSchema]).annotate({
+const datasetRuleSchema = S.Union([foreignKeyRuleSchema, dependencyRuleSchema]).annotate({
   title: "Dataset Rule",
   description: "Defines a cross-dataset foreign key or intra-dataset dependency rule.",
 });
 
-/** @deprecated Use `datasetRuleSchema` instead. */
-export const workspaceCrossDatasetRuleSchema = datasetRuleSchema;
-
-export const datasetConfigSchema = S.Struct({
+const datasetConfigSchema = S.Struct({
   name: S.String.annotate({ description: "Unique name for this dataset." }),
   class: S.String.annotate({
     description:
@@ -148,7 +145,7 @@ export const datasetConfigSchema = S.Struct({
     "Configuration for a single dataset to validate against a Darwin Core specification.",
 });
 
-export const transformDatasetConfigSchema = S.Struct({
+const transformDatasetConfigSchema = S.Struct({
   name: S.String.annotate({ description: "Unique name for this transform dataset." }),
   class: S.String.annotate({
     description: "Darwin Core class for the transform output.",
@@ -178,7 +175,7 @@ export const transformDatasetConfigSchema = S.Struct({
  * `Effect.sync(() => ...)` instead of `Effect.succeed(...)` so each call produces a
  * fresh value rather than one shared cached value (see id/createdAt/updatedAt below).
  */
-export const validationSettingsSchema = S.Struct({
+const validationSettingsSchema = S.Struct({
   nullValues: S.Array(S.String).annotate({
     description: "Values to treat as null during validation.",
     default: DEFAULT_NULL_VALUES,
@@ -224,7 +221,7 @@ export const validationSettingsSchema = S.Struct({
   description: "Configuration for the validation workflow.",
 });
 
-export const transformSettingsSchema = S.Struct({
+const transformSettingsSchema = S.Struct({
   nullValues: S.Array(S.String).annotate({
     description: "Values to treat as null during transformation.",
     default: DEFAULT_NULL_VALUES,
@@ -338,15 +335,14 @@ export type ValidationSettings = typeof validationSettingsSchema.Type;
 export type ValidationSettingsInput = typeof validationSettingsSchema.Encoded;
 export type TransformSettings = typeof transformSettingsSchema.Type;
 export type WorkspaceFieldMapping = typeof workspaceFieldMappingSchema.Type;
-export type DatasetRule = typeof datasetRuleSchema.Type;
-export type DependencyRuleConfig = typeof dependencyRuleSchema.Type;
+export type DatasetRuleConfig = typeof datasetRuleSchema.Type;
 export type DatasetConfig = typeof datasetConfigSchema.Type;
 export type WorkspaceConfig = typeof workspaceConfigSchema.Type;
 
 export interface ForeignKeyRuleMatch {
   readonly targetDataset: string;
   readonly targetField: string;
-  readonly requirement: "required" | "recommended" | "optional";
+  readonly requirement: RequirementLevel;
 }
 
 export type ConfigWithValidation = WorkspaceConfig & { validation: ValidationSettings };

@@ -6,7 +6,7 @@
 
 import { join } from "@std/path";
 import * as JsonSchema from "effect/JsonSchema";
-import * as Schema from "effect/Schema";
+import * as S from "effect/Schema";
 import { workspaceConfigSchema } from "./workspace-config.ts";
 
 // NOTE: v4's `toJsonSchemaDocument` renders every optional/defaulted field as
@@ -18,7 +18,7 @@ import { workspaceConfigSchema } from "./workspace-config.ts";
 // also remove the *legitimate* null from genuine unions such as the
 // `transform.datasets[].fields` value (`string | number | null`), causing the
 // IDE to reject valid configs.
-const document = Schema.toJsonSchemaDocument(workspaceConfigSchema);
+const document = S.toJsonSchemaDocument(workspaceConfigSchema);
 
 // `document.schema` is the root object node (without the definitions pool);
 // `document.definitions` is the separate `$defs` map. Operate on both typed

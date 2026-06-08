@@ -145,7 +145,7 @@ Dataset rules are group-level validation rules. The single rule type is `Depende
 - `DependencyRule` — a conditional presence rule. An optional `when` condition (`DependencyCondition`) gates the rule; `require` (`DependencyRequire`) specifies what must be present: a `readonly string[]` (all listed fields required) or `{ oneOf: readonly string[] }` (at least one required). An optional `sourceDataset` and `message` are also supported, and `level` (`RequirementLevel`) sets severity. Validated via SQL query in `dataset-rule-validators.ts`.
 - Rules come from two sources: **profiles** (auto-applied via `profile.datasetRules`) and **config** (user-defined via `datasetRules` in YAML).
 - When a profile uses a `{ oneOf: [...] }` `DependencyRule`, individual field requirements for member fields should be set to `"recommended"` via `fieldOverrides` (the group rule replaces per-field required).
-- Violations produce `DependencyViolation` (`Schema.TaggedClass`) with severity based on the rule's `level` (use `isDependencyViolation()` to narrow).
+- Violations produce `DependencyViolation` (`Schema.TaggedClass`) with severity based on the rule's `level` (narrow via the `_tag` discriminator).
 
 **3-Tier Constraint Resolution (packages/core/src/validation/field-resolution.ts):**
 
@@ -312,7 +312,7 @@ deno task cli validate --format json
 **Using Workspace (recommended for short-lived operations):**
 
 ```typescript
-import { Workspace } from "@dwkt/core";
+import { Workspace } from "@dwkt/core/workspace";
 import * as Effect from "effect/Effect";
 
 // Opens workspace, validates, and automatically cleans up DuckDB connection
@@ -329,7 +329,7 @@ const result = await Effect.runPromise(
 **Using Workspace with explicit options:**
 
 ```typescript
-import { Workspace } from "@dwkt/core";
+import { Workspace } from "@dwkt/core/workspace";
 import * as Effect from "effect/Effect";
 
 // Workspace.open returns Effect<Workspace, WorkspaceConfigError, Scope.Scope>;

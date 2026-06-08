@@ -12,10 +12,10 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 
 import type { WorkspaceOperationError } from "@dwkt/domain/errors";
-import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
+import { WorkspaceValidationError } from "@dwkt/domain/errors";
 import type {
   DatasetConfig,
-  DatasetRule,
+  DatasetRuleConfig,
   ResolvedSpec,
   ResolvedStandard,
   ValidationSettings,
@@ -40,7 +40,7 @@ import {
   UnmappedColumnViolation,
 } from "@dwkt/domain/types";
 import { importCsv } from "../loading/csv-import.ts";
-import { sanitizeTableName } from "../loading/sql.ts";
+import { queryRows, sanitizeTableName } from "../loading/sql.ts";
 import { Workspace } from "../workspace/workspace.ts";
 
 import { DependencyRule } from "@dwkt/domain/specs";
@@ -49,7 +49,7 @@ import { insertRowByRow } from "./data-loader.ts";
 import { validateDependencyRule } from "./dataset-rule-validators.ts";
 import { validateField } from "./field-validators.ts";
 
-import { findSuggestedValue } from "../validation/string-matching.ts";
+import { findSuggestedValue } from "./string-matching.ts";
 import type { ResolvedFieldsEntry } from "./field-resolution.ts";
 import {
   applyResolvedConstraints,
@@ -77,7 +77,7 @@ export class WorkspaceValidator {
     basePath: string,
     standard: ResolvedStandard,
     workspaceId?: string,
-    datasetRules?: readonly DatasetRule[],
+    datasetRules?: readonly DatasetRuleConfig[],
     configPath?: string,
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* () {
@@ -127,7 +127,7 @@ export class WorkspaceValidator {
     basePath: string,
     standard: ResolvedStandard,
     workspaceId?: string,
-    datasetRules?: readonly DatasetRule[],
+    datasetRules?: readonly DatasetRuleConfig[],
     configPath?: string,
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
     return Effect.gen(function* () {
@@ -136,26 +136,15 @@ export class WorkspaceValidator {
       // Resolve constraints once — shared by both schema creation and validation
       const resolvedFieldsMap = resolveFieldsForDatasets(datasets, standard);
 
-      for (const dataset of datasets) {
-        const filePath = resolve(basePath, dataset.path);
-        const tableName = `raw_${sanitizeTableName(dataset.name)}`;
-
-        yield* importCsv(connection, tableName, filePath, settings.nullValues).pipe(
-          Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
-        );
-        const entry = resolvedFieldsMap.get(dataset.name);
-        if (entry) {
-          yield* importSchema(
-            connection,
-            dataset,
-            datasets,
-            standard,
-            entry.resolvedSpec,
-            datasetRules,
-            entry.mapped,
-          );
-        }
-      }
+      yield* importDatasets(
+        connection,
+        datasets,
+        settings.nullValues,
+        basePath,
+        standard,
+        resolvedFieldsMap,
+        datasetRules,
+      );
 
       return yield* _validateDatasetsCore(
         connection,
@@ -209,7 +198,7 @@ function _validateDatasetsCore(
   standard: ResolvedStandard,
   workspaceId: string,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
-  datasetRules?: readonly DatasetRule[],
+  datasetRules?: readonly DatasetRuleConfig[],
   configPath?: string,
 ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
   return Effect.gen(function* () {
@@ -273,6 +262,43 @@ function _validateDatasetsCore(
   });
 }
 
+/**
+ * Import each dataset's CSV into a `raw_<name>` table and create its typed
+ * schema table. Shared by validateDatasetsWithConnection and
+ * createWorkspaceFromConfig (which differ only in where nullValues comes from).
+ */
+function importDatasets(
+  connection: DuckDBConnection,
+  datasets: readonly DatasetConfig[],
+  nullValues: readonly string[],
+  basePath: string,
+  standard: ResolvedStandard,
+  resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
+  datasetRules?: readonly DatasetRuleConfig[],
+) {
+  return Effect.gen(function* () {
+    for (const dataset of datasets) {
+      const filePath = resolve(basePath, dataset.path);
+      // Prefix with 'raw_' to avoid name collision with the schema table
+      const tableName = `raw_${sanitizeTableName(dataset.name)}`;
+
+      yield* importCsv(connection, tableName, filePath, nullValues);
+      const entry = resolvedFieldsMap.get(dataset.name);
+      if (entry) {
+        yield* importSchema(
+          connection,
+          dataset,
+          datasets,
+          standard,
+          entry.resolvedSpec,
+          datasetRules,
+          entry.mapped,
+        );
+      }
+    }
+  });
+}
+
 function createWorkspaceFromConfig(
   workspaceId: string,
   datasets: readonly DatasetConfig[],
@@ -280,7 +306,7 @@ function createWorkspaceFromConfig(
   basePath: string,
   standard: ResolvedStandard,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
-  datasetRules?: readonly DatasetRule[],
+  datasetRules?: readonly DatasetRuleConfig[],
 ): Effect.Effect<
   {
     workspaceId: string;
@@ -298,27 +324,15 @@ function createWorkspaceFromConfig(
 
     const connection = yield* Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie);
 
-    for (const dataset of datasets) {
-      const filePath = resolve(basePath, dataset.path);
-      // Prefix with 'raw_' to avoid name collision with the schema table
-      const tableName = `raw_${sanitizeTableName(dataset.name)}`;
-
-      yield* importCsv(connection, tableName, filePath, validationSettings.nullValues).pipe(
-        Effect.mapError((e) => new WorkspaceImportError({ message: e.message, cause: e.cause })),
-      );
-      const entry = resolvedFieldsMap.get(dataset.name);
-      if (entry) {
-        yield* importSchema(
-          connection,
-          dataset,
-          datasets,
-          standard,
-          entry.resolvedSpec,
-          datasetRules,
-          entry.mapped,
-        );
-      }
-    }
+    yield* importDatasets(
+      connection,
+      datasets,
+      validationSettings.nullValues,
+      basePath,
+      standard,
+      resolvedFieldsMap,
+      datasetRules,
+    );
 
     return { workspaceId, connection, instance };
   });
@@ -331,33 +345,23 @@ function validateDataset(
   standard: ResolvedStandard,
   validationSettings?: ValidationSettings,
   preResolved?: ResolvedFieldsEntry,
-  datasetRules?: readonly DatasetRule[],
+  datasetRules?: readonly DatasetRuleConfig[],
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* () {
     const startTime = Date.now();
     const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
-    const countResult = yield* Effect.tryPromise(() =>
-      connection.runAndReadAll(`SELECT COUNT(*) as count FROM ${tableName}`)
-    ).pipe(Effect.orDie);
-
-    const rawCount = countResult.getRowObjects()[0].count;
+    const countRows = yield* queryRows(connection, `SELECT COUNT(*) as count FROM ${tableName}`);
+    const rawCount = countRows[0].count;
     const rowsProcessed = typeof rawCount === "bigint" ? Number(rawCount) : rawCount as number;
 
-    const originTableColumnsResult = yield* Effect.tryPromise({
-      try: () =>
-        connection.runAndReadAll(
-          `SELECT column_name FROM (DESCRIBE '${tableName}')`,
-        ),
-      catch: (error) =>
-        new WorkspaceValidationError({
-          message: `Failed to describe table '${tableName}'`,
-          cause: error instanceof Error ? error : new Error(String(error)),
-        }),
-    });
+    const originTableColumnsRows = yield* queryRows(
+      connection,
+      `SELECT column_name FROM (DESCRIBE '${tableName}')`,
+    );
 
     // Exclude _row_number; it's only used internally
-    const originTableColumns = originTableColumnsResult.getRowObjects()
+    const originTableColumns = originTableColumnsRows
       .map((row) => String(row.column_name))
       .filter((col) => col !== "_row_number");
 
