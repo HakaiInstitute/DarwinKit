@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import { parse as parseXml, simplifyLostLess } from "txml";
 
 const obisChecklistUrl =
-  "https://raw.githubusercontent.com/iobis/manual/master/docs/OBIS-termchecklist.csv";
+  "https://raw.githubusercontent.com/iobis/manual/master/OBIS-termchecklist.csv";
 
 // ============================================================================
 // Types
@@ -490,7 +490,7 @@ export function import_schema(sourceDir: string, outputDir: string): Effect.Effe
     yield* Effect.promise(() =>
       Deno.writeTextFile(
         obisChecklistPath,
-        JSON.stringify(obisChecklist, null, 2),
+        JSON.stringify(obisChecklist, null, 2) + "\n",
       )
     );
 
@@ -501,7 +501,7 @@ export function import_schema(sourceDir: string, outputDir: string): Effect.Effe
     // Write final schema
     const schemaPath = join(outputDir, "dwcSchema.json");
     yield* Effect.promise(() =>
-      Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2))
+      Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2) + "\n")
     );
 
     Effect.logInfo(`Schema with OBIS checklist written to ${schemaPath}`);
