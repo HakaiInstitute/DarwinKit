@@ -490,7 +490,8 @@ export function import_schema(
     const obisChecklistPath = join(outputDir, "obisChecklist.json");
     yield* Effect.logInfo(`Writing OBIS checklist to ${obisChecklistPath}`);
     yield* Effect.tryPromise({
-      try: () => Deno.writeTextFile(obisChecklistPath, JSON.stringify(obisChecklist, null, 2)),
+      try: () =>
+        Deno.writeTextFile(obisChecklistPath, JSON.stringify(obisChecklist, null, 2) + "\n"),
       catch: (cause) =>
         new WorkspaceImportError({
           message: `Failed to write OBIS checklist to ${obisChecklistPath}`,
@@ -505,7 +506,7 @@ export function import_schema(
     // Write final schema
     const schemaPath = join(outputDir, "dwcSchema.json");
     yield* Effect.tryPromise({
-      try: () => Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2)),
+      try: () => Deno.writeTextFile(schemaPath, JSON.stringify(schemaJson, null, 2) + "\n"),
       catch: (cause) =>
         new WorkspaceImportError({
           message: `Failed to write schema to ${schemaPath}`,

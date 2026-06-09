@@ -82,7 +82,7 @@ packages/
 **External Resources:**
 
 - **external/rs_gbif/** - Darwin Core XML schemas from GBIF (source for schema generation)
-- **packages/domain/src/specs/generated/dwcSchema.json** - Generated Darwin Core specifications (gitignored, regenerated via `deno task cli import`)
+- **packages/domain/src/specs/generated/dwcSchema.json** - Generated Darwin Core specifications (committed to git; regenerated via `deno task cli import`)
 
 ### Darwin Core Specifications
 
@@ -95,7 +95,7 @@ The foundation of DarwinKit's validation system comes from official Darwin Core 
 - Contains 6 standard specs: `Event`, `Occurrence`, `Taxon`, `ExtendedMeasurementOrFact`, `dnaDerivedData`, `ResourceRelationship`
 - Each `Spec` provides canonical field definitions (`SpecField` records) with types, descriptions, obligations, and constraints
 - Loaded from JSON into `packages/domain/src/specs/profiles/registry.ts`
-- **Gitignored** — must be regenerated before running tests (CI does this automatically)
+- **Committed to git** — present from checkout, so `deno fmt --check` and tests run against it directly (no pre-generation step needed). Since it's tracked, the generator must write `deno fmt`-clean output (e.g. a trailing newline); `test/schema-generation.test.ts` regenerates and validates it. (Note: a *root-level* duplicate `darwinkit.schema.json` is gitignored, but the files under `specs/generated/` are not.)
 
 **Profiles — Variant Overlays (packages/domain/src/specs/profiles/):**
 
@@ -183,7 +183,7 @@ deno task cli import
 This fetches the latest Darwin Core XML schemas and OBIS checklist, then generates `dwcSchema.json` with all standard specs, field definitions, OBIS requirements, and constraints. The integration test `test/schema-generation.test.ts` validates the generated output.
 
 **Key Files:**
-- `packages/domain/src/specs/generated/dwcSchema.json` - Generated Darwin Core specifications (gitignored)
+- `packages/domain/src/specs/generated/dwcSchema.json` - Generated Darwin Core specifications (committed to git)
 - `packages/core/src/import/get_dwc_schema.ts` - Schema generation logic
 - `packages/domain/src/specs/constraints.ts` - Constraint `Data.TaggedClass` definitions and merge logic
 - `packages/domain/src/specs/constraint-presets.ts` - Named constraint bundles for YAML configs
