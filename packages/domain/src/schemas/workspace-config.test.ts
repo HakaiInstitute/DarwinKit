@@ -2,11 +2,24 @@
  * Tests for workspace-config schema helper functions.
  */
 
-import { assertEquals, assertExists, assertNotEquals, assertThrows } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertExists,
+  assertNotEquals,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import * as S from "effect/Schema";
 import {
   decodeWorkspaceConfig,
+  decodeWorkspaceConfigEffect,
+  formatConfigValidationErrors,
   makeWorkspaceConfig,
   type WorkspaceConfigInput,
+  workspaceConfigSchema,
 } from "./workspace-config.ts";
 
 const DEFAULT_NULL_VALUES = ["NA", "N/A", "", "NULL", "null"];
@@ -161,12 +174,15 @@ Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
 });
 
 Deno.test("makeWorkspaceConfig - invalid input", async (t) => {
-  await t.step("throws when neither validation nor transform provided", () => {
-    assertThrows(
-      () => makeWorkspaceConfig({} as WorkspaceConfigInput),
-      Error,
-      "validation",
-    );
+  await t.step("fails when neither validation nor transform provided", () => {
+    // decodeUnknownSync throws a SchemaError (not an `instanceof Error`), which makes the
+    // `assertThrows(fn, ErrorClass, msgIncludes)` overload — the only one that checks the
+    // message — unusable. Decode to a Result instead so we can narrow the typed error and
+    // assert on its message directly.
+    const result = S.decodeUnknownResult(workspaceConfigSchema)({});
+    assert(Result.isFailure(result));
+    assert(S.isSchemaError(result.failure));
+    assertStringIncludes(result.failure.message, "validation");
   });
 
   await t.step("throws for invalid nested settings", () => {
@@ -373,6 +389,44 @@ Deno.test("config schema - dependency rules", async (t) => {
         }],
       })
     );
+  });
+});
+
+Deno.test("decodeWorkspaceConfigEffect", async (t) => {
+  await t.step("succeeds for a valid config", async () => {
+    const config = await Effect.runPromise(
+      decodeWorkspaceConfigEffect({
+        validation: { datasets: [{ name: "events", class: "Event", path: "./events.csv" }] },
+      }),
+    );
+    assertEquals(config.validation?.datasets[0]?.class, "Event");
+  });
+
+  await t.step("fails with a SchemaError in the typed error channel", async () => {
+    // Effect.flip turns the expected failure into a success carrying the error value;
+    // if decoding unexpectedly succeeded, flip would fail and this test would throw.
+    const error = await Effect.runPromise(Effect.flip(decodeWorkspaceConfigEffect({})));
+    assert(S.isSchemaError(error));
+  });
+});
+
+Deno.test("formatConfigValidationErrors", async (t) => {
+  await t.step("renders a top-level failure without a path prefix", () => {
+    const result = S.decodeUnknownResult(workspaceConfigSchema)({});
+    assert(Result.isFailure(result));
+    assertEquals(formatConfigValidationErrors(result.failure), [
+      "Workspace config must have 'validation' and/or 'transform' settings",
+    ]);
+  });
+
+  await t.step("prefixes nested failures with their dotted field path", () => {
+    const result = S.decodeUnknownResult(workspaceConfigSchema)({
+      validation: { datasets: [{ name: "events" }] },
+    });
+    assert(Result.isFailure(result));
+    assertEquals(formatConfigValidationErrors(result.failure), [
+      "validation.datasets.0.class: Missing key",
+    ]);
   });
 });
 

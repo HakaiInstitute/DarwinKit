@@ -2,7 +2,11 @@
  * Shared workspace test utilities for workspace-validator tests.
  */
 
-import type { DatasetConfig, DatasetRule, ValidationSettingsInput } from "@dwkt/domain/schemas";
+import type {
+  DatasetConfig,
+  DatasetRuleConfig,
+  ValidationSettingsInput,
+} from "@dwkt/domain/schemas";
 import { isPrimaryKeyViolation } from "@dwkt/domain/types";
 import type { WorkspaceValidationResult } from "@dwkt/domain/types";
 import { assertEquals } from "@std/assert";
@@ -18,7 +22,7 @@ export type TestWorkspaceOptions = {
   eventData?: Array<Record<string, unknown>>;
   occurrenceData?: Array<Record<string, unknown>>;
   datasets?: DatasetConfig[];
-  datasetRules?: DatasetRule[];
+  datasetRules?: DatasetRuleConfig[];
   validation?: ValidationSettingsInput;
 };
 

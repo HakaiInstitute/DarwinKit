@@ -5,7 +5,7 @@ import type {
 } from '@dwkt/domain/types';
 import type { SchemaViolation } from '@dwkt/domain/types';
 
-export function getStatusIcon(status: string): string {
+function getStatusIcon(status: string): string {
   switch (status) {
     case 'pass':
       return '\u2705';
@@ -59,7 +59,7 @@ function renderSummaryTable(
   return lines.join('\n');
 }
 
-function groupViolationsByField(
+export function groupViolationsByField(
   violations: ReadonlyArray<FieldViolation>,
 ): Map<string, FieldViolation[]> {
   const grouped = new Map<string, FieldViolation[]>();

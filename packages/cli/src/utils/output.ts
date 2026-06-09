@@ -2,23 +2,12 @@ import { tty } from '@cliffy/ansi/tty';
 import { colors } from '@cliffy/ansi/colors';
 
 export const Output = {
-  write(text: string, newline = false): void {
-    tty.text(text);
-    if (newline) {
-      tty.text('\n');
-    }
-  },
-
   line(text = ''): void {
     tty.text(text + '\n');
   },
 
   blank(): void {
     tty.text('\n');
-  },
-
-  clearLine(): void {
-    tty.eraseLine();
   },
 
   info(message: string): void {
@@ -47,38 +36,5 @@ export const Output = {
 
   section(emoji: string, title: string): void {
     tty.text('\n' + colors.blue(`${emoji} ${title}`) + '\n');
-  },
-
-  statusIcon(status: 'pass' | 'warn' | 'fail' | string): string {
-    switch (status) {
-      case 'pass':
-        return '✅';
-      case 'warn':
-        return '⚠️';
-      case 'fail':
-        return '❌';
-      default:
-        return '❓';
-    }
-  },
-
-  updateLine(text: string): void {
-    tty.cursorLeft.eraseLine.text(text);
-  },
-
-  saveCursor(): void {
-    tty.cursorSave();
-  },
-
-  restoreCursor(): void {
-    tty.cursorRestore();
-  },
-
-  cursorUp(lines = 1): void {
-    tty.cursorUp(lines);
-  },
-
-  cursorDown(lines = 1): void {
-    tty.cursorDown(lines);
   },
 };

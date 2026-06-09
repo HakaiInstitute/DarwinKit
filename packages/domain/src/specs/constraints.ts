@@ -1,17 +1,14 @@
 import * as Data from "effect/Data";
 import * as S from "effect/Schema";
+import * as SchemaTransformation from "effect/SchemaTransformation";
 
-export const RequirementLevel: S.Literal<[
+export const RequirementLevel = S.Literals([
   "required",
   "recommended",
   "optional",
-]> = S.Literal(
-  "required",
-  "recommended",
-  "optional",
-);
+]);
 
-export type RequirementLevel = S.Schema.Type<typeof RequirementLevel>;
+export type RequirementLevel = typeof RequirementLevel.Type;
 
 export const REQUIREMENT_STRICTNESS = {
   required: 2,
@@ -19,7 +16,7 @@ export const REQUIREMENT_STRICTNESS = {
   optional: 0,
 } satisfies Record<RequirementLevel, number>;
 
-export const FieldDataType = S.Literal(
+export const FieldDataType = S.Literals([
   "string",
   "number",
   "integer",
@@ -28,9 +25,9 @@ export const FieldDataType = S.Literal(
   "uri",
   "identifier",
   "coordinate",
-);
+]);
 
-export type FieldDataType = S.Schema.Type<typeof FieldDataType>;
+export type FieldDataType = typeof FieldDataType.Type;
 
 export class RangeConstraint extends Data.TaggedClass("range")<{
   readonly min?: number;
@@ -85,166 +82,215 @@ export type Constraint =
   | LengthConstraint
   | FormatConstraint;
 
-const RangeConstraintSchema = S.transform(
+/**
+ * Cross-field check: a RangeConstraint must declare at least one bound, and
+ * `min` must not exceed `max`. Returns `true` on pass, a message string on fail.
+ */
+const rangeBoundsCheck = S.makeFilter<{
+  readonly type: "range";
+  readonly min?: number;
+  readonly max?: number;
+  readonly inclusive?: boolean;
+  readonly message?: string;
+}>((from) => {
+  if (from.min === undefined && from.max === undefined) {
+    return "RangeConstraint requires at least one of 'min' or 'max'";
+  }
+  if (from.min !== undefined && from.max !== undefined && from.min > from.max) {
+    return `RangeConstraint 'min' (${from.min}) must not exceed 'max' (${from.max})`;
+  }
+  return true;
+});
+
+/**
+ * Cross-field check: a PatternConstraint's `pattern`/`flags` must compile to a
+ * valid RegExp. Returns `true` on pass, a message string on fail.
+ */
+const patternRegexCheck = S.makeFilter<{
+  readonly type: "pattern";
+  readonly pattern: string;
+  readonly flags?: string;
+  readonly message?: string;
+}>((from) => {
+  try {
+    new RegExp(from.pattern, from.flags);
+  } catch {
+    return `PatternConstraint has invalid regex "/${from.pattern}/${from.flags ?? ""}"`;
+  }
+  return true;
+});
+
+/**
+ * Cross-field check: a LengthConstraint must declare at least one bound, and
+ * `minLength` must not exceed `maxLength`. Returns `true` on pass, a message
+ * string on fail.
+ */
+const lengthBoundsCheck = S.makeFilter<{
+  readonly type: "length";
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly message?: string;
+}>((from) => {
+  if (from.minLength === undefined && from.maxLength === undefined) {
+    return "LengthConstraint requires at least one of 'minLength' or 'maxLength'";
+  }
+  if (
+    from.minLength !== undefined && from.maxLength !== undefined &&
+    from.minLength > from.maxLength
+  ) {
+    return `LengthConstraint 'minLength' (${from.minLength}) must not exceed 'maxLength' (${from.maxLength})`;
+  }
+  return true;
+});
+
+/**
+ * Build a bidirectional codec from a discriminated "from" struct (whose `type`
+ * field is an `S.tag(tag)`) to a `Data.TaggedClass` constraint instance.
+ *
+ * Decode: strips the `type` discriminator and hands the remaining fields to
+ * `make` (which constructs the class, setting `_tag`). Encode: strips the
+ * class's `_tag` and re-keys it back to the `type` discriminator literal.
+ */
+function constraintCodec<
+  Fields extends S.Struct.Fields,
+  A extends { readonly _tag: string },
+>(
+  tag: string,
+  fromStruct: S.Struct<Fields>,
+  classSchema: S.instanceOf<A>,
+  make: (rest: Record<string, unknown>) => A,
+): S.decodeTo<S.toType<S.instanceOf<A>>, S.Struct<Fields>> {
+  return fromStruct.pipe(
+    S.decodeTo(
+      S.toType(classSchema),
+      SchemaTransformation.transform({
+        decode: (from) => {
+          const { type: _t, ...rest } = from as Record<string, unknown>;
+          return make(rest);
+        },
+        encode: (to) => {
+          const { _tag: _d, ...rest } = to as unknown as Record<string, unknown>;
+          return { type: tag, ...rest } as S.Struct<Fields>["Type"];
+        },
+      }),
+    ),
+  );
+}
+
+const RangeConstraintSchema = constraintCodec(
+  "range",
   S.Struct({
-    type: S.Literal("range"),
+    type: S.tag("range"),
     min: S.optional(S.Number),
     max: S.optional(S.Number),
     inclusive: S.optional(S.Boolean),
     message: S.optional(S.String),
-  }).pipe(S.filter((from) => {
-    if (from.min === undefined && from.max === undefined) {
-      return { message: "RangeConstraint requires at least one of 'min' or 'max'", path: [] };
-    }
-    if (from.min !== undefined && from.max !== undefined && from.min > from.max) {
-      return {
-        message: `RangeConstraint 'min' (${from.min}) must not exceed 'max' (${from.max})`,
-        path: [],
-      };
-    }
-    return undefined;
-  })),
-  S.typeSchema(S.instanceOf(RangeConstraint)),
-  {
-    strict: true,
-    decode: ({ type: _, ...rest }) => new RangeConstraint({ inclusive: true, ...rest }),
-    encode: (to) => ({ type: "range" as const, ...to }),
-  },
+  }).check(rangeBoundsCheck),
+  S.instanceOf(RangeConstraint),
+  (rest) => new RangeConstraint({ inclusive: true, ...rest }),
 );
 
-const UniqueConstraintSchema = S.transform(
+const UniqueConstraintSchema = constraintCodec(
+  "unique",
   S.Struct({
-    type: S.Literal("unique"),
+    type: S.tag("unique"),
     message: S.optional(S.String),
   }),
-  S.typeSchema(S.instanceOf(UniqueConstraint)),
-  {
-    strict: true,
-    decode: ({ type: _, ...rest }) => new UniqueConstraint(rest),
-    encode: (to) => ({ type: "unique" as const, ...to }),
-  },
+  S.instanceOf(UniqueConstraint),
+  (rest) => new UniqueConstraint(rest),
 );
 
-const PatternConstraintSchema = S.transform(
+const PatternConstraintSchema = constraintCodec(
+  "pattern",
   S.Struct({
-    type: S.Literal("pattern"),
+    type: S.tag("pattern"),
     pattern: S.String,
     flags: S.optional(S.String),
     message: S.optional(S.String),
-  }).pipe(S.filter((from) => {
-    try {
-      new RegExp(from.pattern, from.flags);
-    } catch {
-      return {
-        message: `PatternConstraint has invalid regex "/${from.pattern}/${from.flags ?? ""}"`,
-        path: [],
-      };
-    }
-    return undefined;
-  })),
-  S.typeSchema(S.instanceOf(PatternConstraint)),
-  {
-    strict: true,
-    decode: ({ type: _, ...rest }) => new PatternConstraint(rest),
-    encode: (to) => ({ type: "pattern" as const, ...to }),
-  },
+  }).check(patternRegexCheck),
+  S.instanceOf(PatternConstraint),
+  (rest) => new PatternConstraint(rest as { pattern: string; flags?: string; message?: string }),
 );
 
-const LengthConstraintSchema = S.transform(
+const LengthConstraintSchema = constraintCodec(
+  "length",
   S.Struct({
-    type: S.Literal("length"),
+    type: S.tag("length"),
     minLength: S.optional(S.Number),
     maxLength: S.optional(S.Number),
     message: S.optional(S.String),
-  }).pipe(S.filter((from) => {
-    if (from.minLength === undefined && from.maxLength === undefined) {
-      return {
-        message: "LengthConstraint requires at least one of 'minLength' or 'maxLength'",
-        path: [],
-      };
-    }
-    if (
-      from.minLength !== undefined && from.maxLength !== undefined &&
-      from.minLength > from.maxLength
-    ) {
-      return {
-        message:
-          `LengthConstraint 'minLength' (${from.minLength}) must not exceed 'maxLength' (${from.maxLength})`,
-        path: [],
-      };
-    }
-    return undefined;
-  })),
-  S.typeSchema(S.instanceOf(LengthConstraint)),
-  {
-    strict: true,
-    decode: ({ type: _, ...rest }) => new LengthConstraint(rest),
-    encode: (to) => ({ type: "length" as const, ...to }),
-  },
+  }).check(lengthBoundsCheck),
+  S.instanceOf(LengthConstraint),
+  (rest) => new LengthConstraint(rest),
 );
 
-const FormatConstraintSchema = S.transform(
+const FormatConstraintSchema = constraintCodec(
+  "format",
   S.Struct({
-    type: S.Literal("format"),
-    format: S.Literal("email", "url", "uuid", "iso8601", "decimal-degrees", "integer"),
+    type: S.tag("format"),
+    format: S.Literals(["email", "url", "uuid", "iso8601", "decimal-degrees", "integer"]),
     message: S.optional(S.String),
   }),
-  S.typeSchema(S.instanceOf(FormatConstraint)),
-  {
-    strict: true,
-    decode: ({ type: _, ...rest }) => new FormatConstraint(rest),
-    encode: (to) => ({ type: "format" as const, ...to }),
-  },
+  S.instanceOf(FormatConstraint),
+  (rest) =>
+    new FormatConstraint(
+      rest as {
+        format: "email" | "url" | "uuid" | "iso8601" | "decimal-degrees" | "integer";
+        message?: string;
+      },
+    ),
 );
 
-const RequiredConstraintSchema = S.transform(
+const RequiredConstraintSchema = constraintCodec(
+  "required",
   S.Struct({
-    type: S.Literal("required"),
+    type: S.tag("required"),
     level: S.optional(RequirementLevel),
     allowEmpty: S.optional(S.Boolean),
     allowWhitespace: S.optional(S.Boolean),
     message: S.optional(S.String),
   }),
-  S.typeSchema(S.instanceOf(RequiredConstraint)),
-  {
-    strict: true,
-    decode: ({ type: _, ...rest }) =>
-      new RequiredConstraint({
-        level: "required",
-        allowEmpty: false,
-        allowWhitespace: false,
-        ...rest,
+  S.instanceOf(RequiredConstraint),
+  (rest) =>
+    new RequiredConstraint({
+      level: "required",
+      allowEmpty: false,
+      allowWhitespace: false,
+      ...(rest as {
+        level?: RequirementLevel;
+        allowEmpty?: boolean;
+        allowWhitespace?: boolean;
+        message?: string;
       }),
-    encode: (to) => ({ type: "required" as const, ...to }),
-  },
+    }),
 );
 
-export const ConstraintSchema = S.Union(
+export const ConstraintSchema = S.Union([
   RangeConstraintSchema,
   RequiredConstraintSchema,
   UniqueConstraintSchema,
   PatternConstraintSchema,
   LengthConstraintSchema,
   FormatConstraintSchema,
-);
+]);
 
-export const Obligation = S.Literal(
+export const Obligation = S.Literals([
   "required",
   "strongly recommended",
   "recommended",
   "optional",
   "required (if exists)",
   "optional (required for imaging data)",
-);
+]);
 
-export type Obligation = S.Schema.Type<typeof Obligation>;
+export type Obligation = typeof Obligation.Type;
 
 export const ObligationsMap = S.Struct({
   obis: S.optional(Obligation),
   gbif: S.optional(Obligation),
 });
 
-export type ObligationsMap = S.Schema.Type<typeof ObligationsMap>;
+export type ObligationsMap = typeof ObligationsMap.Type;
 
 export function strictestRequired(
   constraints: readonly RequiredConstraint[],

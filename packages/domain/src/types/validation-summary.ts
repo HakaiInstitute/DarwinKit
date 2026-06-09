@@ -1,6 +1,6 @@
 import type { DatasetValidationResult } from "./workspace-validation.ts";
 
-export interface ValidationSummary {
+interface ValidationSummary {
   readonly totalDatasets: number;
   readonly datasetsPassedCount: number;
   readonly datasetsWithWarningsCount: number;

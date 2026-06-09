@@ -8,11 +8,14 @@
  * - SchemaViolation: Structural issues (missing columns, unknown profiles, unmapped columns)
  * - FieldViolation: Data issues (invalid values, range violations, duplicates)
  *
- * Both use Schema.TaggedClass and flow through the success channel.
+ * Both use S.TaggedClass and flow through the success channel.
  */
 
-import { Schema } from "effect";
-import type { PartitionedViolations } from "./validation-violation.ts";
+import * as S from "effect/Schema";
+import {
+  type PartitionedViolations,
+  partitionViolationsBySeverity,
+} from "./validation-violation.ts";
 
 /**
  * Base fields shared by all schema violations
@@ -20,66 +23,56 @@ import type { PartitionedViolations } from "./validation-violation.ts";
  * Note: No rowNumber since schema violations are structural, not row-level.
  */
 const baseSchemaViolationFields = {
-  severity: Schema.Union(
-    Schema.Literal("error"),
-    Schema.Literal("warning"),
-    Schema.Literal("info"),
-  ),
-  fieldName: Schema.String,
-  targetName: Schema.String,
-  errorMessage: Schema.String,
+  severity: S.Literals(["error", "warning", "info"]),
+  fieldName: S.String,
+  targetName: S.String,
+  errorMessage: S.String,
 };
 
 /**
  * Missing field violation - field required by profile is not in CSV or not mapped
  */
 export class MissingFieldViolation
-  extends Schema.TaggedClass<MissingFieldViolation>()("MissingFieldViolation", {
+  extends S.TaggedClass<MissingFieldViolation>()("MissingFieldViolation", {
     ...baseSchemaViolationFields,
-    reason: Schema.Union(
-      Schema.Literal("not_in_csv"),
-      Schema.Literal("not_mapped"),
-    ),
+    reason: S.Literals(["not_in_csv", "not_mapped"]),
   }) {}
 
 /**
  * Unknown profile violation - specified profile does not exist in registry
  */
 export class UnknownProfileViolation
-  extends Schema.TaggedClass<UnknownProfileViolation>()("UnknownProfileViolation", {
+  extends S.TaggedClass<UnknownProfileViolation>()("UnknownProfileViolation", {
     ...baseSchemaViolationFields,
-    profileId: Schema.String,
-    reason: Schema.Union(
-      Schema.Literal("not_found"),
-      Schema.Literal("invalid"),
-    ),
+    profileId: S.String,
+    reason: S.Literals(["not_found", "invalid"]),
   }) {}
 
 /**
  * Unknown field violation - mapped field does not exist in the profile
  */
 export class UnknownFieldViolation
-  extends Schema.TaggedClass<UnknownFieldViolation>()("UnknownFieldViolation", {
+  extends S.TaggedClass<UnknownFieldViolation>()("UnknownFieldViolation", {
     ...baseSchemaViolationFields,
-    profileId: Schema.String,
+    profileId: S.String,
   }) {}
 
 /**
  * Unmapped column violation - CSV column is not mapped to any Darwin Core field
  */
 export class UnmappedColumnViolation
-  extends Schema.TaggedClass<UnmappedColumnViolation>()("UnmappedColumnViolation", {
+  extends S.TaggedClass<UnmappedColumnViolation>()("UnmappedColumnViolation", {
     ...baseSchemaViolationFields,
-    datasetName: Schema.String,
+    datasetName: S.String,
   }) {}
 
 /**
  * Missing mapping violation - field exists in CSV but mapping references wrong origin name
  */
 export class MissingMappingViolation
-  extends Schema.TaggedClass<MissingMappingViolation>()("MissingMappingViolation", {
+  extends S.TaggedClass<MissingMappingViolation>()("MissingMappingViolation", {
     ...baseSchemaViolationFields,
-    datasetName: Schema.String,
+    datasetName: S.String,
   }) {}
 
 /**
@@ -100,34 +93,6 @@ export function isMissingFieldViolation(v: SchemaViolation): v is MissingFieldVi
 }
 
 /**
- * Type guard helper for UnknownProfileViolation
- */
-export function isUnknownProfileViolation(v: SchemaViolation): v is UnknownProfileViolation {
-  return v._tag === "UnknownProfileViolation";
-}
-
-/**
- * Type guard helper for UnknownFieldViolation
- */
-export function isUnknownFieldViolation(v: SchemaViolation): v is UnknownFieldViolation {
-  return v._tag === "UnknownFieldViolation";
-}
-
-/**
- * Type guard helper for UnmappedColumnViolation
- */
-export function isUnmappedColumnViolation(v: SchemaViolation): v is UnmappedColumnViolation {
-  return v._tag === "UnmappedColumnViolation";
-}
-
-/**
- * Type guard helper for MissingMappingViolation
- */
-export function isMissingMappingViolation(v: SchemaViolation): v is MissingMappingViolation {
-  return v._tag === "MissingMappingViolation";
-}
-
-/**
  * Partition schema violations by severity level
  *
  * Groups violations into errors, warnings, and info based on their
@@ -139,23 +104,5 @@ export function isMissingMappingViolation(v: SchemaViolation): v is MissingMappi
 export function partitionSchemaViolations(
   violations: ReadonlyArray<SchemaViolation>,
 ): PartitionedViolations<SchemaViolation> {
-  const errors: SchemaViolation[] = [];
-  const warnings: SchemaViolation[] = [];
-  const info: SchemaViolation[] = [];
-
-  for (const violation of violations) {
-    switch (violation.severity) {
-      case "error":
-        errors.push(violation);
-        break;
-      case "warning":
-        warnings.push(violation);
-        break;
-      case "info":
-        info.push(violation);
-        break;
-    }
-  }
-
-  return { errors, warnings, info };
+  return partitionViolationsBySeverity(violations);
 }

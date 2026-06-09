@@ -15,13 +15,12 @@ import {
   TransformInputNotFoundError,
   ValidationConfigMissingError,
 } from "@dwkt/domain/errors";
-import type {
-  ConfigWithValidation,
-  DatasetConfig,
-  ValidationSettings,
-  WorkspaceConfig,
+import type { ConfigWithValidation, WorkspaceConfig } from "@dwkt/domain/schemas";
+import {
+  decodeWorkspaceConfigEffect,
+  formatConfigValidationErrors,
+  hasValidationConfig,
 } from "@dwkt/domain/schemas";
-import { decodeWorkspaceConfig, hasValidationConfig } from "@dwkt/domain/schemas";
 import type { WorkspaceValidationResult } from "@dwkt/domain/types";
 
 import { ValidationError } from "../errors/mod.ts";
@@ -61,7 +60,7 @@ export class Workspace {
     WorkspaceValidationResult,
     ValidationError | ValidationConfigMissingError | NoDatasetsDefinedError
   > {
-    return Effect.gen(this, function* () {
+    return Effect.gen({ self: this }, function* () {
       if (!this.hasValidation) {
         return yield* Effect.fail(
           new ValidationConfigMissingError({
@@ -111,20 +110,6 @@ export class Workspace {
     });
   }
 
-  getValidationDatasets(): readonly DatasetConfig[] {
-    if (!this.hasValidation) {
-      return [];
-    }
-    return (this.config as ConfigWithValidation).validation.datasets;
-  }
-
-  getValidationSettings(): ValidationSettings | undefined {
-    if (!this.hasValidation) {
-      return undefined;
-    }
-    return (this.config as ConfigWithValidation).validation;
-  }
-
   static open(
     configPath?: string,
   ): Effect.Effect<Workspace, WorkspaceConfigError, Scope.Scope> {
@@ -136,23 +121,13 @@ export class Workspace {
 
         yield* validateDatasetPaths(config, basePath);
 
-        const instance = yield* Effect.tryPromise({
-          try: () => DuckDBInstance.create(":memory:"),
-          catch: () =>
-            new ConfigParseError({
-              message: "Failed to create DuckDB instance",
-              configPath: resolvedPath,
-            }),
-        });
+        // Creating an in-memory DuckDB is infrastructure: a failure here is a
+        // defect, not a user-fixable config problem. (Matches createWorkspaceFromConfig.)
+        const instance = yield* Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(
+          Effect.orDie,
+        );
 
-        const connection = yield* Effect.tryPromise({
-          try: () => instance.connect(),
-          catch: () =>
-            new ConfigParseError({
-              message: "Failed to connect to DuckDB",
-              configPath: resolvedPath,
-            }),
-        });
+        const connection = yield* Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie);
 
         return new Workspace(config, resolvedPath, basePath, connection, instance);
       }),
@@ -275,21 +250,15 @@ function loadConfig(
         }),
     });
 
-    const config = yield* Effect.try({
-      try: () => decodeWorkspaceConfig(parsedConfig),
-      catch: (error) => {
-        const errorStr = String(error);
-        const validationErrors = errorStr
-          .split("\n")
-          .filter((line) => line.trim().length > 0);
-
-        return new ConfigValidationError({
+    const config = yield* decodeWorkspaceConfigEffect(parsedConfig).pipe(
+      Effect.mapError((schemaError) =>
+        new ConfigValidationError({
           message: `Configuration schema validation failed`,
           configPath,
-          validationErrors,
-        });
-      },
-    });
+          validationErrors: formatConfigValidationErrors(schemaError),
+        })
+      ),
+    );
 
     return config;
   });

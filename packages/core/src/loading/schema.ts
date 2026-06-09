@@ -1,6 +1,6 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import type {
-  DatasetRule,
+  DatasetRuleConfig,
   ResolvedSpec,
   TransformField,
   WorkspaceFieldMapping,
@@ -52,10 +52,10 @@ export function importSchema(
   datasets: readonly DatasetWithClass[],
   standard: ResolvedStandard,
   spec: ResolvedSpec,
-  datasetRules?: readonly DatasetRule[],
+  datasetRules?: readonly DatasetRuleConfig[],
   resolvedFields?: Record<string, WorkspaceFieldMapping>,
 ): Effect.Effect<void, WorkspaceImportError> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const tableName = sanitizeTableName(spec.name).toLowerCase();
     const activeStandard: "obis" | "gbif" = standard.variant === "gbif" ? "gbif" : "obis";
 
@@ -114,33 +114,33 @@ export function importSchema(
 
     const enumSql = enums.filter((e) => e !== null).join("\n");
     if (enumSql) {
-      yield* _(Effect.tryPromise({
+      yield* Effect.tryPromise({
         try: () => connection.run(enumSql),
         catch: (error) =>
           new WorkspaceImportError({
             message: `Failed to create ENUM types for table '${tableName}'`,
             cause: error instanceof Error ? error : new Error(String(error)),
           }),
-      }));
+      });
     }
 
-    yield* _(Effect.tryPromise({
+    yield* Effect.tryPromise({
       try: () => connection.run(`DROP TABLE IF EXISTS ${tableName}`),
       catch: (error) =>
         new WorkspaceImportError({
           message: `Failed to drop table '${tableName}'`,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
-    }));
+    });
 
     const tableSql = `CREATE TABLE ${tableName} (${columns.join(", ")})`;
-    yield* _(Effect.tryPromise({
+    yield* Effect.tryPromise({
       try: () => connection.run(tableSql),
       catch: (error) =>
         new WorkspaceImportError({
           message: `Failed to create table '${tableName}': ${tableSql}`,
           cause: error instanceof Error ? error : new Error(String(error)),
         }),
-    }));
+    });
   });
 }

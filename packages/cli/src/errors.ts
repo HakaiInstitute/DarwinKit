@@ -11,5 +11,3 @@ export class OutputError extends Data.TaggedError('OutputError')<{
   readonly outputPath: string;
   readonly cause?: Error;
 }> {}
-
-export type CLIErrorType = CLIError | OutputError;

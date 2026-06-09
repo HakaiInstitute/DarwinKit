@@ -1,4 +1,5 @@
 import * as S from "effect/Schema";
+import * as Result from "effect/Result";
 import type { RawField } from "../schemas/spec-types.ts";
 import {
   type Constraint,
@@ -13,7 +14,7 @@ import {
   UniqueConstraint,
 } from "./constraints.ts";
 
-export const SpecFieldSchema = S.Struct({
+const SpecFieldSchema = S.Struct({
   name: S.String,
   label: S.optional(S.String),
   constraints: S.Array(ConstraintSchema),
@@ -23,7 +24,7 @@ export const SpecFieldSchema = S.Struct({
   examples: S.optional(S.String),
 });
 
-export type SpecField = S.Schema.Type<typeof SpecFieldSchema>;
+export type SpecField = typeof SpecFieldSchema.Type;
 
 /**
  * Result of looking up a field's obligation for a given standard.
@@ -31,7 +32,7 @@ export type SpecField = S.Schema.Type<typeof SpecFieldSchema>;
  * Returns both the raw obligation (for conditional logic like "required (if exists)")
  * and the derived requirement level (for constraint generation).
  */
-export interface ObligationResult {
+interface ObligationResult {
   readonly obligation: Obligation;
   readonly requirement: RequirementLevel | undefined;
 }
@@ -55,11 +56,11 @@ export function obligationForStandard(
  * - "uri" → "uri"
  * - etc.
  */
-export function mapJsonTypeToFieldDataType(
+function mapJsonTypeToFieldDataType(
   jsonType: string | undefined,
-): S.Schema.Type<typeof FieldDataType> | undefined {
+): typeof FieldDataType.Type | undefined {
   if (!jsonType) return undefined;
-  const mapping: Record<string, S.Schema.Type<typeof FieldDataType>> = {
+  const mapping: Record<string, typeof FieldDataType.Type> = {
     "string": "string",
     "controlled-vocabulary": "string",
     "decimal": "number",
@@ -114,7 +115,7 @@ const STRING_VALIDATOR_MAP: Record<string, Constraint | null> = {
   decimal: new FormatConstraint({ format: "decimal-degrees" }),
 };
 
-export interface NormalizeFieldResult {
+interface NormalizeFieldResult {
   readonly field: SpecField;
   readonly warnings: readonly string[];
 }
@@ -139,13 +140,13 @@ export function normalizeField(jsonField: RawField): NormalizeFieldResult {
           delete raw.level;
         }
         delete raw.requirement;
-        try {
-          constraints.push(S.decodeUnknownSync(ConstraintSchema)(raw));
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+        const decoded = S.decodeUnknownResult(ConstraintSchema)(raw);
+        if (Result.isFailure(decoded)) {
           warnings.push(
-            `Invalid constraint object for field "${jsonField.name}" — skipping: ${message}`,
+            `Invalid constraint object for field "${jsonField.name}" — skipping: ${decoded.failure.message}`,
           );
+        } else {
+          constraints.push(decoded.success);
         }
         continue;
       }

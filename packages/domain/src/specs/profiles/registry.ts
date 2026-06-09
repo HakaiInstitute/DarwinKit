@@ -1,4 +1,5 @@
 import { join } from "@std/path";
+import * as Data from "effect/Data";
 import type {
   FieldOverride,
   Profile,
@@ -13,6 +14,15 @@ import { normalizeField, type SpecField } from "../field-definition.ts";
 import { OBIS_EMOF_PROFILE } from "./obis-emof.ts";
 import { OBIS_EVENT_PROFILE } from "./obis-event.ts";
 import { OBIS_BASE_PROFILE } from "./obis.ts";
+
+/**
+ * Defect raised when a profile/spec cannot be resolved. These operate on the
+ * self-generated dwcSchema.json and programmer-configured profile graphs (not
+ * user input), so they are thrown as defects rather than Effect failures.
+ */
+class ProfileResolutionError extends Data.TaggedError("ProfileResolutionError")<{
+  readonly message: string;
+}> {}
 
 let _dwcSchemaCache: Record<string, unknown> | null = null;
 
@@ -62,7 +72,7 @@ interface NormalizeResult {
 
 function normalizeJsonToSpec(jsonSpec: unknown): NormalizeResult {
   if (typeof jsonSpec !== "object" || jsonSpec === null) {
-    throw new Error("Invalid JSON profile: expected object");
+    throw new ProfileResolutionError({ message: "Invalid JSON profile: expected object" });
   }
 
   const spec = jsonSpec as Record<string, unknown>;
@@ -103,7 +113,7 @@ function normalizeJsonToSpec(jsonSpec: unknown): NormalizeResult {
 
   const id = spec.id ?? spec.name;
   if (typeof id !== "string") {
-    throw new Error("JSON spec missing both 'id' and 'name'");
+    throw new ProfileResolutionError({ message: "JSON spec missing both 'id' and 'name'" });
   }
 
   return {
@@ -137,9 +147,11 @@ function resolveProfileChain(
   warnings: string[];
 } {
   if (visited.has(profile.id)) {
-    throw new Error(
-      `Circular profile inheritance detected: ${[...visited].join(" -> ")} -> ${profile.id}`,
-    );
+    throw new ProfileResolutionError({
+      message: `Circular profile inheritance detected: ${
+        [...visited].join(" -> ")
+      } -> ${profile.id}`,
+    });
   }
   visited.add(profile.id);
 
@@ -209,10 +221,10 @@ export function getResolvedSpec(specOrProfileId: string): ResolvedSpec | undefin
     }
     // Profile's inheritance chain did not resolve to a base JSON spec.
     // This indicates a misconfigured profile (e.g., extends a non-existent spec).
-    throw new Error(
-      `Profile "${tsProfile.id}" resolved without a base spec. ` +
+    throw new ProfileResolutionError({
+      message: `Profile "${tsProfile.id}" resolved without a base spec. ` +
         `Check that the "extends" chain terminates at a known JSON spec (e.g., "Event", "Occurrence").`,
-    );
+    });
   }
 
   const result = getJsonSpec(specOrProfileId);

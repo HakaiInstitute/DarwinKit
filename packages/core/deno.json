@@ -4,8 +4,6 @@
   "exports": {
     "./workspace": "./src/workspace/mod.ts",
     "./validation": "./src/validation/mod.ts",
-    "./loading": "./src/loading/mod.ts",
-    "./errors": "./src/errors/mod.ts",
     "./transform": "./src/transform/mod.ts",
     "./import": "./src/import/mod.ts"
   },

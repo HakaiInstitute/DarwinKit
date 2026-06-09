@@ -1,4 +1,7 @@
 import * as S from "effect/Schema";
+import * as Effect from "effect/Effect";
+import * as SchemaGetter from "effect/SchemaGetter";
+import * as SchemaIssue from "effect/SchemaIssue";
 import { ConstraintSchema, RequirementLevel } from "../specs/constraints.ts";
 
 const DEFAULT_NULL_VALUES = ["NA", "N/A", "", "NULL", "null"];
@@ -40,21 +43,24 @@ const ResolvedStandardStruct = S.Struct({
  *
  * Object handling: passes through as-is.
  */
-const ResolvedStandardSchema: S.Schema<
-  ResolvedStandard,
-  string | { base: string; variant?: string }
-> = S.Union(
-  S.transform(
-    S.String,
-    S.Struct({ base: S.String, variant: S.optional(S.String) }),
-    {
-      strict: true,
-      decode: (s) => KNOWN_VARIANTS.has(s) ? { base: "darwin-core", variant: s } : { base: s },
-      encode: (obj) => obj.variant ?? obj.base,
-    },
+const ResolvedStandardSchema = S.Union([
+  S.String.pipe(
+    S.decodeTo(
+      S.Struct({ base: S.String, variant: S.optional(S.String) }),
+      {
+        // decode: string -> { base, variant? }  (Stage 0 verified: NOT inverted)
+        decode: SchemaGetter.transform(
+          (s: string) => KNOWN_VARIANTS.has(s) ? { base: "darwin-core", variant: s } : { base: s },
+        ),
+        // encode: { base, variant? } -> string
+        encode: SchemaGetter.transform(
+          (obj: { base: string; variant?: string }) => obj.variant ?? obj.base,
+        ),
+      },
+    ),
   ),
   ResolvedStandardStruct,
-);
+]);
 
 /**
  * Maps source columns to Darwin Core fields with optional typed constraints.
@@ -66,273 +72,277 @@ const ResolvedStandardSchema: S.Schema<
  * Config-specified fields are implicitly required — if a field is listed in
  * fieldMappings but missing from the CSV, it is always reported as an error.
  */
-export const workspaceFieldMappingSchema = S.Struct({
-  originName: S.String.annotations({ description: "Source column name in the CSV file." }),
-  targetName: S.String.annotations({ description: "Target Darwin Core field name." }),
+const workspaceFieldMappingSchema = S.Struct({
+  originName: S.String.annotate({ description: "Source column name in the CSV file." }),
+  targetName: S.String.annotate({ description: "Target Darwin Core field name." }),
   requirement: S.optional(RequirementLevel),
   constraints: S.optional(S.Array(ConstraintSchema)),
   preset: S.optional(S.String),
 });
 
-const whenConditionSchema = S.Union(
+const whenConditionSchema = S.Union([
   S.String,
   S.Struct({ field: S.String, equals: S.String }),
   S.Struct({ field: S.String, in: S.NonEmptyArray(S.String) }),
-);
+]);
 
-const dependencyRequireSchema = S.Union(
+const dependencyRequireSchema = S.Union([
   S.NonEmptyArray(S.String),
   S.Struct({ oneOf: S.NonEmptyArray(S.String) }),
-);
+]);
 
 const foreignKeyRuleSchema = S.Struct({
-  ruleType: S.Literal("foreignKey").annotations({
+  ruleType: S.Literal("foreignKey").annotate({
     description: "Type of cross-dataset rule.",
   }),
-  sourceDataset: S.String.annotations({ description: "Name of the source dataset." }),
-  sourceField: S.String.annotations({ description: "Field name in the source dataset." }),
-  targetDataset: S.String.annotations({ description: "Name of the target dataset." }),
-  targetField: S.String.annotations({ description: "Field name in the target dataset." }),
+  sourceDataset: S.String.annotate({ description: "Name of the source dataset." }),
+  sourceField: S.String.annotate({ description: "Field name in the source dataset." }),
+  targetDataset: S.String.annotate({ description: "Name of the target dataset." }),
+  targetField: S.String.annotate({ description: "Field name in the target dataset." }),
   requirement: S.optional(RequirementLevel),
   description: S.optional(S.String),
 });
 
 const dependencyRuleSchema = S.Struct({
-  ruleType: S.Literal("dependency").annotations({
+  ruleType: S.Literal("dependency").annotate({
     description: "Type of intra-dataset dependency rule.",
   }),
   sourceDataset: S.optional(
-    S.String.annotations({ description: "Name of the dataset this rule applies to." }),
+    S.String.annotate({ description: "Name of the dataset this rule applies to." }),
   ),
-  when: S.optional(whenConditionSchema.annotations({
+  when: S.optional(whenConditionSchema.annotate({
     description: "Condition that triggers this rule. Omit for unconditional rules.",
   })),
-  require: dependencyRequireSchema.annotations({
+  require: dependencyRequireSchema.annotate({
     description:
       "Fields that must be present. Array means all required; { oneOf: [...] } means at least one.",
   }),
   level: S.optional(RequirementLevel),
-  message: S.optional(S.String.annotations({ description: "Custom error message." })),
+  message: S.optional(S.String.annotate({ description: "Custom error message." })),
 });
 
-export const datasetRuleSchema = S.Union(foreignKeyRuleSchema, dependencyRuleSchema).annotations({
+const datasetRuleSchema = S.Union([foreignKeyRuleSchema, dependencyRuleSchema]).annotate({
   title: "Dataset Rule",
   description: "Defines a cross-dataset foreign key or intra-dataset dependency rule.",
 });
 
-/** @deprecated Use `datasetRuleSchema` instead. */
-export const workspaceCrossDatasetRuleSchema = datasetRuleSchema;
-
-export const datasetConfigSchema = S.Struct({
-  name: S.String.annotations({ description: "Unique name for this dataset." }),
-  class: S.String.annotations({
+const datasetConfigSchema = S.Struct({
+  name: S.String.annotate({ description: "Unique name for this dataset." }),
+  class: S.String.annotate({
     description:
       "Darwin Core class: Event, Occurrence, Taxon, ExtendedMeasurementOrFact, dnaDerivedData, ResourceRelationship.",
   }),
-  path: S.String.annotations({ description: "File path to the CSV data file." }),
+  path: S.String.annotate({ description: "File path to the CSV data file." }),
   description: S.optional(S.String),
   fieldMappings: S.optional(
-    S.Array(workspaceFieldMappingSchema).annotations({
+    S.Array(workspaceFieldMappingSchema).annotate({
       description: "Mappings from CSV columns to Darwin Core fields.",
     }),
   ),
-}).annotations({
+}).annotate({
   title: "Dataset Configuration",
   description:
     "Configuration for a single dataset to validate against a Darwin Core specification.",
 });
 
-export const transformDatasetConfigSchema = S.Struct({
-  name: S.String.annotations({ description: "Unique name for this transform dataset." }),
-  class: S.String.annotations({
+const transformDatasetConfigSchema = S.Struct({
+  name: S.String.annotate({ description: "Unique name for this transform dataset." }),
+  class: S.String.annotate({
     description: "Darwin Core class for the transform output.",
   }),
   source: S.optional(
-    S.Record({ key: S.String, value: S.String }).annotations({
+    S.Record(S.String, S.String).annotate({
       description: "Named SQL sources: alias → table name or SQL query.",
     }),
   ),
   description: S.optional(S.String),
   fields: S.optional(
-    S.Record({
-      key: S.String,
-      value: S.Union(S.String, S.Number, S.Null),
-    }).annotations({
+    S.Record(S.String, S.Union([S.String, S.Number, S.Null])).annotate({
       description: "Field mappings: Darwin Core field name → SQL expression, number, or null.",
     }),
   ),
-}).annotations({
+}).annotate({
   title: "Transform Dataset Configuration",
   description: "Configuration for a dataset in a transform workflow.",
 });
 
 /**
- * Uses two default patterns for optional fields:
- * - `S.optionalWith(schema, { default: () => value })` - Applies defaults during decoding
- * - `.pipe(S.withConstructorDefault(() => value))` - Applies defaults when using schema.make()
+ * Uses two default patterns for fields:
+ * - `.pipe(S.withDecodingDefault(Effect.succeed(value)))` - Applies defaults during decoding
+ * - `.pipe(S.withConstructorDefault(Effect.succeed(value)))` - Applies defaults when using schema.make()
+ *
+ * For per-call defaults (e.g. crypto.randomUUID(), fresh timestamps) use
+ * `Effect.sync(() => ...)` instead of `Effect.succeed(...)` so each call produces a
+ * fresh value rather than one shared cached value (see id/createdAt/updatedAt below).
  */
-export const validationSettingsSchema = S.Struct({
-  nullValues: S.optionalWith(
-    S.Array(S.String).annotations({
-      description: "Values to treat as null during validation.",
-      default: DEFAULT_NULL_VALUES,
-    }),
-    { default: () => [...DEFAULT_NULL_VALUES] },
-  ).pipe(S.withConstructorDefault(() => [...DEFAULT_NULL_VALUES])),
-  failFast: S.optionalWith(
-    S.Boolean.annotations({ description: "Stop validation on first error. Default: false." }),
-    { default: () => false },
-  ).pipe(S.withConstructorDefault(() => false)),
-  debug: S.optionalWith(
-    S.Boolean.annotations({ description: "Enable debug output. Default: false." }),
-    { default: () => false },
-  ).pipe(S.withConstructorDefault(() => false)),
-  outputDir: S.optionalWith(
-    S.String.annotations({
-      description: "Directory for validation output files. Default: './output'.",
-    }),
-    { default: () => DEFAULT_OUTPUT_DIR },
-  ).pipe(S.withConstructorDefault(() => DEFAULT_OUTPUT_DIR)),
+const validationSettingsSchema = S.Struct({
+  nullValues: S.Array(S.String).annotate({
+    description: "Values to treat as null during validation.",
+    default: DEFAULT_NULL_VALUES,
+  }).pipe(
+    S.withDecodingDefault(Effect.succeed([...DEFAULT_NULL_VALUES])),
+    S.withConstructorDefault(Effect.succeed([...DEFAULT_NULL_VALUES])),
+  ),
+  failFast: S.Boolean.annotate({ description: "Stop validation on first error. Default: false." })
+    .pipe(
+      S.withDecodingDefault(Effect.succeed(false)),
+      S.withConstructorDefault(Effect.succeed(false)),
+    ),
+  debug: S.Boolean.annotate({ description: "Enable debug output. Default: false." })
+    .pipe(
+      S.withDecodingDefault(Effect.succeed(false)),
+      S.withConstructorDefault(Effect.succeed(false)),
+    ),
+  outputDir: S.String.annotate({
+    description: "Directory for validation output files. Default: './output'.",
+  }).pipe(
+    S.withDecodingDefault(Effect.succeed(DEFAULT_OUTPUT_DIR)),
+    S.withConstructorDefault(Effect.succeed(DEFAULT_OUTPUT_DIR)),
+  ),
   description: S.optional(S.String),
   maxViolationsPerField: S.optional(
-    S.Number.pipe(S.int()).annotations({
+    S.Number.check(S.isInt()).annotate({
       description: "Maximum number of violations to report per field.",
     }),
   ),
-  enableSuggestions: S.optionalWith(
-    S.Boolean.annotations({
-      description: "Enable suggestion messages for violations. Default: true.",
-    }),
-    { default: () => true },
-  ).pipe(S.withConstructorDefault(() => true)),
-  datasets: S.optionalWith(
-    S.Array(datasetConfigSchema).annotations({ description: "Datasets to validate." }),
-    { default: () => [] },
-  ).pipe(S.withConstructorDefault(() => [])),
-}).annotations({
+  enableSuggestions: S.Boolean.annotate({
+    description: "Enable suggestion messages for violations. Default: true.",
+  }).pipe(
+    S.withDecodingDefault(Effect.succeed(true)),
+    S.withConstructorDefault(Effect.succeed(true)),
+  ),
+  datasets: S.Array(datasetConfigSchema).annotate({ description: "Datasets to validate." })
+    .pipe(
+      S.withDecodingDefault(Effect.succeed([])),
+      S.withConstructorDefault(Effect.succeed([])),
+    ),
+}).annotate({
   title: "Validation Settings",
   description: "Configuration for the validation workflow.",
 });
 
-export const transformSettingsSchema = S.Struct({
-  nullValues: S.optionalWith(
-    S.Array(S.String).annotations({
-      description: "Values to treat as null during transformation.",
-      default: DEFAULT_NULL_VALUES,
-    }),
-    { default: () => [...DEFAULT_NULL_VALUES] },
-  ).pipe(S.withConstructorDefault(() => DEFAULT_NULL_VALUES)),
-  inputs: S.Object.annotations({ description: "Input data source configuration." }),
-  postImportTransforms: S.optional(
-    S.Array(S.String).annotations({ description: "SQL transforms to run after data import." }),
+const transformSettingsSchema = S.Struct({
+  nullValues: S.Array(S.String).annotate({
+    description: "Values to treat as null during transformation.",
+    default: DEFAULT_NULL_VALUES,
+  }).pipe(
+    S.withDecodingDefault(Effect.succeed([...DEFAULT_NULL_VALUES])),
+    S.withConstructorDefault(Effect.succeed(DEFAULT_NULL_VALUES)),
   ),
-  datasets: S.Array(transformDatasetConfigSchema).annotations({
+  inputs: S.Record(S.String, S.Unknown).annotate({
+    description: "Input data source configuration.",
+  }),
+  postImportTransforms: S.optional(
+    S.Array(S.String).annotate({ description: "SQL transforms to run after data import." }),
+  ),
+  datasets: S.Array(transformDatasetConfigSchema).annotate({
     description: "Datasets to transform.",
   }),
   output: S.Struct({
-    outputDir: S.String.annotations({ description: "Directory for transform output files." }),
+    outputDir: S.String.annotate({ description: "Directory for transform output files." }),
     outputFilesWithTimestamp: S.optional(
-      S.Boolean.annotations({ description: "Append timestamp to output file names." }),
+      S.Boolean.annotate({ description: "Append timestamp to output file names." }),
     ),
-    exportDB: S.Boolean.annotations({
+    exportDB: S.Boolean.annotate({
       description: "Whether to export the DuckDB database file.",
     }),
     exportDBFileName: S.optional(
-      S.String.annotations({ description: "File name for the exported database." }),
+      S.String.annotate({ description: "File name for the exported database." }),
     ),
     dropNullColumns: S.optional(
-      S.Boolean.annotations({ description: "Drop columns that contain only null values." }),
+      S.Boolean.annotate({ description: "Drop columns that contain only null values." }),
     ),
-  }).annotations({
+  }).annotate({
     title: "Transform Output",
     description: "Output configuration for the transform workflow.",
   }),
-}).annotations({
+}).annotate({
   title: "Transform Settings",
   description: "Configuration for the data transformation workflow.",
 });
 
 /** Filtered to ensure at least one of validation/transform is present. */
 export const workspaceConfigSchema = S.Struct({
-  id: S.optionalWith(
-    S.String.annotations({
-      description: "Unique workspace identifier (auto-generated UUID if omitted).",
-    }),
-    { default: () => crypto.randomUUID() },
-  ).pipe(S.withConstructorDefault(() => crypto.randomUUID())),
-  name: S.optionalWith(
-    S.String.annotations({
-      description: "Workspace name. Default: 'Workspace'.",
-      default: DEFAULT_WORKSPACE_NAME,
-    }),
-    { default: () => DEFAULT_WORKSPACE_NAME },
-  ).pipe(S.withConstructorDefault(() => DEFAULT_WORKSPACE_NAME)),
-  version: S.optionalWith(
-    S.String.annotations({
-      description: "Configuration version. Default: '1.0.0'.",
-      default: DEFAULT_VERSION,
-    }),
-    { default: () => DEFAULT_VERSION },
-  ).pipe(S.withConstructorDefault(() => DEFAULT_VERSION)),
-  description: S.optional(
-    S.String.annotations({ description: "Human-readable workspace description." }),
+  id: S.String.annotate({
+    description: "Unique workspace identifier (auto-generated UUID if omitted).",
+  }).pipe(
+    S.withDecodingDefault(Effect.sync(() => crypto.randomUUID())),
+    S.withConstructorDefault(Effect.sync(() => crypto.randomUUID())),
   ),
-  standard: S.optionalWith(
-    ResolvedStandardSchema.annotations({
-      description:
-        "Target biodiversity standard. Accepts a string (e.g. 'obis') or object { base, variant }. " +
-        "Known variants ('obis', 'gbif') are normalized to { base: 'darwin-core', variant: <name> }. " +
-        "Default: { base: 'darwin-core', variant: 'obis' }.",
-    }),
-    { default: () => ({ base: "darwin-core", variant: "obis" }) as ResolvedStandard },
-  ).pipe(
-    S.withConstructorDefault(() => ({ base: "darwin-core", variant: "obis" }) as ResolvedStandard),
+  name: S.String.annotate({
+    description: "Workspace name. Default: 'Workspace'.",
+    default: DEFAULT_WORKSPACE_NAME,
+  }).pipe(
+    S.withDecodingDefault(Effect.succeed(DEFAULT_WORKSPACE_NAME)),
+    S.withConstructorDefault(Effect.succeed(DEFAULT_WORKSPACE_NAME)),
+  ),
+  version: S.String.annotate({
+    description: "Configuration version. Default: '1.0.0'.",
+    default: DEFAULT_VERSION,
+  }).pipe(
+    S.withDecodingDefault(Effect.succeed(DEFAULT_VERSION)),
+    S.withConstructorDefault(Effect.succeed(DEFAULT_VERSION)),
+  ),
+  description: S.optional(
+    S.String.annotate({ description: "Human-readable workspace description." }),
+  ),
+  standard: ResolvedStandardSchema.annotate({
+    description:
+      "Target biodiversity standard. Accepts a string (e.g. 'obis') or object { base, variant }. " +
+      "Known variants ('obis', 'gbif') are normalized to { base: 'darwin-core', variant: <name> }. " +
+      "Default: { base: 'darwin-core', variant: 'obis' }.",
+  }).pipe(
+    S.withDecodingDefault(
+      Effect.succeed({ base: "darwin-core", variant: "obis" } as ResolvedStandard),
+    ),
+    S.withConstructorDefault(
+      Effect.succeed({ base: "darwin-core", variant: "obis" } as ResolvedStandard),
+    ),
   ),
   datasetRules: S.optional(
-    S.Array(datasetRuleSchema).annotations({
+    S.Array(datasetRuleSchema).annotate({
       description: "Foreign key and dependency rules across or within datasets.",
     }),
   ),
-  createdAt: S.optionalWith(
-    S.Date.annotations({
-      jsonSchema: { type: "string", format: "date-time" },
-      description: "Timestamp when the workspace was created.",
-    }),
-    { default: () => new Date() },
-  ).pipe(S.withConstructorDefault(() => new Date())),
-  updatedAt: S.optionalWith(
-    S.Date.annotations({
-      jsonSchema: { type: "string", format: "date-time" },
-      description: "Timestamp when the workspace was last updated.",
-    }),
-    { default: () => new Date() },
-  ).pipe(S.withConstructorDefault(() => new Date())),
+  createdAt: S.DateFromString.annotate({
+    description: "Timestamp when the workspace was created.",
+  }).pipe(
+    S.annotateEncoded({ jsonSchema: { type: "string", format: "date-time" } }),
+    S.withDecodingDefault(Effect.sync(() => new Date().toISOString())),
+    S.withConstructorDefault(Effect.sync(() => new Date())),
+  ),
+  updatedAt: S.DateFromString.annotate({
+    description: "Timestamp when the workspace was last updated.",
+  }).pipe(
+    S.annotateEncoded({ jsonSchema: { type: "string", format: "date-time" } }),
+    S.withDecodingDefault(Effect.sync(() => new Date().toISOString())),
+    S.withConstructorDefault(Effect.sync(() => new Date())),
+  ),
   validation: S.optional(validationSettingsSchema),
   transform: S.optional(transformSettingsSchema),
-}).annotations({
+}).annotate({
   title: "DarwinKit Workspace Configuration",
   description:
     "Top-level configuration for a DarwinKit workspace. Must include at least one of 'validation' or 'transform'.",
-}).pipe(
-  S.filter(
-    (config) => config.validation !== undefined || config.transform !== undefined,
-    { message: () => "Workspace config must have 'validation' and/or 'transform' settings" },
+}).check(
+  S.makeFilter((config) =>
+    config.validation !== undefined || config.transform !== undefined ||
+    "Workspace config must have 'validation' and/or 'transform' settings"
   ),
 );
 
-export type ValidationSettings = S.Schema.Type<typeof validationSettingsSchema>;
-export type ValidationSettingsInput = S.Schema.Encoded<typeof validationSettingsSchema>;
-export type TransformSettings = S.Schema.Type<typeof transformSettingsSchema>;
-export type WorkspaceFieldMapping = S.Schema.Type<typeof workspaceFieldMappingSchema>;
-export type DatasetRule = S.Schema.Type<typeof datasetRuleSchema>;
-export type DependencyRuleConfig = S.Schema.Type<typeof dependencyRuleSchema>;
-export type DatasetConfig = S.Schema.Type<typeof datasetConfigSchema>;
-export type WorkspaceConfig = S.Schema.Type<typeof workspaceConfigSchema>;
+export type ValidationSettings = typeof validationSettingsSchema.Type;
+export type ValidationSettingsInput = typeof validationSettingsSchema.Encoded;
+export type TransformSettings = typeof transformSettingsSchema.Type;
+export type WorkspaceFieldMapping = typeof workspaceFieldMappingSchema.Type;
+export type DatasetRuleConfig = typeof datasetRuleSchema.Type;
+export type DatasetConfig = typeof datasetConfigSchema.Type;
+export type WorkspaceConfig = typeof workspaceConfigSchema.Type;
 
 export interface ForeignKeyRuleMatch {
   readonly targetDataset: string;
   readonly targetField: string;
-  readonly requirement: "required" | "recommended" | "optional";
+  readonly requirement: RequirementLevel;
 }
 
 export type ConfigWithValidation = WorkspaceConfig & { validation: ValidationSettings };
@@ -346,7 +356,7 @@ export const hasTransformationConfig = (c: WorkspaceConfig): c is ConfigWithTran
   c.transform !== undefined;
 
 /** Input type for makeWorkspaceConfig - allows partial settings with defaults applied */
-export type WorkspaceConfigInput = S.Schema.Encoded<typeof workspaceConfigSchema>;
+export type WorkspaceConfigInput = typeof workspaceConfigSchema.Encoded;
 
 /**
  * Create a WorkspaceConfig with defaults applied.
@@ -379,3 +389,34 @@ export function makeWorkspaceConfig(input: WorkspaceConfigInput): WorkspaceConfi
 export const decodeWorkspaceConfig = (input: unknown): WorkspaceConfig => {
   return S.decodeUnknownSync(workspaceConfigSchema)(input);
 };
+
+/**
+ * Decode unknown external data into a WorkspaceConfig, failing with a `SchemaError`
+ * in the typed error channel instead of throwing.
+ *
+ * Prefer this over {@link decodeWorkspaceConfig} when composing inside an Effect
+ * pipeline: the failure stays in the channel and carries the structured issue tree,
+ * which {@link formatConfigValidationErrors} turns into path-qualified messages.
+ */
+export const decodeWorkspaceConfigEffect = (
+  input: unknown,
+): Effect.Effect<WorkspaceConfig, S.SchemaError> =>
+  S.decodeUnknownEffect(workspaceConfigSchema)(input);
+
+const configIssueFormatter = SchemaIssue.makeFormatterStandardSchemaV1();
+
+/**
+ * Flatten a config-decoding `SchemaError` into path-qualified validation messages.
+ *
+ * Each leaf issue becomes one entry: nested issues are prefixed with their dotted
+ * field path (e.g. `"validation.datasets.0.class: Missing key"`), while top-level
+ * failures (empty path) render the message alone. This preserves the structured
+ * issue tree that stringifying the error would otherwise flatten and lose.
+ */
+export const formatConfigValidationErrors = (
+  error: S.SchemaError,
+): readonly string[] =>
+  configIssueFormatter(error.issue).issues.map((issue) => {
+    const path = (issue.path ?? []).map((segment) => String(segment)).join(".");
+    return path.length > 0 ? `${path}: ${issue.message}` : issue.message;
+  });

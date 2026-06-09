@@ -8,16 +8,16 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
+import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
-import { CsvImportError } from "../errors/mod.ts";
-import { formatNullValues, sanitizeTableName } from "./sql.ts";
+import { formatNullValues, queryRows, sanitizeTableName } from "./sql.ts";
 
 export function importCsv(
   connection: DuckDBConnection,
   tableName: string,
   csvPath: string,
   nullValues: readonly string[],
-): Effect.Effect<void, CsvImportError> {
+): Effect.Effect<void, WorkspaceImportError> {
   return Effect.tryPromise({
     try: async () => {
       const safeName = sanitizeTableName(tableName);
@@ -40,12 +40,10 @@ export function importCsv(
       );
     },
     catch: (error) =>
-      new CsvImportError(
-        `Failed to import CSV '${csvPath}' into table '${tableName}'`,
-        tableName,
-        csvPath,
-        error instanceof Error ? error : new Error(String(error)),
-      ),
+      new WorkspaceImportError({
+        message: `Failed to import CSV '${csvPath}' into table '${tableName}'`,
+        cause: error instanceof Error ? error : new Error(String(error)),
+      }),
   });
 }
 
@@ -55,7 +53,7 @@ export function getCsvValue(
   fieldName: string,
   rowNumber: number,
 ): Effect.Effect<string> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const safeName = sanitizeTableName(tableName);
     const query = `
       SELECT "${fieldName}" as value
@@ -63,11 +61,7 @@ export function getCsvValue(
       WHERE _row_number = ${rowNumber}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(Effect.orDie),
-    );
-
-    const rows = result.getRowObjects();
+    const rows = yield* queryRows(connection, query);
     if (rows.length === 0) {
       return "";
     }

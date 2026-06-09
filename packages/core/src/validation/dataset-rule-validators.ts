@@ -7,7 +7,7 @@ import {
   type FieldViolation,
   requirementToSeverity,
 } from "@dwkt/domain/types";
-import { escapeString } from "../loading/sql.ts";
+import { escapeString, queryRows } from "../loading/sql.ts";
 
 function isOneOf(
   r: DependencyRequire,
@@ -84,7 +84,7 @@ export function validateDependencyRule(
   rule: DependencyRule,
   maxViolations = 100,
 ): Effect.Effect<void, FieldViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const whereClause = buildWhereClause(rule);
     const query = `
       SELECT _row_number
@@ -94,13 +94,7 @@ export function validateDependencyRule(
       LIMIT ${maxViolations}
     `;
 
-    const result = yield* _(
-      Effect.tryPromise(() => connection.runAndReadAll(query)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const rows = result.getRowObjects();
+    const rows = yield* queryRows(connection, query);
     if (rows.length > 0) {
       const fields = isOneOf(rule.require) ? rule.require.oneOf : rule.require;
       const fieldLabel = Array.from(fields).join(", ");
@@ -115,7 +109,8 @@ export function validateDependencyRule(
           errorMessage: message,
         })
       );
-      return yield* _(Effect.fail(violations));
+
+      return yield* Effect.fail(violations);
     }
   });
 }

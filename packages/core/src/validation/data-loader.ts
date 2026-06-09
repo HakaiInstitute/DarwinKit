@@ -14,8 +14,9 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
+import * as Result from "effect/Result";
 
-import type { DatasetRule, ResolvedSpec, ValidationSettings } from "@dwkt/domain/schemas";
+import type { DatasetRuleConfig, ResolvedSpec, ValidationSettings } from "@dwkt/domain/schemas";
 import type { FieldViolation } from "@dwkt/domain/types";
 import {
   EnumViolation,
@@ -33,10 +34,11 @@ import {
   findForeignKeyRule,
   formatConstraintViolation,
   parseDuckDBError,
+  queryRows,
 } from "../loading/sql.ts";
 import { findSuggestedValue } from "./string-matching.ts";
 
-export interface ColumnMapping {
+interface ColumnMapping {
   readonly origin: string;
   readonly target: string;
 }
@@ -52,14 +54,14 @@ interface ViolationContext {
   readonly rowNum: number;
   readonly processedDuplicates: Set<string>;
   readonly currentDataset: string;
-  readonly datasetRules: readonly DatasetRule[];
+  readonly datasetRules: readonly DatasetRuleConfig[];
 }
 
 function handlePrimaryKeyViolation(
   parsed: ParsedErrorInfo,
   ctx: ViolationContext,
 ): Effect.Effect<FieldViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const pkMapping = ctx.columnMappings.find((m) =>
       m.target === ctx.schemaTableName + "ID" ||
       (m.target.endsWith("ID") &&
@@ -84,21 +86,12 @@ function handlePrimaryKeyViolation(
       WHERE "${pkMapping.origin}" = '${escapeString(parsed.value)}'
     `;
 
-    const duplicateResult = yield* _(
-      Effect.tryPromise(() => ctx.connection.runAndReadAll(duplicateQuery)).pipe(
-        Effect.orDie,
-      ),
-    );
-
-    const duplicateRows = duplicateResult.getRowObjects();
+    const duplicateRows = yield* queryRows(ctx.connection, duplicateQuery);
     const duplicateCount = duplicateRows.length;
     const violations: FieldViolation[] = [];
 
     for (const dupRow of duplicateRows) {
       const dupRowNum = Number(dupRow._row_number);
-      const csvValue = yield* _(
-        getCsvValue(ctx.connection, ctx.rawTableName, pkMapping.origin, dupRowNum),
-      );
 
       violations.push(
         new PrimaryKeyViolation({
@@ -107,7 +100,6 @@ function handlePrimaryKeyViolation(
           targetName: pkMapping.target,
           rowNumber: dupRowNum,
           value: parsed.value,
-          csvValue,
           constraintType: "duplicate",
           duplicateCount,
           errorMessage: `Duplicate primary key: "${parsed.value}"`,
@@ -140,7 +132,6 @@ function handleNotNullViolation(
         targetName: notNullMapping.target,
         rowNumber: ctx.rowNum,
         value: "",
-        csvValue: "",
         errorMessage: `Required field "${notNullMapping.origin}" cannot be NULL`,
       }),
     ];
@@ -188,7 +179,6 @@ function handleEnumViolation(
         targetName: enumMapping.target,
         rowNumber: ctx.rowNum,
         value: parsed.value,
-        csvValue: parsed.value,
         enumType: `${ctx.schemaTableName}_${enumMapping.target.toLowerCase()}_enum`,
         allowedValues,
         suggestedValue,
@@ -204,7 +194,7 @@ function handleForeignKeyViolation(
   parsed: ParsedErrorInfo,
   ctx: ViolationContext,
 ): Effect.Effect<FieldViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const fkMapping = parsed.fieldName
       ? ctx.columnMappings.find((m) =>
         m.target === parsed.fieldName || m.origin === parsed.fieldName
@@ -220,7 +210,7 @@ function handleForeignKeyViolation(
 
     const csvValue = parsed.value ??
       (fkMapping
-        ? yield* _(getCsvValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum))
+        ? yield* getCsvValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum)
         : "");
 
     const requirement = fkRule?.requirement ?? "required";
@@ -245,7 +235,6 @@ function handleForeignKeyViolation(
         targetName: targetField,
         rowNumber: ctx.rowNum,
         value: csvValue,
-        csvValue,
         referencedTable,
         referencedField,
         errorMessage,
@@ -294,22 +283,19 @@ export function insertRowByRow(
   resolvedSpec: ResolvedSpec,
   activeStandard: "obis" | "gbif",
   currentDataset: string,
-  datasetRules: readonly DatasetRule[],
+  datasetRules: readonly DatasetRuleConfig[],
   validationSettings?: ValidationSettings,
 ): Effect.Effect<void, FieldViolation[]> {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const violations: FieldViolation[] = [];
     const enableSuggestions = validationSettings?.enableSuggestions ?? true;
     const processedDuplicates = new Set<string>();
 
-    const maxRowResult = yield* _(
-      Effect.tryPromise(() =>
-        connection.runAndReadAll(
-          `SELECT MAX(_row_number) as max_row FROM ${rawTableName}`,
-        )
-      ).pipe(Effect.orDie),
+    const maxRows = yield* queryRows(
+      connection,
+      `SELECT MAX(_row_number) as max_row FROM ${rawTableName}`,
     );
-    const maxRow = Number(maxRowResult.getRowObjects()[0]?.max_row ?? 0);
+    const maxRow = Number(maxRows[0]?.max_row ?? 0);
 
     const targetColumns = columnMappings.map((m) => `"${m.target}"`).join(", ");
     const originColumns = columnMappings.map((m) => `"${m.origin}"`).join(", ");
@@ -322,18 +308,16 @@ export function insertRowByRow(
         WHERE _row_number = ${rowNum}
       `;
 
-      const result = yield* _(
-        Effect.tryPromise({
-          try: () => connection.run(insertSQL),
-          catch: (error) => error,
-        }).pipe(Effect.either),
-      );
+      const result = yield* Effect.tryPromise({
+        try: () => connection.run(insertSQL),
+        catch: (error) => error,
+      }).pipe(Effect.result);
 
-      if (result._tag === "Right") {
+      if (Result.isSuccess(result)) {
         continue;
       }
 
-      const error = result.left;
+      const error = result.failure;
       if (!(error instanceof Error)) continue;
 
       const parsed = parseDuckDBError(error);
@@ -351,12 +335,12 @@ export function insertRowByRow(
         datasetRules,
       };
 
-      const newViolations = yield* _(createViolationsFromError(parsed, ctx));
+      const newViolations = yield* createViolationsFromError(parsed, ctx);
       violations.push(...newViolations);
     }
 
     if (violations.length > 0) {
-      return yield* _(Effect.fail(violations));
+      return yield* Effect.fail(violations);
     }
   });
 }

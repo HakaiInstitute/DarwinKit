@@ -30,7 +30,7 @@ import {
   strictestRequired,
 } from "@dwkt/domain/specs";
 
-export interface ActiveStandardResult {
+interface ActiveStandardResult {
   readonly standard: "obis" | "gbif";
   readonly warning?: string;
 }

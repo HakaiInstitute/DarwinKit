@@ -4,7 +4,6 @@
 
 export {
   createTableFromSchema,
-  createTablesFromCSV,
   exportTablesToCSV,
   exportToPersistentDB,
   OutputError,
