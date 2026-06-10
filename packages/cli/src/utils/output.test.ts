@@ -1,4 +1,4 @@
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 import { makeOutput, writeAll } from './output.ts';
 
 Deno.test('makeOutput routes lines through the provided sink', () => {
@@ -36,4 +36,10 @@ Deno.test('writeAll drains partial writes until the full text is written', () =>
   writeAll(stream, 'abç→😀'); // multi-byte UTF-8: 1+1+2+3+4 = 11 bytes
 
   assertEquals(new TextDecoder().decode(new Uint8Array(written)), 'abç→😀');
+});
+
+Deno.test('writeAll throws on a stalled stream instead of spinning forever', () => {
+  const stream = { writeSync: () => 0 };
+
+  assertThrows(() => writeAll(stream, 'abc'), Error, 'no progress');
 });

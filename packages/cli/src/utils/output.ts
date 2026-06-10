@@ -15,7 +15,14 @@ export function writeAll(stream: SyncWriter, text: string): void {
   let written = 0;
 
   while (written < data.length) {
-    written += stream.writeSync(data.subarray(written));
+    const n = stream.writeSync(data.subarray(written));
+    if (n === 0) {
+      // A stalled writer would otherwise spin this loop forever.
+      throw new Error(
+        `writeSync made no progress (${written}/${data.length} bytes written)`,
+      );
+    }
+    written += n;
   }
 }
 

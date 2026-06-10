@@ -21,7 +21,8 @@
       "language_servers": [
         "deno",
         "!vtsls",
-        "!typescript-language-server"
+        "!typescript-language-server",
+        "!r_language_server"
       ]
     },
     "TSX": {
@@ -35,7 +36,8 @@
       "language_servers": [
         "deno",
         "!vtsls",
-        "!typescript-language-server"
+        "!typescript-language-server",
+        "!r_language_server"
       ]
     },
     "JavaScript": {
@@ -45,6 +47,7 @@
       // Language servers for JavaScript
       "language_servers": [
         "vtsls",
+        "!r_language_server"
       ]
     }
   },
