@@ -27,7 +27,7 @@ import {
 } from "@dwkt/domain/types";
 import { obligationForStandard } from "@dwkt/domain/specs";
 
-import { getCsvValue } from "../loading/csv-import.ts";
+import { getTableValue } from "../loading/table-import.ts";
 import type { ParsedErrorInfo } from "../loading/sql.ts";
 import {
   escapeString,
@@ -210,7 +210,7 @@ function handleForeignKeyViolation(
 
     const csvValue = parsed.value ??
       (fkMapping
-        ? yield* getCsvValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum)
+        ? yield* getTableValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum)
         : "");
 
     const requirement = fkRule?.requirement ?? "required";

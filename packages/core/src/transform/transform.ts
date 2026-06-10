@@ -11,7 +11,7 @@ import { getSpecNames, resolveProfile } from "@dwkt/domain/specs";
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import type { WorkspaceImportError } from "@dwkt/domain/errors";
-import { importCsv } from "../loading/csv-import.ts";
+import { importCsv } from "../loading/table-import.ts";
 import { importSchema } from "../loading/schema.ts";
 import { findForeignKeyRule, formatConstraintViolation, parseDuckDBError } from "../loading/sql.ts";
 

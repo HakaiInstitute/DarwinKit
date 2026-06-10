@@ -1,10 +1,10 @@
 /**
- * CSV Import Utilities
+ * Table Import Utilities
  *
- * Shared functions for importing CSV files into DuckDB tables.
+ * Shared functions for importing data files (CSV, Parquet) into DuckDB tables.
  * Functions take a connection as a parameter for easy reuse and testing.
  *
- * @module loading/csv-import
+ * @module loading/table-import
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
@@ -79,7 +79,7 @@ export function importParquet(
   });
 }
 
-export function getCsvValue(
+export function getTableValue(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,

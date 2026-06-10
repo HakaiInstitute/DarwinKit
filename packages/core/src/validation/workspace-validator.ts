@@ -39,7 +39,7 @@ import {
   UnknownProfileViolation,
   UnmappedColumnViolation,
 } from "@dwkt/domain/types";
-import { importCsv, importParquet } from "../loading/csv-import.ts";
+import { importCsv, importParquet } from "../loading/table-import.ts";
 import { queryRows, sanitizeTableName } from "../loading/sql.ts";
 import { Workspace } from "../workspace/workspace.ts";
 

@@ -5,7 +5,7 @@
 import { DuckDBInstance } from "@duckdb/node-api";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
-import { importParquet } from "./csv-import.ts";
+import { importParquet } from "./table-import.ts";
 
 Deno.test("importParquet - loads a parquet file with a 1-based _row_number", async () => {
   const instance = await DuckDBInstance.create(":memory:");
