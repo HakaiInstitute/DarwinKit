@@ -1,5 +1,5 @@
 import { assert, assertEquals } from '@std/assert';
-import { makeOutput } from './output.ts';
+import { makeOutput, writeAll } from './output.ts';
 
 Deno.test('makeOutput routes lines through the provided sink', () => {
   const writes: string[] = [];
@@ -21,4 +21,19 @@ Deno.test('makeOutput.section wraps the title with surrounding newlines', () => 
   assert(writes[0].startsWith('\n'), 'section output should start with a newline');
   assert(writes[0].endsWith('\n'), 'section output should end with a newline');
   assert(writes[0].includes('🌊 Results'), 'section output should include the emoji and title');
+});
+
+Deno.test('writeAll drains partial writes until the full text is written', () => {
+  const written: number[] = [];
+  const stream = {
+    writeSync(p: Uint8Array): number {
+      const n = Math.min(3, p.length); // simulate a stream accepting 3 bytes at a time
+      written.push(...p.subarray(0, n));
+      return n;
+    },
+  };
+
+  writeAll(stream, 'abç→😀'); // multi-byte UTF-8: 1+1+2+3+4 = 11 bytes
+
+  assertEquals(new TextDecoder().decode(new Uint8Array(written)), 'abç→😀');
 });

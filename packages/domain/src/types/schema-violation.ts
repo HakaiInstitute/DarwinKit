@@ -15,6 +15,7 @@ import * as S from "effect/Schema";
 import {
   type PartitionedViolations,
   partitionViolationsBySeverity,
+  Severity,
 } from "./validation-violation.ts";
 
 /**
@@ -23,7 +24,7 @@ import {
  * Note: No rowNumber since schema violations are structural, not row-level.
  */
 const baseSchemaViolationFields = {
-  severity: S.Literals(["error", "warning", "info"]),
+  severity: Severity,
   fieldName: S.String,
   targetName: S.String,
   errorMessage: S.String,

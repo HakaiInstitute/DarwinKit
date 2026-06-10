@@ -1,16 +1,22 @@
 import { colors } from '@cliffy/ansi/colors';
-import { tty } from '@cliffy/ansi/tty';
 
 const encoder = new TextEncoder();
 
-/** Writes text to stdout via cliffy's tty (the user-facing output stream). */
-function writeStdout(text: string): void {
-  tty.text(text);
+interface SyncWriter {
+  writeSync(p: Uint8Array): number;
 }
 
-/** Writes text to stderr (for diagnostics that must not pollute stdout). */
-function writeStderr(text: string): void {
-  Deno.stderr.writeSync(encoder.encode(text));
+/**
+ * Write all of `text` to the stream, draining partial writes
+ * (`writeSync` may consume fewer bytes than offered).
+ */
+export function writeAll(stream: SyncWriter, text: string): void {
+  const data = encoder.encode(text);
+  let written = 0;
+
+  while (written < data.length) {
+    written += stream.writeSync(data.subarray(written));
+  }
 }
 
 /** Builds an output helper that writes every line through the given sink. */
@@ -46,14 +52,16 @@ export function makeOutput(write: (text: string) => void) {
   };
 }
 
-/** An output helper bound to a stream (stdout or stderr). */
-export type OutputSink = ReturnType<typeof makeOutput>;
-
-/** Default output → stdout. Existing call sites use this unchanged. */
-export const Output = makeOutput(writeStdout);
+/**
+ * Human-facing messages: status, progress, errors, hints. Bound to STDERR
+ * so stdout stays clean for payloads — `validate --format json | jq` works
+ * in every mode, and `2>/dev/null` silences diagnostics without touching
+ * results.
+ */
+export const Output = makeOutput((text) => writeAll(Deno.stderr, text));
 
 /**
- * Diagnostic output → stderr. Use when stdout must carry only a
- * machine-readable payload (e.g. `validate --format json`).
+ * The command's result payload: the table report, JSON, or Markdown.
+ * Bound to STDOUT — payloads are the only thing that belongs there.
  */
-export const Diagnostic = makeOutput(writeStderr);
+export const Payload = makeOutput((text) => writeAll(Deno.stdout, text));

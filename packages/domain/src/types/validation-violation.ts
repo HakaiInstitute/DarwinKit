@@ -23,8 +23,16 @@
  * and aggregates them into the final WorkspaceValidationResult data structure.
  */
 
+import * as Match from "effect/Match";
 import * as S from "effect/Schema";
-import type { RequirementLevel } from "../specs/constraints.ts";
+import { ConstraintFormat, type RequirementLevel } from "../specs/constraints.ts";
+
+/**
+ * Severity of a violation — determines how it is reported.
+ */
+export const Severity = S.Literals(["error", "warning", "info"]);
+
+export type Severity = typeof Severity.Type;
 
 /**
  * Partitioned violations by severity level
@@ -49,7 +57,7 @@ export interface PartitionedViolations<T> {
  * "optional" → INFO.
  */
 const baseViolationFields = {
-  severity: S.Literals(["error", "warning", "info"]),
+  severity: Severity,
   fieldName: S.String,
   targetName: S.String,
   rowNumber: S.Number,
@@ -92,7 +100,7 @@ export class EnumViolation extends S.TaggedClass<EnumViolation>()("EnumViolation
 
 export class FormatViolation extends S.TaggedClass<FormatViolation>()("FormatViolation", {
   ...baseViolationFields,
-  format: S.String,
+  format: ConstraintFormat,
 }) {}
 
 export class PatternViolation extends S.TaggedClass<PatternViolation>()("PatternViolation", {
@@ -195,15 +203,13 @@ export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldV
   return v._tag === "RequiredFieldViolation";
 }
 
-export function requirementToSeverity(requirement: RequirementLevel): "error" | "warning" | "info" {
-  switch (requirement) {
-    case "required":
-      return "error";
-    case "recommended":
-      return "warning";
-    case "optional":
-      return "info";
-  }
+export function requirementToSeverity(requirement: RequirementLevel): Severity {
+  return Match.value(requirement).pipe(
+    Match.when("required", () => "error" as const),
+    Match.when("recommended", () => "warning" as const),
+    Match.when("optional", () => "info" as const),
+    Match.exhaustive,
+  );
 }
 
 /**
@@ -211,24 +217,20 @@ export function requirementToSeverity(requirement: RequirementLevel): "error" | 
  * Shared by {@link partitionFieldViolations} and `partitionSchemaViolations`.
  */
 export function partitionViolationsBySeverity<
-  T extends { readonly severity: "error" | "warning" | "info" },
+  T extends { readonly severity: Severity },
 >(violations: ReadonlyArray<T>): PartitionedViolations<T> {
   const errors: T[] = [];
   const warnings: T[] = [];
   const info: T[] = [];
 
   for (const violation of violations) {
-    switch (violation.severity) {
-      case "error":
-        errors.push(violation);
-        break;
-      case "warning":
-        warnings.push(violation);
-        break;
-      case "info":
-        info.push(violation);
-        break;
-    }
+    const bucket = Match.value(violation.severity).pipe(
+      Match.when("error", () => errors),
+      Match.when("warning", () => warnings),
+      Match.when("info", () => info),
+      Match.exhaustive,
+    );
+    bucket.push(violation);
   }
 
   return { errors, warnings, info };

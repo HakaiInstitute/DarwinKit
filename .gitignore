@@ -39,6 +39,7 @@ packages/cli/transform_results
 .context/*
 
 # Git worktrees
+.claude/worktrees
 .worktrees/
 
 packages/cli/validation_results/

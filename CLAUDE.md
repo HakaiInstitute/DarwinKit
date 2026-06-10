@@ -390,6 +390,7 @@ The following enhancements are under consideration:
 - **Transform workflow config migration** - Transform configs still use `profile:` instead of `class:`, and transform profile resolution ignores the `standard` field
 - **Constraint tightening warnings** - Warn users when config constraints are semantically meaningless (e.g. wider range than spec)
 - **DuckDB CHECK constraints** - Schema creation runs before constraint resolution; restructuring would allow range/format constraints to reject bad data at INSERT time
+- **Replace `markdown_summary_action` format** - It conflates format (markdown), destination (always a file), and filename (fixed `validation-results.md`) in one enum value; it should become `--format markdown` plus explicit destination flags once the GitHub Action workflow can be updated in lockstep
 
 ## Development Guidelines
 

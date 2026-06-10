@@ -1,4 +1,5 @@
-import type { DatasetValidationResult } from "./workspace-validation.ts";
+import * as Match from "effect/Match";
+import type { DatasetValidationResult, ValidationStatus } from "./workspace-validation.ts";
 
 interface ValidationSummary {
   readonly totalDatasets: number;
@@ -30,14 +31,19 @@ export function calculateSummary(
       result.fieldViolations.warnings.length;
     totalInfo += result.schemaViolations.info.length + result.fieldViolations.info.length;
 
-    if (result.status === "pass" || result.status === "warn") {
-      datasetsPassedCount++;
-      if (result.status === "warn") {
+    Match.value(result.status).pipe(
+      Match.when("pass", () => {
+        datasetsPassedCount++;
+      }),
+      Match.when("warn", () => {
+        datasetsPassedCount++;
         datasetsWithWarningsCount++;
-      }
-    } else {
-      datasetsFailedCount++;
-    }
+      }),
+      Match.when("fail", () => {
+        datasetsFailedCount++;
+      }),
+      Match.exhaustive,
+    );
   }
 
   return {
@@ -54,7 +60,7 @@ export function calculateSummary(
 
 export function determineOverallStatus(
   summary: ValidationSummary,
-): "pass" | "warn" | "fail" {
+): ValidationStatus {
   if (summary.datasetsFailedCount > 0 || summary.totalErrors > 0) {
     return "fail";
   }
