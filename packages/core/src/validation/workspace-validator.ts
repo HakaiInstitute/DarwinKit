@@ -39,7 +39,7 @@ import {
   UnknownProfileViolation,
   UnmappedColumnViolation,
 } from "@dwkt/domain/types";
-import { importCsv } from "../loading/csv-import.ts";
+import { importCsv, importParquet } from "../loading/csv-import.ts";
 import { queryRows, sanitizeTableName } from "../loading/sql.ts";
 import { Workspace } from "../workspace/workspace.ts";
 
@@ -282,7 +282,11 @@ function importDatasets(
       // Prefix with 'raw_' to avoid name collision with the schema table
       const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
-      yield* importCsv(connection, tableName, filePath, nullValues);
+      if (filePath.toLowerCase().endsWith(".parquet")) {
+        yield* importParquet(connection, tableName, filePath);
+      } else {
+        yield* importCsv(connection, tableName, filePath, nullValues);
+      }
       const entry = resolvedFieldsMap.get(dataset.name);
       if (entry) {
         yield* importSchema(
