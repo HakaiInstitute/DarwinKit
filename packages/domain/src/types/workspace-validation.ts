@@ -19,13 +19,19 @@
 import type { FieldViolation, PartitionedViolations } from "./validation-violation.ts";
 import type { SchemaViolation } from "./schema-violation.ts";
 
+/**
+ * Outcome of validating a dataset or workspace:
+ * "pass" (no issues), "warn" (warnings only), or "fail" (errors present).
+ */
+export type ValidationStatus = "pass" | "warn" | "fail";
+
 export interface DatasetValidationResult {
   readonly datasetName: string;
   readonly class: string;
   readonly filePath: string;
   readonly rowsProcessed: number;
   readonly processingTimeMs: number;
-  readonly status: "pass" | "warn" | "fail";
+  readonly status: ValidationStatus;
 
   /** Schema-level violations (structural issues: missing fields, unknown profiles) */
   readonly schemaViolations: PartitionedViolations<SchemaViolation>;
@@ -39,7 +45,7 @@ export interface WorkspaceValidationResult {
   readonly configPath: string;
   readonly validatedAt: Date;
   readonly totalProcessingTimeMs: number;
-  readonly overallStatus: "pass" | "warn" | "fail";
+  readonly overallStatus: ValidationStatus;
 
   readonly datasetResults: ReadonlyArray<DatasetValidationResult>;
   readonly summary: {

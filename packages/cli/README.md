@@ -36,18 +36,28 @@ deno task dev validate
 # Specify config directory
 deno task dev validate --config /path/to/workspace
 
-# Output as JSON
+# Output results as JSON to stdout (pipeable, e.g. into jq)
 deno task dev validate --format json
 
-# Specify output directory for JSON results
+# Output results as Markdown to stdout
+deno task dev validate --format markdown
+
+# Write results to a file instead of stdout
 deno task dev validate --format json --output-dir ./results
 ```
 
 **Options:**
 
 - `--config <path>` - Path to configuration directory (defaults to current directory)
-- `--format <format>` - Output format: `table` (default) or `json`
-- `--output-dir <path>` - Directory for JSON output files (default: `./validation_results`)
+- `--format <format>` - Output format: `table` (default), `json`, or `markdown`
+- `--output-dir <path>` - Write JSON/Markdown results to a file in this directory instead of stdout. When omitted, `json` and `markdown` are written to stdout.
+- `--fail-fast` - Stop validation on the first dataset with errors
+- `--strict` - Exit with code 2 when warnings are present (default: warnings exit 0)
+
+All human-readable diagnostics (progress, status, errors) are written to **stderr** for every
+format, so stdout always carries exactly one thing: the result payload (table report, JSON, or
+Markdown). `darwinkit validate --format json | jq .` and `darwinkit validate > report.txt` both
+work without diagnostics mixed into the output (set `NO_COLOR=1` for a plain-text report).
 
 ## Testing
 

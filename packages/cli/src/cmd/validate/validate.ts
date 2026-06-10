@@ -13,9 +13,30 @@ import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Match from 'effect/Match';
 import { CLIError, OutputError } from '../../errors.ts';
-import { Output } from '../../utils/output.ts';
+import { Output, Payload } from '../../utils/output.ts';
 import { ProgressSpinner } from '../../utils/spinner.ts';
 import { groupViolationsByField, renderValidationMarkdown } from './markdown-renderer.ts';
+
+// markdown_summary_action is CI-internal (GitHub Action) and intentionally
+// omitted from user-facing format lists (--format help, unknown-format warning).
+const VALIDATE_FORMATS = ['table', 'json', 'markdown', 'markdown_summary_action'] as const;
+type ValidateFormat = typeof VALIDATE_FORMATS[number];
+
+function isValidateFormat(value: string): value is ValidateFormat {
+  return (VALIDATE_FORMATS as readonly string[]).includes(value);
+}
+
+/** Render the machine-readable payload for a non-table format. */
+function renderPayload(
+  format: Exclude<ValidateFormat, 'table'>,
+  results: WorkspaceValidationResult,
+): string {
+  return Match.value(format).pipe(
+    Match.when('json', () => JSON.stringify(results, null, 2)),
+    Match.whenOr('markdown', 'markdown_summary_action', () => renderValidationMarkdown(results)),
+    Match.exhaustive,
+  );
+}
 
 /**
  * Render one severity section (errors/warnings/info) of the table output.
@@ -45,38 +66,71 @@ function renderTableViolationSection(
       const firstViolation = violations[0];
       write(`    • ${fieldName} (${firstViolation._tag}): ${violations.length} violations`);
       for (const violation of violations.slice(0, 3)) {
-        Output.muted(`      - Row ${violation.rowNumber}: ${violation.errorMessage}`);
+        Payload.muted(`      - Row ${violation.rowNumber}: ${violation.errorMessage}`);
       }
       if (violations.length > 3) {
-        Output.muted(`      ... and ${violations.length - 3} more violations`);
+        Payload.muted(`      ... and ${violations.length - 3} more violations`);
       }
     }
   }
 
-  Output.blank();
+  Payload.blank();
+}
+
+/** Write the status/summary footer to stderr. */
+function printSummary(results: WorkspaceValidationResult): void {
+  const status = results.overallStatus;
+  const writeStatus = Match.value(status).pipe(
+    Match.when('fail', () => Output.error),
+    Match.when('warn', () => Output.warning),
+    Match.when('pass', () => Output.success),
+    Match.exhaustive,
+  );
+  writeStatus(`Overall status: ${status}`);
+  const warningNote = results.summary.datasetsWithWarningsCount > 0
+    ? ` (${results.summary.datasetsWithWarningsCount} with warnings)`
+    : '';
+  Output.line(
+    `Datasets: ${results.summary.datasetsPassedCount} passed${warningNote}, ${results.summary.datasetsFailedCount} failed`,
+  );
 }
 
 function outputResults(
   results: WorkspaceValidationResult,
-  format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
-  outputDir?: string,
+  format: ValidateFormat,
+  outputDir: string | undefined,
 ): Effect.Effect<void, OutputError> {
   return Effect.gen(function* () {
-    if (format === 'json') {
-      yield* outputJsonResultsEffect(results, outputDir);
-    } else if (format === 'markdown') {
-      yield* outputMarkdownResultsEffect(results, outputDir, false);
-    } else if (format === 'markdown_summary_action') {
-      yield* outputMarkdownResultsEffect(results, outputDir, true);
-    } else {
+    if (format === 'table') {
       outputTableResults(results);
+    } else {
+      const payload = renderPayload(format, results);
+
+      if (format === 'markdown_summary_action') {
+        // GitHub Action consumer: fixed filename, defaults to ./validation_results.
+        yield* writeResultsFile(outputDir, 'validation-results.md', payload, 'Markdown results');
+      } else if (outputDir !== undefined) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const extension = format === 'json' ? 'json' : 'md';
+        const label = format === 'json' ? 'Results' : 'Markdown results';
+
+        yield* writeResultsFile(
+          outputDir,
+          `validation-results-${timestamp}.${extension}`,
+          payload,
+          label,
+        );
+      } else {
+        Payload.line(payload);
+      }
     }
+
+    printSummary(results);
   });
 }
 
-/** Shared: write a results file (mkdir + write) and print the summary footer. */
+/** Shared: write a results file (mkdir + write) and confirm on stderr. */
 function writeResultsFile(
-  results: WorkspaceValidationResult,
   outputDir: string | undefined,
   filename: string,
   content: string,
@@ -108,80 +162,32 @@ function writeResultsFile(
 
     Output.success(`${label} written to: ${fullPath}`);
     Output.blank();
-    Output.line(`Overall status: ${results.overallStatus}`);
-    const warningNote = results.summary.datasetsWithWarningsCount > 0
-      ? ` (${results.summary.datasetsWithWarningsCount} with warnings)`
-      : '';
-    Output.line(
-      `Datasets: ${results.summary.datasetsPassedCount} passed${warningNote}, ${results.summary.datasetsFailedCount} failed`,
-    );
   });
-}
-
-function outputJsonResultsEffect(
-  results: WorkspaceValidationResult,
-  outputDir?: string,
-): Effect.Effect<void, OutputError> {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return writeResultsFile(
-    results,
-    outputDir,
-    `validation-results-${timestamp}.json`,
-    JSON.stringify(results, null, 2),
-    'Results',
-  );
-}
-
-function outputMarkdownResultsEffect(
-  results: WorkspaceValidationResult,
-  outputDir?: string,
-  github_action?: boolean,
-): Effect.Effect<void, OutputError> {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const filename = github_action ? 'validation-results.md' : `validation-results-${timestamp}.md`;
-  return writeResultsFile(
-    results,
-    outputDir,
-    filename,
-    renderValidationMarkdown(results),
-    'Markdown results',
-  );
 }
 
 function handleValidationResults(
   results: WorkspaceValidationResult,
 ): Effect.Effect<void, CLIError> {
-  return Effect.gen(function* () {
-    switch (results.overallStatus) {
-      case 'fail':
-        yield* Effect.fail(
-          new CLIError({
-            message: 'Validation failed',
-            hint: 'Fix the errors above before proceeding.',
-            exitCode: 1,
-          }),
-        );
-        break;
-      case 'warn':
-        yield* Effect.fail(
-          new CLIError({
-            message: 'Validation passed with warnings',
-            hint: 'Consider reviewing the warnings above.',
-            exitCode: 2,
-          }),
-        );
-        break;
-      case 'pass':
-        break;
-      default:
-        yield* Effect.fail(
-          new CLIError({
-            message: 'Unknown validation status',
-            exitCode: 3,
-          }),
-        );
-    }
-  });
+  return Match.value(results.overallStatus).pipe(
+    Match.when('fail', () =>
+      Effect.fail(
+        new CLIError({
+          message: 'Validation failed',
+          hint: 'Fix the errors above before proceeding.',
+          exitCode: 1,
+        }),
+      )),
+    Match.when('warn', () =>
+      Effect.fail(
+        new CLIError({
+          message: 'Validation passed with warnings',
+          hint: 'Consider reviewing the warnings above.',
+          exitCode: 2,
+        }),
+      )),
+    Match.when('pass', () => Effect.void),
+    Match.exhaustive,
+  );
 }
 
 function handleValidateError(
@@ -192,13 +198,8 @@ function handleValidateError(
 
   const exitCode = Match.value(error).pipe(
     Match.tag('CLIError', (e) => {
-      if (e.exitCode === 1) {
-        Output.error('Overall status: FAILED');
-      } else if (e.exitCode === 2) {
-        Output.warning('Overall status: PASSED with warnings');
-      }
       if (e.hint) {
-        Output.muted(`   ${e.hint}`);
+        Output.muted(e.hint);
       }
       return options?.strict ? e.exitCode : (e.exitCode === 2 ? 0 : e.exitCode);
     }),
@@ -286,7 +287,7 @@ function handleValidateError(
 
 function buildValidationEffect(
   configPath: string | undefined,
-  format: 'table' | 'json' | 'markdown' | 'markdown_summary_action',
+  format: ValidateFormat,
   outputDir: string | undefined,
   spinner: ProgressSpinner,
   failFast?: boolean,
@@ -314,20 +315,13 @@ async function validate(options: {
   failFast?: boolean;
   strict?: boolean;
 }) {
-  if (
-    options.format &&
-    !['json', 'markdown', 'markdown_summary_action', 'table'].includes(options.format)
-  ) {
-    console.warn(
+  if (options.format && !isValidateFormat(options.format)) {
+    Output.warning(
       `Unknown format "${options.format}" — using "table". Valid formats: json, markdown, table`,
     );
   }
 
-  const validFormat = (
-      options.format === 'json' ||
-      options.format === 'markdown' ||
-      options.format === 'markdown_summary_action'
-    )
+  const validFormat: ValidateFormat = options.format && isValidateFormat(options.format)
     ? options.format
     : 'table';
 
@@ -361,16 +355,15 @@ async function validate(options: {
       Deno.exit(3);
     }
   } else {
-    Output.success('Overall status: PASSED');
     Deno.exit(0);
   }
 }
 
 function outputTableResults(results: WorkspaceValidationResult) {
-  Output.blank();
-  Output.bold('Workspace validation completed');
-  Output.muted(`Configuration: ${results.configPath}`);
-  Output.blank();
+  Payload.blank();
+  Payload.bold('Workspace validation completed');
+  Payload.muted(`Configuration: ${results.configPath}`);
+  Payload.blank();
 
   const table = new Table()
     .header(['Dataset', 'Type', 'Status', 'Errors', 'Warnings', 'Info'])
@@ -378,11 +371,12 @@ function outputTableResults(results: WorkspaceValidationResult) {
 
   for (const dataset of results.datasetResults) {
     const statusText = dataset.status.toUpperCase();
-    const coloredStatus = dataset.status === 'fail'
-      ? colors.red(statusText)
-      : dataset.status === 'warn'
-      ? colors.yellow(statusText)
-      : colors.green(statusText);
+    const coloredStatus = Match.value(dataset.status).pipe(
+      Match.when('fail', () => colors.red(statusText)),
+      Match.when('warn', () => colors.yellow(statusText)),
+      Match.when('pass', () => colors.green(statusText)),
+      Match.exhaustive,
+    );
 
     const errorCount = dataset.schemaViolations.errors.length +
       dataset.fieldViolations.errors.length;
@@ -404,7 +398,7 @@ function outputTableResults(results: WorkspaceValidationResult) {
   }
 
   table.render();
-  Output.blank();
+  Payload.blank();
 
   for (const dataset of results.datasetResults) {
     const hasErrors = dataset.schemaViolations.errors.length > 0 ||
@@ -417,52 +411,52 @@ function outputTableResults(results: WorkspaceValidationResult) {
       dataset.fieldViolations.info.length > 0;
 
     if (hasErrors || hasWarnings || hasInfo) {
-      Output.blank();
-      Output.bold(`${dataset.datasetName} (${dataset.class})`);
-      Output.blank();
+      Payload.blank();
+      Payload.bold(`${dataset.datasetName} (${dataset.class})`);
+      Payload.blank();
     }
 
     renderTableViolationSection(
       'Errors',
-      (m) => Output.error(m),
+      (m) => Payload.error(m),
       dataset.schemaViolations.errors,
       dataset.fieldViolations.errors,
     );
 
     renderTableViolationSection(
       'Warnings',
-      (m) => Output.warning(m),
+      (m) => Payload.warning(m),
       dataset.schemaViolations.warnings,
       dataset.fieldViolations.warnings,
     );
 
     renderTableViolationSection(
       'Info',
-      (m) => Output.info(m),
+      (m) => Payload.info(m),
       dataset.schemaViolations.info,
       dataset.fieldViolations.info,
     );
   }
 
-  Output.bold('Summary:');
-  Output.line(`  Datasets processed: ${results.summary.totalDatasets}`);
+  Payload.bold('Summary:');
+  Payload.line(`  Datasets processed: ${results.summary.totalDatasets}`);
   const passedLabel = results.summary.datasetsWithWarningsCount > 0
     ? `${results.summary.datasetsPassedCount} (${results.summary.datasetsWithWarningsCount} with warnings)`
     : `${results.summary.datasetsPassedCount}`;
-  Output.line(`  ${colors.green('Passed')}: ${passedLabel}`);
-  Output.line(
+  Payload.line(`  ${colors.green('Passed')}: ${passedLabel}`);
+  Payload.line(
     `  ${colors.red('Failed')}: ${results.summary.datasetsFailedCount}`,
   );
-  Output.blank();
-  Output.line(`  ${colors.red('Errors')}: ${results.summary.totalErrors}`);
-  Output.line(
+  Payload.blank();
+  Payload.line(`  ${colors.red('Errors')}: ${results.summary.totalErrors}`);
+  Payload.line(
     `  ${colors.yellow('Warnings')}: ${results.summary.totalWarnings}`,
   );
-  Output.line(`  ${colors.blue('Info')}: ${results.summary.totalInfo}`);
-  Output.blank();
-  Output.line(`  Total rows processed: ${results.summary.totalRowsProcessed}`);
-  Output.line(`  Processing time: ${results.totalProcessingTimeMs}ms`);
-  Output.blank();
+  Payload.line(`  ${colors.blue('Info')}: ${results.summary.totalInfo}`);
+  Payload.blank();
+  Payload.line(`  Total rows processed: ${results.summary.totalRowsProcessed}`);
+  Payload.line(`  Processing time: ${results.totalProcessingTimeMs}ms`);
+  Payload.blank();
 }
 
 export const validateCommand = new Command()
@@ -475,13 +469,12 @@ export const validateCommand = new Command()
   )
   .option(
     '--format <format:string>',
-    'Output format: table or json',
+    'Output format: table (default), json, or markdown',
     { default: 'table' },
   )
   .option(
     '--output-dir <path:string>',
-    'Directory for output files (used with --format json)',
-    { default: './validation_results' },
+    'Write JSON/Markdown results to a file in this directory instead of stdout',
   )
   .option(
     '--fail-fast',

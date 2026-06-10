@@ -22,9 +22,10 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
+import * as Match from "effect/Match";
 import * as Result from "effect/Result";
 
-import type { Constraint, SpecField } from "@dwkt/domain/specs";
+import type { Constraint, ConstraintFormat, SpecField } from "@dwkt/domain/specs";
 import { type RequiredConstraint, strictestRequired } from "@dwkt/domain/specs";
 import type { FieldViolation, ValidField } from "@dwkt/domain/types";
 import {
@@ -274,47 +275,43 @@ function validateUniqueness(
  * uses read_csv_auto() which auto-detects types (DATE, DOUBLE, etc.).
  * Applying TRY_STRPTIME or regexp_matches on non-VARCHAR columns can crash DuckDB.
  */
-function formatSqlCondition(fieldName: string, format: string): string | undefined {
+function formatSqlCondition(fieldName: string, format: ConstraintFormat): string {
   // Use CAST to VARCHAR for all string operations to avoid crashes on auto-typed columns
   const asText = `CAST("${fieldName}" AS VARCHAR)`;
-  switch (format) {
-    case "iso8601":
-      // Accept single dates and date ranges (YYYY-MM-DD/YYYY-MM-DD)
-      // TRY_STRPTIME handles single dates; regex handles ranges
-      return `"${fieldName}" IS NOT NULL
+  return Match.value(format).pipe(
+    // Accept single dates and date ranges (YYYY-MM-DD/YYYY-MM-DD)
+    // TRY_STRPTIME handles single dates; regex handles ranges
+    Match.when("iso8601", () =>
+      `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
         AND TRY_STRPTIME(${asText}, '%Y-%m-%d') IS NULL
         AND TRY_STRPTIME(${asText}, '%Y-%m-%dT%H:%M:%S') IS NULL
         AND TRY_STRPTIME(${asText}, '%Y-%m-%dT%H:%M:%SZ') IS NULL
         AND TRY_STRPTIME(${asText}, '%Y-%m') IS NULL
         AND TRY_STRPTIME(${asText}, '%Y') IS NULL
-        AND NOT regexp_matches(${asText}, '^\\d{4}-\\d{2}-\\d{2}/\\d{4}-\\d{2}-\\d{2}$')`;
-    case "url":
-      return `"${fieldName}" IS NOT NULL
+        AND NOT regexp_matches(${asText}, '^\\d{4}-\\d{2}-\\d{2}/\\d{4}-\\d{2}-\\d{2}$')`),
+    Match.when("url", () =>
+      `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND NOT regexp_matches(${asText}, '^https?://[^\\s]+$')`;
-    case "uuid":
-      return `"${fieldName}" IS NOT NULL
+        AND NOT regexp_matches(${asText}, '^https?://[^\\s]+$')`),
+    Match.when("uuid", () =>
+      `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND NOT regexp_matches(${asText}, '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')`;
-    case "decimal-degrees":
-      return `"${fieldName}" IS NOT NULL
+        AND NOT regexp_matches(${asText}, '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')`),
+    Match.when("decimal-degrees", () =>
+      `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND TRY_CAST(${asText} AS DOUBLE) IS NULL`;
-    case "integer":
-      return `"${fieldName}" IS NOT NULL
+        AND TRY_CAST(${asText} AS DOUBLE) IS NULL`),
+    Match.when("integer", () =>
+      `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND TRY_CAST(${asText} AS INTEGER) IS NULL`;
-    case "email":
-      return `"${fieldName}" IS NOT NULL
+        AND TRY_CAST(${asText} AS INTEGER) IS NULL`),
+    Match.when("email", () =>
+      `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND NOT regexp_matches(${asText}, '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')`;
-    default:
-      console.warn(
-        `Unknown format type "${format}" — skipping validation for field "${fieldName}"`,
-      );
-      return undefined;
-  }
+        AND NOT regexp_matches(${asText}, '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')`),
+    Match.exhaustive,
+  );
 }
 
 export function findFormatViolations(
@@ -327,10 +324,6 @@ export function findFormatViolations(
 ): Effect.Effect<ValidField, FormatViolation[]> {
   return Effect.gen(function* () {
     const condition = formatSqlCondition(fieldName, constraint.format);
-    if (!condition) {
-      return validField(fieldName, specField.name);
-    }
-
     const query = `
       SELECT _row_number, CAST("${fieldName}" AS VARCHAR) as value
       FROM ${tableName}

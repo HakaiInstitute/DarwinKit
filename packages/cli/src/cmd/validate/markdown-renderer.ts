@@ -1,21 +1,19 @@
 import type {
   DatasetValidationResult,
   FieldViolation,
+  ValidationStatus,
   WorkspaceValidationResult,
 } from '@dwkt/domain/types';
 import type { SchemaViolation } from '@dwkt/domain/types';
+import * as Match from 'effect/Match';
 
-function getStatusIcon(status: string): string {
-  switch (status) {
-    case 'pass':
-      return '\u2705';
-    case 'warn':
-      return '\u26A0\uFE0F';
-    case 'fail':
-      return '\u274C';
-    default:
-      return '\u2753';
-  }
+function getStatusIcon(status: ValidationStatus): string {
+  return Match.value(status).pipe(
+    Match.when('pass', () => '\u2705'),
+    Match.when('warn', () => '\u26A0\uFE0F'),
+    Match.when('fail', () => '\u274C'),
+    Match.exhaustive,
+  );
 }
 
 function renderHeader(configPath: string): string {

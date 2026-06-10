@@ -1,4 +1,5 @@
 import * as Data from "effect/Data";
+import * as Match from "effect/Match";
 import * as S from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
@@ -63,14 +64,19 @@ export class LengthConstraint extends Data.TaggedClass("length")<{
   readonly message?: string;
 }> {}
 
+export const ConstraintFormat = S.Literals([
+  "email",
+  "url",
+  "uuid",
+  "iso8601",
+  "decimal-degrees",
+  "integer",
+]);
+
+export type ConstraintFormat = typeof ConstraintFormat.Type;
+
 export class FormatConstraint extends Data.TaggedClass("format")<{
-  readonly format:
-    | "email"
-    | "url"
-    | "uuid"
-    | "iso8601"
-    | "decimal-degrees"
-    | "integer";
+  readonly format: ConstraintFormat;
   readonly message?: string;
 }> {}
 
@@ -228,14 +234,14 @@ const FormatConstraintSchema = constraintCodec(
   "format",
   S.Struct({
     type: S.tag("format"),
-    format: S.Literals(["email", "url", "uuid", "iso8601", "decimal-degrees", "integer"]),
+    format: ConstraintFormat,
     message: S.optional(S.String),
   }),
   S.instanceOf(FormatConstraint),
   (rest) =>
     new FormatConstraint(
       rest as {
-        format: "email" | "url" | "uuid" | "iso8601" | "decimal-degrees" | "integer";
+        format: ConstraintFormat;
         message?: string;
       },
     ),
@@ -317,18 +323,18 @@ export function strictestRequired(
 export function obligationToRequirement(
   obligation: Obligation,
 ): RequirementLevel | undefined {
-  switch (obligation) {
-    case "required":
-      return "required";
-    case "strongly recommended":
-      return "recommended";
-    case "recommended":
-      return "optional";
-    case "optional":
-    case "optional (required for imaging data)":
-    case "required (if exists)":
-      return undefined;
-  }
+  return Match.value(obligation).pipe(
+    Match.when("required", () => "required" as const),
+    Match.when("strongly recommended", () => "recommended" as const),
+    Match.when("recommended", () => "optional" as const),
+    Match.whenOr(
+      "optional",
+      "optional (required for imaging data)",
+      "required (if exists)",
+      () => undefined,
+    ),
+    Match.exhaustive,
+  );
 }
 
 /**

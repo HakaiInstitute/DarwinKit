@@ -2,13 +2,13 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import type {
   DatasetRuleConfig,
   ResolvedSpec,
+  ResolvedStandard,
   TransformField,
   WorkspaceFieldMapping,
 } from "@dwkt/domain/schemas";
-import type { ResolvedStandard } from "@dwkt/domain/schemas";
 
-import { obligationForStandard, resolveProfile } from "@dwkt/domain/specs";
 import { WorkspaceImportError } from "@dwkt/domain/errors";
+import { obligationForStandard, resolveProfile } from "@dwkt/domain/specs";
 import * as Effect from "effect/Effect";
 import { deriveRequirementFromConstraints } from "../validation/field-resolution.ts";
 import { findForeignKeyRule, sanitizeTableName } from "./sql.ts";

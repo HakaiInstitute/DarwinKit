@@ -1,40 +1,74 @@
-import { tty } from '@cliffy/ansi/tty';
 import { colors } from '@cliffy/ansi/colors';
 
-export const Output = {
-  line(text = ''): void {
-    tty.text(text + '\n');
-  },
+const encoder = new TextEncoder();
 
-  blank(): void {
-    tty.text('\n');
-  },
+interface SyncWriter {
+  writeSync(p: Uint8Array): number;
+}
 
-  info(message: string): void {
-    tty.text(colors.blue(message) + '\n');
-  },
+/**
+ * Write all of `text` to the stream, draining partial writes
+ * (`writeSync` may consume fewer bytes than offered).
+ */
+export function writeAll(stream: SyncWriter, text: string): void {
+  const data = encoder.encode(text);
+  let written = 0;
 
-  success(message: string): void {
-    tty.text(colors.green(message) + '\n');
-  },
+  while (written < data.length) {
+    const n = stream.writeSync(data.subarray(written));
+    if (n === 0) {
+      // A stalled writer would otherwise spin this loop forever.
+      throw new Error(
+        `writeSync made no progress (${written}/${data.length} bytes written)`,
+      );
+    }
+    written += n;
+  }
+}
 
-  error(message: string): void {
-    tty.text(colors.red(message) + '\n');
-  },
+/** Builds an output helper that writes every line through the given sink. */
+export function makeOutput(write: (text: string) => void) {
+  return {
+    line(text = ''): void {
+      write(text + '\n');
+    },
+    blank(): void {
+      write('\n');
+    },
+    info(message: string): void {
+      write(colors.blue(message) + '\n');
+    },
+    success(message: string): void {
+      write(colors.green(message) + '\n');
+    },
+    error(message: string): void {
+      write(colors.red(message) + '\n');
+    },
+    warning(message: string): void {
+      write(colors.yellow(message) + '\n');
+    },
+    muted(message: string): void {
+      write(colors.gray(message) + '\n');
+    },
+    bold(message: string): void {
+      write(colors.bold(message) + '\n');
+    },
+    section(emoji: string, title: string): void {
+      write('\n' + colors.blue(`${emoji} ${title}`) + '\n');
+    },
+  };
+}
 
-  warning(message: string): void {
-    tty.text(colors.yellow(message) + '\n');
-  },
+/**
+ * Human-facing messages: status, progress, errors, hints. Bound to STDERR
+ * so stdout stays clean for payloads — `validate --format json | jq` works
+ * in every mode, and `2>/dev/null` silences diagnostics without touching
+ * results.
+ */
+export const Output = makeOutput((text) => writeAll(Deno.stderr, text));
 
-  muted(message: string): void {
-    tty.text(colors.gray(message) + '\n');
-  },
-
-  bold(message: string): void {
-    tty.text(colors.bold(message) + '\n');
-  },
-
-  section(emoji: string, title: string): void {
-    tty.text('\n' + colors.blue(`${emoji} ${title}`) + '\n');
-  },
-};
+/**
+ * The command's result payload: the table report, JSON, or Markdown.
+ * Bound to STDOUT — payloads are the only thing that belongs there.
+ */
+export const Payload = makeOutput((text) => writeAll(Deno.stdout, text));
