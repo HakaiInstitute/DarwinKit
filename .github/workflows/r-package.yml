@@ -12,9 +12,11 @@ jobs:
   test-r:
     runs-on: ubuntu-latest
     steps:
+      # No submodules: the R job needs none. `compile:linux` bundles the
+      # committed dwcSchema.json and the tests run against committed fixtures
+      # (packages/r/tests/testthat/fixtures), so checking out the SSH-only
+      # private data submodules would only make checkout fail.
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
