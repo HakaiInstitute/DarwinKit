@@ -7,17 +7,27 @@ the DarwinKit CLI uses.
 
 ## Install the engine
 
-The package shells out to the `dwkt` binary:
+The package shells out to the `dwkt` binary. Install it once from R:
+
+```r
+darwinkit::dwk_install_engine()
+```
+
+This downloads the right build for your platform into a managed per-user
+location where the package finds it automatically — no `PATH` setup needed.
+Re-run with `dwk_install_engine(force = TRUE)` to upgrade.
+
+Prefer to manage the binary yourself (e.g. in CI or Docker)? Download it
+directly and put it on your `PATH` as `dwkt`, or point `DARWINKIT_BIN` at it:
 
 ```sh
 # macOS
 curl -L -o dwkt https://github.com/HakaiInstitute/DarwinKit/releases/latest/download/dwkt-macos && chmod +x dwkt
 # Linux
 curl -L -o dwkt https://github.com/HakaiInstitute/DarwinKit/releases/latest/download/dwkt-linux && chmod +x dwkt
+# Windows (PowerShell)
+curl.exe -L -o dwkt.exe https://github.com/HakaiInstitute/DarwinKit/releases/latest/download/dwkt-windows.exe
 ```
-
-Put it on your `PATH` as `dwkt`, or point the `DARWINKIT_BIN` environment
-variable at it.
 
 ## Quickstart
 
