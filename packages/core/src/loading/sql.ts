@@ -4,7 +4,7 @@
  * @module loading/sql
  */
 
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { DuckDBConnection, DuckDBValue, Json } from "@duckdb/node-api";
 import type { DatasetRuleConfig, ForeignKeyRuleMatch } from "@dwkt/domain/schemas";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
@@ -22,10 +22,14 @@ export function sanitizeTableName(name: string): string {
  * user-supplied regex in `findPatternViolations`) deliberately use
  * `Effect.tryPromise` + `Effect.result` directly instead of this helper.
  */
-export function queryRows(connection: DuckDBConnection, sql: string) {
-  return Effect.tryPromise(() => connection.runAndReadAll(sql)).pipe(
+export function queryRows(
+  connection: DuckDBConnection,
+  sql: string,
+  values?: DuckDBValue[] | Record<string, DuckDBValue>,
+): Effect.Effect<Record<string, Json>[]> {
+  return Effect.tryPromise(() => connection.runAndReadAll(sql, values)).pipe(
     Effect.orDie,
-    Effect.map((result) => result.getRowObjects()),
+    Effect.map((result) => result.getRowObjectsJson()),
   );
 }
 
