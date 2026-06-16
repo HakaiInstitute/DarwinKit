@@ -56,14 +56,14 @@ Deno.test("exportTablesToCSV - exports tables to CSV without timestamps", async 
     const eventCsvPath = `${outputDir}/event.csv`;
     const eventCsvContent = await Deno.readTextFile(eventCsvPath);
     assertExists(eventCsvContent, "event.csv should be created");
-    // json-2-csv default format (unquoted headers and text values)
-    assertEquals(eventCsvContent.trim(), `eventID,year\r\nevt1,2023`);
+    // DuckDB COPY ... TO (FORMAT CSV, HEADER): LF line endings, unquoted values.
+    assertEquals(eventCsvContent.trim(), `eventID,year\nevt1,2023`);
 
     // Check occurrence.csv
     const occurrenceCsvPath = `${outputDir}/occurrence.csv`;
     const occurrenceCsvContent = await Deno.readTextFile(occurrenceCsvPath);
     assertExists(occurrenceCsvContent, "occurrence.csv should be created");
-    assertEquals(occurrenceCsvContent.trim(), `occurrenceID,eventID\r\nocc1,evt1`);
+    assertEquals(occurrenceCsvContent.trim(), `occurrenceID,eventID\nocc1,evt1`);
   } finally {
     // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
@@ -119,15 +119,15 @@ Deno.test("exportTablesToCSV - drops null columns when configured", async () => 
 
     const [header, ...rows] = csvContent.trim().split("\n");
 
-    // The 'remarks' column should not be in the header
-    // Note: json-2-csv default format is unquoted
+    // The 'remarks' column should not be in the header.
+    // DuckDB COPY output is unquoted with LF line endings.
     assertStringIncludes(header, "eventID", "Header should contain eventID");
     assertStringIncludes(header, "year", "Header should contain year");
     assertStringIncludes(header, "month", "Header should contain month");
     assertFalse(header.includes("remarks"), "Header should NOT contain the null column 'remarks'");
 
     assertEquals(rows.length, 2, "CSV should contain 2 data rows");
-    assertEquals(rows[0], `evt1,2023,1\r`);
+    assertEquals(rows[0], `evt1,2023,1`);
     assertEquals(rows[1], `evt2,2024,2`);
   } finally {
     // 5. Teardown
