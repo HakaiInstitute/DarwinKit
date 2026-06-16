@@ -1,5 +1,5 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
-import { DuckDBInstance } from "@duckdb/node-api";
+import { scopedConnection } from "../loading/connection.ts";
 import { dirname, join, resolve } from "@std/path";
 import { parse as parseYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
@@ -39,7 +39,6 @@ export class Workspace {
     readonly configPath: string,
     readonly basePath: string,
     private readonly connection: DuckDBConnection,
-    private readonly instance: DuckDBInstance,
   ) {}
 
   get name(): string {
@@ -113,34 +112,18 @@ export class Workspace {
   static open(
     configPath?: string,
   ): Effect.Effect<Workspace, WorkspaceConfigError, Scope.Scope> {
-    return Effect.acquireRelease(
-      Effect.gen(function* () {
-        const resolvedPath = yield* discoverConfig(configPath);
-        const config = yield* loadConfig(resolvedPath);
-        const basePath = dirname(resolvedPath);
+    return Effect.gen(function* () {
+      const resolvedPath = yield* discoverConfig(configPath);
+      const config = yield* loadConfig(resolvedPath);
+      const basePath = dirname(resolvedPath);
 
-        yield* validateDatasetPaths(config, basePath);
+      yield* validateDatasetPaths(config, basePath);
 
-        // Creating an in-memory DuckDB is infrastructure: a failure here is a
-        // defect, not a user-fixable config problem. (Matches createWorkspaceFromConfig.)
-        const instance = yield* Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(
-          Effect.orDie,
-        );
+      // Scope-managed connection; released when the caller's scope closes.
+      const connection = yield* scopedConnection;
 
-        const connection = yield* Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie);
-
-        return new Workspace(config, resolvedPath, basePath, connection, instance);
-      }),
-      (workspace) =>
-        Effect.sync(() => {
-          try {
-            workspace.connection.closeSync();
-            workspace.instance.closeSync();
-          } catch {
-            // Ignore cleanup errors - resource may already be released
-          }
-        }),
-    );
+      return new Workspace(config, resolvedPath, basePath, connection);
+    });
   }
 }
 
