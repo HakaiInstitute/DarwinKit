@@ -33,10 +33,13 @@ export function importCsv(
       // Create sequence for deterministic row numbering
       await connection.run(`CREATE SEQUENCE ${sequenceName} START 1`);
 
+      // The path is bound (handles quotes/special chars); nullstr stays a literal list
+      // because DuckDB rejects a bound list for that named argument.
       await connection.run(
         `CREATE TABLE "${safeName}" AS
          SELECT *, nextval('${sequenceName}') as _row_number
-         FROM read_csv_auto('${csvPath}'${nullStrParam})`,
+         FROM read_csv_auto(?${nullStrParam})`,
+        [csvPath],
       );
     },
     catch: (error) =>
@@ -68,7 +71,8 @@ export function importParquet(
       await connection.run(
         `CREATE TABLE "${safeName}" AS
          SELECT *, nextval('${sequenceName}') as _row_number
-         FROM read_parquet('${parquetPath}')`,
+         FROM read_parquet(?)`,
+        [parquetPath],
       );
     },
     catch: (error) =>
