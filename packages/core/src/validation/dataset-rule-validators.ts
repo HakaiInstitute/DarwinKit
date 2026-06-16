@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { DuckDBConnection, DuckDBValue } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
 import type { DependencyRequire, DependencyRule } from "@dwkt/domain/specs";
@@ -7,7 +7,7 @@ import {
   type FieldViolation,
   requirementToSeverity,
 } from "@dwkt/domain/types";
-import { escapeString, queryRows } from "../loading/sql.ts";
+import { queryRows } from "../loading/sql.ts";
 
 function isOneOf(
   r: DependencyRequire,
@@ -25,22 +25,21 @@ function isFieldAbsent(field: string): string {
   return `("${field}" IS NULL OR TRIM(${asText}) = '')`;
 }
 
-function buildWhereClause(rule: DependencyRule): string {
+function buildWhereClause(rule: DependencyRule): { clause: string; params: DuckDBValue[] } {
   const conditions: string[] = [];
+  const params: DuckDBValue[] = [];
 
   // When condition (trigger)
   if (rule.when !== undefined) {
     if (typeof rule.when === "string") {
       conditions.push(isFieldPresent(rule.when));
     } else if ("equals" in rule.when) {
-      conditions.push(
-        `CAST("${rule.when.field}" AS VARCHAR) = '${escapeString(rule.when.equals)}'`,
-      );
+      conditions.push(`CAST("${rule.when.field}" AS VARCHAR) = ?`);
+      params.push(rule.when.equals);
     } else if ("in" in rule.when) {
-      const values = rule.when.in.map((v) => `'${escapeString(v)}'`).join(", ");
-      conditions.push(
-        `CAST("${rule.when.field}" AS VARCHAR) IN (${values})`,
-      );
+      const placeholders = rule.when.in.map(() => "?").join(", ");
+      conditions.push(`CAST("${rule.when.field}" AS VARCHAR) IN (${placeholders})`);
+      params.push(...rule.when.in);
     }
   }
 
@@ -55,7 +54,7 @@ function buildWhereClause(rule: DependencyRule): string {
     conditions.push(`(${missingAny.join(" OR ")})`);
   }
 
-  return conditions.join(" AND ");
+  return { clause: conditions.join(" AND "), params };
 }
 
 function buildDefaultMessage(rule: DependencyRule): string {
@@ -85,16 +84,16 @@ export function validateDependencyRule(
   maxViolations = 100,
 ): Effect.Effect<void, FieldViolation[]> {
   return Effect.gen(function* () {
-    const whereClause = buildWhereClause(rule);
+    const { clause, params } = buildWhereClause(rule);
     const query = `
       SELECT _row_number
       FROM ${tableName}
-      WHERE ${whereClause}
+      WHERE ${clause}
       ORDER BY _row_number
       LIMIT ${maxViolations}
     `;
 
-    const rows = yield* queryRows(connection, query);
+    const rows = yield* queryRows(connection, query, params);
     if (rows.length > 0) {
       const fields = isOneOf(rule.require) ? rule.require.oneOf : rule.require;
       const fieldLabel = Array.from(fields).join(", ");
