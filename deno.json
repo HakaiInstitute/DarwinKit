@@ -57,20 +57,12 @@
       ],
       "command": "deno task --cwd packages/cli compile:linux"
     },
-    "compile:windows": {
-      "dependencies": [
-        "import"
-      ],
-      "command": "deno task --cwd packages/cli compile:windows"
-    },
-    "schema:generate": "deno run --allow-read --allow-write packages/domain/src/schemas/generate-json-schema.ts",
-    "test:r": "Rscript -e 'testthat::test_local(\"packages/r\")'"
+    "schema:generate": "deno run --allow-read --allow-write packages/domain/src/schemas/generate-json-schema.ts"
   },
   "exclude": [
     "build",
     "coverage",
-    ".context",
-    "packages/r"
+    ".context"
   ],
   "fmt": {
     "useTabs": false,
@@ -82,9 +74,6 @@
     "include": [
       "packages/",
       "test/"
-    ],
-    "exclude": [
-      "packages/r"
     ]
   },
   "lint": {
@@ -96,9 +85,6 @@
     "include": [
       "packages/",
       "test/"
-    ],
-    "exclude": [
-      "packages/r"
     ]
   }
 }

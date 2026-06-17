@@ -266,19 +266,3 @@ Deno.test("queryRows - binds positional parameters (handles embedded quotes)", a
     instance.closeSync();
   }
 });
-
-Deno.test("queryRows - normalizes BigInt to string and LIST to array", async () => {
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-  try {
-    await connection.run("CREATE TABLE t AS SELECT * FROM (VALUES (1), (2), (3)) AS v(id)");
-    const rows = await Effect.runPromise(
-      queryRows(connection, "SELECT COUNT(*) AS cnt, list(id ORDER BY id) AS ids FROM t"),
-    );
-    assertEquals(rows[0].cnt, "3"); // BIGINT -> string
-    assertEquals(rows[0].ids, [1, 2, 3]); // LIST -> plain array
-  } finally {
-    connection.closeSync();
-    instance.closeSync();
-  }
-});

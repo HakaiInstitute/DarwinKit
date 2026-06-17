@@ -33,7 +33,7 @@ export function queryRows(
   );
 }
 
-export function escapeString(value: string): string {
+function escapeString(value: string): string {
   return value.replace(/'/g, "''");
 }
 
