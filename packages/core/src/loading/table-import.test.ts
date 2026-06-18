@@ -1,5 +1,5 @@
 /**
- * Tests for Parquet import.
+ * Tests for CSV and Parquet import.
  */
 
 import { DuckDBInstance } from "@duckdb/node-api";
@@ -59,5 +59,43 @@ Deno.test("importParquet - loads a parquet file with a 1-based _row_number", asy
     connection.closeSync();
     instance.closeSync();
     await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("importCsv - allVarchar loads every column as VARCHAR", async () => {
+  const instance = await DuckDBInstance.create(":memory:");
+  const connection = await instance.connect();
+  const csv = await Deno.makeTempFile({ suffix: ".csv" });
+  try {
+    await Deno.writeTextFile(csv, "id,count\nA,1\nB,2\n");
+    await Effect.runPromise(importCsv(connection, "raw_t", csv, [], { allVarchar: true }));
+    const types = await connection.runAndReadAll(
+      "SELECT column_type FROM (DESCRIBE raw_t) WHERE column_name = 'count'",
+    );
+    const rows = types.getRowObjects();
+    assertEquals(String(rows[0].column_type), "VARCHAR");
+  } finally {
+    connection.closeSync();
+    instance.closeSync();
+    await Deno.remove(csv);
+  }
+});
+
+Deno.test("importCsv - default still auto-detects numeric columns", async () => {
+  const instance = await DuckDBInstance.create(":memory:");
+  const connection = await instance.connect();
+  const csv = await Deno.makeTempFile({ suffix: ".csv" });
+  try {
+    await Deno.writeTextFile(csv, "id,count\nA,1\nB,2\n");
+    await Effect.runPromise(importCsv(connection, "raw_t", csv, []));
+    const types = await connection.runAndReadAll(
+      "SELECT column_type FROM (DESCRIBE raw_t) WHERE column_name = 'count'",
+    );
+    const rows = types.getRowObjects();
+    assertEquals(String(rows[0].column_type), "BIGINT");
+  } finally {
+    connection.closeSync();
+    instance.closeSync();
+    await Deno.remove(csv);
   }
 });

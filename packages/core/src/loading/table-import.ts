@@ -59,11 +59,21 @@ export function importCsv(
   tableName: string,
   csvPath: string,
   nullValues: readonly string[],
+  options?: { allVarchar?: boolean },
 ): Effect.Effect<void, WorkspaceImportError> {
   // nullstr stays a literal list because DuckDB rejects a bound list for that
   // named argument; its values are escaped by formatNullValues.
   const nullStrParam = nullValues.length > 0 ? `, nullstr=[${formatNullValues(nullValues)}]` : "";
-  return importTable(connection, tableName, csvPath, `read_csv_auto(?${nullStrParam})`, "CSV");
+  // all_varchar loads every column as text so the validators can check type
+  // validity themselves rather than letting read_csv_auto silently coerce.
+  const allVarcharParam = options?.allVarchar ? `, all_varchar=true` : "";
+  return importTable(
+    connection,
+    tableName,
+    csvPath,
+    `read_csv_auto(?${nullStrParam}${allVarcharParam})`,
+    "CSV",
+  );
 }
 
 export function importParquet(

@@ -1,10 +1,11 @@
 import type { DuckDBConnection, DuckDBValue } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
-import type { DependencyRequire, DependencyRule } from "@dwkit/domain/specs";
+import type { DependencyRequire, DependencyRule, RequirementLevel } from "@dwkit/domain/specs";
 import {
   DependencyViolation,
   type FieldViolation,
+  ForeignKeyViolation,
   requirementToSeverity,
 } from "@dwkit/domain/types";
 import { queryRows } from "../loading/sql.ts";
@@ -75,6 +76,70 @@ function buildDefaultMessage(rule: DependencyRule): string {
 
   const fields = rule.require.join(", ");
   return whenDesc ? `[${fields}] required ${whenDesc}` : `Fields [${fields}] are required`;
+}
+
+export function validateForeignKeyRule(
+  connection: DuckDBConnection,
+  childTable: string,
+  childColumn: string,
+  parentTable: string,
+  parentColumn: string,
+  options: {
+    requirement: RequirementLevel;
+    message?: string;
+    // Optional display names. When provided, the violation reports logical
+    // dataset/field names; otherwise it falls back to the physical SQL names.
+    sourceField?: string;
+    referencedTable?: string;
+    referencedField?: string;
+  },
+  maxViolations = 100,
+): Effect.Effect<void, FieldViolation[]> {
+  return Effect.gen(function* () {
+    const childText = `CAST(c."${childColumn}" AS VARCHAR)`;
+    const parentText = `CAST(p."${parentColumn}" AS VARCHAR)`;
+    const query = `
+      SELECT c._row_number, ${childText} AS value
+      FROM ${childTable} c
+      WHERE c."${childColumn}" IS NOT NULL
+        AND TRIM(${childText}) != ''
+        AND NOT EXISTS (
+          SELECT 1 FROM ${parentTable} p
+          WHERE ${parentText} = ${childText}
+        )
+      ORDER BY c._row_number
+      LIMIT ${maxViolations}
+    `;
+
+    const rows = yield* queryRows(connection, query);
+    if (rows.length > 0) {
+      const displayTable = options.referencedTable ?? parentTable;
+      const displayField = options.referencedField ?? parentColumn;
+      const hasRuleContext = options.referencedTable !== undefined &&
+        options.referencedField !== undefined;
+      const violations: FieldViolation[] = rows.map((row) => {
+        const value = String(row.value);
+        return new ForeignKeyViolation({
+          severity: requirementToSeverity(options.requirement),
+          fieldName: childColumn,
+          targetName: options.sourceField ?? childColumn,
+          rowNumber: Number(row._row_number),
+          value,
+          referencedTable: displayTable,
+          referencedField: displayField,
+          errorMessage: options.message ??
+            `Foreign key value "${value}" in ${childColumn} does not exist in ${displayTable}.${displayField}`,
+          ...(hasRuleContext && {
+            params: {
+              targetDataset: options.referencedTable,
+              targetField: options.referencedField,
+            },
+          }),
+        });
+      });
+      return yield* Effect.fail(violations);
+    }
+  });
 }
 
 export function validateDependencyRule(

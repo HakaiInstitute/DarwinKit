@@ -2,20 +2,21 @@
  * Field Validators
  *
  * SQL-based validators for field constraints. Each validator runs queries
- * against the raw table created by `read_csv_auto()`.
+ * against the raw table created by `read_csv_auto(..., all_varchar=true)`, so
+ * every column is loaded as VARCHAR and validators see the original CSV text.
  *
  * ## Column Type Strategy
  *
- * DuckDB's `read_csv_auto()` auto-detects column types (DATE, DOUBLE, INTEGER,
- * etc.). Validators that use string functions (TRY_STRPTIME, regexp_matches,
- * TRIM, LENGTH) CAST columns to VARCHAR first to avoid type errors. Numeric
- * validators use TRY_CAST to DOUBLE for the same reason.
+ * Because the validation raw table is all-VARCHAR, the string-function
+ * validators (TRY_STRPTIME, regexp_matches, TRIM, LENGTH) and the numeric
+ * validators (TRY_CAST to DOUBLE/INTEGER) operate on the original, un-coerced
+ * values. The `CAST(... AS VARCHAR)` wrappers are kept as defensive no-ops so
+ * the validators also behave correctly if handed an auto-typed table (e.g. in
+ * unit tests that create typed columns directly).
  *
- * This means format/pattern validators check DuckDB's string representation
- * of already-typed data, not the original CSV values. A future improvement
- * would use `read_csv_auto(..., all_varchar=true)` for a separate raw-text
- * table so validators see original values, while keeping the auto-typed table
- * for schema inference and range validation.
+ * `findTypeViolations` flags values that should be numeric but aren't — a gap
+ * only the all-VARCHAR table can expose, since auto-typing would otherwise
+ * coerce such values to NULL before any validator saw them.
  *
  * @module validation/field-validators
  */
@@ -27,17 +28,21 @@ import * as Result from "effect/Result";
 
 import type { Constraint, ConstraintFormat, SpecField } from "@dwkit/domain/specs";
 import { type RequiredConstraint, strictestRequired } from "@dwkit/domain/specs";
-import type { FieldViolation, ValidField } from "@dwkit/domain/types";
+import type { FieldViolation, Severity, ValidField } from "@dwkit/domain/types";
 import {
+  EnumViolation,
   FormatViolation,
   LengthViolation,
   PatternViolation,
+  PrimaryKeyViolation,
   RangeViolation,
   RequiredFieldViolation,
   requirementToSeverity,
+  TypeViolation,
   UniquenessViolation,
 } from "@dwkit/domain/types";
 import { queryRows } from "../loading/sql.ts";
+import { findSuggestedValue } from "./string-matching.ts";
 
 function validField(fieldName: string, targetName: string): ValidField {
   return { fieldName, targetName, status: "valid" };
@@ -173,6 +178,19 @@ function validateRangeConstraints(
 }
 
 /**
+ * Parses the DuckDB `list(...)` column value returned by GROUP BY queries into
+ * an array of row numbers. DuckDB may return either a plain JS array or an
+ * object with an `items` property depending on the driver version.
+ */
+function parseAffectedRows(raw: unknown): number[] {
+  if (Array.isArray(raw)) return raw.map((n) => Number(n));
+  if (raw && typeof raw === "object" && "items" in raw) {
+    return (raw as { items: unknown[] }).items.map((n) => Number(n));
+  }
+  return [];
+}
+
+/**
  * "Explodes" duplicate values into individual violations per affected row.
  */
 export function findUniquenessViolations(
@@ -201,10 +219,7 @@ export function findUniquenessViolations(
 
     for (const row of rows) {
       const value = String(row.duplicate_value);
-
-      // queryRows uses the JSON reader, so a DuckDB LIST is always a plain array.
-      const raw = row.affected_rows;
-      const affectedRows: number[] = Array.isArray(raw) ? raw.map((n) => Number(n)) : [];
+      const affectedRows = parseAffectedRows(row.affected_rows);
 
       for (const rowNum of affectedRows) {
         violations.push(
@@ -261,6 +276,202 @@ function validateUniqueness(
     specField,
     maxViolations,
   );
+}
+
+/**
+ * Replaces DDL `PRIMARY KEY`. Reports both null/empty primary keys
+ * (`constraintType: "null"`) and duplicate primary keys
+ * (`constraintType: "duplicate"`), one violation per affected row.
+ */
+export function findPrimaryKeyViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  specField: SpecField,
+  maxViolations = 100,
+): Effect.Effect<ValidField, PrimaryKeyViolation[]> {
+  return Effect.gen(function* () {
+    const asText = `CAST("${fieldName}" AS VARCHAR)`;
+    const violations: PrimaryKeyViolation[] = [];
+
+    // PRIMARY KEY implies NOT NULL — null/empty keys are violations.
+    const nullRows = yield* queryRows(
+      connection,
+      `
+      SELECT _row_number
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NULL OR TRIM(${asText}) = ''
+      ORDER BY _row_number
+      LIMIT ${maxViolations}
+    `,
+    );
+    for (const row of nullRows) {
+      violations.push(
+        new PrimaryKeyViolation({
+          severity: requirementToSeverity("required"),
+          fieldName,
+          targetName: specField.name,
+          rowNumber: Number(row._row_number),
+          value: "",
+          constraintType: "null",
+          errorMessage: `Primary key "${fieldName}" cannot be null or empty`,
+        }),
+      );
+    }
+
+    // Duplicate keys — one violation per affected row.
+    const dupRows = yield* queryRows(
+      connection,
+      `
+      SELECT
+        ${asText} AS value,
+        COUNT(*) AS occurrence_count,
+        list(_row_number ORDER BY _row_number) AS affected_rows
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NOT NULL AND TRIM(${asText}) != ''
+      GROUP BY ${asText}
+      HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC, value
+      LIMIT ${maxViolations}
+    `,
+    );
+    for (const row of dupRows) {
+      const value = String(row.value);
+      const duplicateCount = Number(row.occurrence_count);
+      for (const rowNum of parseAffectedRows(row.affected_rows)) {
+        violations.push(
+          new PrimaryKeyViolation({
+            severity: requirementToSeverity("required"),
+            fieldName,
+            targetName: specField.name,
+            rowNumber: rowNum,
+            value,
+            constraintType: "duplicate",
+            duplicateCount,
+            errorMessage: `Duplicate primary key: "${value}"`,
+          }),
+        );
+      }
+    }
+
+    if (violations.length > 0) {
+      return yield* Effect.fail(violations);
+    }
+    return validField(fieldName, specField.name);
+  });
+}
+
+export interface VocabularyCheck {
+  readonly allowedValues: readonly string[];
+  readonly enumType: string;
+  readonly severity: Severity;
+  readonly enableSuggestions: boolean;
+}
+
+export function findVocabularyViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  specField: SpecField,
+  check: VocabularyCheck,
+  maxViolations = 100,
+): Effect.Effect<ValidField, EnumViolation[]> {
+  return Effect.gen(function* () {
+    if (check.allowedValues.length === 0) {
+      return validField(fieldName, specField.name);
+    }
+
+    const asText = `CAST("${fieldName}" AS VARCHAR)`;
+    // Bind allowed values as parameters (DuckDB escapes them) instead of
+    // interpolating: one placeholder per value for the NOT IN list.
+    const placeholders = check.allowedValues.map(() => "?").join(", ");
+
+    const query = `
+      SELECT _row_number, ${asText} AS value
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND ${asText} NOT IN (${placeholders})
+      LIMIT ${maxViolations}
+    `;
+
+    const rows = yield* queryRows(connection, query, [...check.allowedValues]);
+    if (rows.length > 0) {
+      const allowed = [...check.allowedValues];
+      const violations = rows.map((row) => {
+        const value = String(row.value);
+        const suggestedValue = check.enableSuggestions
+          ? findSuggestedValue(value, allowed)
+          : undefined;
+        return new EnumViolation({
+          severity: check.severity,
+          fieldName,
+          targetName: specField.name,
+          rowNumber: Number(row._row_number),
+          value,
+          enumType: check.enumType,
+          allowedValues: check.allowedValues,
+          suggestedValue,
+          errorMessage: suggestedValue
+            ? `Invalid value "${value}" (did you mean "${suggestedValue}"?)`
+            : `Invalid value "${value}" (must be one of: ${check.allowedValues.join(", ")})`,
+        });
+      });
+      return yield* Effect.fail(violations);
+    }
+
+    return validField(fieldName, specField.name);
+  });
+}
+
+export function findTypeViolations(
+  connection: DuckDBConnection,
+  tableName: string,
+  fieldName: string,
+  specField: SpecField,
+  duckType: "INTEGER" | "DOUBLE",
+  maxViolations = 100,
+): Effect.Effect<ValidField, TypeViolation[]> {
+  return Effect.gen(function* () {
+    const asText = `CAST("${fieldName}" AS VARCHAR)`;
+    // For INTEGER we detect invalidity via a DOUBLE cast rather than an INTEGER
+    // cast: DuckDB's TRY_CAST AS INTEGER rounds decimals ('1.5' → 2) and returns
+    // NULL on INT32 overflow ('3000000000'), which would wrongly flag valid large
+    // integers. A DOUBLE cast flags non-numeric strings (NULL) and fractional
+    // values (value != FLOOR(value)) while accepting large whole numbers.
+    const invalidCondition = duckType === "INTEGER"
+      ? `(TRY_CAST(${asText} AS DOUBLE) IS NULL
+           OR TRY_CAST(${asText} AS DOUBLE) != FLOOR(TRY_CAST(${asText} AS DOUBLE)))`
+      : `TRY_CAST(${asText} AS ${duckType}) IS NULL`;
+
+    const query = `
+      SELECT _row_number, ${asText} AS value
+      FROM ${tableName}
+      WHERE "${fieldName}" IS NOT NULL
+        AND TRIM(${asText}) != ''
+        AND ${invalidCondition}
+      LIMIT ${maxViolations}
+    `;
+
+    const rows = yield* queryRows(connection, query);
+    if (rows.length > 0) {
+      const label = duckType === "DOUBLE" ? "number" : "integer";
+      const violations = rows.map((row) =>
+        new TypeViolation({
+          severity: requirementToSeverity("required"),
+          fieldName,
+          targetName: specField.name,
+          rowNumber: Number(row._row_number),
+          value: String(row.value),
+          errorMessage: `Value "${String(row.value)}" is not a valid ${label}`,
+          expectedType: duckType,
+        })
+      );
+      return yield* Effect.fail(violations);
+    }
+
+    return validField(fieldName, specField.name);
+  });
 }
 
 /**
@@ -610,6 +821,8 @@ export function validateRequiredConstraints(
 interface FieldValidationContext {
   readonly isDbPrimaryKey: boolean;
   readonly maxViolations?: number;
+  readonly numericType?: "INTEGER" | "DOUBLE";
+  readonly vocabulary?: VocabularyCheck;
 }
 
 export function validateField(
@@ -623,18 +836,59 @@ export function validateField(
     const maxViolations = context.maxViolations ?? 100;
 
     const validators: Effect.Effect<ValidField, FieldViolation[]>[] = [
-      validateRequiredConstraints(connection, tableName, fieldName, specField, maxViolations),
       validateRangeConstraints(connection, tableName, fieldName, specField, maxViolations),
       validateFormatConstraints(connection, tableName, fieldName, specField, maxViolations),
       validatePatternConstraints(connection, tableName, fieldName, specField, maxViolations),
       validateLengthConstraints(connection, tableName, fieldName, specField, maxViolations),
     ];
 
-    const hasUniqueConstraint = specField.constraints?.some((c) => c._tag === "unique") ?? false;
-    if (hasUniqueConstraint && !context.isDbPrimaryKey) {
+    if (context.isDbPrimaryKey) {
+      // Primary key owns presence + uniqueness (null + duplicate) -> PrimaryKeyViolation.
       validators.push(
-        validateUniqueness(connection, tableName, fieldName, specField, maxViolations),
+        findPrimaryKeyViolations(connection, tableName, fieldName, specField, maxViolations),
       );
+    } else {
+      validators.unshift(
+        validateRequiredConstraints(connection, tableName, fieldName, specField, maxViolations),
+      );
+      const hasUniqueConstraint = specField.constraints?.some((c) => c._tag === "unique") ?? false;
+      if (hasUniqueConstraint) {
+        validators.push(
+          validateUniqueness(connection, tableName, fieldName, specField, maxViolations),
+        );
+      }
+    }
+
+    if (context.vocabulary) {
+      validators.push(
+        findVocabularyViolations(
+          connection,
+          tableName,
+          fieldName,
+          specField,
+          context.vocabulary,
+          maxViolations,
+        ),
+      );
+    }
+
+    if (context.numericType) {
+      const coveringFormat = context.numericType === "INTEGER" ? "integer" : "decimal-degrees";
+      const hasCoveringFormat = (specField.constraints ?? []).some(
+        (c) => c._tag === "format" && c.format === coveringFormat,
+      );
+      if (!hasCoveringFormat) {
+        validators.push(
+          findTypeViolations(
+            connection,
+            tableName,
+            fieldName,
+            specField,
+            context.numericType,
+            maxViolations,
+          ),
+        );
+      }
     }
 
     const violations: FieldViolation[] = [];

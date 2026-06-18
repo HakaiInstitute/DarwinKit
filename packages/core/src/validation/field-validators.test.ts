@@ -28,9 +28,13 @@ import {
   findFormatViolations,
   findLengthViolations,
   findPatternViolations,
+  findPrimaryKeyViolations,
   findRangeViolations,
   findRequiredViolations,
+  findTypeViolations,
   findUniquenessViolations,
+  findVocabularyViolations,
+  validateField,
   validateRequiredConstraints,
 } from "./field-validators.ts";
 
@@ -504,5 +508,208 @@ Deno.test("Uniqueness constraint violations", async (t) => {
 
       assert(result._tag === "Success");
     });
+  });
+});
+
+// =============================================================================
+// Vocabulary Constraint Tests
+// =============================================================================
+
+Deno.test("findVocabularyViolations", async (t) => {
+  const check = {
+    allowedValues: ["Animalia", "Plantae"],
+    enumType: "taxon_kingdom_enum",
+    severity: "error" as const,
+    enableSuggestions: true,
+  };
+
+  await t.step("member values pass", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "kingdom VARCHAR", ["1, 'Animalia'", "2, 'Plantae'"]);
+      const field = makeField("kingdom", []);
+      const result = await Effect.runPromiseExit(
+        findVocabularyViolations(conn, TABLE, "kingdom", field, check),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("non-member flagged with suggestion", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "kingdom VARCHAR", ["1, 'Animala'", "2, 'Plantae'"]);
+      const field = makeField("kingdom", []);
+      const result = await Effect.runPromiseExit(
+        findVocabularyViolations(conn, TABLE, "kingdom", field, check),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "Animala");
+      assertEquals(violations[0]._tag, "EnumViolation");
+      assertEquals(violations[0].suggestedValue, "Animalia");
+    });
+  });
+
+  await t.step("null/empty values are ignored", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "kingdom VARCHAR", ["1, NULL", "2, ''"]);
+      const field = makeField("kingdom", []);
+      const result = await Effect.runPromiseExit(
+        findVocabularyViolations(conn, TABLE, "kingdom", field, check),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+});
+
+// =============================================================================
+// Type Constraint Tests
+// =============================================================================
+
+Deno.test("findTypeViolations", async (t) => {
+  await t.step("non-numeric value in a DOUBLE field is flagged", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "lat VARCHAR", ["1, '45.0'", "2, 'abc'", "3, ''"]);
+      const field = makeField("lat", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "lat", field, "DOUBLE"),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "abc");
+      assertEquals(violations[0]._tag, "TypeViolation");
+      assertEquals(violations[0].expectedType, "DOUBLE");
+    });
+  });
+
+  await t.step("valid integers pass", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '10'", "2, '-3'"]);
+      const field = makeField("n", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER"),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("decimal value fails INTEGER check", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '1.5'"]);
+      const field = makeField("n", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER"),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "1.5");
+    });
+  });
+
+  await t.step("large integer exceeding INT32 passes INTEGER check", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '3000000000'"]);
+      const field = makeField("n", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER"),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+});
+
+// =============================================================================
+// Primary Key Constraint Tests
+// =============================================================================
+
+Deno.test("findPrimaryKeyViolations", async (t) => {
+  await t.step("unique non-null keys pass", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "id VARCHAR", ["1, 'A'", "2, 'B'", "3, 'C'"]);
+      const field = makeField("id", []);
+      const result = await Effect.runPromiseExit(
+        findPrimaryKeyViolations(conn, TABLE, "id", field),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("duplicates flagged once per affected row", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "id VARCHAR", ["1, 'A'", "2, 'A'", "3, 'B'"]);
+      const field = makeField("id", []);
+      const result = await Effect.runPromiseExit(
+        findPrimaryKeyViolations(conn, TABLE, "id", field),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 2);
+      assertEquals(violations[0]._tag, "PrimaryKeyViolation");
+      assertEquals(violations[0].constraintType, "duplicate");
+      assertEquals(violations[0].value, "A");
+    });
+  });
+
+  await t.step("null and empty keys flagged as constraintType null", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "id VARCHAR", ["1, 'A'", "2, NULL", "3, ''"]);
+      const field = makeField("id", []);
+      const result = await Effect.runPromiseExit(
+        findPrimaryKeyViolations(conn, TABLE, "id", field),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 2);
+      assertEquals(violations.every((v) => v.constraintType === "null"), true);
+    });
+  });
+});
+
+// =============================================================================
+// validateField wiring tests
+// =============================================================================
+
+Deno.test("validateField - primary key field routes to PrimaryKeyViolation", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "eventID VARCHAR", ["1, 'E1'", "2, 'E1'", "3, NULL"]);
+    const field = makeField("eventID", []);
+    const result = await Effect.runPromiseExit(
+      validateField(conn, TABLE, "eventID", field, { isDbPrimaryKey: true }),
+    );
+    const violations = extractViolations(result);
+    // 2 duplicate rows (E1 x2) + 1 null row
+    assertEquals(violations.length, 3);
+    assertEquals(violations.every((v) => v._tag === "PrimaryKeyViolation"), true);
+  });
+});
+
+Deno.test("validateField - numericType runs type-validity check", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "lat VARCHAR", ["1, '45.0'", "2, 'abc'"]);
+    const field = makeField("lat", []);
+    const result = await Effect.runPromiseExit(
+      validateField(conn, TABLE, "lat", field, { isDbPrimaryKey: false, numericType: "DOUBLE" }),
+    );
+    const violations = extractViolations(result);
+    assertEquals(violations.length, 1);
+    assertEquals(violations[0]._tag, "TypeViolation");
+  });
+});
+
+Deno.test("validateField - vocabulary check runs when supplied", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "kingdom VARCHAR", ["1, 'Animalia'", "2, 'Bogus'"]);
+    const field = makeField("kingdom", []);
+    const result = await Effect.runPromiseExit(
+      validateField(conn, TABLE, "kingdom", field, {
+        isDbPrimaryKey: false,
+        vocabulary: {
+          allowedValues: ["Animalia", "Plantae"],
+          enumType: "taxon_kingdom_enum",
+          severity: "error",
+          enableSuggestions: false,
+        },
+      }),
+    );
+    const violations = extractViolations(result);
+    assertEquals(violations.length, 1);
+    assertEquals(violations[0]._tag, "EnumViolation");
   });
 });
