@@ -1,5 +1,5 @@
-import * as duckdb from "@duckdb/node-api";
-import { stringify as stringifyCSV } from "@std/csv";
+import type * as duckdb from "@duckdb/node-api";
+import { scopedConnection } from "../loading/connection.ts";
 import { join, resolve } from "@std/path";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -11,9 +11,14 @@ import { getSpecNames, resolveProfile } from "@dwkt/domain/specs";
 import { findSuggestedValue } from "../validation/string-matching.ts";
 import type { WorkspaceConfigError } from "@dwkt/domain/errors";
 import type { WorkspaceImportError } from "@dwkt/domain/errors";
-import { importCsv } from "../loading/csv-import.ts";
+import { importCsv } from "../loading/table-import.ts";
 import { importSchema } from "../loading/schema.ts";
-import { findForeignKeyRule, formatConstraintViolation, parseDuckDBError } from "../loading/sql.ts";
+import {
+  findForeignKeyRule,
+  formatConstraintViolation,
+  parseDuckDBError,
+  queryRows,
+} from "../loading/sql.ts";
 
 export class TransformationError extends Data.TaggedError("TransformationError")<{
   readonly message: string;
@@ -221,46 +226,40 @@ export function exportTablesToCSV(
     );
 
     for (const tableName of tables) {
-      const columnNamesResult = yield* Effect.tryPromise(() =>
-        connection.runAndReadAll(`PRAGMA table_info(${tableName});`)
-      ).pipe(Effect.orDie);
-      const allColumnNames: string[] = columnNamesResult.getRowObjectsJson().map((row) =>
-        String(row.name)
-      );
+      const allColumnNames = (yield* queryRows(
+        connection,
+        `PRAGMA table_info(${tableName});`,
+      )).map((row) => String(row.name));
 
-      let columnsToExport: string[] = allColumnNames;
-      const selectColumns: string[] = [];
+      let selectColumns: string;
 
       if (output.dropNullColumns) {
-        const nonNullColumns: string[] = [];
-        for (const columnName of allColumnNames) {
-          const nullCountResult = yield* Effect.tryPromise(() =>
-            connection.runAndReadAll(
-              `SELECT COUNT(*) AS null_count FROM ${tableName} WHERE "${columnName}" IS NOT NULL;`,
-            )
-          ).pipe(Effect.orDie);
-          const notNullCount = Number(nullCountResult.getRowObjectsJson()[0].null_count ?? 0);
-          if (notNullCount > 0) {
-            nonNullColumns.push(columnName);
-            selectColumns.push(`"${columnName}"`);
-          }
-        }
-        columnsToExport = nonNullColumns;
+        // One query for all columns: COUNT("col") ignores NULLs, so a count of 0
+        // means the column is entirely null and should be dropped.
+        const countSelect = allColumnNames
+          .map((name) => `COUNT("${name}") AS "${name}"`)
+          .join(", ");
+        const counts = (yield* queryRows(
+          connection,
+          `SELECT ${countSelect} FROM ${tableName}`,
+        ))[0];
+        const keptColumns = allColumnNames.filter((name) => Number(counts[name] ?? 0) > 0);
+        selectColumns = keptColumns.map((name) => `"${name}"`).join(", ");
       } else {
-        selectColumns.push("*");
+        selectColumns = "*";
       }
 
-      const result = yield* Effect.tryPromise(() =>
-        connection.runAndReadAll(`SELECT ${selectColumns.join(",")} FROM ${tableName}`)
-      ).pipe(Effect.orDie);
       const filename = withTimestamp ? `${tableName}-${timestamp}.csv` : `${tableName}.csv`;
       const fullPath: string = join(outputPath, filename);
 
+      // DuckDB writes the CSV directly — no JS-side materialization or stringifier.
+      // The output path is bound (handles quotes/special chars), matching the
+      // read paths in table-import.ts.
       yield* Effect.tryPromise({
         try: () =>
-          Deno.writeTextFile(
-            fullPath,
-            stringifyCSV(result.getRowObjectsJson(), { columns: columnsToExport }),
+          connection.run(
+            `COPY (SELECT ${selectColumns} FROM ${tableName}) TO ? (FORMAT CSV, HEADER)`,
+            [fullPath],
           ),
         catch: (error) =>
           new OutputError({
@@ -383,30 +382,26 @@ export function transformFile(
       }),
     );
 
-    yield* Effect.acquireUseRelease(
-      Effect.tryPromise(() => duckdb.DuckDBConnection.create()).pipe(
-        Effect.orDie,
-      ),
-      (connection) =>
-        Effect.gen(function* () {
-          console.log("Creating tables from CSV files...");
-          yield* createTablesFromCSV(connection, config, basePath);
-          yield* runPostImportTransformations(config, connection);
+    yield* Effect.scoped(
+      Effect.gen(function* () {
+        const connection = yield* scopedConnection;
 
-          console.log("Creating schema tables...");
-          yield* createTableFromSchema(connection, config);
+        console.log("Creating tables from CSV files...");
+        yield* createTablesFromCSV(connection, config, basePath);
+        yield* runPostImportTransformations(config, connection);
 
-          console.log("Populating schema tables from data tables...");
-          yield* populateSchemaFromDataTables(connection, config);
+        console.log("Creating schema tables...");
+        yield* createTableFromSchema(connection, config);
 
-          console.log("Exporting tables to CSV...");
-          yield* exportTablesToCSV(connection, config);
+        console.log("Populating schema tables from data tables...");
+        yield* populateSchemaFromDataTables(connection, config);
 
-          console.log("Exporting DuckDB database to persistent file...");
-          yield* exportToPersistentDB(connection, config);
-        }),
-      (connection) =>
-        Effect.try({ try: () => connection.closeSync(), catch: (e) => e }).pipe(Effect.ignore),
+        console.log("Exporting tables to CSV...");
+        yield* exportTablesToCSV(connection, config);
+
+        console.log("Exporting DuckDB database to persistent file...");
+        yield* exportToPersistentDB(connection, config);
+      }),
     );
   });
 }

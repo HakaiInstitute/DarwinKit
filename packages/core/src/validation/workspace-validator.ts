@@ -6,10 +6,10 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
-import { DuckDBInstance } from "@duckdb/node-api";
 import { resolve } from "@std/path";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import type * as Scope from "effect/Scope";
 
 import type { WorkspaceOperationError } from "@dwkt/domain/errors";
 import { WorkspaceValidationError } from "@dwkt/domain/errors";
@@ -39,8 +39,9 @@ import {
   UnknownProfileViolation,
   UnmappedColumnViolation,
 } from "@dwkt/domain/types";
-import { importCsv } from "../loading/csv-import.ts";
+import { importCsv, importParquet } from "../loading/table-import.ts";
 import { queryRows, sanitizeTableName } from "../loading/sql.ts";
+import { scopedConnection } from "../loading/connection.ts";
 import { Workspace } from "../workspace/workspace.ts";
 
 import { DependencyRule } from "@dwkt/domain/specs";
@@ -80,41 +81,35 @@ export class WorkspaceValidator {
     datasetRules?: readonly DatasetRuleConfig[],
     configPath?: string,
   ): Effect.Effect<WorkspaceValidationResult, WorkspaceOperationError> {
-    return Effect.gen(function* () {
-      const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
+    return Effect.scoped(
+      Effect.gen(function* () {
+        const resolvedWorkspaceId = workspaceId ?? `validation-${Date.now()}`;
 
-      // Resolve constraints once. Shared by both schema creation and validation
-      const resolvedFieldsMap = resolveFieldsForDatasets(datasets, standard);
+        // Resolve constraints once. Shared by both schema creation and validation
+        const resolvedFieldsMap = resolveFieldsForDatasets(datasets, standard);
 
-      const { workspaceId: wsId, connection, instance } = yield* createWorkspaceFromConfig(
-        resolvedWorkspaceId,
-        datasets,
-        settings,
-        basePath,
-        standard,
-        resolvedFieldsMap,
-        datasetRules,
-      );
+        const connection = yield* createWorkspaceFromConfig(
+          datasets,
+          settings,
+          basePath,
+          standard,
+          resolvedFieldsMap,
+          datasetRules,
+        );
 
-      return yield* _validateDatasetsCore(
-        connection,
-        datasets,
-        settings,
-        basePath,
-        standard,
-        wsId,
-        resolvedFieldsMap,
-        datasetRules,
-        configPath,
-      ).pipe(
-        Effect.ensuring(
-          Effect.all([
-            Effect.try({ try: () => connection.closeSync(), catch: (e) => e }).pipe(Effect.ignore),
-            Effect.try({ try: () => instance.closeSync(), catch: (e) => e }).pipe(Effect.ignore),
-          ]),
-        ),
-      );
-    });
+        return yield* _validateDatasetsCore(
+          connection,
+          datasets,
+          settings,
+          basePath,
+          standard,
+          resolvedWorkspaceId,
+          resolvedFieldsMap,
+          datasetRules,
+          configPath,
+        );
+      }),
+    );
   }
 
   /**
@@ -282,7 +277,11 @@ function importDatasets(
       // Prefix with 'raw_' to avoid name collision with the schema table
       const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
-      yield* importCsv(connection, tableName, filePath, nullValues);
+      if (filePath.toLowerCase().endsWith(".parquet")) {
+        yield* importParquet(connection, tableName, filePath);
+      } else {
+        yield* importCsv(connection, tableName, filePath, nullValues);
+      }
       const entry = resolvedFieldsMap.get(dataset.name);
       if (entry) {
         yield* importSchema(
@@ -300,29 +299,17 @@ function importDatasets(
 }
 
 function createWorkspaceFromConfig(
-  workspaceId: string,
   datasets: readonly DatasetConfig[],
   validationSettings: ValidationSettings,
   basePath: string,
   standard: ResolvedStandard,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
   datasetRules?: readonly DatasetRuleConfig[],
-): Effect.Effect<
-  {
-    workspaceId: string;
-    connection: DuckDBConnection;
-    instance: DuckDBInstance;
-  },
-  WorkspaceOperationError
-> {
+): Effect.Effect<DuckDBConnection, WorkspaceOperationError, Scope.Scope> {
   return Effect.gen(function* () {
-    // Create isolated DuckDB instance - each workspace gets its own in-memory database
-    // This prevents test contamination where tables from one test persist into another
-    const instance = yield* Effect.tryPromise(() => DuckDBInstance.create(":memory:")).pipe(
-      Effect.orDie,
-    );
-
-    const connection = yield* Effect.tryPromise(() => instance.connect()).pipe(Effect.orDie);
+    // Each workspace gets its own scope-managed in-memory database, preventing
+    // test contamination where tables from one run persist into another.
+    const connection = yield* scopedConnection;
 
     yield* importDatasets(
       connection,
@@ -334,7 +321,7 @@ function createWorkspaceFromConfig(
       datasetRules,
     );
 
-    return { workspaceId, connection, instance };
+    return connection;
   });
 }
 
@@ -352,8 +339,8 @@ function validateDataset(
     const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
     const countRows = yield* queryRows(connection, `SELECT COUNT(*) as count FROM ${tableName}`);
-    const rawCount = countRows[0].count;
-    const rowsProcessed = typeof rawCount === "bigint" ? Number(rawCount) : rawCount as number;
+    // queryRows uses the JSON reader: COUNT(*) (BIGINT) comes back as a string.
+    const rowsProcessed = Number(countRows[0].count);
 
     const originTableColumnsRows = yield* queryRows(
       connection,

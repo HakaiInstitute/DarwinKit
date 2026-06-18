@@ -202,13 +202,9 @@ export function findUniquenessViolations(
     for (const row of rows) {
       const value = String(row.duplicate_value);
 
-      let affectedRows: number[] = [];
+      // queryRows uses the JSON reader, so a DuckDB LIST is always a plain array.
       const raw = row.affected_rows;
-      if (Array.isArray(raw)) {
-        affectedRows = raw.map((n) => Number(n));
-      } else if (raw && typeof raw === "object" && "items" in raw) {
-        affectedRows = (raw as { items: unknown[] }).items.map((n) => Number(n));
-      }
+      const affectedRows: number[] = Array.isArray(raw) ? raw.map((n) => Number(n)) : [];
 
       for (const rowNum of affectedRows) {
         violations.push(
@@ -385,13 +381,13 @@ export function findPatternViolations(
       FROM ${tableName}
       WHERE "${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND NOT regexp_matches(${asText}, '${constraint.pattern.replace(/'/g, "''")}')
+        AND NOT regexp_matches(${asText}, ?)
       LIMIT ${maxViolations}
     `;
 
     const queryResult = yield* Effect.result(
       Effect.tryPromise({
-        try: () => connection.runAndReadAll(query),
+        try: () => connection.runAndReadAll(query, [constraint.pattern]),
         // Surface the raw DuckDB error (an Error) rather than the generic
         // UnknownError wrapper, so the regex diagnostic reaches the user.
         catch: (e) => e,
@@ -416,7 +412,7 @@ export function findPatternViolations(
       ]);
     }
 
-    const rows = queryResult.success.getRowObjects();
+    const rows = queryResult.success.getRowObjectsJson();
     if (rows.length > 0) {
       const violations = rows.map((row) =>
         new PatternViolation({

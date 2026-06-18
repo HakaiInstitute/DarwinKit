@@ -6,12 +6,14 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
 import type { DatasetRuleConfig } from "@dwkt/domain/schemas";
 import { assertEquals } from "@std/assert";
+import * as Effect from "effect/Effect";
 import {
   findForeignKeyRule,
   formatNullValues,
   type ParsedErrorInfo,
   type ParsedErrorType,
   parseDuckDBError,
+  queryRows,
   sanitizeTableName,
 } from "./sql.ts";
 
@@ -245,4 +247,22 @@ Deno.test("findForeignKeyRule - defaults requirement to required", () => {
   const result = findForeignKeyRule("test", "refID", rulesWithoutRequirement);
 
   assertEquals(result?.requirement, "required");
+});
+
+Deno.test("queryRows - binds positional parameters (handles embedded quotes)", async () => {
+  const instance = await DuckDBInstance.create(":memory:");
+  const connection = await instance.connect();
+  try {
+    await connection.run(
+      "CREATE TABLE t AS SELECT * FROM (VALUES ('O''Brien'), ('Smith')) AS v(name)",
+    );
+    const rows = await Effect.runPromise(
+      queryRows(connection, "SELECT name FROM t WHERE name = ?", ["O'Brien"]),
+    );
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0].name, "O'Brien");
+  } finally {
+    connection.closeSync();
+    instance.closeSync();
+  }
 });

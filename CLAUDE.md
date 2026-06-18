@@ -379,6 +379,10 @@ For a focused example of date validation:
 deno test test/date-validation.test.ts --allow-all
 ```
 
+## Export Behavior
+
+- **CSV export format**: `exportTablesToCSV` writes via DuckDB's native `COPY … TO (FORMAT CSV, HEADER)` — LF line endings, a header row, and values unquoted unless they contain a delimiter, quote, or newline. (Previously used `@std/csv`, which emitted CRLF.)
+
 ## Future Enhancements
 
 The following enhancements are under consideration:

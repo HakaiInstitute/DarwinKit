@@ -423,6 +423,20 @@ Deno.test("Value violations always produce ERROR severity", async () => {
   }
 });
 
+Deno.test("findPatternViolations - binds a pattern containing a single quote", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "code VARCHAR", ["1, 'O''K'", "2, 'BAD'"]);
+    const constraint = new PatternConstraint({ pattern: "^O'K$" });
+    const field = makeField("code", [constraint]);
+    const result = await Effect.runPromiseExit(
+      findPatternViolations(conn, TABLE, "code", constraint, field),
+    );
+    const violations = extractViolations(result);
+    assertEquals(violations.length, 1); // only "BAD" violates
+    assertEquals(violations[0].value, "BAD");
+  });
+});
+
 // =============================================================================
 // Uniqueness Constraint Tests
 // =============================================================================

@@ -27,10 +27,9 @@ import {
 } from "@dwkt/domain/types";
 import { obligationForStandard } from "@dwkt/domain/specs";
 
-import { getCsvValue } from "../loading/csv-import.ts";
+import { getTableValue } from "../loading/table-import.ts";
 import type { ParsedErrorInfo } from "../loading/sql.ts";
 import {
-  escapeString,
   findForeignKeyRule,
   formatConstraintViolation,
   parseDuckDBError,
@@ -83,10 +82,10 @@ function handlePrimaryKeyViolation(
     const duplicateQuery = `
       SELECT _row_number
       FROM ${ctx.rawTableName}
-      WHERE "${pkMapping.origin}" = '${escapeString(parsed.value)}'
+      WHERE "${pkMapping.origin}" = ?
     `;
 
-    const duplicateRows = yield* queryRows(ctx.connection, duplicateQuery);
+    const duplicateRows = yield* queryRows(ctx.connection, duplicateQuery, [parsed.value]);
     const duplicateCount = duplicateRows.length;
     const violations: FieldViolation[] = [];
 
@@ -210,7 +209,7 @@ function handleForeignKeyViolation(
 
     const csvValue = parsed.value ??
       (fkMapping
-        ? yield* getCsvValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum)
+        ? yield* getTableValue(ctx.connection, ctx.rawTableName, fkMapping.origin, ctx.rowNum)
         : "");
 
     const requirement = fkRule?.requirement ?? "required";
@@ -300,44 +299,68 @@ export function insertRowByRow(
     const targetColumns = columnMappings.map((m) => `"${m.target}"`).join(", ");
     const originColumns = columnMappings.map((m) => `"${m.origin}"`).join(", ");
 
-    for (let rowNum = 1; rowNum <= maxRow; rowNum++) {
-      const insertSQL = `
+    // Prepare the per-row insert once; the only thing that varies is _row_number.
+    // Reusing the parsed plan avoids re-parsing the statement for every row.
+    // If prepare() fails (e.g. Binder Error for a column not in the schema table),
+    // skip the loop — identical behaviour to the baseline where every per-row run()
+    // would fail with an "unknown" error type and produce no violations.
+    const prepareResult = yield* Effect.tryPromise({
+      try: () =>
+        connection.prepare(`
         INSERT INTO ${schemaTableName} (${targetColumns}, _row_number)
         SELECT ${originColumns}, _row_number
         FROM ${rawTableName}
-        WHERE _row_number = ${rowNum}
-      `;
+        WHERE _row_number = $1
+      `),
+      catch: (error) => error,
+    }).pipe(Effect.result);
 
-      const result = yield* Effect.tryPromise({
-        try: () => connection.run(insertSQL),
-        catch: (error) => error,
-      }).pipe(Effect.result);
-
-      if (Result.isSuccess(result)) {
-        continue;
-      }
-
-      const error = result.failure;
-      if (!(error instanceof Error)) continue;
-
-      const parsed = parseDuckDBError(error);
-      const ctx: ViolationContext = {
-        connection,
-        rawTableName,
-        schemaTableName,
-        columnMappings,
-        resolvedSpec,
-        activeStandard,
-        enableSuggestions,
-        rowNum,
-        processedDuplicates,
-        currentDataset,
-        datasetRules,
-      };
-
-      const newViolations = yield* createViolationsFromError(parsed, ctx);
-      violations.push(...newViolations);
+    if (Result.isFailure(prepareResult)) {
+      // prepare() failed before any row ran (e.g. Binder Error) — no violations to report.
+      return;
     }
+
+    const prepared = prepareResult.success;
+
+    // Effect.ensuring guarantees the prepared statement is destroyed even if a
+    // per-row effect dies (e.g. createViolationsFromError -> queryRows/getTableValue
+    // use Effect.orDie). The finalizer runs on success AND defect.
+    yield* Effect.gen(function* () {
+      for (let rowNum = 1; rowNum <= maxRow; rowNum++) {
+        const result = yield* Effect.tryPromise({
+          try: () => {
+            prepared.bindBigInt(1, BigInt(rowNum));
+            return prepared.run();
+          },
+          catch: (error) => error,
+        }).pipe(Effect.result);
+
+        if (Result.isSuccess(result)) {
+          continue;
+        }
+
+        const error = result.failure;
+        if (!(error instanceof Error)) continue;
+
+        const parsed = parseDuckDBError(error);
+        const ctx: ViolationContext = {
+          connection,
+          rawTableName,
+          schemaTableName,
+          columnMappings,
+          resolvedSpec,
+          activeStandard,
+          enableSuggestions,
+          rowNum,
+          processedDuplicates,
+          currentDataset,
+          datasetRules,
+        };
+
+        const newViolations = yield* createViolationsFromError(parsed, ctx);
+        violations.push(...newViolations);
+      }
+    }).pipe(Effect.ensuring(Effect.sync(() => prepared.destroySync())));
 
     if (violations.length > 0) {
       return yield* Effect.fail(violations);

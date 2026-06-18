@@ -77,14 +77,14 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
     await Effect.runPromise(transformFile(configPath));
 
     // 4. Assert: Verify the output files
-    // Assert CSV output (json-2-csv default format is unquoted)
+    // Assert CSV output (DuckDB COPY ... TO (FORMAT CSV, HEADER): LF line endings, unquoted values)
     const eventCsvContent = await Deno.readTextFile(join(outputDir, "event.csv"));
-    assertEquals(eventCsvContent.trim(), `eventID,year\r\nevt01,2024`);
+    assertEquals(eventCsvContent.trim(), `eventID,year\nevt01,2024`);
 
     const occCsvContent = await Deno.readTextFile(join(outputDir, "occurrence.csv"));
     assertEquals(
       occCsvContent.trim(),
-      `basisOfRecord,occurrenceID,eventID\r\nHumanObservation,occ01,evt01`,
+      `basisOfRecord,occurrenceID,eventID\nHumanObservation,occ01,evt01`,
     );
 
     // Assert persistent DB output
