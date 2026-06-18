@@ -253,10 +253,13 @@ export function exportTablesToCSV(
       const fullPath: string = join(outputPath, filename);
 
       // DuckDB writes the CSV directly — no JS-side materialization or stringifier.
+      // The output path is bound (handles quotes/special chars), matching the
+      // read paths in table-import.ts.
       yield* Effect.tryPromise({
         try: () =>
           connection.run(
-            `COPY (SELECT ${selectColumns} FROM ${tableName}) TO '${fullPath}' (FORMAT CSV, HEADER)`,
+            `COPY (SELECT ${selectColumns} FROM ${tableName}) TO ? (FORMAT CSV, HEADER)`,
+            [fullPath],
           ),
         catch: (error) =>
           new OutputError({

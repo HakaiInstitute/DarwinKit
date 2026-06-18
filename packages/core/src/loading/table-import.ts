@@ -12,19 +12,25 @@ import { WorkspaceImportError } from "@dwkt/domain/errors";
 import * as Effect from "effect/Effect";
 import { formatNullValues, queryRows, sanitizeTableName } from "./sql.ts";
 
-export function importCsv(
+/**
+ * Import a data file into a fresh `tableName`, adding a 1-based `_row_number`
+ * column via a sequence for deterministic row numbering.
+ *
+ * `source` is the SQL `FROM` expression containing a single `?` placeholder for
+ * the path (e.g. `read_parquet(?)`); the path is always bound (handling quotes
+ * and special chars). `label` names the format in error messages.
+ */
+function importTable(
   connection: DuckDBConnection,
   tableName: string,
-  csvPath: string,
-  nullValues: readonly string[],
+  path: string,
+  source: string,
+  label: string,
 ): Effect.Effect<void, WorkspaceImportError> {
   return Effect.tryPromise({
     try: async () => {
       const safeName = sanitizeTableName(tableName);
       const sequenceName = `${safeName}_seq`;
-      const nullStrParam = nullValues.length > 0
-        ? `, nullstr=[${formatNullValues(nullValues)}]`
-        : "";
 
       // Drop existing table and sequence for clean import
       await connection.run(`DROP TABLE IF EXISTS "${safeName}"`);
@@ -33,21 +39,31 @@ export function importCsv(
       // Create sequence for deterministic row numbering
       await connection.run(`CREATE SEQUENCE ${sequenceName} START 1`);
 
-      // The path is bound (handles quotes/special chars); nullstr stays a literal list
-      // because DuckDB rejects a bound list for that named argument.
       await connection.run(
         `CREATE TABLE "${safeName}" AS
          SELECT *, nextval('${sequenceName}') as _row_number
-         FROM read_csv_auto(?${nullStrParam})`,
-        [csvPath],
+         FROM ${source}`,
+        [path],
       );
     },
     catch: (error) =>
       new WorkspaceImportError({
-        message: `Failed to import CSV '${csvPath}' into table '${tableName}'`,
+        message: `Failed to import ${label} '${path}' into table '${tableName}'`,
         cause: error instanceof Error ? error : new Error(String(error)),
       }),
   });
+}
+
+export function importCsv(
+  connection: DuckDBConnection,
+  tableName: string,
+  csvPath: string,
+  nullValues: readonly string[],
+): Effect.Effect<void, WorkspaceImportError> {
+  // nullstr stays a literal list because DuckDB rejects a bound list for that
+  // named argument; its values are escaped by formatNullValues.
+  const nullStrParam = nullValues.length > 0 ? `, nullstr=[${formatNullValues(nullValues)}]` : "";
+  return importTable(connection, tableName, csvPath, `read_csv_auto(?${nullStrParam})`, "CSV");
 }
 
 export function importParquet(
@@ -55,32 +71,8 @@ export function importParquet(
   tableName: string,
   parquetPath: string,
 ): Effect.Effect<void, WorkspaceImportError> {
-  return Effect.tryPromise({
-    try: async () => {
-      const safeName = sanitizeTableName(tableName);
-      const sequenceName = `${safeName}_seq`;
-
-      // Drop existing table and sequence for clean import
-      await connection.run(`DROP TABLE IF EXISTS "${safeName}"`);
-      await connection.run(`DROP SEQUENCE IF EXISTS ${sequenceName}`);
-
-      // Create sequence for deterministic row numbering
-      await connection.run(`CREATE SEQUENCE ${sequenceName} START 1`);
-
-      // No nullstr: Parquet NULLs are native (nullValues is a CSV-only concern).
-      await connection.run(
-        `CREATE TABLE "${safeName}" AS
-         SELECT *, nextval('${sequenceName}') as _row_number
-         FROM read_parquet(?)`,
-        [parquetPath],
-      );
-    },
-    catch: (error) =>
-      new WorkspaceImportError({
-        message: `Failed to import Parquet '${parquetPath}' into table '${tableName}'`,
-        cause: error instanceof Error ? error : new Error(String(error)),
-      }),
-  });
+  // No nullstr: Parquet NULLs are native (nullValues is a CSV-only concern).
+  return importTable(connection, tableName, parquetPath, `read_parquet(?)`, "Parquet");
 }
 
 export function getTableValue(

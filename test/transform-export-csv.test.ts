@@ -71,6 +71,47 @@ Deno.test("exportTablesToCSV - exports tables to CSV without timestamps", async 
   }
 });
 
+Deno.test("exportTablesToCSV - binds an output path containing an apostrophe", async () => {
+  // 1. Setup — the apostrophe in the directory name would break an interpolated
+  // COPY ... TO '<path>' target (Parser Error); the path must be bound.
+  const connection = await DuckDBConnection.create();
+  const outputDir = await Deno.makeTempDir({ prefix: "dwkt-o'brien-export-" });
+
+  const config: WorkspaceConfig = {
+    version: "1",
+    standard: { base: "darwin-core", variant: "obis" },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    id: "test-workspace",
+    name: "Test Workspace",
+    description: "A workspace for testing",
+    transform: {
+      nullValues: [],
+      inputs: {},
+      postImportTransforms: [],
+      datasets: [{ name: "Event", class: "Event", source: {}, fields: {} }],
+      output: {
+        outputDir: outputDir,
+        outputFilesWithTimestamp: false,
+        exportDB: false,
+      },
+    },
+  };
+
+  try {
+    await connection.run("CREATE TABLE event (eventID TEXT, year INTEGER);");
+    await connection.run("INSERT INTO event VALUES ('evt1', 2023);");
+
+    await Effect.runPromise(exportTablesToCSV(connection, config));
+
+    const eventCsvContent = await Deno.readTextFile(`${outputDir}/event.csv`);
+    assertEquals(eventCsvContent.trim(), `eventID,year\nevt1,2023`);
+  } finally {
+    await Deno.remove(outputDir, { recursive: true });
+    connection.closeSync();
+  }
+});
+
 Deno.test("exportTablesToCSV - drops null columns when configured", async () => {
   // 1. Setup
   const connection = await DuckDBConnection.create();
