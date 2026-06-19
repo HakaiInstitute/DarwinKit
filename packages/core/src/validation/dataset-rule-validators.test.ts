@@ -330,6 +330,25 @@ Deno.test("foreignKey - orphan child values are flagged", async () => {
   });
 });
 
+Deno.test("foreignKey - whitespace around parent key still matches child", async () => {
+  await withConnection(async (conn) => {
+    await conn.run(`
+      CREATE TABLE raw_parent AS SELECT * FROM (VALUES (1, '  EVT-1  ')) AS t(_row_number, eventID)
+    `);
+    await conn.run(`
+      CREATE TABLE raw_child AS SELECT * FROM (VALUES (1, 'EVT-1')) AS t(_row_number, eventID)
+    `);
+    const result = await Effect.runPromise(
+      Effect.result(
+        validateForeignKeyRule(conn, "raw_child", "eventID", "raw_parent", "eventID", {
+          requirement: "required",
+        }),
+      ),
+    );
+    assertEquals(Result.isSuccess(result), true);
+  });
+});
+
 Deno.test("foreignKey - all child values present passes", async () => {
   await withConnection(async (conn) => {
     await conn.run(`

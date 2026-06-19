@@ -107,6 +107,21 @@ Deno.test("findRangeViolations", async (t) => {
   }
 });
 
+Deno.test("findRangeViolations - ignores inf/nan (owned by type check)", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "lat VARCHAR", ["1, 'nan'", "2, 'inf'", "3, '200'"]);
+    const field = makeField("lat", []);
+    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
+    const result = await Effect.runPromiseExit(
+      findRangeViolations(conn, TABLE, "lat", constraint, field),
+    );
+    const violations = extractViolations(result);
+    // only the finite out-of-range value (200) is a range violation
+    assertEquals(violations.length, 1);
+    assertEquals(violations[0].value, "200");
+  });
+});
+
 // =============================================================================
 // Pattern Constraint Tests
 // =============================================================================
@@ -230,6 +245,35 @@ Deno.test("findFormatViolations", async (t) => {
       const field = makeField("url", [constraint]);
       const result = await Effect.runPromiseExit(
         findFormatViolations(conn, TABLE, "url", constraint, field),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("integer format accepts large ints, rejects decimals", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '3000000000'", "2, '1.5'"]);
+      const field = makeField("n", []);
+      const constraint = new FormatConstraint({ format: "integer" });
+      const result = await Effect.runPromiseExit(
+        findFormatViolations(conn, TABLE, "n", constraint, { ...field, constraints: [constraint] }),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "1.5");
+    });
+  });
+
+  await t.step("iso8601 accepts space-separated datetime (Parquet TIMESTAMP render)", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "eventDate VARCHAR", ["1, '2024-01-01 12:30:00'"]);
+      const field = makeField("eventDate", []);
+      const constraint = new FormatConstraint({ format: "iso8601" });
+      const result = await Effect.runPromiseExit(
+        findFormatViolations(conn, TABLE, "eventDate", constraint, {
+          ...field,
+          constraints: [constraint],
+        }),
       );
       assert(result._tag === "Success");
     });
@@ -571,7 +615,7 @@ Deno.test("findTypeViolations", async (t) => {
       await setupTable(conn, "lat VARCHAR", ["1, '45.0'", "2, 'abc'", "3, ''"]);
       const field = makeField("lat", []);
       const result = await Effect.runPromiseExit(
-        findTypeViolations(conn, TABLE, "lat", field, "DOUBLE"),
+        findTypeViolations(conn, TABLE, "lat", field, "DOUBLE", "error"),
       );
       const violations = extractViolations(result);
       assertEquals(violations.length, 1);
@@ -586,7 +630,7 @@ Deno.test("findTypeViolations", async (t) => {
       await setupTable(conn, "n VARCHAR", ["1, '10'", "2, '-3'"]);
       const field = makeField("n", []);
       const result = await Effect.runPromiseExit(
-        findTypeViolations(conn, TABLE, "n", field, "INTEGER"),
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER", "error"),
       );
       assert(result._tag === "Success");
     });
@@ -597,11 +641,9 @@ Deno.test("findTypeViolations", async (t) => {
       await setupTable(conn, "n VARCHAR", ["1, '1.5'"]);
       const field = makeField("n", []);
       const result = await Effect.runPromiseExit(
-        findTypeViolations(conn, TABLE, "n", field, "INTEGER"),
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER", "error"),
       );
-      const violations = extractViolations(result);
-      assertEquals(violations.length, 1);
-      assertEquals(violations[0].value, "1.5");
+      assertEquals(extractViolations(result).length, 1);
     });
   });
 
@@ -610,9 +652,44 @@ Deno.test("findTypeViolations", async (t) => {
       await setupTable(conn, "n VARCHAR", ["1, '3000000000'"]);
       const field = makeField("n", []);
       const result = await Effect.runPromiseExit(
-        findTypeViolations(conn, TABLE, "n", field, "INTEGER"),
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER", "error"),
       );
       assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("scientific notation and underscores are rejected for INTEGER", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '1e3'", "2, '1_000'"]);
+      const field = makeField("n", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER", "error"),
+      );
+      assertEquals(extractViolations(result).length, 2);
+    });
+  });
+
+  await t.step("inf / nan are rejected for DOUBLE", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "x VARCHAR", ["1, 'inf'", "2, 'Infinity'", "3, 'nan'", "4, '4.2'"]);
+      const field = makeField("x", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "x", field, "DOUBLE", "error"),
+      );
+      assertEquals(extractViolations(result).length, 3);
+    });
+  });
+
+  await t.step("severity argument is propagated to the violation", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "x VARCHAR", ["1, 'abc'"]);
+      const field = makeField("x", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "x", field, "DOUBLE", "info"),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].severity, "info");
     });
   });
 });
@@ -659,6 +736,25 @@ Deno.test("findPrimaryKeyViolations", async (t) => {
       assertEquals(violations.length, 2);
       assertEquals(violations.every((v) => v.constraintType === "null"), true);
     });
+  });
+});
+
+Deno.test("findPrimaryKeyViolations - total violations bounded by maxViolations", async () => {
+  await withConnection(async (conn) => {
+    // 3 nulls + 3 duplicate rows = 6 candidate violations; cap at 4.
+    await setupTable(conn, "id VARCHAR", [
+      "1, NULL",
+      "2, NULL",
+      "3, NULL",
+      "4, 'A'",
+      "5, 'A'",
+      "6, 'A'",
+    ]);
+    const field = makeField("id", []);
+    const result = await Effect.runPromiseExit(
+      findPrimaryKeyViolations(conn, TABLE, "id", field, 4),
+    );
+    assertEquals(extractViolations(result).length, 4);
   });
 });
 

@@ -76,6 +76,17 @@ function resolveOriginColumn(
   return entry.all[dwcField]?.originName ?? dwcField;
 }
 
+/** Return the column names of a DuckDB table (via DESCRIBE). */
+function getColumns(
+  connection: DuckDBConnection,
+  table: string,
+): Effect.Effect<string[]> {
+  return Effect.gen(function* () {
+    const rows = yield* queryRows(connection, `SELECT column_name FROM (DESCRIBE '${table}')`);
+    return rows.map((row) => String(row.column_name));
+  });
+}
+
 function deduplicateByTypeAndField<T extends { _tag: string; fieldName: string }>(
   arr: readonly T[],
 ): T[] {
@@ -386,14 +397,8 @@ function validateDataset(
     // queryRows uses the JSON reader: COUNT(*) (BIGINT) comes back as a string.
     const rowsProcessed = Number(countRows[0].count);
 
-    const originTableColumnsRows = yield* queryRows(
-      connection,
-      `SELECT column_name FROM (DESCRIBE '${tableName}')`,
-    );
-
     // Exclude _row_number; it's only used internally
-    const originTableColumns = originTableColumnsRows
-      .map((row) => String(row.column_name))
+    const originTableColumns = (yield* getColumns(connection, tableName))
       .filter((col) => col !== "_row_number");
 
     // Use base spec for primary-key and enum-type naming (derived from base specs).
@@ -606,6 +611,15 @@ function validateDataset(
         ? "DOUBLE"
         : undefined;
 
+      // Numeric (type-validity) violations take their severity from the field's
+      // obligation in the active standard — mirroring the vocabulary path — so a
+      // bad value in an optional numeric field warns/infos rather than failing.
+      const numericSeverity = numericType
+        ? requirementToSeverity(
+          obligationForStandard(baseField, activeStandard)?.requirement ?? "optional",
+        )
+        : undefined;
+
       let vocabulary: VocabularyCheck | undefined;
 
       if (rawField?.type === "controlled-vocabulary" && rawField.values) {
@@ -632,22 +646,17 @@ function validateDataset(
             isDbPrimaryKey,
             maxViolations: validationSettings?.maxViolationsPerField,
             numericType,
+            numericSeverity,
             vocabulary,
           },
         ),
       );
     }
 
-    if (fieldValidationEffects.length > 0) {
-      const results = yield* Effect.all(fieldValidationEffects, {
-        mode: "result",
-        concurrency: "unbounded",
-      });
-
-      for (const result of results) {
-        if (Result.isFailure(result)) {
-          allFieldViolations.push(...result.failure);
-        }
+    for (const fieldValidation of fieldValidationEffects) {
+      const result = yield* Effect.result(fieldValidation);
+      if (Result.isFailure(result)) {
+        allFieldViolations.push(...result.failure);
       }
     }
 
@@ -704,9 +713,14 @@ function validateDataset(
     }
 
     // Foreign key rules (cross-dataset referential integrity)
+    const seenFkRules = new Set<string>();
     for (const rule of datasetRules ?? []) {
       if (rule.ruleType !== "foreignKey") continue;
       if (rule.sourceDataset !== dataset.name) continue;
+
+      const fkKey = `${rule.sourceField}->${rule.targetDataset}.${rule.targetField}`;
+      if (seenFkRules.has(fkKey)) continue;
+      seenFkRules.add(fkKey);
 
       const childColumn = resolveOriginColumn(preResolved, rule.sourceField);
       if (!originTableColumns.includes(childColumn)) continue;
@@ -731,11 +745,7 @@ function validateDataset(
       const parentTable = `raw_${sanitizeTableName(rule.targetDataset)}`;
 
       // Guard: the resolved parent column must exist in the parent's raw table.
-      const parentColumnRows = yield* queryRows(
-        connection,
-        `SELECT column_name FROM (DESCRIBE '${parentTable}')`,
-      );
-      const parentColumns = parentColumnRows.map((row) => String(row.column_name));
+      const parentColumns = yield* getColumns(connection, parentTable);
       if (!parentColumns.includes(parentColumn)) {
         schemaViolations.push(
           new MissingMappingViolation({

@@ -208,6 +208,10 @@ export function isTypeViolation(v: FieldViolation): v is TypeViolation {
   return v._tag === "TypeViolation";
 }
 
+export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolation {
+  return v._tag === "ForeignKeyViolation";
+}
+
 export function requirementToSeverity(requirement: RequirementLevel): Severity {
   return Match.value(requirement).pipe(
     Match.when("required", () => "error" as const),

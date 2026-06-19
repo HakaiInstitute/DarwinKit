@@ -9,6 +9,7 @@ import {
   requirementToSeverity,
 } from "@dwkit/domain/types";
 import { queryRows } from "../loading/sql.ts";
+import { DEFAULT_MAX_VIOLATIONS } from "./field-validators.ts";
 
 function isOneOf(
   r: DependencyRequire,
@@ -93,7 +94,7 @@ export function validateForeignKeyRule(
     referencedTable?: string;
     referencedField?: string;
   },
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<void, FieldViolation[]> {
   return Effect.gen(function* () {
     const childText = `CAST(c."${childColumn}" AS VARCHAR)`;
@@ -105,7 +106,7 @@ export function validateForeignKeyRule(
         AND TRIM(${childText}) != ''
         AND NOT EXISTS (
           SELECT 1 FROM ${parentTable} p
-          WHERE ${parentText} = ${childText}
+          WHERE TRIM(${parentText}) = TRIM(${childText})
         )
       ORDER BY c._row_number
       LIMIT ${maxViolations}
@@ -115,8 +116,6 @@ export function validateForeignKeyRule(
     if (rows.length > 0) {
       const displayTable = options.referencedTable ?? parentTable;
       const displayField = options.referencedField ?? parentColumn;
-      const hasRuleContext = options.referencedTable !== undefined &&
-        options.referencedField !== undefined;
       const violations: FieldViolation[] = rows.map((row) => {
         const value = String(row.value);
         return new ForeignKeyViolation({
@@ -129,12 +128,10 @@ export function validateForeignKeyRule(
           referencedField: displayField,
           errorMessage: options.message ??
             `Foreign key value "${value}" in ${childColumn} does not exist in ${displayTable}.${displayField}`,
-          ...(hasRuleContext && {
-            params: {
-              targetDataset: options.referencedTable,
-              targetField: options.referencedField,
-            },
-          }),
+          params: {
+            targetDataset: displayTable,
+            targetField: displayField,
+          },
         });
       });
       return yield* Effect.fail(violations);
@@ -146,7 +143,7 @@ export function validateDependencyRule(
   connection: DuckDBConnection,
   tableName: string,
   rule: DependencyRule,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<void, FieldViolation[]> {
   return Effect.gen(function* () {
     const { clause, params } = buildWhereClause(rule);

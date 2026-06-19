@@ -48,13 +48,34 @@ function validField(fieldName: string, targetName: string): ValidField {
   return { fieldName, targetName, status: "valid" };
 }
 
+export const DEFAULT_MAX_VIOLATIONS = 100;
+
+/**
+ * SQL fragment matching values that are NOT valid integers. String/regexp based
+ * so it accepts arbitrarily large integers (no INT32/INT64 overflow) and rejects
+ * decimals, scientific notation, underscores, and inf/nan — unlike
+ * `TRY_CAST AS INTEGER`, which rounds '1.5'→2 and NULLs values above INT32.
+ */
+function invalidIntegerSql(asText: string): string {
+  return `NOT regexp_full_match(TRIM(${asText}), '^-?[0-9]+$')`;
+}
+
+/**
+ * SQL fragment matching values that are NOT valid finite numbers.
+ * `TRY_CAST AS DOUBLE` parses 'inf'/'nan', so guard explicitly with isnan()/isinf().
+ */
+function invalidDoubleSql(asText: string): string {
+  const d = `TRY_CAST(${asText} AS DOUBLE)`;
+  return `(${d} IS NULL OR isnan(${d}) OR isinf(${d}))`;
+}
+
 export function findRangeViolations(
   connection: DuckDBConnection,
   tableName: string,
   fieldName: string,
   constraint: Constraint & { _tag: "range" },
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, RangeViolation[]> {
   return Effect.gen(function* () {
     const { min, max, inclusive = true } = constraint;
@@ -86,6 +107,8 @@ export function findRangeViolations(
         CAST("${fieldName}" AS VARCHAR) as value
       FROM ${tableName}
       WHERE ${asNum} IS NOT NULL
+        AND NOT isnan(${asNum})
+        AND NOT isinf(${asNum})
         AND (${rangeCondition})
       LIMIT ${maxViolations}
     `;
@@ -164,7 +187,7 @@ function validateRangeConstraints(
   tableName: string,
   fieldName: string,
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
     "range",
@@ -178,16 +201,11 @@ function validateRangeConstraints(
 }
 
 /**
- * Parses the DuckDB `list(...)` column value returned by GROUP BY queries into
- * an array of row numbers. DuckDB may return either a plain JS array or an
- * object with an `items` property depending on the driver version.
+ * Parse the DuckDB `list(...)` column from a GROUP BY query into row numbers.
+ * `queryRows` reads via getRowObjectsJson, so a LIST is always a plain JS array.
  */
 function parseAffectedRows(raw: unknown): number[] {
-  if (Array.isArray(raw)) return raw.map((n) => Number(n));
-  if (raw && typeof raw === "object" && "items" in raw) {
-    return (raw as { items: unknown[] }).items.map((n) => Number(n));
-  }
-  return [];
+  return Array.isArray(raw) ? raw.map((n) => Number(n)) : [];
 }
 
 /**
@@ -198,7 +216,7 @@ export function findUniquenessViolations(
   tableName: string,
   fieldName: string,
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, UniquenessViolation[]> {
   return Effect.gen(function* () {
     const query = `
@@ -236,7 +254,7 @@ export function findUniquenessViolations(
     }
 
     if (violations.length > 0) {
-      return yield* Effect.fail(violations);
+      return yield* Effect.fail(violations.slice(0, maxViolations));
     }
 
     return validField(fieldName, specField.name);
@@ -249,7 +267,7 @@ function findUniquenessConstraintViolations(
   fieldName: string,
   _constraint: Constraint & { _tag: "unique" },
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, UniquenessViolation[]> {
   return findUniquenessViolations(
     connection,
@@ -265,7 +283,7 @@ function validateUniqueness(
   tableName: string,
   fieldName: string,
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
     "unique",
@@ -288,7 +306,7 @@ export function findPrimaryKeyViolations(
   tableName: string,
   fieldName: string,
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, PrimaryKeyViolation[]> {
   return Effect.gen(function* () {
     const asText = `CAST("${fieldName}" AS VARCHAR)`;
@@ -355,7 +373,7 @@ export function findPrimaryKeyViolations(
     }
 
     if (violations.length > 0) {
-      return yield* Effect.fail(violations);
+      return yield* Effect.fail(violations.slice(0, maxViolations));
     }
     return validField(fieldName, specField.name);
   });
@@ -374,7 +392,7 @@ export function findVocabularyViolations(
   fieldName: string,
   specField: SpecField,
   check: VocabularyCheck,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, EnumViolation[]> {
   return Effect.gen(function* () {
     if (check.allowedValues.length === 0) {
@@ -430,19 +448,14 @@ export function findTypeViolations(
   fieldName: string,
   specField: SpecField,
   duckType: "INTEGER" | "DOUBLE",
-  maxViolations = 100,
+  severity: Severity,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, TypeViolation[]> {
   return Effect.gen(function* () {
     const asText = `CAST("${fieldName}" AS VARCHAR)`;
-    // For INTEGER we detect invalidity via a DOUBLE cast rather than an INTEGER
-    // cast: DuckDB's TRY_CAST AS INTEGER rounds decimals ('1.5' → 2) and returns
-    // NULL on INT32 overflow ('3000000000'), which would wrongly flag valid large
-    // integers. A DOUBLE cast flags non-numeric strings (NULL) and fractional
-    // values (value != FLOOR(value)) while accepting large whole numbers.
     const invalidCondition = duckType === "INTEGER"
-      ? `(TRY_CAST(${asText} AS DOUBLE) IS NULL
-           OR TRY_CAST(${asText} AS DOUBLE) != FLOOR(TRY_CAST(${asText} AS DOUBLE)))`
-      : `TRY_CAST(${asText} AS ${duckType}) IS NULL`;
+      ? invalidIntegerSql(asText)
+      : invalidDoubleSql(asText);
 
     const query = `
       SELECT _row_number, ${asText} AS value
@@ -458,7 +471,7 @@ export function findTypeViolations(
       const label = duckType === "DOUBLE" ? "number" : "integer";
       const violations = rows.map((row) =>
         new TypeViolation({
-          severity: requirementToSeverity("required"),
+          severity,
           fieldName,
           targetName: specField.name,
           rowNumber: Number(row._row_number),
@@ -494,6 +507,7 @@ function formatSqlCondition(fieldName: string, format: ConstraintFormat): string
         AND TRY_STRPTIME(${asText}, '%Y-%m-%d') IS NULL
         AND TRY_STRPTIME(${asText}, '%Y-%m-%dT%H:%M:%S') IS NULL
         AND TRY_STRPTIME(${asText}, '%Y-%m-%dT%H:%M:%SZ') IS NULL
+        AND TRY_STRPTIME(${asText}, '%Y-%m-%d %H:%M:%S') IS NULL
         AND TRY_STRPTIME(${asText}, '%Y-%m') IS NULL
         AND TRY_STRPTIME(${asText}, '%Y') IS NULL
         AND NOT regexp_matches(${asText}, '^\\d{4}-\\d{2}-\\d{2}/\\d{4}-\\d{2}-\\d{2}$')`),
@@ -508,11 +522,11 @@ function formatSqlCondition(fieldName: string, format: ConstraintFormat): string
     Match.when("decimal-degrees", () =>
       `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND TRY_CAST(${asText} AS DOUBLE) IS NULL`),
+        AND ${invalidDoubleSql(asText)}`),
     Match.when("integer", () =>
       `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND TRY_CAST(${asText} AS INTEGER) IS NULL`),
+        AND ${invalidIntegerSql(asText)}`),
     Match.when("email", () =>
       `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
@@ -527,7 +541,7 @@ export function findFormatViolations(
   fieldName: string,
   constraint: Constraint & { _tag: "format" },
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, FormatViolation[]> {
   return Effect.gen(function* () {
     const condition = formatSqlCondition(fieldName, constraint.format);
@@ -564,7 +578,7 @@ function validateFormatConstraints(
   tableName: string,
   fieldName: string,
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
     "format",
@@ -583,7 +597,7 @@ export function findPatternViolations(
   fieldName: string,
   constraint: Constraint & { _tag: "pattern" },
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, PatternViolation[]> {
   return Effect.gen(function* () {
     const asText = `CAST("${fieldName}" AS VARCHAR)`;
@@ -650,7 +664,7 @@ function validatePatternConstraints(
   tableName: string,
   fieldName: string,
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
     "pattern",
@@ -669,7 +683,7 @@ export function findLengthViolations(
   fieldName: string,
   constraint: Constraint & { _tag: "length" },
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, LengthViolation[]> {
   return Effect.gen(function* () {
     const { minLength, maxLength } = constraint;
@@ -726,7 +740,7 @@ function validateLengthConstraints(
   tableName: string,
   fieldName: string,
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return validateConstraintsByType(
     "length",
@@ -745,7 +759,7 @@ export function findRequiredViolations(
   fieldName: string,
   constraint: Constraint & { _tag: "required" },
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, RequiredFieldViolation[]> {
   return Effect.gen(function* () {
     const asText = `CAST("${fieldName}" AS VARCHAR)`;
@@ -792,7 +806,7 @@ export function validateRequiredConstraints(
   tableName: string,
   fieldName: string,
   specField: SpecField,
-  maxViolations = 100,
+  maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   // After additive merge, multiple required constraints may exist (spec + config).
   // Resolve to the strictest one so config cannot weaken spec requirements.
@@ -822,6 +836,7 @@ interface FieldValidationContext {
   readonly isDbPrimaryKey: boolean;
   readonly maxViolations?: number;
   readonly numericType?: "INTEGER" | "DOUBLE";
+  readonly numericSeverity?: Severity;
   readonly vocabulary?: VocabularyCheck;
 }
 
@@ -833,11 +848,28 @@ export function validateField(
   context: FieldValidationContext,
 ): Effect.Effect<ValidField, FieldViolation[]> {
   return Effect.gen(function* () {
-    const maxViolations = context.maxViolations ?? 100;
+    const maxViolations = context.maxViolations ?? DEFAULT_MAX_VIOLATIONS;
+
+    // When this field is validated as a number, findTypeViolations owns numeric
+    // validity (with obligation-derived severity), so suppress the equivalent
+    // format check to avoid double-reporting one bad value under two tags.
+    const coveringFormat: ConstraintFormat | undefined = context.numericType === "INTEGER"
+      ? "integer"
+      : context.numericType === "DOUBLE"
+      ? "decimal-degrees"
+      : undefined;
+    const formatSpecField: SpecField = coveringFormat
+      ? {
+        ...specField,
+        constraints: (specField.constraints ?? []).filter(
+          (c) => !(c._tag === "format" && c.format === coveringFormat),
+        ),
+      }
+      : specField;
 
     const validators: Effect.Effect<ValidField, FieldViolation[]>[] = [
       validateRangeConstraints(connection, tableName, fieldName, specField, maxViolations),
-      validateFormatConstraints(connection, tableName, fieldName, specField, maxViolations),
+      validateFormatConstraints(connection, tableName, fieldName, formatSpecField, maxViolations),
       validatePatternConstraints(connection, tableName, fieldName, specField, maxViolations),
       validateLengthConstraints(connection, tableName, fieldName, specField, maxViolations),
     ];
@@ -873,22 +905,17 @@ export function validateField(
     }
 
     if (context.numericType) {
-      const coveringFormat = context.numericType === "INTEGER" ? "integer" : "decimal-degrees";
-      const hasCoveringFormat = (specField.constraints ?? []).some(
-        (c) => c._tag === "format" && c.format === coveringFormat,
+      validators.push(
+        findTypeViolations(
+          connection,
+          tableName,
+          fieldName,
+          specField,
+          context.numericType,
+          context.numericSeverity ?? requirementToSeverity("required"),
+          maxViolations,
+        ),
       );
-      if (!hasCoveringFormat) {
-        validators.push(
-          findTypeViolations(
-            connection,
-            tableName,
-            fieldName,
-            specField,
-            context.numericType,
-            maxViolations,
-          ),
-        );
-      }
     }
 
     const violations: FieldViolation[] = [];
