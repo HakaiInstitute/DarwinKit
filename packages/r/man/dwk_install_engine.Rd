@@ -21,14 +21,14 @@ dwk_install_engine(
 
 \item{dest}{Destination path for the binary; exposed for testing.}
 
-\item{download}{Downloader \code{function(url, destfile)}; exposed for testing.}
+\item{download}{Downloader \verb{function(url, destfile)}; exposed for testing.}
 }
 \value{
 The installed binary path, invisibly.
 }
 \description{
 Downloads the \code{dwkt} release binary for the current platform into a managed
-per-user location (under \code{\link[tools]{R_user_dir}}), where \code{\link{dwk_validate}} finds
+per-user location (under \code{\link[tools:userdir]{tools::R_user_dir()}}), where \code{\link[=dwk_validate]{dwk_validate()}} finds
 it automatically. No \code{PATH} editing or administrator rights are required.
 Re-run with \code{force = TRUE} to upgrade to the current latest release.
 }

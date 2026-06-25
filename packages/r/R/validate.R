@@ -71,5 +71,5 @@ dwk_validate <- function(kit, stage_dir = NULL, bin = NULL, runner = NULL) {
       call. = FALSE
     )
   }
-  new_dwk_report(parse_report(parsed))
+  new_dwk_report(parse_report(parsed), name = kit$name)
 }

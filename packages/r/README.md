@@ -44,9 +44,11 @@ kit <- dwk_init("FC2022 survey", description = "Marine survey 2022") |>
 
 report <- dwk_validate(kit)
 
-report                        # per-dataset summary
+report                        # per-dataset status + errors then warnings (max 25)
 dwk_is_valid(report)          # overall TRUE/FALSE
-dwk_issues(report)            # tidy tibble: dataset, check, level, field, row, message, value
+dwk_summary(report)           # counts per level + one example of each
+dwk_issues(report)            # full tidy tibble: dataset, check, level, field, row, message, value
+dwk_errors(report)            # tidy tibble filtered to errors (also dwk_warnings(), dwk_info())
 ```
 
 Verbs are immutable: each returns a modified copy, so reassign (`kit <-

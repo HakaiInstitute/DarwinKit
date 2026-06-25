@@ -5,11 +5,11 @@ Invertebrate Community Surveys** Darwin Core dataset, used by the R package's
 integration test (`tests/testthat/test-e2e.R`) to validate real, well-formed
 Darwin Core data end to end through the `dwkt` engine.
 
-| File | Darwin Core class | Rows |
-| --- | --- | --- |
-| `hakaiFI_event.csv` | Event | 4 (project root → site/date → 2 transects) |
-| `hakaiFI_occ.csv` | Occurrence | 13 (one fish transect + one invertebrate survey) |
-| `hakaiFI_eMOF.csv` | ExtendedMeasurementOrFact | 15 (incl. 2 event-level measurements) |
+| File                | Darwin Core class         | Rows                                             |
+| ------------------- | ------------------------- | ------------------------------------------------ |
+| `hakaiFI_event.csv` | Event                     | 4 (project root → site/date → 2 transects)       |
+| `hakaiFI_occ.csv`   | Occurrence                | 13 (one fish transect + one invertebrate survey) |
+| `hakaiFI_eMOF.csv`  | ExtendedMeasurementOrFact | 15 (incl. 2 event-level measurements)            |
 
 The slice is deliberately tiny so it is reviewable in a diff and fast to
 validate on every CI run, while keeping the `eventID` / `occurrenceID` foreign

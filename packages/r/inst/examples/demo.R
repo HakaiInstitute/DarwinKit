@@ -27,13 +27,15 @@ if (requireNamespace("darwinkit", quietly = TRUE)) {
   pkgload::load_all("packages/r", quiet = TRUE)
 }
 suppressPackageStartupMessages(
-  library(dplyr) # only for the tidy dwk_issues() filtering near the end
+  library(dplyr) # only for the tidy dwk_issues() filtering in section 5
 )
 
 # If you built the engine from this repo, point DARWINKIT_BIN at it. (Skip this
 # if you already have a `dwkt` on your PATH.)
-if (Sys.getenv("DARWINKIT_BIN") == "" &&
-  file.exists("packages/cli/dist/dwkt-macos")) {
+if (
+  Sys.getenv("DARWINKIT_BIN") == "" &&
+    file.exists("packages/cli/dist/dwkt-macos")
+) {
   Sys.setenv(DARWINKIT_BIN = normalizePath("packages/cli/dist/dwkt-macos"))
 }
 
@@ -91,8 +93,11 @@ occ <- tibble::tibble(
     "Crassadoma gigantea (J. E. Gray, 1825)"
   ),
   vernacularName = c(
-    "Striped seaperch", "Leafy hornmouth", "Leafy hornmouth",
-    "Leafy hornmouth", "Rock scallop"
+    "Striped seaperch",
+    "Leafy hornmouth",
+    "Leafy hornmouth",
+    "Leafy hornmouth",
+    "Rock scallop"
   ),
   kingdom = "Animalia",
   occurrenceStatus = "present",
@@ -129,21 +134,31 @@ print(emof)
 # 2. Validate the Events on their own
 # ----------------------------------------------------------------------------
 # dwk_init() starts an (immutable) kit; dwk_dataset() registers a table under a
-# Darwin Core class. `required` fields must be present and non-null; `unique`
-# forbids duplicate IDs. dwk_validate() shells out to the dwkt engine.
-kit <- dwk_init("rocky-subtidal",
-  description = "Demo survey slice", standard = "obis"
+# Darwin Core class. The OBIS profile supplies the baseline requirements; pass
+# `required`/`unique` to tighten a dataset further - `required` fields must be
+# present and non-null, `unique` forbids duplicate IDs. dwk_validate() shells
+# out to the dwkt engine.
+kit <- dwk_init(
+  "rocky-subtidal",
+  description = "Demo survey slice",
+  standard = "obis"
 ) |>
   dwk_dataset(
     "events", "Event", events,
-    required = c("eventID", "eventDate", "decimalLatitude", "decimalLongitude"),
+    required = c("eventID", "decimalLatitude", "decimalLongitude"),
     unique = "eventID"
   )
 
 report <- dwk_validate(kit)
-print(report) # per-dataset summary
-print(dwk_is_valid(report)) # overall TRUE/FALSE
-print(dwk_issues(report)) # tidy tibble of every issue (warnings/info here)
+
+# Two ways to read a report: print() for the full human view (status header +
+# errors then warnings; info hidden, n = Inf for all), and dwk_summary() for a
+# compact triage (counts per level + one example of each). Use print() when you
+# want the detail, dwk_summary() to glance while iterating.
+print(report)
+dwk_summary(report)
+# For code, reach for the tidy tibbles instead: dwk_issues(report) (every level)
+# or dwk_errors(report) / dwk_warnings(report) / dwk_info(report).
 
 # ----------------------------------------------------------------------------
 # 3. Add the Occurrences + a foreign key back to Events
@@ -151,36 +166,21 @@ print(dwk_issues(report)) # tidy tibble of every issue (warnings/info here)
 # Verbs return a modified COPY, so we reassign `kit`. dwk_relation() declares
 # that every occurrence.eventID must exist in events.eventID.
 kit <- kit |>
-  dwk_dataset(
-    "occurrence", "Occurrence", occ,
-    required = c(
-      "occurrenceID", "eventID", "scientificName",
-      "basisOfRecord", "occurrenceStatus"
-    ),
-    unique = "occurrenceID"
-  ) |>
+  dwk_dataset("occurrence", "Occurrence", occ) |>
   dwk_relation("occurrence", "eventID", "events", "eventID")
 
 report <- dwk_validate(kit)
-print(report)
-print(dwk_is_valid(report))
+dwk_summary(report) # glance while iterating; print(report) for the full view
 
 # ----------------------------------------------------------------------------
 # 4. Add the Measurements (eMOF) + its foreign key
 # ----------------------------------------------------------------------------
 kit <- kit |>
-  dwk_dataset(
-    "emof", "ExtendedMeasurementOrFact", emof,
-    required = c(
-      "measurementID", "eventID", "measurementType", "measurementValue"
-    ),
-    unique = "measurementID"
-  ) |>
+  dwk_dataset("emof", "ExtendedMeasurementOrFact", emof) |>
   dwk_relation("emof", "eventID", "events", "eventID")
 
 report <- dwk_validate(kit)
-print(report) # three datasets
-print(dwk_is_valid(report)) # TRUE
+dwk_summary(report) # still all valid - the triage is enough while building
 
 # ----------------------------------------------------------------------------
 # 5. Watch the engine catch real problems
@@ -193,41 +193,56 @@ bad_events$decimalLatitude[1] <- 200 # latitude must be within [-90, 90]
 
 bad_occ <- occ
 bad_occ$eventID[1] <- "hakaiFI-NO-SUCH-EVENT" # orphaned foreign key
+bad_occ$eventID[2] <- "hakaiFI-NO-SUCH-EVENTS" # orphaned foreign key
 
 broken_kit <- kit |>
-  dwk_dataset("events", "Event", bad_events,
-    required = c("eventID", "eventDate", "decimalLatitude", "decimalLongitude"),
-    unique = "eventID"
-  ) |>
-  dwk_dataset("occurrence", "Occurrence", bad_occ,
-    required = c(
-      "occurrenceID", "eventID", "scientificName",
-      "basisOfRecord", "occurrenceStatus"
-    ),
-    unique = "occurrenceID"
-  )
+  dwk_dataset("events", "Event", bad_events) |>
+  dwk_dataset("occurrence", "Occurrence", bad_occ)
 
 broken <- dwk_validate(broken_kit)
 print(dwk_is_valid(broken)) # FALSE
 
-# dwk_issues() is a plain tibble, so dplyr works. Show just the errors:
-print(dwk_issues(broken) |> filter(level == "error"))
+# Focused console view: errors then warnings (capped at 25 total, errors
+# first; info hidden). Use print(broken, n = Inf) to show everything.
+print(broken)
+
+# Quick triage: counts per level + one example of each.
+dwk_summary(broken)
+
+# Per-level tidy tibbles (each is a plain tibble, so dplyr still works):
+print(dwk_errors(broken)) # errors only
+print(dwk_warnings(broken)) # warnings only
+print(dwk_info(broken)) # info only
+
+# The full, unfiltered table (every level):
+print(dwk_issues(broken))
+
+# dwk_issues() composes with dplyr, e.g. errors for one dataset:
+print(dwk_issues(broken) |> filter(level == "error", dataset == "events"))
 
 # ----------------------------------------------------------------------------
 # 6. Fix it - and see why immutability makes that easy
 # ----------------------------------------------------------------------------
 # The original `kit` was never mutated, so re-validating it is green again.
+# dwk_is_valid() returns a plain logical, so it's the natural gate in a script
+# or CI job - branch on it instead of eyeballing the report.
 fixed <- dwk_validate(kit)
-print(dwk_is_valid(fixed)) # TRUE
+if (dwk_is_valid(fixed)) {
+  message("All datasets valid - ready to stage and submit.")
+} else {
+  print(fixed) # show what still needs fixing
+  stop("Validation failed.")
+}
 
 # ----------------------------------------------------------------------------
 # 7. Keep the artifacts
 # ----------------------------------------------------------------------------
-# Stage a portable shadow workspace (Parquet + darwinkit.yaml) you can commit
-# and re-run in CI with `dwkt validate --config darwinkit/darwinkit.yaml`:
+# In a pipeline you'd usually reach this only after dwk_is_valid() passes (see
+# section 6). Stage a portable shadow workspace (Parquet + darwinkit.yaml) you
+# can commit and re-run in CI with `dwkt validate --config darwinkit/darwinkit.yaml`:
 dwk_stage(kit, "darwinkit/")
 
 # Or write submission-ready CSVs (every column stringified, NA -> ""):
-dwk_write_csv(kit, "output/")
+dwk_write_csv(kit, "csv/")
 
 cat("\nDemo complete.\n")
