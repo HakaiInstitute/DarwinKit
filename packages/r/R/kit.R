@@ -8,8 +8,7 @@ new_dwk_kit <- function(name, description, standard) {
       description = description,
       standard = standard,
       null_values = dwk_default_null_values,
-      datasets = list(),
-      relations = list()
+      datasets = list()
     ),
     class = "dwk_kit"
   )
@@ -64,6 +63,7 @@ check_data_frame <- function(x, arg, fn) {
 #' @param description Optional human-readable description.
 #' @param standard Biodiversity standard variant, e.g. `"obis"` or `"gbif"`.
 #' @return A `dwk_kit`.
+#' @family kit builders
 #' @examples
 #' kit <- dwk_init("My survey", description = "2022 field season")
 #' @export
@@ -83,6 +83,7 @@ dwk_init <- function(name, description = NULL, standard = "obis") {
 #' @param kit A `dwk_kit`.
 #' @param values Character vector of null markers.
 #' @return A modified copy of `kit`.
+#' @family kit builders
 #' @examples
 #' kit <- dwk_init("t") |> dwk_null_values(c("NA", "-999"))
 #' @export
@@ -105,13 +106,6 @@ print.dwk_kit <- function(x, ...) {
   for (nm in names(x$datasets)) {
     d <- x$datasets[[nm]]
     cat(sprintf("  dataset %s: %s, %d row(s)\n", nm, d$class, nrow(d$data)))
-  }
-  for (r in x$relations) {
-    cat(sprintf(
-      "  relation %s.%s -> %s.%s (%s)\n",
-      r$source_dataset, r$source_field,
-      r$target_dataset, r$target_field, r$requirement
-    ))
   }
   invisible(x)
 }

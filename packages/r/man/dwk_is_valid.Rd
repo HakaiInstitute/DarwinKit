@@ -17,3 +17,8 @@ dwk_is_valid(report, dataset = NULL)
 \description{
 Did validation pass?
 }
+\seealso{
+Other validation: 
+\code{\link{dwk_validate}()}
+}
+\concept{validation}

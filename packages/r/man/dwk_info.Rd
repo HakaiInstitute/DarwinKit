@@ -18,3 +18,13 @@ A tibble.
 Convenience filter over \code{\link[=dwk_issues]{dwk_issues()}} returning only \code{level == "info"}
 rows. Same columns and \code{dataset} argument as \code{\link[=dwk_issues]{dwk_issues()}}.
 }
+\seealso{
+Other reporting: 
+\code{\link{dwk_errors}()},
+\code{\link{dwk_ignore}()},
+\code{\link{dwk_issues}()},
+\code{\link{dwk_summary}()},
+\code{\link{dwk_warnings}()},
+\code{\link{print.dwk_report}()}
+}
+\concept{reporting}

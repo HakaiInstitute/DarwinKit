@@ -144,7 +144,8 @@ kit <- dwk_init(
   standard = "obis"
 ) |>
   dwk_dataset(
-    "events", "Event", events,
+    "Event", events,
+    name = "events",
     required = c("eventID", "decimalLatitude", "decimalLongitude"),
     unique = "eventID"
   )
@@ -161,23 +162,23 @@ dwk_summary(report)
 # or dwk_errors(report) / dwk_warnings(report) / dwk_info(report).
 
 # ----------------------------------------------------------------------------
-# 3. Add the Occurrences + a foreign key back to Events
+# 3. Add the Occurrences
 # ----------------------------------------------------------------------------
-# Verbs return a modified COPY, so we reassign `kit`. dwk_relation() declares
-# that every occurrence.eventID must exist in events.eventID.
+# Verbs return a modified COPY, so we reassign `kit`. No relation declaration
+# needed — the engine infers the Occurrence→Event foreign key automatically.
 kit <- kit |>
-  dwk_dataset("occurrence", "Occurrence", occ) |>
-  dwk_relation("occurrence", "eventID", "events", "eventID")
+  dwk_dataset("Occurrence", occ, name = "occurrence")
 
 report <- dwk_validate(kit)
 dwk_summary(report) # glance while iterating; print(report) for the full view
 
 # ----------------------------------------------------------------------------
-# 4. Add the Measurements (eMOF) + its foreign key
+# 4. Add the Measurements (eMOF)
 # ----------------------------------------------------------------------------
+# The engine also infers the ExtendedMeasurementOrFact→Event foreign key
+# automatically — no dwk_relation() call needed.
 kit <- kit |>
-  dwk_dataset("emof", "ExtendedMeasurementOrFact", emof) |>
-  dwk_relation("emof", "eventID", "events", "eventID")
+  dwk_dataset("ExtendedMeasurementOrFact", emof, name = "emof")
 
 report <- dwk_validate(kit)
 dwk_summary(report) # still all valid - the triage is enough while building
@@ -196,14 +197,16 @@ bad_occ$eventID[1] <- "hakaiFI-NO-SUCH-EVENT" # orphaned foreign key
 bad_occ$eventID[2] <- "hakaiFI-NO-SUCH-EVENTS" # orphaned foreign key
 
 broken_kit <- kit |>
-  dwk_dataset("events", "Event", bad_events) |>
-  dwk_dataset("occurrence", "Occurrence", bad_occ)
+  dwk_dataset("Event", bad_events, name = "events") |>
+  dwk_dataset("Occurrence", bad_occ, name = "occurrence")
 
 broken <- dwk_validate(broken_kit)
 print(dwk_is_valid(broken)) # FALSE
 
-# Focused console view: errors then warnings (capped at 25 total, errors
-# first; info hidden). Use print(broken, n = Inf) to show everything.
+# The engine catches both: a RangeViolation on the bad latitude AND a
+# ForeignKeyViolation on the orphaned occurrence.eventID values — the latter
+# coming from the engine's automatic Occurrence→Event inference (no
+# dwk_relation() declaration required).
 print(broken)
 
 # Quick triage: counts per level + one example of each.
@@ -219,6 +222,9 @@ print(dwk_issues(broken))
 
 # dwk_issues() composes with dplyr, e.g. errors for one dataset:
 print(dwk_issues(broken) |> filter(level == "error", dataset == "events"))
+
+# dwk_ignore() suppresses noise (never errors). e.g. hide info-level messages:
+dwk_summary(dwk_ignore(broken, levels = "info"))
 
 # ----------------------------------------------------------------------------
 # 6. Fix it - and see why immutability makes that easy

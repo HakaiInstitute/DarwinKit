@@ -5,6 +5,8 @@ Authors@R: person("Hakai Institute", role = c("aut", "cre"), email = "info@hakai
 Description: Build Darwin Core / OBIS validation configs from data frames with
     pipeable verbs and validate them against the DarwinKit engine (the dwkt
     binary).
+URL: https://github.com/HakaiInstitute/DarwinKit
+BugReports: https://github.com/HakaiInstitute/DarwinKit/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends:
@@ -19,7 +21,8 @@ Imports:
     yaml
 Suggests:
     testthat (>= 3.0.0),
-    withr
+    withr,
+    pkgdown
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)

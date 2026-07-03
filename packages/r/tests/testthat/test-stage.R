@@ -1,20 +1,21 @@
 staged_kit <- function() {
   dwk_init("t", standard = "obis") |>
     dwk_null_values(c("NA", "")) |>
-    dwk_dataset("events", "Event",
+    dwk_dataset("Event",
       tibble::tibble(
         eventID = c("E1", "E2"),
         decimalLatitude = c(48.5, 49.0)
       ),
+      name = "events",
       description = "evts",
       required = c("eventID", "decimalLatitude"),
       unique = "eventID"
     ) |>
     dwk_dataset(
-      "occ", "Occurrence",
-      tibble::tibble(occurrenceID = "O1", eventID = "E1")
-    ) |>
-    dwk_relation("occ", "eventID", "events", "eventID")
+      "Occurrence",
+      tibble::tibble(occurrenceID = "O1", eventID = "E1"),
+      name = "occ"
+    )
 }
 
 test_that("dwk_stage writes parquet per dataset and a config with relative paths", {
@@ -39,8 +40,23 @@ test_that("dwk_stage writes parquet per dataset and a config with relative paths
   # Relative to the config file: the engine resolves against dirname(configPath),
   # keeping the staged directory portable (fit for git).
   expect_equal(ev$path, "events.parquet")
-  expect_equal(parsed$datasetRules[[1]]$ruleType, "foreignKey")
-  expect_equal(parsed$datasetRules[[1]]$targetDataset, "events")
+})
+
+test_that("null-sentinel strings become NA in staged Parquet", {
+  # The engine treats Parquet NULLs as native and does not apply nullValues on
+  # read, so sentinels must be converted to NA before write_parquet().
+  kit <- dwk_init("t") |>
+    dwk_null_values(c("NA", "")) |>
+    dwk_dataset(
+      "Event",
+      tibble::tibble(eventID = c("E1", "E2"), parentEventID = c("E0", "")),
+      name = "events"
+    )
+  stage <- withr::local_tempdir()
+  dwk_stage(kit, stage)
+  back <- nanoparquet::read_parquet(file.path(stage, "events.parquet"))
+  expect_true(is.na(back$parentEventID[2])) # "" was a sentinel
+  expect_equal(back$parentEventID[1], "E0") # non-sentinel untouched
 })
 
 test_that("required/unique emit fieldMappings the engine understands", {
@@ -64,8 +80,8 @@ test_that("required/unique emit fieldMappings the engine understands", {
 
 test_that("a unique field that is not in required still gets a mapping", {
   kit <- dwk_init("t") |>
-    dwk_dataset("events", "Event", tibble::tibble(eventID = "E1"),
-      unique = "eventID"
+    dwk_dataset("Event", tibble::tibble(eventID = "E1"),
+      name = "events", unique = "eventID"
     )
   parsed <- yaml::read_yaml(dwk_stage(kit, withr::local_tempdir()))
   fm <- parsed$validation$datasets[[1]]$fieldMappings
@@ -78,28 +94,10 @@ test_that("staging an empty kit errors", {
   expect_error(dwk_stage(dwk_init("t"), withr::local_tempdir()), "no datasets")
 })
 
-test_that("a relation referencing an unknown dataset errors at stage time", {
-  kit <- dwk_init("t") |>
-    dwk_dataset("events", "Event", tibble::tibble(eventID = "E1")) |>
-    dwk_relation("occ", "eventID", "events", "eventID")
-  expect_error(dwk_stage(kit, withr::local_tempdir()), "unknown dataset 'occ'")
-})
-
-test_that("a relation field missing from its dataset errors at stage time", {
-  kit <- dwk_init("t") |>
-    dwk_dataset("events", "Event", tibble::tibble(eventID = "E1")) |>
-    dwk_dataset("occ", "Occurrence", tibble::tibble(occurrenceID = "O1")) |>
-    dwk_relation("occ", "eventID", "events", "eventID")
-  expect_error(
-    dwk_stage(kit, withr::local_tempdir()),
-    "not a column of dataset 'occ'"
-  )
-})
-
 test_that("a named unique vector still emits the unique constraint", {
   kit <- dwk_init("t") |>
-    dwk_dataset("events", "Event", tibble::tibble(eventID = "E1"),
-      unique = c(id = "eventID")
+    dwk_dataset("Event", tibble::tibble(eventID = "E1"),
+      name = "events", unique = c(id = "eventID")
     )
   parsed <- yaml::read_yaml(dwk_stage(kit, withr::local_tempdir()))
   fm <- parsed$validation$datasets[[1]]$fieldMappings

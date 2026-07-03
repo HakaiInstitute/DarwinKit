@@ -18,10 +18,11 @@ default_runner <- function(bin, args) {
 #' @param runner Subprocess runner, exposed for testing. A
 #'   `function(bin, args)` returning `list(stdout, stderr, status)`.
 #' @return A `dwk_report`; see [dwk_is_valid()] and [dwk_issues()].
+#' @family validation
 #' @examples
 #' \dontrun{
 #' report <- dwk_init("survey") |>
-#'   dwk_dataset("events", "Event", events_df) |>
+#'   dwk_dataset("Event", events_df, name = "events") |>
 #'   dwk_validate()
 #' dwk_issues(report)
 #' }

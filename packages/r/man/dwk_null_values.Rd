@@ -22,3 +22,9 @@ missing). The default mirrors the engine's: \code{NA}, \code{N/A}, \code{""}, \c
 \examples{
 kit <- dwk_init("t") |> dwk_null_values(c("NA", "-999"))
 }
+\seealso{
+Other kit builders: 
+\code{\link{dwk_dataset}()},
+\code{\link{dwk_init}()}
+}
+\concept{kit builders}

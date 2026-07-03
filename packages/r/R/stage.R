@@ -1,36 +1,12 @@
-# Pre-staging sanity checks: a kit must have datasets, and every relation must
-# reference datasets/fields that exist. Field-level required/unique checks are
-# the engine's job (config-mapped fields are implicitly required there).
+# Pre-staging sanity check: a kit must have at least one dataset.
+# Field-level required/unique checks are the engine's job (config-mapped
+# fields are implicitly required there).
 check_stageable <- function(kit) {
   if (length(kit$datasets) == 0) {
     stop(
       "Kit has no datasets. Add one with `dwk_dataset()` before staging or validating.",
       call. = FALSE
     )
-  }
-  for (r in kit$relations) {
-    for (side in c("source", "target")) {
-      ds_name <- r[[paste0(side, "_dataset")]]
-      field <- r[[paste0(side, "_field")]]
-      if (!ds_name %in% names(kit$datasets)) {
-        stop(
-          sprintf(
-            "Relation references unknown dataset '%s'. Known datasets: %s.",
-            ds_name, paste(names(kit$datasets), collapse = ", ")
-          ),
-          call. = FALSE
-        )
-      }
-      if (!field %in% names(kit$datasets[[ds_name]]$data)) {
-        stop(
-          sprintf(
-            "Relation field '%s' is not a column of dataset '%s'.",
-            field, ds_name
-          ),
-          call. = FALSE
-        )
-      }
-    }
   }
   invisible(kit)
 }
@@ -50,6 +26,20 @@ field_mappings_for <- function(d) {
   })
 }
 
+# Replace null-sentinel values (e.g. "", "NA") with NA before writing to
+# Parquet. Parquet has native NULL — the engine does not apply nullValues to
+# Parquet reads — so we must convert here rather than rely on the engine to
+# do it at load time.
+apply_null_values <- function(df, null_values) {
+  for (col in names(df)) {
+    v <- df[[col]]
+    if (is.character(v)) {
+      df[[col]] <- ifelse(v %in% null_values, NA_character_, v)
+    }
+  }
+  df
+}
+
 # Write all datasets to Parquet under `stage` and emit darwinkit.yaml.
 # Dataset paths are written relative to the config file: the engine resolves
 # them against dirname(configPath), so the staged directory is portable.
@@ -62,7 +52,10 @@ stage_datasets <- function(stage, kit) {
   for (nm in names(kit$datasets)) {
     d <- kit$datasets[[nm]]
     parquet_name <- paste0(nm, ".parquet")
-    nanoparquet::write_parquet(d$data, file.path(stage, parquet_name))
+    nanoparquet::write_parquet(
+      apply_null_values(d$data, kit$null_values),
+      file.path(stage, parquet_name)
+    )
     entry <- list(
       name = nm,
       class = d$class,
@@ -74,17 +67,6 @@ stage_datasets <- function(stage, kit) {
     dataset_entries[[length(dataset_entries) + 1]] <- entry
   }
 
-  rules <- lapply(kit$relations, function(r) {
-    list(
-      ruleType = "foreignKey",
-      sourceDataset = r$source_dataset,
-      sourceField = r$source_field,
-      targetDataset = r$target_dataset,
-      targetField = r$target_field,
-      requirement = r$requirement %||% "required"
-    )
-  })
-
   config <- list(
     name = kit$name,
     standard = kit$standard,
@@ -94,7 +76,6 @@ stage_datasets <- function(stage, kit) {
     )
   )
   if (!is.null(kit$description)) config$description <- kit$description
-  if (length(rules) > 0) config$datasetRules <- rules
 
   config_path <- file.path(stage, "darwinkit.yaml")
   yaml::write_yaml(config, config_path)
@@ -111,6 +92,7 @@ stage_datasets <- function(stage, kit) {
 #' @param kit A `dwk_kit` with at least one dataset.
 #' @param dir Directory to stage into (created if needed).
 #' @return The path to the generated `darwinkit.yaml`, invisibly.
+#' @family output
 #' @examples
 #' \dontrun{
 #' kit |> dwk_stage("darwinkit/")

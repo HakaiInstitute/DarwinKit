@@ -50,3 +50,6 @@ darwinkit.schema.json
 /dwkt
 /.dwkt/
 /validation_results/
+
+# pkgdown site output (built + deployed to gh-pages by CI, not committed)
+packages/r/docs/

@@ -37,3 +37,4 @@ Re-run with \code{force = TRUE} to upgrade to the current latest release.
 dwk_install_engine()
 }
 }
+\concept{engine}

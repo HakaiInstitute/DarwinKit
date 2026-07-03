@@ -1,0 +1,43 @@
+name: release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            task: compile:macos
+            out: packages/cli/dist/darwinkit_aarch64-apple-darwin
+            asset: dwkt-macos
+          - os: ubuntu-latest
+            task: compile:linux
+            out: packages/cli/dist/darwinkit_x86_64-unknown-linux-gnu
+            asset: dwkt-linux
+          - os: windows-latest
+            task: compile:windows
+            out: packages/cli/dist/x86_64-pc-windows-msvc.exe
+            asset: dwkt-windows.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Compile
+        run: deno task ${{ matrix.task }}
+      - name: Rename asset (unix)
+        if: runner.os != 'Windows'
+        run: mv "${{ matrix.out }}" "${{ matrix.asset }}"
+      - name: Rename asset (windows)
+        if: runner.os == 'Windows'
+        run: Move-Item "${{ matrix.out }}" "${{ matrix.asset }}"
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.asset }}

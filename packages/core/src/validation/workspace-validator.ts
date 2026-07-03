@@ -12,7 +12,7 @@ import * as Result from "effect/Result";
 import type * as Scope from "effect/Scope";
 
 import type { WorkspaceOperationError } from "@dwkt/domain/errors";
-import { WorkspaceValidationError } from "@dwkt/domain/errors";
+import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
 import type {
   DatasetConfig,
   DatasetRuleConfig,
@@ -20,7 +20,14 @@ import type {
   ResolvedStandard,
   ValidationSettings,
 } from "@dwkt/domain/schemas";
-import { getPreset, getPresetNames, getResolvedSpec, getSpecNames } from "@dwkt/domain/specs";
+import {
+  getPreset,
+  getPresetNames,
+  getResolvedSpec,
+  getSpecNames,
+  inferForeignKeyRules,
+  orderByForeignKeyDependencies,
+} from "@dwkt/domain/specs";
 import type {
   DatasetValidationResult,
   FieldViolation,
@@ -88,7 +95,7 @@ export class WorkspaceValidator {
         // Resolve constraints once. Shared by both schema creation and validation
         const resolvedFieldsMap = resolveFieldsForDatasets(datasets, standard);
 
-        const connection = yield* createWorkspaceFromConfig(
+        const { connection, rules } = yield* createWorkspaceFromConfig(
           datasets,
           settings,
           basePath,
@@ -105,7 +112,7 @@ export class WorkspaceValidator {
           standard,
           resolvedWorkspaceId,
           resolvedFieldsMap,
-          datasetRules,
+          rules,
           configPath,
         );
       }),
@@ -131,7 +138,7 @@ export class WorkspaceValidator {
       // Resolve constraints once — shared by both schema creation and validation
       const resolvedFieldsMap = resolveFieldsForDatasets(datasets, standard);
 
-      yield* importDatasets(
+      const rules = yield* importDatasets(
         connection,
         datasets,
         settings.nullValues,
@@ -149,7 +156,7 @@ export class WorkspaceValidator {
         standard,
         resolvedWorkspaceId,
         resolvedFieldsMap,
-        datasetRules,
+        rules,
         configPath,
       );
     });
@@ -272,9 +279,10 @@ function importDatasets(
   datasetRules?: readonly DatasetRuleConfig[],
 ) {
   return Effect.gen(function* () {
+    // Pass 1: import each raw CSV/Parquet table and collect its actual columns.
+    const shapes: { name: string; class: string; columns: string[] }[] = [];
     for (const dataset of datasets) {
       const filePath = resolve(basePath, dataset.path);
-      // Prefix with 'raw_' to avoid name collision with the schema table
       const tableName = `raw_${sanitizeTableName(dataset.name)}`;
 
       if (filePath.toLowerCase().endsWith(".parquet")) {
@@ -282,6 +290,55 @@ function importDatasets(
       } else {
         yield* importCsv(connection, tableName, filePath, nullValues);
       }
+
+      const colRows = yield* queryRows(
+        connection,
+        `SELECT column_name FROM (DESCRIBE ${tableName})`,
+      );
+      const columns = colRows
+        .map((r) => String(r.column_name))
+        .filter((c) => c !== "_row_number");
+      shapes.push({ name: dataset.name, class: dataset.class, columns });
+    }
+
+    // Infer the standard Darwin Core foreign keys; user-declared rules win and
+    // resolve ambiguity. An unresolved ambiguity is a user-fixable config error.
+    const { rules: inferred, conflicts } = inferForeignKeyRules(
+      shapes,
+      datasetRules ?? [],
+    );
+    if (conflicts.length > 0) {
+      const c = conflicts[0];
+      return yield* Effect.fail(
+        new WorkspaceImportError({
+          message: `Ambiguous Darwin Core relation: '${c.sourceField}' in dataset ` +
+            `'${c.sourceDataset}' could reference ${
+              c.candidates.map((n) => `'${n}'`).join(" or ")
+            }. Declare an explicit foreignKey rule to disambiguate.`,
+        }),
+      );
+    }
+    const allRules: DatasetRuleConfig[] = [
+      ...(datasetRules ?? []),
+      ...inferred,
+    ];
+
+    // Pass 2: create the typed schema tables. FK REFERENCES require the target
+    // table to exist first, so create targets before sources.
+    const byName = new Map(datasets.map((d) => [d.name, d]));
+    const fkEdges = allRules
+      .filter((r) => r.ruleType === "foreignKey")
+      .map((r) => ({
+        sourceDataset: r.sourceDataset,
+        targetDataset: r.targetDataset,
+      }));
+    const order = orderByForeignKeyDependencies(
+      datasets.map((d) => d.name),
+      fkEdges,
+    );
+
+    for (const name of order) {
+      const dataset = byName.get(name)!;
       const entry = resolvedFieldsMap.get(dataset.name);
       if (entry) {
         yield* importSchema(
@@ -290,11 +347,13 @@ function importDatasets(
           datasets,
           standard,
           entry.resolvedSpec,
-          datasetRules,
+          allRules,
           entry.mapped,
         );
       }
     }
+
+    return allRules;
   });
 }
 
@@ -305,13 +364,17 @@ function createWorkspaceFromConfig(
   standard: ResolvedStandard,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
   datasetRules?: readonly DatasetRuleConfig[],
-): Effect.Effect<DuckDBConnection, WorkspaceOperationError, Scope.Scope> {
+): Effect.Effect<
+  { connection: DuckDBConnection; rules: readonly DatasetRuleConfig[] },
+  WorkspaceOperationError,
+  Scope.Scope
+> {
   return Effect.gen(function* () {
     // Each workspace gets its own scope-managed in-memory database, preventing
     // test contamination where tables from one run persist into another.
     const connection = yield* scopedConnection;
 
-    yield* importDatasets(
+    const rules = yield* importDatasets(
       connection,
       datasets,
       validationSettings.nullValues,
@@ -321,7 +384,7 @@ function createWorkspaceFromConfig(
       datasetRules,
     );
 
-    return connection;
+    return { connection, rules };
   });
 }
 

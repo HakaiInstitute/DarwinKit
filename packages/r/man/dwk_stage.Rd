@@ -25,3 +25,8 @@ with \verb{dwkt validate --config <dir>/darwinkit.yaml}.
 kit |> dwk_stage("darwinkit/")
 }
 }
+\seealso{
+Other output: 
+\code{\link{dwk_write_csv}()}
+}
+\concept{output}

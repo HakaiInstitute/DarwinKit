@@ -7,6 +7,7 @@
 #' @param dir Output directory (created if needed).
 #' @param datasets Optional character vector of dataset names; defaults to all.
 #' @return The kit, invisibly (for piping).
+#' @family output
 #' @examples
 #' \dontrun{
 #' kit |> dwk_write_csv("output/")

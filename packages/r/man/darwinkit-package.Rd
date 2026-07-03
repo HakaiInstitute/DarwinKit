@@ -6,7 +6,41 @@
 \alias{darwinkit-package}
 \title{darwinkit: R interface to the DarwinKit Darwin Core validator}
 \description{
-Build Darwin Core / OBIS validation configs from data frames with pipeable verbs and validate them against the DarwinKit engine (the dwkt binary).
+Build a validation config from data frames with pipeable \verb{dwk_*} verbs, then
+validate against the \code{dwkt} engine.
+}
+\section{Canonical pipeline}{
+
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{dwk_init("survey") |>
+  dwk_dataset("Event", events, required = "eventID", unique = "eventID") |>
+  dwk_dataset("Occurrence", occurrences) |>
+  dwk_validate() |>
+  dwk_summary()
+}\if{html}{\out{</div>}}
+
+Standard Darwin Core foreign keys are enforced automatically by the engine.
+}
+
+\section{Verbs}{
+
+\itemize{
+\item \strong{Build:} \code{\link[=dwk_init]{dwk_init()}}, \code{\link[=dwk_null_values]{dwk_null_values()}}, \code{\link[=dwk_dataset]{dwk_dataset()}}
+\item \strong{Validate:} \code{\link[=dwk_validate]{dwk_validate()}}, \code{\link[=dwk_is_valid]{dwk_is_valid()}}
+\item \strong{Report:} \code{\link[=dwk_summary]{dwk_summary()}}, \code{\link[=dwk_issues]{dwk_issues()}}, \code{\link[=dwk_errors]{dwk_errors()}},
+\code{\link[=dwk_warnings]{dwk_warnings()}}, \code{\link[=dwk_info]{dwk_info()}}, \code{\link[=dwk_ignore]{dwk_ignore()}}
+\item \strong{Output:} \code{\link[=dwk_stage]{dwk_stage()}}, \code{\link[=dwk_write_csv]{dwk_write_csv()}}
+\item \strong{Engine:} \code{\link[=dwk_install_engine]{dwk_install_engine()}}
+}
+}
+
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/HakaiInstitute/DarwinKit}
+  \item Report bugs at \url{https://github.com/HakaiInstitute/DarwinKit/issues}
+}
+
 }
 \author{
 \strong{Maintainer}: Hakai Institute \email{info@hakai.org}

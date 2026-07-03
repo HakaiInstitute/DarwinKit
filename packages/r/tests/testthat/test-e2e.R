@@ -32,29 +32,31 @@ read_fixture <- function(name) {
 }
 
 # Build an OBIS kit from the committed fixtures, with realistic required/unique
-# fields and the occurrence/eMOF -> event foreign keys. Callers can pass mutated
-# data frames to exercise the failure paths.
+# fields. Callers can pass mutated data frames to exercise the failure paths.
+# Standard Darwin Core foreign keys (Occurrence.eventID -> Event, etc.) are
+# enforced automatically by the engine; no explicit relation declarations needed.
 fixture_kit <- function(events = read_fixture("hakaiFI_event.csv"),
                         occ = read_fixture("hakaiFI_occ.csv"),
                         emof = read_fixture("hakaiFI_eMOF.csv")) {
   dwk_init("rocky-subtidal", standard = "obis") |>
-    dwk_dataset("events", "Event", events,
+    dwk_dataset("Event", events,
+      name = "events",
       required = c("eventID", "eventDate", "decimalLatitude", "decimalLongitude"),
       unique = "eventID"
     ) |>
-    dwk_dataset("occurrence", "Occurrence", occ,
+    dwk_dataset("Occurrence", occ,
+      name = "occurrence",
       required = c(
         "occurrenceID", "eventID", "scientificName",
         "basisOfRecord", "occurrenceStatus"
       ),
       unique = "occurrenceID"
     ) |>
-    dwk_dataset("emof", "ExtendedMeasurementOrFact", emof,
+    dwk_dataset("ExtendedMeasurementOrFact", emof,
+      name = "emof",
       required = c("measurementID", "eventID", "measurementType", "measurementValue"),
       unique = "measurementID"
-    ) |>
-    dwk_relation("occurrence", "eventID", "events", "eventID") |>
-    dwk_relation("emof", "eventID", "events", "eventID")
+    )
 }
 
 test_that("the OBIS fixture validates clean through the engine", {

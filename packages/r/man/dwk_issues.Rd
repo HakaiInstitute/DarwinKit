@@ -19,3 +19,13 @@ One row per issue with columns \verb{dataset, check, level, field, row, message,
 \code{RangeViolation}); \code{level} is \code{error}/\code{warning}/\code{info}. Pipes straight
 into dplyr.
 }
+\seealso{
+Other reporting: 
+\code{\link{dwk_errors}()},
+\code{\link{dwk_ignore}()},
+\code{\link{dwk_info}()},
+\code{\link{dwk_summary}()},
+\code{\link{dwk_warnings}()},
+\code{\link{print.dwk_report}()}
+}
+\concept{reporting}

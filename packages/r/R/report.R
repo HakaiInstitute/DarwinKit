@@ -138,6 +138,7 @@ check_report_dataset <- function(report, dataset, fn) {
 #' @param report A `dwk_report` from [dwk_validate()].
 #' @param dataset Optional dataset name; omit for overall validity.
 #' @return `TRUE` when no error-severity issues were found.
+#' @family validation
 #' @export
 dwk_is_valid <- function(report, dataset = NULL) {
   check_dwk_report(report, "dwk_is_valid")
@@ -158,6 +159,7 @@ dwk_is_valid <- function(report, dataset = NULL) {
 #' @param dataset Optional dataset name to summarize.
 #' @return Invisibly, the per-dataset counts as a tibble
 #'   (`dataset, error, warning, info`); called for its printed output.
+#' @family reporting
 #' @export
 dwk_summary <- function(report, dataset = NULL) {
   check_dwk_report(report, "dwk_summary")
@@ -191,6 +193,27 @@ dwk_summary <- function(report, dataset = NULL) {
       cat(format_issue_lines(rows[1, , drop = FALSE], show_level = TRUE), "\n", sep = "")
     }
   }
+  totals <- c(
+    error = sum(counts$error),
+    warning = sum(counts$warning),
+    info = sum(counts$info)
+  )
+  pointers <- c(
+    error = "See dwk_errors() for all %d errors.",
+    warning = "See dwk_warnings() for all %d warnings.",
+    info = "See dwk_info() for all %d info messages."
+  )
+  footer <- character(0)
+  for (lvl in names(pointers)) {
+    if (totals[[lvl]] > 0) {
+      footer <- c(footer, sprintf(pointers[[lvl]], totals[[lvl]]))
+    }
+  }
+  if (length(footer) > 0) {
+    cat("\n")
+    cat(footer, sep = "\n")
+    cat("\n")
+  }
   invisible(counts)
 }
 
@@ -209,6 +232,7 @@ empty_issues_with_dataset <- function() {
 #' @param report A `dwk_report` from [dwk_validate()].
 #' @param dataset Optional dataset name to filter to.
 #' @return A tibble.
+#' @family reporting
 #' @export
 dwk_issues <- function(report, dataset = NULL) {
   check_dwk_report(report, "dwk_issues")
@@ -242,6 +266,7 @@ issues_at_level <- function(report, lvl, dataset) {
 #' @param report A `dwk_report` from [dwk_validate()].
 #' @param dataset Optional dataset name to filter to.
 #' @return A tibble.
+#' @family reporting
 #' @export
 dwk_errors <- function(report, dataset = NULL) {
   issues_at_level(report, "error", dataset)
@@ -255,6 +280,7 @@ dwk_errors <- function(report, dataset = NULL) {
 #' @param report A `dwk_report` from [dwk_validate()].
 #' @param dataset Optional dataset name to filter to.
 #' @return A tibble.
+#' @family reporting
 #' @export
 dwk_warnings <- function(report, dataset = NULL) {
   issues_at_level(report, "warning", dataset)
@@ -268,9 +294,65 @@ dwk_warnings <- function(report, dataset = NULL) {
 #' @param report A `dwk_report` from [dwk_validate()].
 #' @param dataset Optional dataset name to filter to.
 #' @return A tibble.
+#' @family reporting
 #' @export
 dwk_info <- function(report, dataset = NULL) {
   issues_at_level(report, "info", dataset)
+}
+
+#' Suppress noise from a validation report
+#'
+#' Returns a copy of `report` with selected issues removed. Supply `levels` to
+#' drop whole severity levels, `checks` to drop whole violation types, or both
+#' to drop only their intersection (those checks *at* those levels). Chaining
+#' unions the removals. Errors can never be suppressed.
+#'
+#' @param report A `dwk_report` from [dwk_validate()].
+#' @param levels Character vector of levels to drop (`"warning"`, `"info"`).
+#'   `"error"` is not allowed.
+#' @param checks Character vector of violation `_tag`s to drop (e.g.
+#'   `"MissingFieldViolation"`).
+#' @return A filtered `dwk_report`.
+#' @family reporting
+#' @examples
+#' \dontrun{
+#' report |> dwk_ignore(levels = "info")
+#' report |> dwk_ignore(levels = "info", checks = "MissingFieldViolation")
+#' }
+#' @export
+dwk_ignore <- function(report, levels = NULL, checks = NULL) {
+  check_dwk_report(report, "dwk_ignore")
+  if ("error" %in% levels) {
+    stop('`dwk_ignore()` cannot suppress errors (level = "error").', call. = FALSE)
+  }
+
+  drop_rows <- function(issues) {
+    if (nrow(issues) == 0) return(issues)
+    lvl_hit <- if (is.null(levels)) rep(FALSE, nrow(issues)) else issues$level %in% levels
+    chk_hit <- if (is.null(checks)) rep(FALSE, nrow(issues)) else issues$check %in% checks
+    drop <- if (!is.null(levels) && !is.null(checks)) {
+      lvl_hit & chk_hit           # both -> intersection
+    } else {
+      lvl_hit | chk_hit           # one -> that whole category
+    }
+    if (any(drop & issues$level == "error")) {
+      bad <- unique(issues$check[drop & issues$level == "error"])
+      stop(
+        sprintf(
+          "`dwk_ignore()` would suppress error-level issue(s): %s. Errors cannot be ignored.",
+          paste(bad, collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+    issues[!drop, , drop = FALSE]
+  }
+
+  # lapply over a named list preserves names, so result keys stay aligned.
+  datasets <- lapply(report$datasets, function(d) {
+    list(valid = d$valid, issues = drop_rows(d$issues))
+  })
+  new_dwk_report(datasets, name = report$name)
 }
 
 #' Print a validation report
@@ -284,6 +366,7 @@ dwk_info <- function(report, dataset = NULL) {
 #'   errors shown first). Use `n = Inf` to show all.
 #' @param ... Ignored.
 #' @return `x`, invisibly.
+#' @family reporting
 #' @export
 print.dwk_report <- function(x, n = 25, ...) {
   valid <- vapply(x$datasets, function(d) isTRUE(d$valid), logical(1))

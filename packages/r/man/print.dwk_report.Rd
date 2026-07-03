@@ -22,3 +22,13 @@ Prints a per-dataset status header, then the errors and warnings (errors
 first, capped at \code{n}). info-severity issues are never shown by \code{print};
 reach them with \code{\link[=dwk_issues]{dwk_issues()}}.
 }
+\seealso{
+Other reporting: 
+\code{\link{dwk_errors}()},
+\code{\link{dwk_ignore}()},
+\code{\link{dwk_info}()},
+\code{\link{dwk_issues}()},
+\code{\link{dwk_summary}()},
+\code{\link{dwk_warnings}()}
+}
+\concept{reporting}

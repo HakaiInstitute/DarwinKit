@@ -6,9 +6,9 @@
 \usage{
 dwk_dataset(
   kit,
-  name,
   class,
   data,
+  name = NULL,
   description = "",
   required = character(),
   unique = NULL
@@ -17,11 +17,12 @@ dwk_dataset(
 \arguments{
 \item{kit}{A \code{dwk_kit}.}
 
-\item{name}{Dataset name (unique within the kit).}
-
 \item{class}{Darwin Core class: \code{"Event"}, \code{"Occurrence"}, \code{"Taxon"}, etc.}
 
 \item{data}{A data.frame / tibble.}
+
+\item{name}{Dataset name (unique within the kit). Defaults to \code{class}; supply
+an explicit name only when a kit holds two datasets of the same class.}
 
 \item{description}{Optional dataset description.}
 
@@ -33,17 +34,21 @@ dwk_dataset(
 A modified copy of \code{kit}.
 }
 \description{
-Stores the data frame (as a tibble) under \code{name}. \code{required} and \code{unique}
-are forwarded to the engine via the staged config's \code{fieldMappings} — they
-are not checked in R. Any field named there must exist as a column; the
-engine reports missing mapped fields as errors. Re-using an existing
-\code{name} replaces that dataset (with a message), so re-running scripts and
-RMarkdown chunks is painless.
+Stores the data frame (as a tibble) under \code{name} (defaulting to \code{class}).
+\code{required} and \code{unique} are forwarded to the engine via the staged config's
+\code{fieldMappings} — they are not checked in R. Re-using an existing \code{name}
+replaces that dataset (with a message). Standard Darwin Core foreign keys
+(e.g. Occurrence.eventID -> Event.eventID) are enforced automatically by the
+engine; you do not declare them here.
 }
 \examples{
 kit <- dwk_init("t") |>
-  dwk_dataset("events", "Event",
-    data.frame(eventID = c("E1", "E2")),
-    required = "eventID", unique = "eventID"
-  )
+  dwk_dataset("Event", data.frame(eventID = c("E1", "E2")),
+    required = "eventID", unique = "eventID")
 }
+\seealso{
+Other kit builders: 
+\code{\link{dwk_init}()},
+\code{\link{dwk_null_values}()}
+}
+\concept{kit builders}

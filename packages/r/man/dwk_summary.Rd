@@ -20,3 +20,13 @@ Prints a per-dataset count table (errors / warnings / info) with a TOTAL
 row, followed by one representative issue of each level that occurs. Use
 \code{\link[=dwk_issues]{dwk_issues()}}, \code{\link[=dwk_errors]{dwk_errors()}}, etc. for the full detail.
 }
+\seealso{
+Other reporting: 
+\code{\link{dwk_errors}()},
+\code{\link{dwk_ignore}()},
+\code{\link{dwk_info}()},
+\code{\link{dwk_issues}()},
+\code{\link{dwk_warnings}()},
+\code{\link{print.dwk_report}()}
+}
+\concept{reporting}

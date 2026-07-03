@@ -1,3 +1,29 @@
+# One (tag, level) violation spec, and a one-dataset dwk_report built from a list
+# of them via the real parse_report() + new_dwk_report() internals.
+vspec <- function(tag, level) list(tag = tag, level = level)
+
+make_report <- function(specs, dataset = "events", name = "Test") {
+  bucket <- function(sev) {
+    items <- Filter(function(s) s$level == sev, specs)
+    lapply(seq_along(items), function(i) {
+      s <- items[[i]]
+      list(
+        `_tag` = s$tag, severity = s$level,
+        fieldName = "f", targetName = "f",
+        errorMessage = paste(s$tag, i), rowNumber = i, value = as.character(i)
+      )
+    })
+  }
+  json <- list(datasetResults = list(list(
+    datasetName = dataset,
+    schemaViolations = list(errors = list(), warnings = list(), info = list()),
+    fieldViolations = list(
+      errors = bucket("error"), warnings = bucket("warning"), info = bucket("info")
+    )
+  )))
+  new_dwk_report(parse_report(json), name = name)
+}
+
 sample_json <- function() {
   list(
     overallStatus = "fail",
@@ -373,4 +399,69 @@ test_that("level filters honor the dataset argument and reject non-reports", {
   expect_error(dwk_errors(list()), "expects a dwk_report")
   expect_error(dwk_warnings(list()), "expects a dwk_report")
   expect_error(dwk_info(list()), "expects a dwk_report")
+})
+
+test_that("dwk_summary prints per-level pointers when issues exist", {
+  report <- make_report(c(
+    replicate(2, vspec("RangeViolation", "error"), simplify = FALSE),
+    replicate(3, vspec("RangeViolation", "warning"), simplify = FALSE)
+  ))
+  out <- capture.output(dwk_summary(report))
+  expect_true(any(grepl("See dwk_errors\\(\\) for all 2 errors", out)))
+  expect_true(any(grepl("See dwk_warnings\\(\\) for all 3 warnings", out)))
+  expect_false(any(grepl("dwk_info", out)))
+})
+
+test_that("dwk_summary prints no pointer for a clean report", {
+  report <- make_report(list())
+  out <- capture.output(dwk_summary(report))
+  expect_false(any(grepl("^See dwk_", out)))
+})
+
+test_that("dwk_ignore drops whole levels but never errors", {
+  report <- make_report(c(
+    list(vspec("RangeViolation", "error")),
+    replicate(2, vspec("RangeViolation", "warning"), simplify = FALSE),
+    replicate(3, vspec("RangeViolation", "info"), simplify = FALSE)
+  ))
+  filtered <- dwk_ignore(report, levels = "info")
+  expect_equal(nrow(dwk_info(filtered)), 0)
+  expect_equal(nrow(dwk_warnings(filtered)), 2)
+  expect_equal(nrow(dwk_errors(filtered)), 1)
+})
+
+test_that("dwk_ignore with both levels and checks drops the intersection", {
+  report <- make_report(list(
+    vspec("MissingFieldViolation", "info"), # dropped
+    vspec("RangeViolation", "info")         # other info: kept
+  ))
+  filtered <- dwk_ignore(report, levels = "info", checks = "MissingFieldViolation")
+  info <- dwk_info(filtered)
+  expect_false("MissingFieldViolation" %in% info$check)
+  expect_true("RangeViolation" %in% info$check)
+})
+
+test_that("dwk_ignore refuses to suppress errors", {
+  report <- make_report(list(vspec("RangeViolation", "error")))
+  expect_error(dwk_ignore(report, levels = "error"), "error")
+})
+
+test_that("dwk_ignore rejects a checks filter that would drop an error", {
+  report <- make_report(list(vspec("RangeViolation", "error")))
+  expect_error(dwk_ignore(report, checks = "RangeViolation"), "cannot be ignored")
+})
+
+test_that("dwk_ignore preserves validity from the unfiltered errors", {
+  report <- make_report(list(vspec("RangeViolation", "error")))
+  filtered <- dwk_ignore(report, levels = "warning") # no-op on errors
+  expect_false(dwk_is_valid(filtered))
+})
+
+test_that("dwk_ignore with no levels/checks is a no-op", {
+  report <- make_report(list(
+    vspec("RangeViolation", "warning"),
+    vspec("MissingFieldViolation", "info")
+  ))
+  filtered <- dwk_ignore(report)
+  expect_equal(nrow(dwk_issues(filtered)), nrow(dwk_issues(report)))
 })

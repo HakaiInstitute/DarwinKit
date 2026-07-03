@@ -25,3 +25,8 @@ the flat-text shape expected by IPT/OBIS submission tooling.
 kit |> dwk_write_csv("output/")
 }
 }
+\seealso{
+Other output: 
+\code{\link{dwk_stage}()}
+}
+\concept{output}

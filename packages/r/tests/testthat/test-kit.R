@@ -5,7 +5,6 @@ test_that("dwk_init builds an empty kit", {
   expect_equal(kit$description, "d")
   expect_equal(kit$standard, "obis")
   expect_equal(kit$datasets, list())
-  expect_equal(kit$relations, list())
   expect_equal(kit$null_values, c("NA", "N/A", "", "NULL", "null"))
 })
 

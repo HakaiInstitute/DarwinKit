@@ -31,24 +31,27 @@ curl.exe -L -o dwkt.exe https://github.com/HakaiInstitute/DarwinKit/releases/lat
 
 ## Quickstart
 
+Standard Darwin Core foreign keys are enforced automatically — you don't
+declare relations.
+
 ```r
 library(darwinkit)
 
 kit <- dwk_init("FC2022 survey", description = "Marine survey 2022") |>
   dwk_null_values(c("NA", "N/A", "", "NULL", "null")) |>
-  dwk_dataset("events", "Event", event_table,
+  dwk_dataset("Event", event_table,
               required = c("eventID", "decimalLatitude"),
               unique = "eventID") |>
-  dwk_dataset("occurrences", "Occurrence", occ_table) |>
-  dwk_relation("occurrences", "eventID", "events", "eventID")
+  dwk_dataset("Occurrence", occ_table)   # Occurrence→Event FK inferred automatically
 
 report <- dwk_validate(kit)
 
-report                        # per-dataset status + errors then warnings (max 25)
-dwk_is_valid(report)          # overall TRUE/FALSE
-dwk_summary(report)           # counts per level + one example of each
-dwk_issues(report)            # full tidy tibble: dataset, check, level, field, row, message, value
-dwk_errors(report)            # tidy tibble filtered to errors (also dwk_warnings(), dwk_info())
+report                                    # per-dataset status + errors then warnings (max 25)
+dwk_is_valid(report)                      # overall TRUE/FALSE
+dwk_summary(report)                       # counts per level + one example of each
+dwk_issues(report)                        # full tidy tibble: dataset, check, level, field, row, message, value
+dwk_errors(report)                        # tidy tibble filtered to errors (also dwk_warnings(), dwk_info())
+dwk_ignore(report, levels = "info")       # suppress noise; errors are never suppressible
 ```
 
 Verbs are immutable: each returns a modified copy, so reassign (`kit <-

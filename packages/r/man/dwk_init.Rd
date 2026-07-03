@@ -23,3 +23,9 @@ verbs (each returns a modified copy), then run \code{\link[=dwk_validate]{dwk_va
 \examples{
 kit <- dwk_init("My survey", description = "2022 field season")
 }
+\seealso{
+Other kit builders: 
+\code{\link{dwk_dataset}()},
+\code{\link{dwk_null_values}()}
+}
+\concept{kit builders}

@@ -30,8 +30,13 @@ the PATH; if none resolve, an error explains how to install it.
 \examples{
 \dontrun{
 report <- dwk_init("survey") |>
-  dwk_dataset("events", "Event", events_df) |>
+  dwk_dataset("Event", events_df, name = "events") |>
   dwk_validate()
 dwk_issues(report)
 }
 }
+\seealso{
+Other validation: 
+\code{\link{dwk_is_valid}()}
+}
+\concept{validation}

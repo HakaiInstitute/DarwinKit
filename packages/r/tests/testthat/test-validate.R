@@ -39,7 +39,7 @@ violation_json <- function() {
 
 simple_kit <- function() {
   dwk_init("t") |>
-    dwk_dataset("events", "Event", tibble::tibble(eventID = "E1"))
+    dwk_dataset("Event", tibble::tibble(eventID = "E1"), name = "events")
 }
 
 test_that("dwk_validate parses engine output into a dwk_report", {

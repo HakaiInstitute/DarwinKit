@@ -83,6 +83,7 @@ dwkt_download <- function(url, destfile) {
 #' @param dest Destination path for the binary; exposed for testing.
 #' @param download Downloader `function(url, destfile)`; exposed for testing.
 #' @return The installed binary path, invisibly.
+#' @family engine
 #' @examples
 #' \dontrun{
 #' dwk_install_engine()
