@@ -279,7 +279,7 @@ function importDatasets(
   datasetRules?: readonly DatasetRuleConfig[],
 ) {
   return Effect.gen(function* () {
-    // Pass 1: import each raw CSV/Parquet table and collect its actual columns.
+    // Pass 1: import each raw CSV/Parquet table and collect its mapped fields.
     const shapes: { name: string; class: string; columns: string[] }[] = [];
     for (const dataset of datasets) {
       const filePath = resolve(basePath, dataset.path);
@@ -291,13 +291,14 @@ function importDatasets(
         yield* importCsv(connection, tableName, filePath, nullValues);
       }
 
-      const colRows = yield* queryRows(
-        connection,
-        `SELECT column_name FROM (DESCRIBE ${tableName})`,
-      );
-      const columns = colRows
-        .map((r) => String(r.column_name))
-        .filter((c) => c !== "_row_number");
+      // FK inference keys on the Darwin Core fields the dataset actually maps
+      // (the target names populated into the typed table), NOT the raw CSV
+      // headers. Data is inserted per field mapping (origin -> target), so a raw
+      // column named `eventID` that is never mapped is never inserted — a foreign
+      // key on it would be vacuous — while a column mapped `event_id -> eventID`
+      // must still be inferable.
+      const entry = resolvedFieldsMap.get(dataset.name);
+      const columns = entry ? Object.keys(entry.mapped) : [];
       shapes.push({ name: dataset.name, class: dataset.class, columns });
     }
 
