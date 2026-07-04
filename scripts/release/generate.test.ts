@@ -1,7 +1,21 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { join } from "@std/path";
-import { generateReleaseArtifacts, sha256Hex } from "./generate.ts";
+import { fetchCurrentIndex, generateReleaseArtifacts, sha256Hex } from "./generate.ts";
 import { PLATFORM_TARGETS } from "./manifest.ts";
+
+/** Run `fn` with `globalThis.fetch` stubbed, restoring it afterwards. */
+async function withStubbedFetch(
+  stub: typeof globalThis.fetch,
+  fn: () => Promise<void>,
+): Promise<void> {
+  const original = globalThis.fetch;
+  globalThis.fetch = stub;
+  try {
+    await fn();
+  } finally {
+    globalThis.fetch = original;
+  }
+}
 
 Deno.test("generateReleaseArtifacts writes manifest, SHA256SUMS, and index", async () => {
   const dist = await Deno.makeTempDir({ prefix: "dwkit-dist-" });
@@ -32,4 +46,39 @@ Deno.test("generateReleaseArtifacts writes manifest, SHA256SUMS, and index", asy
   await Deno.stat(join(out, "manifest.json"));
   await Deno.stat(join(out, "SHA256SUMS"));
   await Deno.stat(join(out, "index.json"));
+});
+
+Deno.test("fetchCurrentIndex returns null without a URL", async () => {
+  assertEquals(await fetchCurrentIndex(undefined), null);
+});
+
+Deno.test("fetchCurrentIndex bootstraps to null on 404 (index not published yet)", async () => {
+  await withStubbedFetch(
+    () => Promise.resolve(new Response(null, { status: 404 })),
+    async () => {
+      assertEquals(await fetchCurrentIndex("https://example.com/index.json"), null);
+    },
+  );
+});
+
+Deno.test("fetchCurrentIndex throws on a network error rather than discarding history", async () => {
+  await withStubbedFetch(
+    () => Promise.reject(new TypeError("network down")),
+    async () => {
+      await assertRejects(() => fetchCurrentIndex("https://example.com/index.json"));
+    },
+  );
+});
+
+Deno.test("fetchCurrentIndex throws on a transient 5xx rather than discarding history", async () => {
+  await withStubbedFetch(
+    () => Promise.resolve(new Response("oops", { status: 503 })),
+    async () => {
+      await assertRejects(
+        () => fetchCurrentIndex("https://example.com/index.json"),
+        Error,
+        "503",
+      );
+    },
+  );
 });

@@ -90,20 +90,19 @@ export async function generateReleaseArtifacts(
 }
 
 /**
- * Fetch the current published index. A 404 — or an unreachable host, which is
- * expected on the first release before the gh-pages site exists — bootstraps to
- * null. Other HTTP errors (e.g. a transient 5xx on an existing index) throw
- * rather than silently discarding published version history.
+ * Fetch the current published index so the new version can be merged into it.
+ *
+ * Only a 404 bootstraps to null — the index genuinely does not exist yet, which
+ * happens once, on the first release before the gh-pages site is published. The
+ * `*.github.io` host always resolves, so a missing site is a 404, not a network
+ * error. Every other failure (a thrown network error, or a non-404 status such
+ * as a transient 5xx) throws: silently bootstrapping there would republish an
+ * index containing only the current version and permanently erase the published
+ * version history.
  */
-async function fetchCurrentIndex(url: string | undefined): Promise<IndexJson | null> {
+export async function fetchCurrentIndex(url: string | undefined): Promise<IndexJson | null> {
   if (!url) return null;
-  let res: Response;
-  try {
-    res = await fetch(url);
-  } catch (err) {
-    console.warn(`Current index unreachable (${err}); bootstrapping a new index.`);
-    return null;
-  }
+  const res = await fetch(url);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`fetching current index ${url} failed: ${res.status}`);
   return await res.json() as IndexJson;
