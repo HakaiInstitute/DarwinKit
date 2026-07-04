@@ -91,13 +91,36 @@ jobs:
             dist/dwkit-windows-x86_64.exe
             dist/SHA256SUMS
             dist/manifest.json
-      - name: Stage index.json for gh-pages
+      - name: Stage index.json for Pages
         run: |
           mkdir -p site
           cp out/index.json site/index.json
-      - name: Publish index.json to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: site
-          keep_files: true
+          path: site
+
+  # Deploy the staged index.json via the GitHub Actions Pages source (no branch).
+  # `generate.ts` already fetches the current index and merges the new version in,
+  # so publishing site/ as the whole site is complete each run.
+  deploy-pages:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # Serialize Pages deploys; never cancel an in-flight one mid-publish.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages (enables the Actions source if not already)
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Deploy index.json to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

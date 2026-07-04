@@ -55,9 +55,13 @@ by the prior spec's decision and are out of scope here.
 5. **Integrity:** every asset carries a SHA-256, published both in a
    conventional `SHA256SUMS` file (for `sha256sum -c` / tooling) and inline in
    the manifest (for client convenience).
-6. **Index hosting:** gh-pages (`https://hakaiinstitute.github.io/DarwinKit/index.json`),
-   written by a release CI job. Fallback if Pages is undesirable: commit
-   `index.json` to a branch and serve via `raw.githubusercontent.com`.
+6. **Index hosting:** GitHub Pages at
+   `https://hakaiinstitute.github.io/DarwinKit/index.json`, deployed by a release
+   CI job via the **GitHub Actions Pages source** (`upload-pages-artifact` +
+   `deploy-pages`) — no long-lived `gh-pages` branch. The generator fetches the
+   current index and merges the new version in, so each deploy publishes the
+   complete index. Fallback if Pages is undesirable: commit `index.json` to a
+   branch and serve via `raw.githubusercontent.com`.
 
 ## Release layout
 
@@ -246,8 +250,8 @@ contract it consumes.
 
 ## Open questions
 
-- **gh-pages vs raw branch** for the index (defaulted to gh-pages — confirm the
-  DarwinKit repo will run Pages).
+- ~~**gh-pages vs raw branch** for the index~~ — resolved: GitHub Pages via the
+  Actions source (no branch); see decision 6. Confirm the repo may run Pages.
 - **Initial `schemaVersion`** for the current engine output (assumed `1`).
 - Whether the index should also list per-version asset counts / a `yanked`
   flag for pulled releases (deferred unless needed).

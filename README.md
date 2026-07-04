@@ -189,10 +189,12 @@ the concrete asset + checksum, verify the download, then confirm compatibility v
 `dwkit --version --format json` → `{"version":"…","schemaVersion":N}`. `schemaVersion`
 versions the `--format json` output contract and is bumped only on a breaking change.
 
-**One-time setup:** GitHub Pages must be enabled on this repo with source =
-_Deploy from a branch → `gh-pages` / root_, or the index URL 404s. The first
-`release.yml` run creates the `gh-pages` branch (via `peaceiris/actions-gh-pages`);
-point Pages at it once in repo Settings.
+**One-time setup:** the index is deployed to GitHub Pages via the **GitHub
+Actions** source (no `gh-pages` branch). `release.yml`'s deploy job calls
+`actions/configure-pages` with `enablement: true`, which turns Pages on
+automatically on the first run; if your org restricts that, set _Settings → Pages
+→ Source = GitHub Actions_ once by hand. Until the first release publishes, the
+index URL 404s and clients bootstrap a fresh index.
 
 ## License
 
