@@ -1,4 +1,4 @@
-import type { WorkspaceConfig } from "@dwkt/domain/schemas";
+import type { WorkspaceConfig } from "@dwkit/domain/schemas";
 
 /**
  * Converts a WorkspaceConfig object for YAML serialization.

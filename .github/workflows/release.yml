@@ -11,33 +11,93 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            task: compile:macos
-            out: packages/cli/dist/darwinkit_aarch64-apple-darwin
-            asset: dwkt-macos
-          - os: ubuntu-latest
-            task: compile:linux
-            out: packages/cli/dist/darwinkit_x86_64-unknown-linux-gnu
-            asset: dwkt-linux
-          - os: windows-latest
-            task: compile:windows
-            out: packages/cli/dist/x86_64-pc-windows-msvc.exe
-            asset: dwkt-windows.exe
-    runs-on: ${{ matrix.os }}
+          - runner: macos-latest
+            target: darwin-arm64
+          - runner: macos-13
+            target: darwin-x86_64
+          - runner: ubuntu-latest
+            target: linux-x86_64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: windows-latest
+            target: windows-x86_64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
       - name: Compile
-        run: deno task ${{ matrix.task }}
-      - name: Rename asset (unix)
-        if: runner.os != 'Windows'
-        run: mv "${{ matrix.out }}" "${{ matrix.asset }}"
-      - name: Rename asset (windows)
-        if: runner.os == 'Windows'
-        run: Move-Item "${{ matrix.out }}" "${{ matrix.asset }}"
-      - name: Upload to release
+        run: deno task compile:${{ matrix.target }}
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dwkit-${{ matrix.target }}
+          path: packages/cli/dist/dwkit-${{ matrix.target }}*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    # Only a real published release carries a version tag + prerelease flag.
+    # workflow_dispatch runs build as a "do all five targets still compile?" smoke
+    # test and stops here — publishing off a branch would mint a broken vmain release.
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Gather built binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten artifacts into dist/
+        run: |
+          mkdir -p dist
+          find artifacts -type f -exec cp {} dist/ \;
+          ls -la dist
+      - name: Resolve release facts
+        id: rel
+        env:
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+          PRE: ${{ github.event.release.prerelease }}
+        run: |
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRE:-false}" >> "$GITHUB_OUTPUT"
+          echo "released=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Generate manifest.json, SHA256SUMS, index.json
+        env:
+          DIST_DIR: dist
+          OUT_DIR: out
+          VERSION: ${{ steps.rel.outputs.version }}
+          RELEASED: ${{ steps.rel.outputs.released }}
+          PRERELEASE: ${{ steps.rel.outputs.prerelease }}
+          BASE_URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.rel.outputs.version }}
+          INDEX_URL: https://hakaiinstitute.github.io/DarwinKit/index.json
+        run: |
+          deno run --allow-read --allow-write --allow-env --allow-net scripts/release/generate.ts
+          cp out/manifest.json out/SHA256SUMS dist/
+      - name: Attach assets to the release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.asset }}
+          files: |
+            dist/dwkit-darwin-arm64
+            dist/dwkit-darwin-x86_64
+            dist/dwkit-linux-x86_64
+            dist/dwkit-linux-arm64
+            dist/dwkit-windows-x86_64.exe
+            dist/SHA256SUMS
+            dist/manifest.json
+      - name: Stage index.json for gh-pages
+        run: |
+          mkdir -p site
+          cp out/index.json site/index.json
+      - name: Publish index.json to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: site
+          keep_files: true

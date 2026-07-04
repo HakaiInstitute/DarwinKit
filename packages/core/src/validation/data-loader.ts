@@ -16,16 +16,16 @@ import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 import * as Result from "effect/Result";
 
-import type { DatasetRuleConfig, ResolvedSpec, ValidationSettings } from "@dwkt/domain/schemas";
-import type { FieldViolation } from "@dwkt/domain/types";
+import type { DatasetRuleConfig, ResolvedSpec, ValidationSettings } from "@dwkit/domain/schemas";
+import type { FieldViolation } from "@dwkit/domain/types";
 import {
   EnumViolation,
   ForeignKeyViolation,
   NotNullViolation,
   PrimaryKeyViolation,
   requirementToSeverity,
-} from "@dwkt/domain/types";
-import { obligationForStandard } from "@dwkt/domain/specs";
+} from "@dwkit/domain/types";
+import { obligationForStandard } from "@dwkit/domain/specs";
 
 import { getTableValue } from "../loading/table-import.ts";
 import type { ParsedErrorInfo } from "../loading/sql.ts";

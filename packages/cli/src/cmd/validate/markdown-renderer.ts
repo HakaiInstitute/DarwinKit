@@ -3,8 +3,8 @@ import type {
   FieldViolation,
   ValidationStatus,
   WorkspaceValidationResult,
-} from '@dwkt/domain/types';
-import type { SchemaViolation } from '@dwkt/domain/types';
+} from '@dwkit/domain/types';
+import type { SchemaViolation } from '@dwkit/domain/types';
 import * as Match from 'effect/Match';
 
 function getStatusIcon(status: ValidationStatus): string {

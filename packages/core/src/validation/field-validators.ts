@@ -25,9 +25,9 @@ import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 import * as Result from "effect/Result";
 
-import type { Constraint, ConstraintFormat, SpecField } from "@dwkt/domain/specs";
-import { type RequiredConstraint, strictestRequired } from "@dwkt/domain/specs";
-import type { FieldViolation, ValidField } from "@dwkt/domain/types";
+import type { Constraint, ConstraintFormat, SpecField } from "@dwkit/domain/specs";
+import { type RequiredConstraint, strictestRequired } from "@dwkit/domain/specs";
+import type { FieldViolation, ValidField } from "@dwkit/domain/types";
 import {
   FormatViolation,
   LengthViolation,
@@ -36,7 +36,7 @@ import {
   RequiredFieldViolation,
   requirementToSeverity,
   UniquenessViolation,
-} from "@dwkt/domain/types";
+} from "@dwkit/domain/types";
 import { queryRows } from "../loading/sql.ts";
 
 function validField(fieldName: string, targetName: string): ValidField {

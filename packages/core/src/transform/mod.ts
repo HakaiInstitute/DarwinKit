@@ -1,5 +1,5 @@
 /**
- * @dwkt/core/transform - Data transformation utilities
+ * @dwkit/core/transform - Data transformation utilities
  */
 
 export {

@@ -5,8 +5,8 @@
  * and represent recoverable domain errors rather than programming defects.
  */
 
-import { Workspace } from "@dwkt/core/workspace";
-import { WorkspaceValidator } from "@dwkt/core/validation";
+import { Workspace } from "@dwkit/core/workspace";
+import { WorkspaceValidator } from "@dwkit/core/validation";
 import { assert, assertEquals, assertMatch } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";

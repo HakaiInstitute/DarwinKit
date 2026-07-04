@@ -4,7 +4,7 @@
 //  deno task cli import
 //
 
-import { WorkspaceImportError } from "@dwkt/domain/errors";
+import { WorkspaceImportError } from "@dwkit/domain/errors";
 import { parse as parseCsv } from "@std/csv";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";

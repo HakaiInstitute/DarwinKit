@@ -76,4 +76,9 @@ jobs:
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
           docker run --rm -v "$PWD":/app -w /app orhun/git-cliff --latest --strip all > NOTES.md
-          gh release create "v${VERSION}" --title "v${VERSION}" --notes-file NOTES.md
+          # A version with a pre-release suffix (e.g. 1.5.0-rc1) is published as a
+          # GitHub prerelease so `releases/latest` skips it; it surfaces only through
+          # the index's `beta` channel (see RELEASE_AND_DISTRIBUTION.md).
+          PRERELEASE_FLAG=""
+          case "$VERSION" in *-*) PRERELEASE_FLAG="--prerelease" ;; esac
+          gh release create "v${VERSION}" --title "v${VERSION}" --notes-file NOTES.md $PRERELEASE_FLAG

@@ -8,7 +8,7 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
-import { WorkspaceImportError } from "@dwkt/domain/errors";
+import { WorkspaceImportError } from "@dwkit/domain/errors";
 import * as Effect from "effect/Effect";
 import { formatNullValues, queryRows, sanitizeTableName } from "./sql.ts";
 

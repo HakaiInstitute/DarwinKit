@@ -2,8 +2,8 @@
  * Test OBIS validation profile
  */
 
-import { makeWorkspaceConfig } from "@dwkt/domain/schemas";
-import { isMissingFieldViolation, isRangeViolation } from "@dwkt/domain/types";
+import { makeWorkspaceConfig } from "@dwkit/domain/schemas";
+import { isMissingFieldViolation, isRangeViolation } from "@dwkit/domain/types";
 import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";

@@ -2,7 +2,7 @@
  * Workspace Module
  *
  * Exports workspace management functionality.
- * Workspace error types should be imported from @dwkt/domain.
+ * Workspace error types should be imported from @dwkit/domain.
  *
  * @module workspace
  */

@@ -2,7 +2,7 @@
  * Shared constraint factory functions for tests.
  */
 
-import type { Constraint } from "@dwkt/domain/specs";
+import type { Constraint } from "@dwkit/domain/specs";
 import {
   FormatConstraint,
   LengthConstraint,
@@ -10,7 +10,7 @@ import {
   RangeConstraint,
   RequiredConstraint,
   UniqueConstraint,
-} from "@dwkt/domain/specs";
+} from "@dwkit/domain/specs";
 
 export function rangeConstraint(min: number, max: number): Constraint {
   return new RangeConstraint({ min, max, inclusive: true });

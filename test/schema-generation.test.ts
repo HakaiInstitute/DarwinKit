@@ -1,7 +1,7 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 import * as Effect from "effect/Effect";
-import { import_schema } from "@dwkt/core/import";
+import { import_schema } from "@dwkit/core/import";
 
 const PROJECT_ROOT = join(import.meta.dirname!, "..");
 const SOURCE_DIR = join(PROJECT_ROOT, "external");

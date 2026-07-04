@@ -6,8 +6,8 @@
  */
 
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
-import { exportToPersistentDB } from "@dwkt/core/transform";
-import type { WorkspaceConfig } from "@dwkt/domain/schemas";
+import { exportToPersistentDB } from "@dwkit/core/transform";
+import type { WorkspaceConfig } from "@dwkit/domain/schemas";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 

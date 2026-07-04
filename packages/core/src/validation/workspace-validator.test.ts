@@ -1,4 +1,4 @@
-import type { WorkspaceValidationResult } from "@dwkt/domain/types";
+import type { WorkspaceValidationResult } from "@dwkit/domain/types";
 import {
   isEnumViolation,
   isFormatViolation,
@@ -7,7 +7,7 @@ import {
   isPrimaryKeyViolation,
   isRangeViolation,
   isRequiredFieldViolation,
-} from "@dwkt/domain/types";
+} from "@dwkit/domain/types";
 import { assert, assertEquals, assertExists, assertRejects } from "@std/assert";
 import { Array } from "effect";
 import {

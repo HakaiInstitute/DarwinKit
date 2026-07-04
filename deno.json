@@ -15,14 +15,15 @@
     "jsxImportSource": "react"
   },
   "imports": {
-    "@dwkt/domain/types": "./packages/domain/src/types/mod.ts",
-    "@dwkt/domain/schemas": "./packages/domain/src/schemas/mod.ts",
-    "@dwkt/domain/errors": "./packages/domain/src/errors/mod.ts",
-    "@dwkt/domain/specs": "./packages/domain/src/specs/mod.ts",
-    "@dwkt/core/workspace": "./packages/core/src/workspace/mod.ts",
-    "@dwkt/core/validation": "./packages/core/src/validation/mod.ts",
-    "@dwkt/core/transform": "./packages/core/src/transform/mod.ts",
-    "@dwkt/core/import": "./packages/core/src/import/mod.ts",
+    "@dwkit/domain/types": "./packages/domain/src/types/mod.ts",
+    "@dwkit/domain/schemas": "./packages/domain/src/schemas/mod.ts",
+    "@dwkit/domain/errors": "./packages/domain/src/errors/mod.ts",
+    "@dwkit/domain/specs": "./packages/domain/src/specs/mod.ts",
+    "@dwkit/domain/version": "./packages/domain/src/version.ts",
+    "@dwkit/core/workspace": "./packages/core/src/workspace/mod.ts",
+    "@dwkit/core/validation": "./packages/core/src/validation/mod.ts",
+    "@dwkit/core/transform": "./packages/core/src/transform/mod.ts",
+    "@dwkit/core/import": "./packages/core/src/import/mod.ts",
     "@std/assert": "jsr:@std/assert@^1.0.6",
     "@std/csv": "jsr:@std/csv@^1.0.6",
     "@std/path": "jsr:@std/path@^1.0.8",
@@ -37,37 +38,27 @@
         "test:domain",
         "test:core",
         "test:cli",
-        "test:integration"
+        "test:integration",
+        "test:scripts"
       ]
     },
     "test:domain": "deno task --cwd packages/domain test",
     "test:core": "deno task --cwd packages/core test",
     "test:cli": "deno task --cwd packages/cli test",
     "test:integration": "deno test test --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --allow-net",
+    "test:scripts": "deno test scripts/ --allow-read --allow-write --allow-env --allow-net",
     "import": "deno task --cwd packages/cli dev import",
-    "compile:macos": {
-      "dependencies": [
-        "import"
-      ],
-      "command": "deno task --cwd packages/cli compile:macos"
-    },
-    "compile:linux": {
-      "dependencies": [
-        "import"
-      ],
-      "command": "deno task --cwd packages/cli compile:linux"
-    },
-    "compile:windows": {
-      "dependencies": ["import"],
-      "command": "deno task --cwd packages/cli compile:windows"
-    },
+    "compile:darwin-arm64": "deno task --cwd packages/cli compile:darwin-arm64",
+    "compile:darwin-x86_64": "deno task --cwd packages/cli compile:darwin-x86_64",
+    "compile:linux-x86_64": "deno task --cwd packages/cli compile:linux-x86_64",
+    "compile:linux-arm64": "deno task --cwd packages/cli compile:linux-arm64",
+    "compile:windows-x86_64": "deno task --cwd packages/cli compile:windows-x86_64",
     "schema:generate": "deno run --allow-read --allow-write packages/domain/src/schemas/generate-json-schema.ts"
   },
   "exclude": [
     "build",
     "coverage",
-    ".context",
-    "packages/r/docs"
+    ".context"
   ],
   "fmt": {
     "useTabs": false,
@@ -78,7 +69,8 @@
     "proseWrap": "preserve",
     "include": [
       "packages/",
-      "test/"
+      "test/",
+      "scripts/"
     ]
   },
   "lint": {
@@ -89,7 +81,8 @@
     },
     "include": [
       "packages/",
-      "test/"
+      "test/",
+      "scripts/"
     ]
   }
 }

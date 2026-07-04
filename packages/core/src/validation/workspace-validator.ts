@@ -11,15 +11,15 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import type * as Scope from "effect/Scope";
 
-import type { WorkspaceOperationError } from "@dwkt/domain/errors";
-import { WorkspaceImportError, WorkspaceValidationError } from "@dwkt/domain/errors";
+import type { WorkspaceOperationError } from "@dwkit/domain/errors";
+import { WorkspaceImportError, WorkspaceValidationError } from "@dwkit/domain/errors";
 import type {
   DatasetConfig,
   DatasetRuleConfig,
   ResolvedSpec,
   ResolvedStandard,
   ValidationSettings,
-} from "@dwkt/domain/schemas";
+} from "@dwkit/domain/schemas";
 import {
   getPreset,
   getPresetNames,
@@ -27,13 +27,13 @@ import {
   getSpecNames,
   inferForeignKeyRules,
   orderByForeignKeyDependencies,
-} from "@dwkt/domain/specs";
+} from "@dwkit/domain/specs";
 import type {
   DatasetValidationResult,
   FieldViolation,
   SchemaViolation,
   WorkspaceValidationResult,
-} from "@dwkt/domain/types";
+} from "@dwkit/domain/types";
 import {
   calculateSummary,
   determineOverallStatus,
@@ -45,13 +45,13 @@ import {
   UnknownFieldViolation,
   UnknownProfileViolation,
   UnmappedColumnViolation,
-} from "@dwkt/domain/types";
+} from "@dwkit/domain/types";
 import { importCsv, importParquet } from "../loading/table-import.ts";
 import { queryRows, sanitizeTableName } from "../loading/sql.ts";
 import { scopedConnection } from "../loading/connection.ts";
 import { Workspace } from "../workspace/workspace.ts";
 
-import { DependencyRule } from "@dwkt/domain/specs";
+import { DependencyRule } from "@dwkit/domain/specs";
 import { importSchema } from "../loading/schema.ts";
 import { insertRowByRow } from "./data-loader.ts";
 import { validateDependencyRule } from "./dataset-rule-validators.ts";

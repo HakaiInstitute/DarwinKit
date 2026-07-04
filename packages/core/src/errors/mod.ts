@@ -3,7 +3,7 @@
  *
  * Error definitions specific to the core package.
  * Workspace error types (ConfigNotFoundError, WorkspaceValidationError, etc.)
- * should be imported from @dwkt/domain/errors. `ValidationError` here is an
+ * should be imported from @dwkit/domain/errors. `ValidationError` here is an
  * internal core type, not part of the package's public exports.
  */
 

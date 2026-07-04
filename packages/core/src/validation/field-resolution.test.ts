@@ -3,22 +3,22 @@
  */
 
 import { assert, assertEquals } from "@std/assert";
-import type { ResolvedSpec, WorkspaceFieldMapping } from "@dwkt/domain/schemas";
-import type { Constraint, SpecField } from "@dwkt/domain/specs";
+import type { ResolvedSpec, WorkspaceFieldMapping } from "@dwkit/domain/schemas";
+import type { Constraint, SpecField } from "@dwkit/domain/specs";
 import {
   obligationForStandard,
   obligationToRequirement,
   RangeConstraint,
   RequiredConstraint,
   resolveProfile,
-} from "@dwkt/domain/specs";
+} from "@dwkit/domain/specs";
 import {
   MissingFieldViolation,
   partitionFieldViolations,
   partitionSchemaViolations,
   RequiredFieldViolation,
   requirementToSeverity,
-} from "@dwkt/domain/types";
+} from "@dwkit/domain/types";
 import {
   formatConstraint,
   patternConstraint,
