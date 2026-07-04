@@ -1,4 +1,4 @@
-# @dwkt/domain
+# @dwkit/domain
 
 Domain layer for DarwinKit: types, schemas, and Darwin Core specifications.
 
@@ -8,7 +8,7 @@ This package provides environment-agnostic domain models and logic. It contains 
 
 The intended purpose of this design is to allow any consumer or user of DarwinKit's inputs and outputs to develop their own domain-aware systems around it. For example, a simple configuration management tool could be built around the configuration schemas in a type safe manner, and be able to trust that the outputs of their tool are compatible with other systems using the same domain models.
 
-At the moment, the [@dwkt/cli](/packages/cli) and [@dwkt/core](/packages/core) packages serve as good examples of how to use this package.
+At the moment, the [@dwkit/cli](/packages/cli) and [@dwkit/core](/packages/core) packages serve as good examples of how to use this package.
 
 ## Purpose
 
@@ -99,14 +99,14 @@ import {
   type WorkspaceConfig,
   // Schemas
   workspaceConfigSchema,
-} from "@dwkt/domain";
+} from "@dwkit/domain";
 ```
 
 ### Validating Configuration
 
 ```typescript
 import { Schema } from "effect";
-import { workspaceConfigSchema } from "@dwkt/domain";
+import { workspaceConfigSchema } from "@dwkit/domain";
 
 const result = Schema.decodeUnknownEither(workspaceConfigSchema)(configData);
 ```
@@ -114,7 +114,7 @@ const result = Schema.decodeUnknownEither(workspaceConfigSchema)(configData);
 ### Working with Profiles
 
 ```typescript
-import { getResolvedSpec } from "@dwkt/domain";
+import { getResolvedSpec } from "@dwkit/domain";
 
 // Get a specific profile (inheritance is resolved automatically)
 const eventProfile = getResolvedSpec("Event");
