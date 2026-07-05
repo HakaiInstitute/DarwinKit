@@ -39,7 +39,8 @@
         "test:core",
         "test:cli",
         "test:integration",
-        "test:scripts"
+        "test:scripts",
+        "test:install"
       ]
     },
     "test:domain": "deno task --cwd packages/domain test",
@@ -47,6 +48,7 @@
     "test:cli": "deno task --cwd packages/cli test",
     "test:integration": "deno test test --allow-read --allow-write --allow-ffi --allow-env=READABLE_STREAM --allow-net",
     "test:scripts": "deno test scripts/ --allow-read --allow-write --allow-env --allow-net",
+    "test:install": "deno test test/install.test.ts --allow-run --allow-read --allow-write --allow-env",
     "import": "deno task --cwd packages/cli dev import",
     "compile:darwin-arm64": "deno task --cwd packages/cli compile:darwin-arm64",
     "compile:darwin-x86_64": "deno task --cwd packages/cli compile:darwin-x86_64",

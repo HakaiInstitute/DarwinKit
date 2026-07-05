@@ -22,9 +22,60 @@ If you know how your data should be mapped to Darwin Core, you can use DarwinKit
 
 ## Quick Start
 
-> [!NOTE]
-> DarwinKit is currently used as a CLI. It's not yet published or available for download. In the meantime, you can use it via `deno` as described below.
-> Talk to @HakaiInstitute/steveadams or @HakaiInstitute/fostermh for support!
+### Install
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HakaiInstitute/DarwinKit/main/install.sh | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/HakaiInstitute/DarwinKit/main/install.ps1 | iex
+```
+
+The installer detects your OS and architecture, downloads the matching binary,
+verifies its SHA-256 checksum, and installs `dwkit` to `~/.local/bin`
+(`%LOCALAPPDATA%\Programs\dwkit` on Windows). Then confirm it works:
+
+```bash
+dwkit --version
+```
+
+If the install directory isn't on your `PATH`, the installer prints the line to
+add. Two optional environment variables control the install:
+
+- `DWKIT_VERSION` — pin a specific version (e.g. `DWKIT_VERSION=1.3.2`); default is the latest release.
+- `DWKIT_INSTALL_DIR` — install to a different directory.
+
+**R users:** you don't need to install manually — biocleanr's
+`dwc_install_engine()` downloads the same binary from the same releases and
+verifies the same checksum automatically.
+
+<details>
+<summary>Manual download</summary>
+
+Download the binary for your platform from the
+[latest release](https://github.com/HakaiInstitute/DarwinKit/releases/latest),
+verify it against `SHA256SUMS`, then put it on your `PATH` as `dwkit`.
+
+| Platform | Asset |
+| --- | --- |
+| macOS (Apple Silicon) | `dwkit-darwin-arm64` |
+| macOS (Intel) | `dwkit-darwin-x86_64` |
+| Linux (x86_64) | `dwkit-linux-x86_64` |
+| Linux (arm64) | `dwkit-linux-arm64` |
+| Windows (x86_64) | `dwkit-windows-x86_64.exe` |
+
+On macOS, a binary downloaded through a **browser** is Gatekeeper-quarantined;
+clear it with `xattr -dr com.apple.quarantine dwkit`. The `curl | sh` installer
+above is not affected.
+
+</details>
+
+### Run from source
 
 **Prerequisites**: [Deno 2.0+](https://deno.land/)
 
@@ -156,8 +207,8 @@ hand from an up-to-date `main` instead (needs only normal repo write access):
 
 ```bash
 # 1. Bump + changelog in a normal PR (git-cliff picks the next version from commits):
-docker run --rm -v "$PWD":/app -w /app orhun/git-cliff --bumped-version   # prints vX.Y.Z
-docker run --rm -v "$PWD":/app -w /app orhun/git-cliff --bump -o CHANGELOG.md
+docker run --rm -v "$PWD":/app -w /app ghcr.io/orhun/git-cliff/git-cliff:2.13.1 --bumped-version   # prints vX.Y.Z
+docker run --rm -v "$PWD":/app -w /app ghcr.io/orhun/git-cliff/git-cliff:2.13.1 --bump -o CHANGELOG.md
 # edit packages/cli/deno.json "version" to X.Y.Z, open + merge the PR
 
 # 2. Tag + release from your machine (uses YOUR credentials, so it triggers release.yml):
