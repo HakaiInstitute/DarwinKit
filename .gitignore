@@ -47,9 +47,6 @@ packages/cli/validation_results/
 darwinkit.schema.json
 
 # Local CLI binary and run artifacts
-/dwkt
-/.dwkt/
+/dwkit
+/.dwkit/
 /validation_results/
-
-# pkgdown site output (built + deployed to gh-pages by CI, not committed)
-packages/r/docs/
