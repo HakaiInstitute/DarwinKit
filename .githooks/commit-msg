@@ -1,0 +1,7 @@
+#!/bin/sh
+# Validate the commit message against Conventional Commits — the same rules CI
+# enforces via .commitlintrc.yml (@commitlint/config-conventional).
+#
+# Enable once per clone with:  deno task hooks:install
+# (sets core.hooksPath to .githooks). Requires Deno on PATH.
+exec deno run -A npm:@commitlint/cli --edit "$1"
