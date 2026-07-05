@@ -100,6 +100,42 @@ jobs:
         with:
           path: site
 
+  smoke:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+          - runner: macos-13
+          - runner: ubuntu-latest
+          - runner: ubuntu-24.04-arm
+          - runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install & verify (unix)
+        if: runner.os != 'Windows'
+        env:
+          DWKIT_VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          sh install.sh
+          expected="${DWKIT_VERSION#v}"
+          actual="$("$HOME/.local/bin/dwkit" --version)"
+          echo "expected=$expected actual=$actual"
+          [ "$actual" = "$expected" ] || { echo "version mismatch"; exit 1; }
+      - name: Install & verify (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          DWKIT_VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          ./install.ps1
+          $expected = $env:DWKIT_VERSION -replace '^v', ''
+          $actual = (& "$env:LOCALAPPDATA\Programs\dwkit\dwkit.exe" --version).Trim()
+          Write-Host "expected=$expected actual=$actual"
+          if ($actual -ne $expected) { throw "version mismatch: $actual != $expected" }
+
   # Deploy the staged index.json via the GitHub Actions Pages source (no branch).
   # `generate.ts` already fetches the current index and merges the new version in,
   # so publishing site/ as the whole site is complete each run.

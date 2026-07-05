@@ -36,6 +36,12 @@ jobs:
       - name: Run formatter check
         run: deno fmt --check
 
+      - name: ShellCheck install.sh
+        run: shellcheck install.sh
+
+      - name: Test install script
+        run: deno test test/install.test.ts --allow-run --allow-read --allow-write --allow-env
+
       - name: Type check packages
         run: |
           deno check

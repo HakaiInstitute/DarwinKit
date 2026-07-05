@@ -16,32 +16,49 @@ jobs:
           token: ${{ secrets.RELEASE_PAT }}
       - name: Compute next version
         id: bump
+        continue-on-error: true
         uses: orhun/git-cliff-action@v4
         with:
+          version: v2.13.1
           config: cliff.toml
           args: --bumped-version
       - name: Read current tag
         id: current
         run: echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)" >> "$GITHUB_OUTPUT"
+      - name: Normalize next version
+        id: next
+        env:
+          BUMPED: ${{ steps.bump.outputs.version }}
+          CURRENT: ${{ steps.current.outputs.tag }}
+        run: |
+          # git-cliff emits an empty/invalid value when there is nothing to
+          # release; fall back to the current tag so the guards below no-op
+          # instead of failing the job.
+          NEXT="$BUMPED"
+          case "$NEXT" in
+            v[0-9]*) ;;
+            *) NEXT="$CURRENT" ;;
+          esac
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
       - name: Generate changelog + sync deno.json
-        if: steps.bump.outputs.version != steps.current.outputs.tag
+        if: steps.next.outputs.version != steps.current.outputs.tag
         env:
-          NEXT: ${{ steps.bump.outputs.version }}
+          NEXT: ${{ steps.next.outputs.version }}
         run: |
-          docker run --rm -v "$PWD":/app -w /app orhun/git-cliff --bump -o CHANGELOG.md
+          docker run --rm -v "$PWD":/app -w /app ghcr.io/orhun/git-cliff/git-cliff:2.13.1 --bump -o CHANGELOG.md
           deno eval "const p='packages/cli/deno.json';const j=JSON.parse(Deno.readTextFileSync(p));j.version='${NEXT}'.replace(/^v/,'');Deno.writeTextFileSync(p, JSON.stringify(j, null, 2) + '\n');"
       - name: Open/update Release PR
-        if: steps.bump.outputs.version != steps.current.outputs.tag
+        if: steps.next.outputs.version != steps.current.outputs.tag
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.RELEASE_PAT }}
           branch: release/next
-          title: "Release ${{ steps.bump.outputs.version }}"
-          commit-message: "chore(release): ${{ steps.bump.outputs.version }}"
-          body: "Automated release PR. Merging tags and publishes ${{ steps.bump.outputs.version }}."
+          title: "Release ${{ steps.next.outputs.version }}"
+          commit-message: "chore(release): ${{ steps.next.outputs.version }}"
+          body: "Automated release PR. Merging tags and publishes ${{ steps.next.outputs.version }}."
           add-paths: |
             CHANGELOG.md
             packages/cli/deno.json
@@ -75,7 +92,7 @@ jobs:
           fi
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
-          docker run --rm -v "$PWD":/app -w /app orhun/git-cliff --latest --strip all > NOTES.md
+          docker run --rm -v "$PWD":/app -w /app ghcr.io/orhun/git-cliff/git-cliff:2.13.1 --latest --strip all > NOTES.md
           # A version with a pre-release suffix (e.g. 1.5.0-rc1) is published as a
           # GitHub prerelease so `releases/latest` skips it; it surfaces only through
           # the index's `beta` channel (see RELEASE_AND_DISTRIBUTION.md).
