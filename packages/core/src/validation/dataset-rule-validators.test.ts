@@ -1,4 +1,4 @@
-import { DependencyRule } from "@dwkt/domain/specs";
+import { DependencyRule } from "@dwkit/domain/specs";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";

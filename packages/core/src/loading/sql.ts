@@ -5,7 +5,7 @@
  */
 
 import type { DuckDBConnection, DuckDBValue, Json } from "@duckdb/node-api";
-import type { DatasetRuleConfig, ForeignKeyRuleMatch } from "@dwkt/domain/schemas";
+import type { DatasetRuleConfig, ForeignKeyRuleMatch } from "@dwkit/domain/schemas";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
 

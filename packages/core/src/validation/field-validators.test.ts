@@ -8,7 +8,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { assert, assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
-import type { SpecField } from "@dwkt/domain/specs";
+import type { SpecField } from "@dwkit/domain/specs";
 import {
   FormatConstraint,
   LengthConstraint,
@@ -16,7 +16,7 @@ import {
   RangeConstraint,
   RequiredConstraint,
   UniqueConstraint,
-} from "@dwkt/domain/specs";
+} from "@dwkit/domain/specs";
 import {
   extractViolations,
   makeField,

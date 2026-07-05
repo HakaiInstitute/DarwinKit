@@ -4,7 +4,7 @@
  */
 
 import { DuckDBInstance } from "@duckdb/node-api";
-import { WorkspaceValidator } from "@dwkt/core/validation";
+import { WorkspaceValidator } from "@dwkit/core/validation";
 import { assertEquals } from "@std/assert";
 import { stringify as stringifyYaml } from "@std/yaml";
 import * as Effect from "effect/Effect";

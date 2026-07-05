@@ -1,4 +1,4 @@
-# @dwkt/cli
+# @dwkit/cli
 
 Command-line interface for DarwinKit validation and transformation operations.
 
@@ -8,8 +8,8 @@ This package provides a terminal-based interface to DarwinKit's core functionali
 
 ## Dependencies
 
-- `@dwkt/domain` - Domain types and schemas
-- `@dwkt/core` - Core validation and workspace operations
+- `@dwkit/domain` - Domain types and schemas
+- `@dwkit/core` - Core validation and workspace operations
 - `@cliffy/command` - CLI framework
 - `@cliffy/table` - Table formatting
 
@@ -56,7 +56,7 @@ deno task dev validate --format json --output-dir ./results
 
 All human-readable diagnostics (progress, status, errors) are written to **stderr** for every
 format, so stdout always carries exactly one thing: the result payload (table report, JSON, or
-Markdown). `darwinkit validate --format json | jq .` and `darwinkit validate > report.txt` both
+Markdown). `dwkit validate --format json | jq .` and `dwkit validate > report.txt` both
 work without diagnostics mixed into the output (set `NO_COLOR=1` for a plain-text report).
 
 ## Testing
@@ -72,11 +72,16 @@ deno task test
 Compile standalone binaries for distribution:
 
 ```bash
-# macOS (Apple Silicon)
-deno task compile:macos
+# macOS (Apple Silicon / Intel)
+deno task compile:darwin-arm64
+deno task compile:darwin-x86_64
 
-# Linux (x86_64)
-deno task compile:linux
+# Linux (x86_64 / arm64)
+deno task compile:linux-x86_64
+deno task compile:linux-arm64
+
+# Windows (x86_64)
+deno task compile:windows-x86_64
 ```
 
 Binaries are output to `./dist/` directory.

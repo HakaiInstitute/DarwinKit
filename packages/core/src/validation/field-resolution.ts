@@ -17,8 +17,8 @@ import {
   type ResolvedSpec,
   type ResolvedStandard,
   type WorkspaceFieldMapping,
-} from "@dwkt/domain/schemas";
-import type { Constraint, RequirementLevel, SpecField } from "@dwkt/domain/specs";
+} from "@dwkit/domain/schemas";
+import type { Constraint, RequirementLevel, SpecField } from "@dwkit/domain/specs";
 import {
   getPreset,
   mergeProfileConstraints,
@@ -28,7 +28,7 @@ import {
   REQUIREMENT_STRICTNESS,
   resolveProfile,
   strictestRequired,
-} from "@dwkt/domain/specs";
+} from "@dwkit/domain/specs";
 
 interface ActiveStandardResult {
   readonly standard: "obis" | "gbif";

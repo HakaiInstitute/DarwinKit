@@ -1,4 +1,4 @@
-import type { WorkspaceValidationResult } from "@dwkt/domain/types";
+import type { WorkspaceValidationResult } from "@dwkit/domain/types";
 import {
   isEnumViolation,
   isFormatViolation,
@@ -7,8 +7,8 @@ import {
   isPrimaryKeyViolation,
   isRangeViolation,
   isRequiredFieldViolation,
-} from "@dwkt/domain/types";
-import { assert, assertEquals, assertExists } from "@std/assert";
+} from "@dwkit/domain/types";
+import { assert, assertEquals, assertExists, assertRejects } from "@std/assert";
 import { Array } from "effect";
 import {
   assertPrimaryKeyViolations,
@@ -792,6 +792,130 @@ Deno.test("WorkspaceValidator - Preset Tests", async (t) => {
       `Expected at least 1 range violation from latitude preset, got ${latViolations.length}`,
     );
   });
+});
+
+Deno.test("inferred FK catches an orphan without an explicit rule", async () => {
+  const tempDir = await createTempDir("infer_fk_orphan");
+  await writeCSV(tempDir, "events", TEST_DATA.EVENTS_WITH_ONLY_E1);
+  await writeCSV(tempDir, "occurrences", TEST_DATA.OCCURRENCES_WITH_INVALID_EVENT_REF);
+
+  await writeConfig(tempDir, {
+    name: "Test Workspace",
+    validation: {
+      nullValues: [""],
+      datasets: [
+        {
+          name: "events",
+          class: "Event",
+          path: "./events.csv",
+          fieldMappings: [{ originName: "eventID", targetName: "eventID" }],
+        },
+        {
+          name: "occurrences",
+          class: "Occurrence",
+          path: "./occurrences.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "occurrenceID", targetName: "occurrenceID" },
+          ],
+        },
+      ],
+    },
+    // no datasetRules — inference supplies occurrences.eventID -> events.eventID
+  });
+
+  const result = await validateWorkspace(tempDir);
+  const occ = result.datasetResults.find((r) => r.datasetName === "occurrences");
+  assertExists(occ);
+  const fk = occ.fieldViolations.errors.filter((v) => v._tag === "ForeignKeyViolation");
+  assertEquals(fk.length, 1);
+  assertEquals(fk[0].value, "E2");
+});
+
+Deno.test("inferred FK follows field mappings, not raw CSV headers", async () => {
+  const tempDir = await createTempDir("infer_fk_mapped_column");
+  await writeCSV(tempDir, "events", TEST_DATA.EVENTS_WITH_ONLY_E1);
+  // The reference column is not named `eventID` in the source CSV; it is mapped
+  // to the Darwin Core `eventID` target. Inference must key on the mapped name,
+  // otherwise the orphan `E2` slips through unvalidated.
+  await writeCSV(tempDir, "occurrences", [
+    { event_ref: "E1", occurrenceID: "O1", basisOfRecord: "HumanObservation" },
+    { event_ref: "E2", occurrenceID: "O2", basisOfRecord: "HumanObservation" },
+  ]);
+
+  await writeConfig(tempDir, {
+    name: "Test Workspace",
+    validation: {
+      nullValues: [""],
+      datasets: [
+        {
+          name: "events",
+          class: "Event",
+          path: "./events.csv",
+          fieldMappings: [{ originName: "eventID", targetName: "eventID" }],
+        },
+        {
+          name: "occurrences",
+          class: "Occurrence",
+          path: "./occurrences.csv",
+          fieldMappings: [
+            { originName: "event_ref", targetName: "eventID" },
+            { originName: "occurrenceID", targetName: "occurrenceID" },
+          ],
+        },
+      ],
+    },
+  });
+
+  const result = await validateWorkspace(tempDir);
+  const occ = result.datasetResults.find((r) => r.datasetName === "occurrences");
+  assertExists(occ);
+  const fk = occ.fieldViolations.errors.filter((v) => v._tag === "ForeignKeyViolation");
+  assertEquals(fk.length, 1);
+  assertEquals(fk[0].value, "E2");
+});
+
+Deno.test("two Event datasets + an occurrence eventID is a hard error", async () => {
+  const tempDir = await createTempDir("infer_fk_ambiguous");
+  await writeCSV(tempDir, "events_a", TEST_DATA.EVENTS_WITH_ONLY_E1);
+  await writeCSV(tempDir, "events_b", TEST_DATA.EVENTS_WITH_ONLY_E1);
+  await writeCSV(tempDir, "occurrences", TEST_DATA.VALID_OCCURRENCES);
+
+  await writeConfig(tempDir, {
+    name: "Test Workspace",
+    validation: {
+      nullValues: [""],
+      datasets: [
+        {
+          name: "events_a",
+          class: "Event",
+          path: "./events_a.csv",
+          fieldMappings: [{ originName: "eventID", targetName: "eventID" }],
+        },
+        {
+          name: "events_b",
+          class: "Event",
+          path: "./events_b.csv",
+          fieldMappings: [{ originName: "eventID", targetName: "eventID" }],
+        },
+        {
+          name: "occurrences",
+          class: "Occurrence",
+          path: "./occurrences.csv",
+          fieldMappings: [
+            { originName: "eventID", targetName: "eventID" },
+            { originName: "occurrenceID", targetName: "occurrenceID" },
+          ],
+        },
+      ],
+    },
+  });
+
+  await assertRejects(
+    () => validateWorkspace(tempDir),
+    Error,
+    "Ambiguous Darwin Core relation",
+  );
 });
 
 Deno.test("WorkspaceValidator - NOT NULL from Resolved Constraints", async (t) => {

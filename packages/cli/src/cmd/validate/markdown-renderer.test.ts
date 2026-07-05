@@ -1,5 +1,5 @@
-import type { DatasetValidationResult, WorkspaceValidationResult } from '@dwkt/domain/types';
-import { MissingFieldViolation } from '@dwkt/domain/types';
+import type { DatasetValidationResult, WorkspaceValidationResult } from '@dwkit/domain/types';
+import { MissingFieldViolation } from '@dwkit/domain/types';
 import { assertEquals, assertStringIncludes } from '@std/assert';
 import { renderValidationMarkdown } from './markdown-renderer.ts';
 

@@ -5,12 +5,12 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
 import { Workspace } from "../workspace/workspace.ts";
-import type { WorkspaceConfig } from "@dwkt/domain/schemas";
-import { hasTransformationConfig } from "@dwkt/domain/schemas";
-import { getSpecNames, resolveProfile } from "@dwkt/domain/specs";
+import type { WorkspaceConfig } from "@dwkit/domain/schemas";
+import { hasTransformationConfig } from "@dwkit/domain/schemas";
+import { getSpecNames, resolveProfile } from "@dwkit/domain/specs";
 import { findSuggestedValue } from "../validation/string-matching.ts";
-import type { WorkspaceConfigError } from "@dwkt/domain/errors";
-import type { WorkspaceImportError } from "@dwkt/domain/errors";
+import type { WorkspaceConfigError } from "@dwkit/domain/errors";
+import type { WorkspaceImportError } from "@dwkit/domain/errors";
 import { importCsv } from "../loading/table-import.ts";
 import { importSchema } from "../loading/schema.ts";
 import {

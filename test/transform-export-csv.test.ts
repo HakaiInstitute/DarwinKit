@@ -6,8 +6,8 @@
  */
 
 import { DuckDBConnection } from "@duckdb/node-api";
-import { exportTablesToCSV } from "@dwkt/core/transform";
-import type { WorkspaceConfig } from "@dwkt/domain/schemas";
+import { exportTablesToCSV } from "@dwkit/core/transform";
+import type { WorkspaceConfig } from "@dwkit/domain/schemas";
 import { assertEquals, assertExists, assertFalse, assertStringIncludes } from "@std/assert";
 import * as Effect from "effect/Effect";
 

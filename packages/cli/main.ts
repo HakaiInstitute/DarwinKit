@@ -3,9 +3,10 @@ import { importCommand } from './src/cmd/import/import.ts';
 import { validateCommand } from './src/cmd/validate/validate.ts';
 import { transformCommand } from './src/cmd/transform/transform.ts';
 import packageInfo from './deno.json' with { type: 'json' };
+import { SCHEMA_VERSION } from '@dwkit/domain/version';
 
-const darwinkit = new Command()
-  .name('darwinkit')
+const dwkit = new Command()
+  .name('dwkit')
   .version(packageInfo.version)
   .description('Tools for validating biodiversity datasets against Darwin Core standards')
   .meta('deno', Deno.version.deno)
@@ -19,4 +20,22 @@ const darwinkit = new Command()
   .command('validate', validateCommand)
   .command('transform', transformCommand);
 
-await darwinkit.parse(Deno.args);
+// Handle `--version` before Cliffy parses. The engine publishes a
+// `{version, schemaVersion}` compatibility contract (see RELEASE_AND_DISTRIBUTION.md)
+// that clients read via `dwkit --version --format json`. Cliffy's built-in version
+// option is standalone and can only print its own fixed output, so we intercept the
+// flag here to emit either the plain version or the JSON contract.
+if (Deno.args.includes('--version') || Deno.args.includes('-V')) {
+  const args = Deno.args;
+  const eqFormat = args.find((a) => a.startsWith('--format='))?.split('=')[1];
+  const flagIdx = args.findIndex((a) => a === '--format' || a === '-f');
+  const format = eqFormat ?? (flagIdx >= 0 ? args[flagIdx + 1] : undefined);
+  if (format === 'json') {
+    console.log(JSON.stringify({ version: packageInfo.version, schemaVersion: SCHEMA_VERSION }));
+  } else {
+    console.log(packageInfo.version);
+  }
+  Deno.exit(0);
+}
+
+await dwkit.parse(Deno.args);

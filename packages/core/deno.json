@@ -1,5 +1,5 @@
 {
-  "name": "@dwkt/core",
+  "name": "@dwkit/core",
   "version": "0.1.0",
   "exports": {
     "./workspace": "./src/workspace/mod.ts",
@@ -8,10 +8,10 @@
     "./import": "./src/import/mod.ts"
   },
   "imports": {
-    "@dwkt/domain/types": "../domain/src/types/mod.ts",
-    "@dwkt/domain/schemas": "../domain/src/schemas/mod.ts",
-    "@dwkt/domain/errors": "../domain/src/errors/mod.ts",
-    "@dwkt/domain/specs": "../domain/src/specs/mod.ts",
+    "@dwkit/domain/types": "../domain/src/types/mod.ts",
+    "@dwkit/domain/schemas": "../domain/src/schemas/mod.ts",
+    "@dwkit/domain/errors": "../domain/src/errors/mod.ts",
+    "@dwkit/domain/specs": "../domain/src/specs/mod.ts",
     "@duckdb/node-api": "npm:@duckdb/node-api@1.5.3-r.3",
     "@std/csv": "jsr:@std/csv@^1.0.6",
     "@std/yaml": "jsr:@std/yaml@^1.0.11",

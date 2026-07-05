@@ -5,10 +5,10 @@ import type {
   ResolvedStandard,
   TransformField,
   WorkspaceFieldMapping,
-} from "@dwkt/domain/schemas";
+} from "@dwkit/domain/schemas";
 
-import { WorkspaceImportError } from "@dwkt/domain/errors";
-import { obligationForStandard, resolveProfile } from "@dwkt/domain/specs";
+import { WorkspaceImportError } from "@dwkit/domain/errors";
+import { obligationForStandard, resolveProfile } from "@dwkit/domain/specs";
 import * as Effect from "effect/Effect";
 import { deriveRequirementFromConstraints } from "../validation/field-resolution.ts";
 import { findForeignKeyRule, sanitizeTableName } from "./sql.ts";

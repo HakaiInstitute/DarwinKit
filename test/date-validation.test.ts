@@ -5,8 +5,8 @@
  * for year, month, and day fields (range validation).
  */
 
-import { isRangeViolation } from "@dwkt/domain/types";
-import { makeWorkspaceConfig } from "@dwkt/domain/schemas";
+import { isRangeViolation } from "@dwkit/domain/types";
+import { makeWorkspaceConfig } from "@dwkit/domain/schemas";
 import { assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";

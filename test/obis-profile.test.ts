@@ -2,8 +2,8 @@
  * Test OBIS validation profile
  */
 
-import { makeWorkspaceConfig } from "@dwkt/domain/schemas";
-import { isMissingFieldViolation, isRangeViolation } from "@dwkt/domain/types";
+import { makeWorkspaceConfig } from "@dwkit/domain/schemas";
+import { isMissingFieldViolation, isRangeViolation } from "@dwkit/domain/types";
 import { assert, assertEquals, assertExists, assertGreater } from "@std/assert";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";
@@ -127,11 +127,14 @@ Deno.test({
 
     try {
       // Create test CSV with OBIS-required fields
+      // E1 is the root (no parent); E2/E3 reference E1. parentEventID must
+      // resolve to an existing eventID — the engine enforces the standard
+      // Darwin Core parentEventID -> Event.eventID relation automatically.
       const eventCsv =
         `eventID,parentEventID,eventDate,decimalLatitude,decimalLongitude,geodeticDatum,locality
-E1,P1,2022-09-15,49.8954,-125.4567,WGS84,Salish Sea
-E2,P1,2022-09-16,49.9012,-125.4789,WGS84,Strait of Georgia
-E3,P1,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
+E1,,2022-09-15,49.8954,-125.4567,WGS84,Salish Sea
+E2,E1,2022-09-16,49.9012,-125.4789,WGS84,Strait of Georgia
+E3,E1,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
 
       Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
 

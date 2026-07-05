@@ -4,7 +4,7 @@
 
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBInstance } from "@duckdb/node-api";
-import type { DatasetRuleConfig } from "@dwkt/domain/schemas";
+import type { DatasetRuleConfig } from "@dwkit/domain/schemas";
 import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import {

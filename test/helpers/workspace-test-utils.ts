@@ -6,16 +6,16 @@ import type {
   DatasetConfig,
   DatasetRuleConfig,
   ValidationSettingsInput,
-} from "@dwkt/domain/schemas";
-import { isPrimaryKeyViolation } from "@dwkt/domain/types";
-import type { WorkspaceValidationResult } from "@dwkt/domain/types";
+} from "@dwkit/domain/schemas";
+import { isPrimaryKeyViolation } from "@dwkit/domain/types";
+import type { WorkspaceValidationResult } from "@dwkit/domain/types";
 import { assertEquals } from "@std/assert";
 import { stringify as stringifyCSV } from "@std/csv";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";
 import { Array } from "effect";
 import * as Effect from "effect/Effect";
-import { WorkspaceValidator } from "@dwkt/core/validation";
+import { WorkspaceValidator } from "@dwkit/core/validation";
 
 // Helper type for workspace creation
 export type TestWorkspaceOptions = {

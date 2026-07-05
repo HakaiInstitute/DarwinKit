@@ -2,7 +2,7 @@
  * Validation Module
  *
  * Exports validation functionality for external consumption.
- * Note: Error types and domain utilities should be imported from @dwkt/domain.
+ * Note: Error types and domain utilities should be imported from @dwkit/domain.
  *
  * @module validation
  */

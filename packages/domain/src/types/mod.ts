@@ -1,5 +1,5 @@
 /**
- * @dwkt/domain/types - Type definitions for validation violations and results
+ * @dwkit/domain/types - Type definitions for validation violations and results
  */
 
 export * from "./validation-violation.ts";

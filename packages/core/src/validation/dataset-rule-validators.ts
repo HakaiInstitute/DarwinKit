@@ -1,12 +1,12 @@
 import type { DuckDBConnection, DuckDBValue } from "@duckdb/node-api";
 import * as Effect from "effect/Effect";
 
-import type { DependencyRequire, DependencyRule } from "@dwkt/domain/specs";
+import type { DependencyRequire, DependencyRule } from "@dwkit/domain/specs";
 import {
   DependencyViolation,
   type FieldViolation,
   requirementToSeverity,
-} from "@dwkt/domain/types";
+} from "@dwkit/domain/types";
 import { queryRows } from "../loading/sql.ts";
 
 function isOneOf(

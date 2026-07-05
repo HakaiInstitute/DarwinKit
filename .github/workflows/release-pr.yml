@@ -1,0 +1,84 @@
+name: release-pr
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+      - name: Compute next version
+        id: bump
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --bumped-version
+      - name: Read current tag
+        id: current
+        run: echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)" >> "$GITHUB_OUTPUT"
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Generate changelog + sync deno.json
+        if: steps.bump.outputs.version != steps.current.outputs.tag
+        env:
+          NEXT: ${{ steps.bump.outputs.version }}
+        run: |
+          docker run --rm -v "$PWD":/app -w /app orhun/git-cliff --bump -o CHANGELOG.md
+          deno eval "const p='packages/cli/deno.json';const j=JSON.parse(Deno.readTextFileSync(p));j.version='${NEXT}'.replace(/^v/,'');Deno.writeTextFileSync(p, JSON.stringify(j, null, 2) + '\n');"
+      - name: Open/update Release PR
+        if: steps.bump.outputs.version != steps.current.outputs.tag
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.RELEASE_PAT }}
+          branch: release/next
+          title: "Release ${{ steps.bump.outputs.version }}"
+          commit-message: "chore(release): ${{ steps.bump.outputs.version }}"
+          body: "Automated release PR. Merging tags and publishes ${{ steps.bump.outputs.version }}."
+          add-paths: |
+            CHANGELOG.md
+            packages/cli/deno.json
+  # Runs on every push to main. Idempotent and merge-strategy independent: it
+  # tags + releases only when packages/cli/deno.json holds a version that is not
+  # yet tagged (i.e. right after a Release PR merges the bump). Feature merges
+  # leave the version already-tagged, so this is a no-op for them.
+  tag-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Read version
+        id: v
+        run: echo "version=$(deno eval "console.log(JSON.parse(Deno.readTextFileSync('packages/cli/deno.json')).version)")" >> "$GITHUB_OUTPUT"
+      - name: Tag + release if the version is new
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "v${VERSION} already tagged; nothing to release."
+            exit 0
+          fi
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+          docker run --rm -v "$PWD":/app -w /app orhun/git-cliff --latest --strip all > NOTES.md
+          # A version with a pre-release suffix (e.g. 1.5.0-rc1) is published as a
+          # GitHub prerelease so `releases/latest` skips it; it surfaces only through
+          # the index's `beta` channel (see RELEASE_AND_DISTRIBUTION.md).
+          PRERELEASE_FLAG=""
+          case "$VERSION" in *-*) PRERELEASE_FLAG="--prerelease" ;; esac
+          gh release create "v${VERSION}" --title "v${VERSION}" --notes-file NOTES.md $PRERELEASE_FLAG

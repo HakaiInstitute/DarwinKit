@@ -4,7 +4,7 @@
 
 import { DuckDBInstance } from "@duckdb/node-api";
 import type { DuckDBConnection } from "@duckdb/node-api";
-import type { SpecField } from "@dwkt/domain/specs";
+import type { SpecField } from "@dwkit/domain/specs";
 import * as Exit from "effect/Exit";
 import * as Cause from "effect/Cause";
 

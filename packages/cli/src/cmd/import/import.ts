@@ -1,5 +1,5 @@
 import { Command } from '@cliffy/command';
-import { import_schema } from '@dwkt/core/import';
+import { import_schema } from '@dwkit/core/import';
 import { join } from '@std/path';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';

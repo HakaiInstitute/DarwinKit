@@ -1,11 +1,12 @@
 {
-  "name": "@dwkt/domain",
+  "name": "@dwkit/domain",
   "version": "0.1.0",
   "exports": {
     "./types": "./src/types/mod.ts",
     "./schemas": "./src/schemas/mod.ts",
     "./errors": "./src/errors/mod.ts",
-    "./specs": "./src/specs/mod.ts"
+    "./specs": "./src/specs/mod.ts",
+    "./version": "./src/version.ts"
   },
   "imports": {},
   "tasks": {

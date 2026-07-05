@@ -5,7 +5,7 @@ import { parse as parseYAML } from "@std/yaml";
 import * as Effect from "effect/Effect";
 import type * as Scope from "effect/Scope";
 
-import type { WorkspaceConfigError } from "@dwkt/domain/errors";
+import type { WorkspaceConfigError } from "@dwkit/domain/errors";
 import {
   ConfigNotFoundError,
   ConfigParseError,
@@ -14,14 +14,14 @@ import {
   NoDatasetsDefinedError,
   TransformInputNotFoundError,
   ValidationConfigMissingError,
-} from "@dwkt/domain/errors";
-import type { ConfigWithValidation, WorkspaceConfig } from "@dwkt/domain/schemas";
+} from "@dwkit/domain/errors";
+import type { ConfigWithValidation, WorkspaceConfig } from "@dwkit/domain/schemas";
 import {
   decodeWorkspaceConfigEffect,
   formatConfigValidationErrors,
   hasValidationConfig,
-} from "@dwkt/domain/schemas";
-import type { WorkspaceValidationResult } from "@dwkt/domain/types";
+} from "@dwkit/domain/schemas";
+import type { WorkspaceValidationResult } from "@dwkit/domain/types";
 
 import { ValidationError } from "../errors/mod.ts";
 import { WorkspaceValidator } from "../validation/workspace-validator.ts";

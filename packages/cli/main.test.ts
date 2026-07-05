@@ -7,6 +7,20 @@ Deno.test('CLI executable runs and displays help', async () => {
   const output = stripAnsiCode(stdout);
 
   assertEquals(code, 0, `CLI failed: ${stderr}`);
-  assertStringIncludes(output, 'darwinkit');
+  assertStringIncludes(output, 'dwkit');
   assertStringIncludes(output, 'validate');
+});
+
+Deno.test('CLI --version --format json reports version and schemaVersion', async () => {
+  const { stdout, code } = await runCli(['--version', '--format', 'json']);
+  assertEquals(code, 0);
+  const parsed = JSON.parse(stdout.trim());
+  assertEquals(typeof parsed.version, 'string');
+  assertEquals(parsed.schemaVersion, 1);
+});
+
+Deno.test('CLI --version (plain) prints just the version string', async () => {
+  const { stdout, code } = await runCli(['--version']);
+  assertEquals(code, 0);
+  assertEquals(/^\d+\.\d+\.\d+/.test(stdout.trim()), true);
 });

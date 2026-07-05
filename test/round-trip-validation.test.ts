@@ -6,8 +6,8 @@
  * This verifies the complete round-trip from config creation to validation output.
  */
 
-import { makeWorkspaceConfig } from "@dwkt/domain/schemas";
-import { isRangeViolation, isRequiredFieldViolation } from "@dwkt/domain/types";
+import { makeWorkspaceConfig } from "@dwkit/domain/schemas";
+import { isRangeViolation, isRequiredFieldViolation } from "@dwkit/domain/types";
 import { assert, assertEquals, assertGreater } from "@std/assert";
 import { join } from "@std/path";
 import { stringify as stringifyYAML } from "@std/yaml";

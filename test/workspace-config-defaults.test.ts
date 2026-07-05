@@ -1,5 +1,5 @@
 import { assert, assertExists, assertNotEquals } from "@std/assert";
-import { makeWorkspaceConfig } from "@dwkt/domain/schemas";
+import { makeWorkspaceConfig } from "@dwkit/domain/schemas";
 
 Deno.test("makeWorkspaceConfig generates a distinct id per call (Effect.sync, not cached)", () => {
   const minimalInput = {
