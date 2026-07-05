@@ -1,0 +1,18 @@
+name: pr-title
+# PRs are squash-merged, so the PR TITLE becomes the commit subject on main and
+# is what git-cliff reads to compute the changelog and version bump. commitlint
+# only lints the branch's individual commits, which squash discards — so the
+# title needs its own Conventional Commits check.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+permissions:
+  pull-requests: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title is a Conventional Commit
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
