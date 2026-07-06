@@ -1,7 +1,11 @@
 name: release
+# Triggered by the version tag that tag-release pushes (release-pr.yml). Building
+# and creating the release live here so all assets are attached to a DRAFT and
+# then published in one flow — required because published releases are immutable
+# (see the publish job).
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v[0-9]*"]
   workflow_dispatch:
 permissions:
   contents: write
@@ -36,15 +40,16 @@ jobs:
 
   publish:
     needs: build
-    # Only a real published release carries a version tag + prerelease flag.
-    # workflow_dispatch runs build as a "do all five targets still compile?" smoke
-    # test and stops here — publishing off a branch would mint a broken vmain release.
-    if: github.event_name == 'release'
+    # Only a real tag push has a version to publish. workflow_dispatch runs build
+    # as a "do all four targets still compile?" smoke test and stops here.
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -60,11 +65,11 @@ jobs:
       - name: Resolve release facts
         id: rel
         env:
-          TAG: ${{ github.event.release.tag_name || github.ref_name }}
-          PRE: ${{ github.event.release.prerelease }}
+          TAG: ${{ github.ref_name }}
         run: |
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-          echo "prerelease=${PRE:-false}" >> "$GITHUB_OUTPUT"
+          VERSION="${TAG#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          case "$VERSION" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
           echo "released=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Generate manifest.json, SHA256SUMS, index.json
         env:
@@ -78,16 +83,30 @@ jobs:
         run: |
           deno run --allow-read --allow-write --allow-env --allow-net scripts/release/generate.ts
           cp out/manifest.json out/SHA256SUMS dist/
-      - name: Attach assets to the release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/dwkit-darwin-arm64
-            dist/dwkit-linux-x86_64
-            dist/dwkit-linux-arm64
-            dist/dwkit-windows-x86_64.exe
-            dist/SHA256SUMS
-            dist/manifest.json
+      - name: Generate release notes
+        run: docker run --rm -v "$PWD":/app -w /app ghcr.io/orhun/git-cliff/git-cliff:2.13.1 --latest --strip all > NOTES.md
+      - name: Create the release with its assets, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.rel.outputs.prerelease }}
+        run: |
+          # Published releases are immutable — assets and target_commitish are
+          # sealed and cannot change afterward. So create a DRAFT (mutable),
+          # upload every asset, then flip to published, which seals the release
+          # WITH its assets. (Updating an already-published immutable release,
+          # e.g. to attach binaries later, is rejected by the API.)
+          PRE_FLAG=""
+          [ "$PRERELEASE" = "true" ] && PRE_FLAG="--prerelease"
+          gh release create "$TAG" --draft --title "$TAG" --notes-file NOTES.md $PRE_FLAG
+          gh release upload "$TAG" \
+            dist/dwkit-darwin-arm64 \
+            dist/dwkit-linux-x86_64 \
+            dist/dwkit-linux-arm64 \
+            dist/dwkit-windows-x86_64.exe \
+            dist/SHA256SUMS \
+            dist/manifest.json --clobber
+          gh release edit "$TAG" --draft=false
       - name: Stage index.json for Pages
         run: |
           mkdir -p site
@@ -113,7 +132,7 @@ jobs:
       - name: Install & verify (unix)
         if: runner.os != 'Windows'
         env:
-          DWKIT_VERSION: ${{ github.event.release.tag_name }}
+          DWKIT_VERSION: ${{ github.ref_name }}
         run: |
           sh install.sh
           expected="${DWKIT_VERSION#v}"
@@ -124,7 +143,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          DWKIT_VERSION: ${{ github.event.release.tag_name }}
+          DWKIT_VERSION: ${{ github.ref_name }}
         run: |
           ./install.ps1
           $expected = $env:DWKIT_VERSION -replace '^v', ''

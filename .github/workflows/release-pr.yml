@@ -66,9 +66,12 @@ jobs:
             CHANGELOG.md
             packages/cli/deno.json
   # Runs on every push to main. Idempotent and merge-strategy independent: it
-  # tags + releases only when packages/cli/deno.json holds a version that is not
-  # yet tagged (i.e. right after a Release PR merges the bump). Feature merges
-  # leave the version already-tagged, so this is a no-op for them.
+  # pushes a version tag only when packages/cli/deno.json holds a version that is
+  # not yet tagged (i.e. right after a Release PR merges the bump). Feature merges
+  # leave the version already-tagged, so this is a no-op for them. The tag push
+  # (via RELEASE_PAT) triggers release.yml, which builds and publishes the release
+  # with its assets — kept there so all assets attach to a draft before publish,
+  # which is required because published releases are immutable.
   tag-release:
     runs-on: ubuntu-latest
     permissions:
@@ -84,9 +87,8 @@ jobs:
       - name: Read version
         id: v
         run: echo "version=$(deno eval "console.log(JSON.parse(Deno.readTextFileSync('packages/cli/deno.json')).version)")" >> "$GITHUB_OUTPUT"
-      - name: Tag + release if the version is new
+      - name: Tag if the version is new
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           VERSION: ${{ steps.v.outputs.version }}
         run: |
           if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
@@ -95,10 +97,3 @@ jobs:
           fi
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
-          docker run --rm -v "$PWD":/app -w /app ghcr.io/orhun/git-cliff/git-cliff:2.13.1 --latest --strip all > NOTES.md
-          # A version with a pre-release suffix (e.g. 1.5.0-rc1) is published as a
-          # GitHub prerelease so `releases/latest` skips it; it surfaces only through
-          # the index's `beta` channel (see RELEASE_AND_DISTRIBUTION.md).
-          PRERELEASE_FLAG=""
-          case "$VERSION" in *-*) PRERELEASE_FLAG="--prerelease" ;; esac
-          gh release create "v${VERSION}" --title "v${VERSION}" --notes-file NOTES.md $PRERELEASE_FLAG
