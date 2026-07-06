@@ -16,12 +16,15 @@ jobs:
           token: ${{ secrets.RELEASE_PAT }}
       - name: Compute next version
         id: bump
-        continue-on-error: true
-        uses: orhun/git-cliff-action@v4
-        with:
-          version: v2.13.1
-          config: cliff.toml
-          args: --bumped-version
+        run: |
+          # Capture git-cliff's bumped version from stdout directly. The
+          # orhun/git-cliff-action `version` output is the latest RELEASE, not
+          # the --bumped-version value (git-cliff prints that to stdout), and the
+          # action's jq post-processing errors on that plain string — leaving the
+          # output empty and silently skipping every release. Read stdout instead.
+          v=$(docker run --rm -v "$PWD":/app -w /app ghcr.io/orhun/git-cliff/git-cliff:2.13.1 --bumped-version 2>/dev/null || true)
+          echo "git-cliff --bumped-version -> ${v:-<empty>}"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: Read current tag
         id: current
         run: echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)" >> "$GITHUB_OUTPUT"
