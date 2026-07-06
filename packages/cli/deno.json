@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.3.1",
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net main.ts",
     "compile:darwin-arm64": "deno compile --target aarch64-apple-darwin --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --self-extracting --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/dwkit-darwin-arm64 main.ts",
