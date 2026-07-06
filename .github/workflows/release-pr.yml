@@ -59,7 +59,7 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_PAT }}
           branch: release/next
-          title: "Release ${{ steps.next.outputs.version }}"
+          title: "chore(release): ${{ steps.next.outputs.version }}"
           commit-message: "chore(release): ${{ steps.next.outputs.version }}"
           body: "Automated release PR. Merging tags and publishes ${{ steps.next.outputs.version }}."
           add-paths: |
