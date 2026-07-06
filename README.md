@@ -64,7 +64,6 @@ verify it against `SHA256SUMS`, then put it on your `PATH` as `dwkit`.
 | Platform | Asset |
 | --- | --- |
 | macOS (Apple Silicon) | `dwkit-darwin-arm64` |
-| macOS (Intel) | `dwkit-darwin-x86_64` |
 | Linux (x86_64) | `dwkit-linux-x86_64` |
 | Linux (arm64) | `dwkit-linux-arm64` |
 | Windows (x86_64) | `dwkit-windows-x86_64.exe` |
@@ -233,8 +232,8 @@ out. Each release is a stable, versioned, machine-readable contract — see
 [`RELEASE_AND_DISTRIBUTION.md`](RELEASE_AND_DISTRIBUTION.md) for the full spec. A
 tagged release publishes:
 
-- Five raw per-target binaries: `dwkit-darwin-arm64`, `dwkit-darwin-x86_64`,
-  `dwkit-linux-x86_64`, `dwkit-linux-arm64`, `dwkit-windows-x86_64.exe`
+- Four raw per-target binaries: `dwkit-darwin-arm64`, `dwkit-linux-x86_64`,
+  `dwkit-linux-arm64`, `dwkit-windows-x86_64.exe`
 - `SHA256SUMS` (coreutils format) and a per-release `manifest.json` (asset URLs +
   checksums + `schemaVersion`), both attached to the GitHub release
 - A global index at `https://hakaiinstitute.github.io/DarwinKit/index.json`

@@ -34,7 +34,7 @@ Deno.test("generateReleaseArtifacts writes manifest, SHA256SUMS, and index", asy
     outDir: out,
   });
 
-  assertEquals(manifest.platforms.length, 5);
+  assertEquals(manifest.platforms.length, 4);
   assertEquals(index.latest, "1.3.2");
   // SHA256SUMS lines agree with the manifest's inline hashes.
   for (const p of manifest.platforms) {

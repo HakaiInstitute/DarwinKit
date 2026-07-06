@@ -3,7 +3,6 @@
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net main.ts",
     "compile:darwin-arm64": "deno compile --target aarch64-apple-darwin --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --self-extracting --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/dwkit-darwin-arm64 main.ts",
-    "compile:darwin-x86_64": "deno compile --target x86_64-apple-darwin --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --self-extracting --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/dwkit-darwin-x86_64 main.ts",
     "compile:linux-x86_64": "deno compile --target x86_64-unknown-linux-gnu --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --self-extracting --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/dwkit-linux-x86_64 main.ts",
     "compile:linux-arm64": "deno compile --target aarch64-unknown-linux-gnu --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --self-extracting --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/dwkit-linux-arm64 main.ts",
     "compile:windows-x86_64": "deno compile --target x86_64-pc-windows-msvc --allow-read --allow-write --allow-env --allow-run --allow-ffi --allow-net --self-extracting --include ../domain/src/specs/generated/dwcSchema.json --output ./dist/dwkit-windows-x86_64.exe main.ts",

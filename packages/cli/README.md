@@ -72,9 +72,8 @@ deno task test
 Compile standalone binaries for distribution:
 
 ```bash
-# macOS (Apple Silicon / Intel)
+# macOS (Apple Silicon)
 deno task compile:darwin-arm64
-deno task compile:darwin-x86_64
 
 # Linux (x86_64 / arm64)
 deno task compile:linux-x86_64
