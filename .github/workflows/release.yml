@@ -25,14 +25,14 @@ jobs:
             target: windows-x86_64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
       - name: Compile
         run: deno task compile:${{ matrix.target }}
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dwkit-${{ matrix.target }}
           path: packages/cli/dist/dwkit-${{ matrix.target }}*
@@ -47,14 +47,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
       - name: Gather built binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: Flatten artifacts into dist/
@@ -112,7 +112,7 @@ jobs:
           mkdir -p site
           cp out/index.json site/index.json
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
@@ -128,7 +128,7 @@ jobs:
           - runner: windows-latest
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install & verify (unix)
         if: runner.os != 'Windows'
         env:
@@ -169,9 +169,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Configure Pages (enables the Actions source if not already)
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         with:
           enablement: true
       - name: Deploy index.json to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
