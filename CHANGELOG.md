@@ -3,6 +3,11 @@
 
 ### Bug Fixes
 
+- Attach assets to a draft before publishing (immutable releases) (#133)
+
+
+### Bug Fixes
+
 - Title the automated Release PR conventionally (#131)
 
 
