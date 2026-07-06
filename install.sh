@@ -31,7 +31,7 @@ esac
 
 target="${os}-${arch}"
 case "$target" in
-  darwin-arm64 | darwin-x86_64 | linux-x86_64 | linux-arm64) ;;
+  darwin-arm64 | linux-x86_64 | linux-arm64) ;;
   *) die "no prebuilt binary for '$target'. Build from source: https://github.com/$REPO" ;;
 esac
 asset="dwkit-${target}"

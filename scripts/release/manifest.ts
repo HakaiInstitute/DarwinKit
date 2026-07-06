@@ -8,10 +8,9 @@
  * @module scripts/release/manifest
  */
 
-/** The five v1 distribution targets, in canonical order (spec §Platforms). */
+/** The v1 distribution targets, in canonical order (spec §Platforms). */
 export const PLATFORM_TARGETS = [
   "darwin-arm64",
-  "darwin-x86_64",
   "linux-x86_64",
   "linux-arm64",
   "windows-x86_64",

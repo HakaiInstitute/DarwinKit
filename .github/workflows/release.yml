@@ -13,8 +13,6 @@ jobs:
         include:
           - runner: macos-latest
             target: darwin-arm64
-          - runner: macos-13
-            target: darwin-x86_64
           - runner: ubuntu-latest
             target: linux-x86_64
           - runner: ubuntu-24.04-arm
@@ -85,7 +83,6 @@ jobs:
         with:
           files: |
             dist/dwkit-darwin-arm64
-            dist/dwkit-darwin-x86_64
             dist/dwkit-linux-x86_64
             dist/dwkit-linux-arm64
             dist/dwkit-windows-x86_64.exe
@@ -107,7 +104,6 @@ jobs:
       matrix:
         include:
           - runner: macos-latest
-          - runner: macos-13
           - runner: ubuntu-latest
           - runner: ubuntu-24.04-arm
           - runner: windows-latest
