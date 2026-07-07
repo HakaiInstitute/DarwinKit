@@ -32,11 +32,30 @@ $installDir = if ($env:DWKIT_INSTALL_DIR) {
   Join-Path $env:LOCALAPPDATA 'Programs\dwkit'
 }
 
+# Retry with linear backoff. GitHub's release-download redirect can 404 for a
+# short window just after a release is published, and networks are flaky —
+# retrying resolves both without failing an otherwise-good install.
+function Get-WithRetry {
+  param([string]$Url, [string]$OutFile)
+  $max = 6
+  for ($attempt = 1; $attempt -le $max; $attempt++) {
+    try {
+      Invoke-WebRequest -Uri $Url -OutFile $OutFile
+      return
+    } catch {
+      if ($attempt -eq $max) { throw }
+      $delay = $attempt * 3
+      Write-Host "  download failed (attempt $attempt/$max); retrying in ${delay}s ..."
+      Start-Sleep -Seconds $delay
+    }
+  }
+}
+
 $tmp = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ("dwkit-" + [guid]::NewGuid()))
 try {
   Write-Host "Downloading $asset ..."
-  Invoke-WebRequest -Uri "$baseUrl/$asset" -OutFile (Join-Path $tmp $asset)
-  Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile (Join-Path $tmp 'SHA256SUMS')
+  Get-WithRetry -Url "$baseUrl/$asset" -OutFile (Join-Path $tmp $asset)
+  Get-WithRetry -Url "$baseUrl/SHA256SUMS" -OutFile (Join-Path $tmp 'SHA256SUMS')
 
   $pattern = "\s$([regex]::Escape($asset))$"
   $expected = Get-Content (Join-Path $tmp 'SHA256SUMS') |
