@@ -3,6 +3,11 @@
 
 ### Bug Fixes
 
+- Retry release-asset downloads in install scripts (#136)
+
+
+### Bug Fixes
+
 - Attach assets to a draft before publishing (immutable releases) (#133)
 
 
