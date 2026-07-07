@@ -4,6 +4,12 @@
 
 A configuration-driven toolkit for validating and transforming biodiversity data to Darwin Core standards.
 
+## Documentation
+
+User guide: <https://hakaiinstitute.github.io/DarwinKit/>. The site is built
+with [Lume](https://lume.land/) from `docs/`; run it locally with
+`deno task docs:serve`.
+
 ## What It Does
 
 DarwinKit maps, transforms, and validates raw biodiversity data to the Darwin Core standard so you can share your research with the world more easily.
@@ -228,28 +234,32 @@ tag/release step triggers the build only because it runs under your credentials
 
 DarwinKit ships **only the `dwkit` engine binary**; downstream clients (e.g.
 [biocleanr](https://github.com/HakaiInstitute/biocleanr)) download it and shell
-out. Each release is a stable, versioned, machine-readable contract — see
-[`RELEASE_AND_DISTRIBUTION.md`](RELEASE_AND_DISTRIBUTION.md) for the full spec. A
-tagged release publishes:
+out. Each release is a stable, versioned, machine-readable contract. A tagged
+release publishes:
 
 - Four raw per-target binaries: `dwkit-darwin-arm64`, `dwkit-linux-x86_64`,
   `dwkit-linux-arm64`, `dwkit-windows-x86_64.exe`
 - `SHA256SUMS` (coreutils format) and a per-release `manifest.json` (asset URLs +
   checksums + `schemaVersion`), both attached to the GitHub release
-- A global index at `https://hakaiinstitute.github.io/DarwinKit/index.json`
-  (`latest`, `stable`/`beta` channels, version history), updated on every publish
+- `index.json` (the cumulative version index: `latest`, `stable`/`beta`
+  channels, version history), attached to the release **and** published to
+  `https://hakaiinstitute.github.io/DarwinKit/index.json`
 
 Clients resolve a version from the index, read that release's `manifest.json` for
 the concrete asset + checksum, verify the download, then confirm compatibility via
 `dwkit --version --format json` → `{"version":"…","schemaVersion":N}`. `schemaVersion`
 versions the `--format json` output contract and is bumped only on a breaking change.
 
-**One-time setup:** the index is deployed to GitHub Pages via the **GitHub
-Actions** source (no `gh-pages` branch). `release.yml`'s deploy job calls
-`actions/configure-pages` with `enablement: true`, which turns Pages on
-automatically on the first run; if your org restricts that, set _Settings → Pages
-→ Source = GitHub Actions_ once by hand. Until the first release publishes, the
-index URL 404s and clients bootstrap a fresh index.
+**One-time setup:** the index and docs site are deployed to GitHub Pages via
+the **GitHub Actions** source (no `gh-pages` branch). `pages.yml` is the sole
+Pages deployer — it also publishes the documentation site — not a
+`deploy-pages` job in `release.yml`. It calls `actions/configure-pages` with
+`enablement: true`, which turns Pages on automatically on the first run; if
+your org restricts that, set _Settings → Pages → Source = GitHub Actions_ once
+by hand. `pages.yml` runs on pushes to `docs/**` and is called by
+`release.yml` via `workflow_call` after each release publishes, so a release
+also refreshes the index. Until the first release publishes, the index URL
+404s and clients bootstrap a fresh index.
 
 ## License
 

@@ -82,7 +82,7 @@ jobs:
           INDEX_URL: https://hakaiinstitute.github.io/DarwinKit/index.json
         run: |
           deno run --allow-read --allow-write --allow-env --allow-net scripts/release/generate.ts
-          cp out/manifest.json out/SHA256SUMS dist/
+          cp out/manifest.json out/SHA256SUMS out/index.json dist/
       - name: Generate release notes
         run: docker run --rm -v "$PWD":/app -w /app ghcr.io/orhun/git-cliff/git-cliff:2.13.1 --latest --strip all > NOTES.md
       - name: Create the release with its assets, then publish
@@ -105,16 +105,9 @@ jobs:
             dist/dwkit-linux-arm64 \
             dist/dwkit-windows-x86_64.exe \
             dist/SHA256SUMS \
-            dist/manifest.json --clobber
+            dist/manifest.json \
+            dist/index.json --clobber
           gh release edit "$TAG" --draft=false
-      - name: Stage index.json for Pages
-        run: |
-          mkdir -p site
-          cp out/index.json site/index.json
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
 
   smoke:
     needs: publish
@@ -151,27 +144,15 @@ jobs:
           Write-Host "expected=$expected actual=$actual"
           if ($actual -ne $expected) { throw "version mismatch: $actual != $expected" }
 
-  # Deploy the staged index.json via the GitHub Actions Pages source (no branch).
-  # `generate.ts` already fetches the current index and merges the new version in,
-  # so publishing site/ as the whole site is complete each run.
-  deploy-pages:
+  # Rebuild and publish the whole Pages site (docs + index.json) after a release.
+  # Uses workflow_call rather than a release event because GitHub does not let
+  # the built-in GITHUB_TOKEN cascade-trigger event-based workflows.
+  deploy-docs:
     needs: publish
-    runs-on: ubuntu-latest
     permissions:
+      contents: read
       pages: write
       id-token: write
-    # Serialize Pages deploys; never cancel an in-flight one mid-publish.
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Configure Pages (enables the Actions source if not already)
-        uses: actions/configure-pages@v6
-        with:
-          enablement: true
-      - name: Deploy index.json to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+    uses: ./.github/workflows/pages.yml
+    with:
+      release_tag: ${{ github.ref_name }}
