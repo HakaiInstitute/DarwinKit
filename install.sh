@@ -51,9 +51,25 @@ install_dir="${DWKIT_INSTALL_DIR:-$HOME/.local/bin}"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
+# Retry with linear backoff. GitHub's release-download redirect can 404 for a
+# short window just after a release is published, and networks are flaky —
+# retrying resolves both without failing an otherwise-good install.
+fetch() {
+  attempt=1
+  max=6
+  while :; do
+    curl -fsSL "$1" -o "$2" && return 0
+    [ "$attempt" -ge "$max" ] && return 1
+    delay=$((attempt * 3))
+    info "  download failed (attempt $attempt/$max); retrying in ${delay}s ..."
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+}
+
 info "Downloading $asset ..."
-curl -fsSL "$base_url/$asset" -o "$tmp/$asset" || die "failed to download $base_url/$asset"
-curl -fsSL "$base_url/SHA256SUMS" -o "$tmp/SHA256SUMS" || die "failed to download $base_url/SHA256SUMS"
+fetch "$base_url/$asset" "$tmp/$asset" || die "failed to download $base_url/$asset"
+fetch "$base_url/SHA256SUMS" "$tmp/SHA256SUMS" || die "failed to download $base_url/SHA256SUMS"
 
 # --- verify checksum --------------------------------------------------------
 expected=$(grep -E "[[:space:]]${asset}\$" "$tmp/SHA256SUMS" | awk '{print $1}')
