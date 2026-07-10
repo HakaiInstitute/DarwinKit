@@ -1,5 +1,5 @@
 /**
- * Global `index.json` updater (see RELEASE_AND_DISTRIBUTION.md §Global index).
+ * Global `index.json` updater.
  *
  * Pure: folds a newly published version into the index a client fetches once to
  * resolve a release. Idempotent by version; tracks `latest`/`channels`.

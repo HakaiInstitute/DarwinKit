@@ -26,4 +26,4 @@ mappings, renames columns, enforces referential integrity across related
 datasets, validates controlled vocabularies, and catches data-quality problems
 before submission.
 
-Continue to [Installation](./installation.md) to get started.
+Continue to [Installation](./installation/) to get started.

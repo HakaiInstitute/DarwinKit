@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{{ title }} — DarwinKit</title>
+  {{ if description }}<meta name="description" content="{{ description }}">{{ /if }}
+  <link rel="canonical" href="{{ url |> url(true) }}">
+  <script>
+    (function () {
+      var k = "dwkitDocsTheme";
+      var t = localStorage.getItem(k) ||
+        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.classList.add(t);
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ "/styles/styles.css" |> url }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="{{ "/" |> url }}">DarwinKit</a>
+    <nav class="header-links">
+      <button id="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <a href="https://github.com/HakaiInstitute/DarwinKit">GitHub</a>
+      <button id="theme-toggle" type="button" aria-label="Toggle theme">◐</button>
+    </nav>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <nav aria-label="Documentation">
+        <ul>
+        {{ for p of search.pages("", "nav_order") }}
+          <li>
+            <a href="{{ p.url |> url }}"{{ if p.url == url }} aria-current="page"{{ /if }}>{{ p.title }}</a>
+          </li>
+        {{ /for }}
+        </ul>
+      </nav>
+    </aside>
+    <main class="content">
+      <article>
+        {{ content }}
+      </article>
+      {{ if toc && toc.length }}
+      <aside class="toc" aria-label="On this page">
+        <p class="toc-title">On this page</p>
+        <ul>
+        {{ for item of toc }}
+          <li><a href="#{{ item.slug }}">{{ item.text }}</a></li>
+        {{ /for }}
+        </ul>
+      </aside>
+      {{ /if }}
+    </main>
+  </div>
+  <footer class="site-footer">
+    <p>DarwinKit is MIT-licensed. Site styling adapted from the
+      <a href="https://github.com/denoland/docs">Deno docs</a> (MIT).</p>
+  </footer>
+  <script src="{{ "/js/theme.js" |> url }}"></script>
+</body>
+</html>

@@ -33,13 +33,13 @@
     "effect": "npm:effect@4.0.0-beta.78",
     "@commitlint/cli": "npm:@commitlint/cli@^19.6.0",
     "@commitlint/config-conventional": "npm:@commitlint/config-conventional@^19.6.0",
-    "lume/": "https://deno.land/x/lume@v3.1.1/",
-    "lumocs/": "https://deno.land/x/lumocs@0.2.0/"
+    "lume/": "https://deno.land/x/lume@v3.1.1/"
   },
   "tasks": {
     "cli": "deno task --cwd packages/cli dev",
     "docs:build": "deno task --cwd docs build",
     "docs:serve": "deno task --cwd docs serve",
+    "docs:check": "deno task --cwd docs check",
     "hooks:install": "git config core.hooksPath .githooks",
     "commitlint": "deno run -A npm:@commitlint/cli --edit",
     "test": {

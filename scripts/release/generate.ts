@@ -1,17 +1,17 @@
 /**
- * Release artifact generator (see RELEASE_AND_DISTRIBUTION.md).
+ * Release artifact generator.
  *
- * I/O glue over the pure builders: hashes the five built assets in `distDir`,
- * then writes `manifest.json`, `SHA256SUMS`, and an updated `index.json` into
+ * I/O glue over the builders: hashes the five built assets in `distDir`, then
+ * writes `manifest.json`, `SHA256SUMS`, and an updated `index.json` into
  * `outDir`. Invoked by CI (env-driven `import.meta.main` block below).
  *
  * @module scripts/release/generate
  */
 
-import { join } from "@std/path";
 import { SCHEMA_VERSION } from "@dwkit/domain/version";
-import { buildManifest, type Manifest, PLATFORM_TARGETS, type PlatformAsset } from "./manifest.ts";
+import { join } from "@std/path";
 import { type IndexJson, updateIndex } from "./index-json.ts";
+import { buildManifest, type Manifest, PLATFORM_TARGETS, type PlatformAsset } from "./manifest.ts";
 
 /** Lowercase hex SHA-256 of raw bytes (as returned by `Deno.readFile`). */
 export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
