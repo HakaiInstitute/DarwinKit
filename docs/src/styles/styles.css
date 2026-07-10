@@ -220,48 +220,87 @@ article th {
   text-decoration: none;
 }
 
-.sidebar a[aria-current="page"] {
-  background: var(--color-background-secondary);
-  color: var(--color-primary);
+.sidebar .nav-section {
+  margin: 1.25rem 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-foreground-tertiary);
+}
+
+.sidebar .nav-section:first-child {
+  margin-top: 0;
+}
+
+.sidebar summary {
+  display: block;
+  list-style: none;
+  cursor: pointer;
+  position: relative;
+  padding: 0.4rem 1.6rem 0.4rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
   font-weight: 600;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+.sidebar summary::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar summary::after {
+  content: "";
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-70%) rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.sidebar .nav-current:not([open]) summary::after {
+  transform: translateY(-30%) rotate(-45deg);
+}
+
+/* Hide the chevron on an active page that has no headings (e.g. Transform). */
+.sidebar .nav-current:not(:has(.nav-toc)) summary::after {
+  display: none;
+}
+
+.sidebar .nav-toc {
+  list-style: none;
+  margin: 0.15rem 0 0.35rem 0.85rem;
+  padding: 0;
+  border-left: 2px solid var(--color-primary);
+}
+
+.sidebar .nav-toc li {
+  margin: 0;
+}
+
+.sidebar .nav-toc a {
+  display: block;
+  padding: 0.3rem 0.6rem 0.3rem 0.85rem;
+  color: var(--color-foreground-secondary);
+  font-size: 0.9rem;
+}
+
+.sidebar .nav-toc a:hover {
+  color: var(--color-primary);
+  text-decoration: none;
 }
 
 .content {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 14rem;
-  gap: 2rem;
-  align-items: start;
+  display: block;
 }
 
-.toc {
-  position: sticky;
-  top: 1.5rem;
-  font-size: 0.875rem;
-}
-
-.toc-title {
-  font-weight: 600;
-  color: var(--color-foreground-secondary);
-  margin: 0 0 0.5rem;
-}
-
-.toc ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.toc li {
-  margin: 0.25rem 0;
-}
-
-.toc a {
-  color: var(--color-foreground-secondary);
-}
-
-.toc a:hover {
-  color: var(--color-primary);
-  text-decoration: none;
+.content article {
+  max-width: var(--content-max);
 }
 
 /* GitHub-style highlight.js theme via tokens (light/dark). */
@@ -378,10 +417,6 @@ article pre code {
 
   .content {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .toc {
-    display: none;
   }
 
   #sidebar-toggle {
