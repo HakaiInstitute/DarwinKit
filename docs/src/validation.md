@@ -1,6 +1,7 @@
 ---
 title: "Validation"
 nav_order: 4
+nav_section: "Usage"
 description: "Validate your datasets against Darwin Core and repository profiles."
 ---
 

@@ -29,29 +29,37 @@
   <div class="layout">
     <aside class="sidebar">
       <nav aria-label="Documentation">
+        {{ for section of ["Getting Started", "Usage"] }}
+        <p class="nav-section">{{ section }}</p>
         <ul>
         {{ for p of search.pages("", "nav_order") }}
+          {{ if p.nav_section == section }}
+            {{ if p.url == url }}
           <li>
-            <a href="{{ p.url |> url }}"{{ if p.url == url }} aria-current="page"{{ /if }}>{{ p.title }}</a>
+            <details open class="nav-current">
+              <summary aria-current="page">{{ p.title }}</summary>
+              {{ if toc && toc.length }}
+              <ul class="nav-toc">
+                {{ for item of toc }}
+                <li><a href="#{{ item.slug }}">{{ item.text }}</a></li>
+                {{ /for }}
+              </ul>
+              {{ /if }}
+            </details>
           </li>
+            {{ else }}
+          <li><a href="{{ p.url |> url }}">{{ p.title }}</a></li>
+            {{ /if }}
+          {{ /if }}
         {{ /for }}
         </ul>
+        {{ /for }}
       </nav>
     </aside>
     <main class="content">
       <article>
         {{ content }}
       </article>
-      {{ if toc && toc.length }}
-      <aside class="toc" aria-label="On this page">
-        <p class="toc-title">On this page</p>
-        <ul>
-        {{ for item of toc }}
-          <li><a href="#{{ item.slug }}">{{ item.text }}</a></li>
-        {{ /for }}
-        </ul>
-      </aside>
-      {{ /if }}
     </main>
   </div>
   <footer class="site-footer">

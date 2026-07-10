@@ -1,6 +1,7 @@
 ---
 title: "Overview"
 nav_order: 1
+nav_section: "Getting Started"
 description: "A configuration-driven toolkit for validating and transforming biodiversity data to Darwin Core."
 ---
 

@@ -1,6 +1,7 @@
 ---
 title: "Configuration"
 nav_order: 3
+nav_section: "Usage"
 description: "The darwinkit.yaml configuration file: datasets, field mappings, and rules."
 ---
 

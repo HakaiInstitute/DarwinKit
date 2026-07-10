@@ -1,6 +1,7 @@
 ---
 title: "Transform"
 nav_order: 5
+nav_section: "Usage"
 description: "Transform mapped data into Darwin Core output."
 ---
 

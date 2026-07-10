@@ -1,6 +1,7 @@
 ---
 title: "Installation"
 nav_order: 2
+nav_section: "Getting Started"
 description: "Install the dwkit binary, or run DarwinKit from source with Deno."
 ---
 
