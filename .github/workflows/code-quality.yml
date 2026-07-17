@@ -24,7 +24,10 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          # Pinned to 2.9.1: Deno 2.9.2+ drains Node-API finalizers at test
+          # worker shutdown (denoland/deno#35695), which segfaults
+          # @duckdb/node-api after tests pass. Revert to v2.x once fixed upstream.
+          deno-version: v2.9.1
           cache: true
 
       - name: Verify Deno installation
