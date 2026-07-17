@@ -1,6 +1,11 @@
 # Changelog
 
 
+### Features
+
+- Add Lume documentation site and route Pages through pages.yml (#138)
+
+
 ### Bug Fixes
 
 - Retry release-asset downloads in install scripts (#136)
