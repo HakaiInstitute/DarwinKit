@@ -50,3 +50,6 @@ darwinkit.schema.json
 /dwkit
 /.dwkit/
 /validation_results/
+
+# Lume docs build output
+docs/_site

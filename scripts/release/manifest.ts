@@ -1,5 +1,5 @@
 /**
- * Per-release `manifest.json` builder (see RELEASE_AND_DISTRIBUTION.md).
+ * Per-release `manifest.json` builder.
  *
  * Pure + validating: shapes the manifest a release publishes and fails fast on
  * a missing target, malformed checksum, or non-positive size — a bad manifest

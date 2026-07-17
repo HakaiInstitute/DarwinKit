@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{{ title }} — DarwinKit</title>
+  {{ if description }}<meta name="description" content="{{ description }}">{{ /if }}
+  <link rel="canonical" href="{{ url |> url(true) }}">
+  <script>
+    (function () {
+      var k = "dwkitDocsTheme";
+      var t = localStorage.getItem(k) ||
+        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.classList.add(t);
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ "/styles/styles.css" |> url }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="{{ "/" |> url }}">DarwinKit</a>
+    <nav class="header-links">
+      <button id="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <a href="https://github.com/HakaiInstitute/DarwinKit">GitHub</a>
+      <button id="theme-toggle" type="button" aria-label="Toggle theme">◐</button>
+    </nav>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <nav aria-label="Documentation">
+        {{ for section of ["Getting Started", "Usage"] }}
+        <p class="nav-section">{{ section }}</p>
+        <ul>
+        {{ for p of search.pages("", "nav_order") }}
+          {{ if p.nav_section == section }}
+            {{ if p.url == url }}
+          <li>
+            <details open class="nav-current">
+              <summary aria-current="page">{{ p.title }}</summary>
+              {{ if toc && toc.length }}
+              <ul class="nav-toc">
+                {{ for item of toc }}
+                <li><a href="#{{ item.slug }}">{{ item.text }}</a></li>
+                {{ /for }}
+              </ul>
+              {{ /if }}
+            </details>
+          </li>
+            {{ else }}
+          <li><a href="{{ p.url |> url }}">{{ p.title }}</a></li>
+            {{ /if }}
+          {{ /if }}
+        {{ /for }}
+        </ul>
+        {{ /for }}
+      </nav>
+    </aside>
+    <main class="content">
+      <article>
+        {{ content }}
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <p>DarwinKit is MIT-licensed. Site styling adapted from the
+      <a href="https://github.com/denoland/docs">Deno docs</a> (MIT).</p>
+  </footer>
+  <script src="{{ "/js/theme.js" |> url }}"></script>
+</body>
+</html>

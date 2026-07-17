@@ -1,9 +1,9 @@
 import { Command } from '@cliffy/command';
-import { importCommand } from './src/cmd/import/import.ts';
-import { validateCommand } from './src/cmd/validate/validate.ts';
-import { transformCommand } from './src/cmd/transform/transform.ts';
-import packageInfo from './deno.json' with { type: 'json' };
 import { SCHEMA_VERSION } from '@dwkit/domain/version';
+import packageInfo from './deno.json' with { type: 'json' };
+import { importCommand } from './src/cmd/import/import.ts';
+import { transformCommand } from './src/cmd/transform/transform.ts';
+import { validateCommand } from './src/cmd/validate/validate.ts';
 
 const dwkit = new Command()
   .name('dwkit')
@@ -21,10 +21,10 @@ const dwkit = new Command()
   .command('transform', transformCommand);
 
 // Handle `--version` before Cliffy parses. The engine publishes a
-// `{version, schemaVersion}` compatibility contract (see RELEASE_AND_DISTRIBUTION.md)
-// that clients read via `dwkit --version --format json`. Cliffy's built-in version
-// option is standalone and can only print its own fixed output, so we intercept the
-// flag here to emit either the plain version or the JSON contract.
+// `{version, schemaVersion}` compatibility contract that clients read via
+// `dwkit --version --format json`. Cliffy's built-in version option is
+// standalone and can only print its own fixed output, so we intercept the flag
+// here to emit either the plain version or the JSON contract.
 if (Deno.args.includes('--version') || Deno.args.includes('-V')) {
   const args = Deno.args;
   const eqFormat = args.find((a) => a.startsWith('--format='))?.split('=')[1];

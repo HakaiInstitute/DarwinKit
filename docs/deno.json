@@ -1,0 +1,18 @@
+{
+  "tasks": {
+    "lume": "echo \"import 'lume/cli.ts'\" | deno run -A -",
+    "build": "deno task lume",
+    "serve": "deno task lume -s --port=8000",
+    "check": "deno check src/js/*.js"
+  },
+  "imports": {
+    "lume/": "https://deno.land/x/lume@v3.1.1/",
+    "lume_markdown_plugins/": "https://deno.land/x/lume_markdown_plugins@v0.7.0/"
+  },
+  "fmt": {
+    "exclude": [
+      "_site",
+      "src"
+    ]
+  }
+}

@@ -1,0 +1,73 @@
+name: pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "Source index.json from this release tag instead of the latest release"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialize Pages deploys; never cancel an in-flight one mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Build docs
+        run: deno task docs:build
+      # index.json sourcing:
+      #  - release path (release_tag set): use that release's own authoritative
+      #    cumulative asset (generate.ts built it by merging the new version
+      #    into the live index, so it includes prereleases/betas).
+      #  - docs push / dispatch (no release_tag): use the LIVE Pages index, the
+      #    true cumulative source. A no-tag `gh release download` would grab the
+      #    latest *stable* release's frozen asset and silently drop any newer
+      #    beta, regressing the published index.
+      #  - else (pre-first-release): omit; clients bootstrap a fresh index on 404.
+      - name: Assemble index.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -uo pipefail
+          rm -rf /tmp/idx && mkdir -p /tmp/idx
+          if [ -n "${RELEASE_TAG:-}" ] && gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern index.json --dir /tmp/idx 2>/dev/null; then
+            cp /tmp/idx/index.json docs/_site/index.json
+            echo "index.json: from release asset $RELEASE_TAG"
+          elif curl -fsSL https://hakaiinstitute.github.io/DarwinKit/index.json -o docs/_site/index.json; then
+            echo "index.json: from live Pages site"
+          else
+            echo "index.json: none available yet (pre-first-release bootstrap)"
+          fi
+      - name: Configure Pages (sets the Actions source if not already)
+        uses: actions/configure-pages@v6
+        with:
+          enablement: true
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/_site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
