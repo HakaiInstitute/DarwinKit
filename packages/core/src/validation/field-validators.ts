@@ -69,6 +69,44 @@ function invalidDoubleSql(asText: string): string {
   return `(${d} IS NULL OR isnan(${d}) OR isinf(${d}))`;
 }
 
+/**
+ * SQL fragment (boolean) matching a single ISO-8601 date/datetime.
+ *
+ * A trailing timezone (`Z` or `±HH:MM` / `±HHMM`) is stripped and the date/time
+ * separator normalized to `T`, so one compact TRY_STRPTIME set covers Z-,
+ * offset-, space- and T-separated forms. TRY_STRPTIME enforces calendar validity
+ * (rejects 2024-02-30, leap-year aware) and requires the whole string to match,
+ * so partial forms (`%Y`, `%Y-%m`) don't accept longer strings.
+ *
+ * Not handled here (left to the future ISO-8601 UDF): abbreviated-end intervals
+ * (`2007-11-13/15`) and bare-hour offsets (`-06`).
+ */
+function validIso8601SingleSql(expr: string): string {
+  const norm =
+    `replace(regexp_replace(TRIM(${expr}), '(Z|[+-][0-9]{2}:?[0-9]{2})$', ''), ' ', 'T')`;
+  const formats = [
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M",
+    "%Y-%m-%d",
+    "%Y-%m",
+    "%Y",
+  ];
+  return `(${formats.map((f) => `TRY_STRPTIME(${norm}, '${f}') IS NOT NULL`).join(" OR ")})`;
+}
+
+/**
+ * SQL fragment (boolean) matching a valid ISO-8601 single value OR a two-part
+ * interval (start/end) whose endpoints are each independently valid, so a
+ * calendar-invalid endpoint (`2024-01-15/2024-02-30`) is rejected.
+ */
+function validIso8601Sql(expr: string): string {
+  const interval = `(regexp_full_match(TRIM(${expr}), '[^/]+/[^/]+')` +
+    ` AND ${validIso8601SingleSql(`split_part(TRIM(${expr}), '/', 1)`)}` +
+    ` AND ${validIso8601SingleSql(`split_part(TRIM(${expr}), '/', 2)`)})`;
+  return `(${validIso8601SingleSql(expr)} OR ${interval})`;
+}
+
 export function findRangeViolations(
   connection: DuckDBConnection,
   tableName: string,
@@ -499,18 +537,11 @@ function formatSqlCondition(fieldName: string, format: ConstraintFormat): string
   // Use CAST to VARCHAR for all string operations to avoid crashes on auto-typed columns
   const asText = `CAST("${fieldName}" AS VARCHAR)`;
   return Match.value(format).pipe(
-    // Accept single dates and date ranges (YYYY-MM-DD/YYYY-MM-DD)
-    // TRY_STRPTIME handles single dates; regex handles ranges
+    // Accept single ISO-8601 dates/datetimes (with tz) and two-part intervals.
     Match.when("iso8601", () =>
       `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''
-        AND TRY_STRPTIME(${asText}, '%Y-%m-%d') IS NULL
-        AND TRY_STRPTIME(${asText}, '%Y-%m-%dT%H:%M:%S') IS NULL
-        AND TRY_STRPTIME(${asText}, '%Y-%m-%dT%H:%M:%SZ') IS NULL
-        AND TRY_STRPTIME(${asText}, '%Y-%m-%d %H:%M:%S') IS NULL
-        AND TRY_STRPTIME(${asText}, '%Y-%m') IS NULL
-        AND TRY_STRPTIME(${asText}, '%Y') IS NULL
-        AND NOT regexp_matches(${asText}, '^\\d{4}-\\d{2}-\\d{2}/\\d{4}-\\d{2}-\\d{2}$')`),
+        AND NOT ${validIso8601Sql(asText)}`),
     Match.when("url", () =>
       `"${fieldName}" IS NOT NULL
         AND TRIM(${asText}) != ''

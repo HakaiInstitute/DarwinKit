@@ -6,8 +6,6 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
-import { assert, assertEquals } from "@std/assert";
-import * as Effect from "effect/Effect";
 import type { SpecField } from "@dwkit/domain/specs";
 import {
   FormatConstraint,
@@ -17,6 +15,8 @@ import {
   RequiredConstraint,
   UniqueConstraint,
 } from "@dwkit/domain/specs";
+import { assert, assertEquals } from "@std/assert";
+import * as Effect from "effect/Effect";
 import {
   extractViolations,
   makeField,
@@ -278,6 +278,53 @@ Deno.test("findFormatViolations", async (t) => {
       assert(result._tag === "Success");
     });
   });
+});
+
+Deno.test("findFormatViolations - iso8601 datetime and interval forms", async (t) => {
+  const constraint = new FormatConstraint({ format: "iso8601" });
+
+  const accepted: Array<[string, string]> = [
+    ["no-seconds time with Z", "2009-02-20T08:40Z"],
+    ["no-seconds time with numeric offset", "1963-03-08T14:07-06:00"],
+    ["seconds with numeric offset", "2024-01-15T13:45:00-06:00"],
+    ["fractional seconds with Z", "2024-01-15T13:45:00.500Z"],
+    ["year interval", "2024/2025"],
+    ["year-month interval", "2024-01/2024-03"],
+    ["date interval", "2024-01-15/2024-02-20"],
+  ];
+
+  for (const [label, value] of accepted) {
+    await t.step(`accepts ${label} (${value})`, async () => {
+      await withConnection(async (conn) => {
+        await setupTable(conn, "eventDate VARCHAR", [`1, '${value}'`]);
+        const field = makeField("eventDate", [constraint]);
+        const result = await Effect.runPromiseExit(
+          findFormatViolations(conn, TABLE, "eventDate", constraint, field),
+        );
+        assert(result._tag === "Success", `${value} should be valid`);
+      });
+    });
+  }
+
+  const rejected: Array<[string, string]> = [
+    ["interval with calendar-invalid endpoint", "2024-01-15/2024-02-30"],
+    ["calendar-invalid single date", "2024-13-01"],
+  ];
+
+  for (const [label, value] of rejected) {
+    await t.step(`rejects ${label} (${value})`, async () => {
+      await withConnection(async (conn) => {
+        await setupTable(conn, "eventDate VARCHAR", [`1, '${value}'`]);
+        const field = makeField("eventDate", [constraint]);
+        const result = await Effect.runPromiseExit(
+          findFormatViolations(conn, TABLE, "eventDate", constraint, field),
+        );
+        const violations = extractViolations(result);
+        assertEquals(violations.length, 1, `${value} should be invalid`);
+        assertEquals(violations[0].value, value);
+      });
+    });
+  }
 });
 
 // =============================================================================
