@@ -26,11 +26,9 @@ function resultArtifacts(cwd: string): string[] {
     .filter((n) => n.endsWith('.json') || n.endsWith('.md') || n === 'validation_results');
 }
 
-// NOTE: the bundled fixtures all produce validation errors (there is no
-// truly-clean OBIS pass fixture). That is fine — these tests assert WHERE output
-// goes, not the validation status. A failing fixture is in fact a stronger test:
-// it proves stdout stays pure JSON even while many diagnostics print to stderr.
-// Exit codes are asserted only in the exit-1 and missing-config tests below.
+// The bundled fixtures all produce validation errors; these tests assert WHERE
+// output goes (stdout vs stderr vs file), not the validation status. Exit codes
+// are asserted only in the exit-1 and missing-config tests below.
 
 Deno.test('validate --format json writes only JSON to stdout', async () => {
   const cwd = await Deno.makeTempDir();

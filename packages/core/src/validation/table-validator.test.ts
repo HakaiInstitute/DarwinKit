@@ -5,13 +5,9 @@ import { resolveProfile } from "@dwkit/domain/specs";
 import { resolveSpecFields } from "./field-resolution.ts";
 import { validateTable } from "./table-validator.ts";
 
-// Task 2 delivers `resolveTransformFields`, which will build the same
-// `ResolvedFieldsEntry` shape from a class + column list. For Task 1 the fixture
-// is assembled inline from functions that already exist (`resolveProfile` +
-// `resolveSpecFields`) so this test can guard the extracted detection core on
-// its own. `validateTable` reads `entry.all` (deriving valid mappings from the
-// table's actual columns) and `entry.resolvedSpec`; it does not read
-// `entry.mapped`, so an empty `mapped` is fine here.
+// validateTable reads entry.all (deriving valid mappings from the table's actual
+// columns) and entry.resolvedSpec; it does not read entry.mapped, so an empty
+// mapped is fine here.
 
 Deno.test("validateTable - flags an out-of-vocabulary value on an all-VARCHAR table", async () => {
   const connection = await DuckDBConnection.create();

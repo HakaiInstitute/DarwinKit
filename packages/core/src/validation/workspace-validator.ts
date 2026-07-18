@@ -203,8 +203,7 @@ function _validateDatasetsCore(
 
       datasetResults.push(result);
 
-      // Debug-only: deduplicate and log intermediate results for troubleshooting.
-      // Not part of the validation output — kept as a diagnostic aid during development.
+      // Debug-only: deduplicate and log intermediate results; not part of the output.
       if (settings.debug) {
         const earlyResult = {
           ...result,

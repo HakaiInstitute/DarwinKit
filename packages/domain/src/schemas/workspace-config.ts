@@ -48,7 +48,7 @@ const ResolvedStandardSchema = S.Union([
     S.decodeTo(
       S.Struct({ base: S.String, variant: S.optional(S.String) }),
       {
-        // decode: string -> { base, variant? }  (Stage 0 verified: NOT inverted)
+        // decode: string -> { base, variant? }
         decode: SchemaGetter.transform(
           (s: string) => KNOWN_VARIANTS.has(s) ? { base: "darwin-core", variant: s } : { base: s },
         ),
@@ -167,13 +167,8 @@ const transformDatasetConfigSchema = S.Struct({
 });
 
 /**
- * Uses two default patterns for fields:
- * - `.pipe(S.withDecodingDefault(Effect.succeed(value)))` - Applies defaults during decoding
- * - `.pipe(S.withConstructorDefault(Effect.succeed(value)))` - Applies defaults when using schema.make()
- *
  * For per-call defaults (e.g. crypto.randomUUID(), fresh timestamps) use
- * `Effect.sync(() => ...)` instead of `Effect.succeed(...)` so each call produces a
- * fresh value rather than one shared cached value (see id/createdAt/updatedAt below).
+ * `Effect.sync(() => ...)` not `Effect.succeed(...)`, which caches a single value.
  */
 const validationSettingsSchema = S.Struct({
   nullValues: S.Array(S.String).annotate({

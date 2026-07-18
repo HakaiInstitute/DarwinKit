@@ -175,10 +175,8 @@ Deno.test("makeWorkspaceConfig - field mapping schema", async (t) => {
 
 Deno.test("makeWorkspaceConfig - invalid input", async (t) => {
   await t.step("fails when neither validation nor transform provided", () => {
-    // decodeUnknownSync throws a SchemaError (not an `instanceof Error`), which makes the
-    // `assertThrows(fn, ErrorClass, msgIncludes)` overload — the only one that checks the
-    // message — unusable. Decode to a Result instead so we can narrow the typed error and
-    // assert on its message directly.
+    // SchemaError is not an `instanceof Error`, so assertThrows' message-checking
+    // overload can't be used; decode to a Result to assert on the message.
     const result = S.decodeUnknownResult(workspaceConfigSchema)({});
     assert(Result.isFailure(result));
     assert(S.isSchemaError(result.failure));

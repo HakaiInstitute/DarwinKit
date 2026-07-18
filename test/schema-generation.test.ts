@@ -91,9 +91,8 @@ Deno.test("Schema generation", async (t) => {
   await t.step("assigns validators from OBIS requirement level", () => {
     const lat = schema.Event.fields.decimalLatitude;
     assertEquals(lat.validators!.includes("required"), true, "required fields get 'required'");
-    // "recommended" string validator is no longer emitted — presence checking
-    // for strongly recommended fields is handled by the obligation system
-    // via obligationToRequirement() in the resolution pipeline
+    // Strongly recommended fields are checked by the obligation system
+    // (obligationToRequirement), not a "recommended" string validator.
     const year = schema.Event.fields.year;
     assertEquals(
       year.obis_required,

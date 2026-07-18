@@ -4,8 +4,8 @@
  * Ensures that `createTableFromSchema` creates plain all-VARCHAR output
  * tables containing only the mapped fields (plus `_row_number`), with no
  * enforcement DDL (no ENUM types, no PRIMARY KEY / FOREIGN KEY constraints).
- * Enforcement now happens as SQL detection over the populated table, matching
- * the validation path.
+ * Enforcement is SQL detection over the populated table, matching the
+ * validation path.
  */
 
 import { DuckDBInstance } from "@duckdb/node-api";

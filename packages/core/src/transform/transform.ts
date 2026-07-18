@@ -351,10 +351,8 @@ export function exportToPersistentDB(
       const projection = cols.map((name) => {
         const type = rawFields[name]?.type;
         const duckType = type === "integer" ? "INTEGER" : type === "decimal" ? "DOUBLE" : "TEXT";
-        // TRY_CAST (not CAST): export runs only after the validation gate, so any
-        // value reaching here is at most a warning/info issue (errors block export).
-        // A surviving bad numeric becomes NULL rather than throwing — keeping export
-        // consistent with detection-not-enforcement instead of aborting on bad data.
+        // TRY_CAST (not CAST): export runs after the validation gate, so a bad
+        // numeric here is at most a warning and becomes NULL rather than throwing.
         return `TRY_CAST("${name}" AS ${duckType}) AS "${name}"`;
       }).join(", ");
 

@@ -20,11 +20,9 @@ const dwkit = new Command()
   .command('validate', validateCommand)
   .command('transform', transformCommand);
 
-// Handle `--version` before Cliffy parses. The engine publishes a
-// `{version, schemaVersion}` compatibility contract (see RELEASE_AND_DISTRIBUTION.md)
-// that clients read via `dwkit --version --format json`. Cliffy's built-in version
-// option is standalone and can only print its own fixed output, so we intercept the
-// flag here to emit either the plain version or the JSON contract.
+// Intercept `--version` before Cliffy parses: clients read a {version, schemaVersion}
+// JSON contract (see RELEASE_AND_DISTRIBUTION.md) that Cliffy's fixed-output version
+// option cannot emit.
 if (Deno.args.includes('--version') || Deno.args.includes('-V')) {
   const args = Deno.args;
   const eqFormat = args.find((a) => a.startsWith('--format='))?.split('=')[1];

@@ -253,7 +253,7 @@ Deno.test("dependency - in condition handles single quotes in values", async () 
   });
 });
 
-// --- v4 migration regression: Effect.result yields a Result, not an Either ---
+// --- Effect.result yields a Result, not an Either ---
 
 Deno.test("dependency - Effect.result returns a v4 Result (Success/Failure tags)", async () => {
   await withConnection(async (connection) => {
@@ -278,14 +278,14 @@ Deno.test("dependency - Effect.result returns a v4 Result (Success/Failure tags)
     const pass = await Effect.runPromise(
       Effect.result(validateDependencyRule(connection, "pass_t", rule)),
     );
-    // v4 Result success is tagged "Success" (v3 Either would be "Right")
+    // Result success is tagged "Success"
     assertEquals(pass._tag, "Success");
     assertEquals(Result.isSuccess(pass), true);
 
     const fail = await Effect.runPromise(
       Effect.result(validateDependencyRule(connection, "fail_t", rule)),
     );
-    // v4 Result failure is tagged "Failure" (v3 Either would be "Left")
+    // Result failure is tagged "Failure"
     assertEquals(fail._tag, "Failure");
     assertEquals(Result.isFailure(fail), true);
     if (Result.isFailure(fail)) {

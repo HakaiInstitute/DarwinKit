@@ -451,7 +451,7 @@ Deno.test("WorkspaceValidator - Row Number Tests", async (t) => {
 });
 
 // =============================================================================
-// Stage 3: New Validator Tests
+// Validator Tests
 // =============================================================================
 
 Deno.test("WorkspaceValidator - Format Validation Tests", async (t) => {

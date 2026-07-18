@@ -1,26 +1,9 @@
 /**
- * Field Violation Types
+ * Field-level validation violations as Effect S.TaggedClass instances
+ * (encode/decode for persistence; use the isXxx type guards for filtering).
  *
- * Defines typed data classes for field-level validation violations.
- *
- * DESIGN DECISION: FieldViolation uses Effect's S.TaggedClass for:
- * 1. TYPE-SAFE pattern matching - Use switch on _tag for exhaustive case handling
- * 2. SERIALIZATION - S.TaggedClass provides encode/decode for persistence
- * 3. TYPE GUARDS - Use provided helper functions (isRangeViolation, etc.) for filtering
- *
- * ERROR CHANNEL PATTERN:
- * Field validators use Effect's error channel for violations:
- * - Validators return Effect<ValidField, FieldViolation[]>
- * - Success: Field passed validation
- * - Failure: Field has violations (carried in the Effect error channel)
- *
- * This enables idiomatic Effect composition:
- * - Effect.all({ mode: "result" }) for concurrent validation with aggregation
- * - Type-safe error handling at call sites
- * - Clear separation between "valid" and "has violations"
- *
- * The orchestrator (WorkspaceValidator) catches violations via Effect.catch
- * and aggregates them into the final WorkspaceValidationResult data structure.
+ * Validators return Effect<ValidField, FieldViolation[]>; violations travel in
+ * the error channel and are aggregated by WorkspaceValidator into the result.
  */
 
 import * as Match from "effect/Match";
@@ -47,14 +30,11 @@ export interface PartitionedViolations<T> {
 }
 
 /**
- * Base fields shared by all field violations
- *
- * These schema fields are used to construct all violation types.
+ * Base fields shared by all field violations.
  *
  * **severity** is the sole behavioral field — it determines how the violation
- * is reported (error, warning, or info). Derived from requirement level via
- * `requirementToSeverity()`: "required" → ERROR, "recommended" → WARNING,
- * "optional" → INFO.
+ * is reported. Derived from requirement level via `requirementToSeverity()`:
+ * "required" → ERROR, "recommended" → WARNING, "optional" → INFO.
  */
 const baseViolationFields = {
   severity: Severity,

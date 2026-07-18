@@ -534,7 +534,6 @@ export function findTypeViolations(
  * Applying TRY_STRPTIME or regexp_matches on non-VARCHAR columns can crash DuckDB.
  */
 function formatSqlCondition(fieldName: string, format: ConstraintFormat): string {
-  // Use CAST to VARCHAR for all string operations to avoid crashes on auto-typed columns
   const asText = `CAST("${fieldName}" AS VARCHAR)`;
   return Match.value(format).pipe(
     // Accept single ISO-8601 dates/datetimes (with tz) and two-part intervals.
@@ -839,8 +838,6 @@ export function validateRequiredConstraints(
   specField: SpecField,
   maxViolations = DEFAULT_MAX_VIOLATIONS,
 ): Effect.Effect<ValidField, FieldViolation[]> {
-  // After additive merge, multiple required constraints may exist (spec + config).
-  // Resolve to the strictest one so config cannot weaken spec requirements.
   const requiredConstraints = (specField.constraints ?? []).filter(
     (c): c is RequiredConstraint => c._tag === "required",
   );

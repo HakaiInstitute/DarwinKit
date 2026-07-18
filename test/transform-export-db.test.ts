@@ -12,7 +12,6 @@ import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 
 Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
-  // 1. Setup: In-memory DB, temp output dir, and config
   const connection = await DuckDBConnection.create();
   const outputDir = await Deno.makeTempDir({ prefix: "dwkt-db-export-test-" });
 
@@ -44,7 +43,6 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
   const dbPath = `${outputDir}/test-output.duckdb`;
 
   try {
-    // 2. Arrange: Create and populate tables in the in-memory DB
     await connection.run("CREATE TABLE event (eventID TEXT, year INTEGER, _row_number BIGINT);");
     await connection.run("INSERT INTO event VALUES ('evt1', 2025, 1);");
     await connection.run(
@@ -52,21 +50,16 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     );
     await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1', 1);");
 
-    // 3. Act: Execute the export function
     await Effect.runPromise(exportToPersistentDB(connection, config));
 
-    // 4. Assert: Verify the contents of the created DB file
-    // Connect to the newly created persistent DB file
     const diskConnection = await DuckDBInstance.create(dbPath)
       .then((instance) => instance.connect());
 
-    // Check Event table data
     const eventResult = await diskConnection.runAndReadAll("SELECT * FROM event;");
     const eventRows = eventResult.getRowObjects();
     assertEquals(eventRows.length, 1, "Event table should have one row in persistent DB");
     assertEquals(eventRows[0].year, 2025);
 
-    // Check Occurrence table data
     const occResult = await diskConnection.runAndReadAll("SELECT * FROM occurrence;");
     const occRows = occResult.getRowObjects();
     assertEquals(occRows.length, 1, "Occurrence table should have one row in persistent DB");
@@ -84,7 +77,6 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
 
     diskConnection.closeSync();
   } finally {
-    // 5. Teardown
     await Deno.remove(outputDir, { recursive: true });
     connection.closeSync();
   }

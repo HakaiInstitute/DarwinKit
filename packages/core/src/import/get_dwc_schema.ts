@@ -205,7 +205,7 @@ function xmlSchemaToJson(filePath: string, options: Options, externalDir: string
       name,
       label,
       gbif_required: attrs.required || undefined,
-      ...attrs, // Spread all other attributes
+      ...attrs,
     };
 
     // Remove the properties we've already handled
@@ -268,7 +268,6 @@ async function fetchObisChecklist(): Promise<OBISChecklistRow[]> {
   // deno-lint-ignore no-control-regex
   const cleanedCsv = csvText.replace(/[^\x00-\x7F]/g, "");
 
-  // Parse CSV using Deno standard library
   const rawRecords = parseCsv(cleanedCsv, {
     skipFirstRow: true,
     trimLeadingSpace: true,
@@ -405,13 +404,8 @@ function assignValidators(schemaJson: SchemaJson): void {
 // ============================================================================
 
 /**
- * Import Darwin Core schemas and generate combined JSON schema file.
- *
- * This function:
- * 1. Parses multiple Darwin Core XML schemas (Event, Occurrence, Taxon, etc.)
- * 2. Fetches OBIS checklist and applies requirements
- * 3. Assigns validators based on field types and patterns
- * 4. Writes final schema to outputDir/dwcSchema.json
+ * Import Darwin Core schemas and write the combined dwcSchema.json (and
+ * obisChecklist.json) into outputDir.
  *
  * @param sourceDir - Path to the directory containing XML schemas (rs_gbif/)
  * @param outputDir - Path to the directory where generated files are written

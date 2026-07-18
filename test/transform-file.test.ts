@@ -29,7 +29,6 @@ function cell(header: string[], row: string[], column: string): string | undefin
 }
 
 Deno.test("transformFile - runs the full end-to-end transformation process", async () => {
-  // 1. Setup: Create a temporary workspace with config and source data
   const workspaceDir = await Deno.makeTempDir({ prefix: "dwkt-e2e-test-" });
   const outputDir = join(workspaceDir, "output");
   const configPath = join(workspaceDir, "workspace.dwc.yaml");
@@ -89,20 +88,17 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
   };
 
   try {
-    // 2. Arrange: Write the config and source CSV file to the temp directory
     await Deno.writeTextFile(configPath, JSON.stringify(config, null, 2));
     await Deno.writeTextFile(
       sourceCsvPath,
       "event_id,event_year,occ_id\nevt01,2024,occ01",
     );
 
-    // 3. Act: Run the entire transformation process
     const result = await Effect.runPromise(transformFile(configPath));
 
     // The output is OBIS-valid, so validation must not fail and export proceeds.
     assert(result.overallStatus !== "fail", "valid output should not fail validation");
 
-    // 4. Assert: Verify the output files
     // Assert CSV output (DuckDB COPY ... TO (FORMAT CSV, HEADER): LF line endings).
     // Column order follows spec-field order, so assert by column name, not position.
     const eventCsv = parseCsv(await Deno.readTextFile(join(outputDir, "event.csv")));
@@ -144,7 +140,6 @@ Deno.test("transformFile - runs the full end-to-end transformation process", asy
 
     dbConnection.closeSync();
   } finally {
-    // 5. Teardown
     await Deno.remove(workspaceDir, { recursive: true });
   }
 });
@@ -204,9 +199,7 @@ Deno.test("transformFile - blocks export and reports violations when output fail
 Deno.test("transformFile - flags unmapped required fields even when the output has zero rows", async () => {
   // A transform that produces no rows must still fail the gate when a
   // required field is never mapped — the missing field is a structural
-  // problem, not a per-row one. (Regression: previously every spec column was
-  // materialized as an all-NULL column, so a 0-row output produced no row-wise
-  // required violations and slipped through.)
+  // problem, not a per-row one.
   const workspaceDir = await Deno.makeTempDir({ prefix: "dwkt-empty-gate-test-" });
   const outputDir = join(workspaceDir, "output");
   const configPath = join(workspaceDir, "workspace.dwc.yaml");

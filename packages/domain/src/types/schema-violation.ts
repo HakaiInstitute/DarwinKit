@@ -94,13 +94,7 @@ export function isMissingFieldViolation(v: SchemaViolation): v is MissingFieldVi
 }
 
 /**
- * Partition schema violations by severity level
- *
- * Groups violations into errors, warnings, and info based on their
- * severity level.
- *
- * @param violations - Array of violations to partition
- * @returns Partitioned violations object
+ * Partition schema violations into errors, warnings, and info by severity.
  */
 export function partitionSchemaViolations(
   violations: ReadonlyArray<SchemaViolation>,

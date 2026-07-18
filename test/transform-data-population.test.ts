@@ -13,7 +13,6 @@ import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 
 Deno.test("populateSchemaFromDataTables - populates schema from source tables", async () => {
-  // 1. Setup: In-memory DuckDB and test configuration
   const connection = await DuckDBConnection.create();
 
   const config: WorkspaceConfig = {
@@ -62,8 +61,6 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
   };
 
   try {
-    // 2. Arrange: Create source tables, data, and target schema
-    // Create source tables with mock data
     await connection.run(
       "CREATE TABLE source_events (event_id TEXT, event_year INTEGER, full_date TEXT);",
     );
@@ -77,15 +74,11 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
       "INSERT INTO source_occurrences VALUES ('occ1', 'evt1', 'HumanObservation');",
     );
 
-    // Create the target schema tables (they will be empty)
     await Effect.runPromise(createTableFromSchema(connection, config));
 
-    // 3. Act: Execute the data population function
     const effect = populateSchemaFromDataTables(connection, config);
     await Effect.runPromise(effect);
 
-    // 4. Assert: Verify the data was populated and transformed correctly
-    // Check Event table data
     const eventResult = await connection.runAndReadAll("SELECT * FROM event;");
     const eventRows = eventResult.getRowObjects();
     assertEquals(eventRows.length, 1, "Event table should have one row");
@@ -96,7 +89,6 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
     assertEquals(eventRow.year, "2023");
     assertEquals(eventRow.eventDate, "2023-01-15");
 
-    // Check Occurrence table data
     const occurrenceResult = await connection.runAndReadAll("SELECT * FROM occurrence;");
     const occurrenceRows = occurrenceResult.getRowObjects();
     assertEquals(occurrenceRows.length, 1, "Occurrence table should have one row");
@@ -114,7 +106,6 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
       "Static value should be inserted",
     );
   } finally {
-    // 5. Teardown
     connection.closeSync();
   }
 });

@@ -17,7 +17,6 @@ Deno.test("Expected errors - all catchable with Effect.catch", async (t) => {
   await t.step("Workspace not found", async () => {
     const program = Effect.scoped(
       Effect.gen(function* () {
-        // Try to load non-existent config
         return yield* Workspace.open(join(tempDir, "nonexistent", "darwinkit.yaml"));
       }),
     );
@@ -37,7 +36,6 @@ Deno.test("Expected errors - all catchable with Effect.catch", async (t) => {
   });
 
   await t.step("Invalid workspace configuration", async () => {
-    // Create invalid darwinkit.yaml
     const configPath = join(tempDir, "invalid-config");
     await Deno.mkdir(configPath, { recursive: true });
     await Deno.writeTextFile(
@@ -80,7 +78,6 @@ Deno.test("Expected errors - all catchable with Effect.catch", async (t) => {
     assert(errorCaught, "Config not found should be catchable");
   });
 
-  // Cleanup
   await Deno.remove(tempDir, { recursive: true });
 });
 
@@ -104,7 +101,6 @@ Deno.test("Expected errors - provide helpful error messages", async (t) => {
     assertMatch(result as string, /configuration|config|not found|darwinkit/i);
   });
 
-  // Cleanup
   await Deno.remove(tempDir, { recursive: true });
 });
 
@@ -148,6 +144,5 @@ Deno.test("Expected errors - can be recovered from", async (t) => {
     assertEquals(result.id, "default");
   });
 
-  // Cleanup
   await Deno.remove(tempDir, { recursive: true });
 });

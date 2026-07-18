@@ -477,9 +477,8 @@ Deno.test("mergeProfileConstraints", async (t) => {
 // Inverted Bounds & Invalid Regex Tests
 // =============================================================================
 
-// decodeUnknownSync throws a SchemaError (not an `instanceof Error`), so a string passed as
-// assertThrows' 2nd arg becomes the failure message — never a substring matcher. Decode to a
-// Result instead so the rejection message is genuinely asserted.
+// SchemaError is not an `instanceof Error`, so assertThrows can't match its message;
+// decode to a Result to assert on the rejection message.
 Deno.test("RangeConstraintSchema - rejects min > max", () => {
   const result = S.decodeUnknownResult(ConstraintSchema)({ type: "range", min: 100, max: 0 });
   assert(Result.isFailure(result));

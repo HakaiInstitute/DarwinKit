@@ -174,11 +174,9 @@ export function resolveSpecFields(
   const result: Record<string, WorkspaceFieldMapping> = {};
   const mappedFieldNames = new Set(configMappings.map((m) => m.targetName));
 
-  // Tier 1 uses overrideConstraints — obligation-derived constraints override any
-  // same-type constraints already on the spec field. This is safe because there is
-  // no prior layer to protect. Tier 2 uses mergeProfileConstraints which applies
-  // strictest-wins for required constraints, preventing profiles from weakening
-  // spec obligations.
+  // Tier 1 uses overrideConstraints (no prior layer to protect); Tier 2 uses
+  // mergeProfileConstraints (strictest-wins for required constraints, so profiles
+  // cannot weaken spec obligations).
   for (const [fieldName, field] of Object.entries(resolvedSpec.specFields || {})) {
     let constraints: Constraint[] = [...(field.constraints ?? [])];
 

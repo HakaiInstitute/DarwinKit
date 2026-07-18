@@ -7,16 +7,12 @@ import { sanitizeTableName } from "./sql.ts";
 /**
  * Create an empty all-VARCHAR output table for a transform dataset.
  *
- * Only the fields the dataset actually maps (`fieldNames`, intersected with the
- * spec) become VARCHAR columns, plus an internal `_row_number`. This makes the
- * output table's shape match "what the transform produces", so validateTable
- * treats it exactly like a validation raw table: an unmapped required field is
- * an absent column (a structural MissingFieldViolation, caught regardless of row
- * count) rather than an all-NULL placeholder that only fails row-wise.
- *
- * No ENUM types, PRIMARY KEY, NOT NULL, or REFERENCES: enforcement now happens
- * as SQL detection (validateTable) over the populated table, matching the
- * validation path. INSERTs into these columns can never throw on data values.
+ * Only the mapped fields present in the spec become VARCHAR columns, plus an
+ * internal `_row_number`, so the table's shape matches what the transform
+ * produces and validateTable treats it like a validation raw table: an unmapped
+ * required field is an absent column (a structural MissingFieldViolation) rather
+ * than an all-NULL placeholder. No constraints are declared; enforcement is SQL
+ * detection over the populated table.
  */
 export function createOutputTable(
   connection: DuckDBConnection,
@@ -29,7 +25,7 @@ export function createOutputTable(
 
     // Only mapped fields that exist in the spec become columns. A mapped field
     // absent from the spec gets no column, so populate's INSERT fails loudly
-    // (an unknown target field is a config error, as before).
+    // (an unknown target field is a config error).
     const columns = fieldNames
       .filter((fieldName) => fieldName in rawFields)
       .map((fieldName) => `"${fieldName}" VARCHAR`);

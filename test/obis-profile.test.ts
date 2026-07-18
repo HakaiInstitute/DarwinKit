@@ -122,7 +122,6 @@ Deno.test("resolveProfile - unknown type returns undefined", () => {
 Deno.test({
   name: "OBIS Profile - validates required fields",
   fn: async () => {
-    // Create temp directory for test workspace
     const tempDir = await Deno.makeTempDir({ prefix: "obis-test-" });
 
     try {
@@ -138,7 +137,6 @@ E3,E1,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
 
       Deno.writeTextFileSync(join(tempDir, "events.csv"), eventCsv);
 
-      // Create config with OBIS profile
       const config = makeWorkspaceConfig({
         name: "OBIS Profile Test",
         description: "Test OBIS validation profile",
@@ -168,7 +166,6 @@ E3,E1,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
         stringifyYAML(prepareConfigForYaml(config)),
       );
 
-      // Validate
       const validator = new WorkspaceValidator();
       const result = await Effect.runPromise(
         validator.validateFromConfig(tempDir),
@@ -193,7 +190,6 @@ E3,E1,2022-09-17,49.8765,-125.4321,WGS84,Discovery Passage`;
       );
       assertEquals(eventsResult.status, "warn", "Status should be warn when there are warnings");
     } finally {
-      // Cleanup
       await Deno.remove(tempDir, { recursive: true });
     }
   },
@@ -262,7 +258,6 @@ E2,2022-09-16,49.9012,-125.4789`;
 });
 
 Deno.test("OBIS Profile - applies depth range constraints", async () => {
-  // Create temp directory for test workspace
   const tempDir = await Deno.makeTempDir({ prefix: "obis-test-" });
 
   try {
@@ -313,15 +308,13 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
       stringifyYAML(rawConfig),
     );
 
-    // Validate
     const validator = new WorkspaceValidator();
     const result = await Effect.runPromise(
       validator.validateFromConfig(tempDir),
     );
 
-    // Range constraints are validated post-insert via SQL queries in field-validators.ts
-    // (not via DuckDB CHECK constraints). The validators query for out-of-range values
-    // after data is loaded into the table.
+    // Range constraints are validated post-insert via SQL queries in
+    // field-validators.ts, not via DuckDB CHECK constraints.
 
     // Should detect depth constraint violations
     assertExists(result);
@@ -347,7 +340,6 @@ E3,2022-09-17,49.8765,-125.4321,WGS84,12000,12500`;
 
     assert(hasRowThreeViolation, "Should flag row 3 with depth > 11000m");
   } finally {
-    // Cleanup
     await Deno.remove(tempDir, { recursive: true });
   }
 });

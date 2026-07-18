@@ -396,7 +396,7 @@ Deno.test("findRequiredViolations - optional level produces INFO violations", as
       findRequiredViolations(conn, TABLE, "country", constraint, field),
     );
 
-    // Optional level now produces violations (INFO severity) instead of skipping
+    // Optional level produces violations at INFO severity
     const violations = extractViolations(result);
     assertEquals(violations.length, 2);
   });
