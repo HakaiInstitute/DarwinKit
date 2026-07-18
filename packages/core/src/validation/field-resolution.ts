@@ -336,9 +336,9 @@ export function applyResolvedConstraints(
  *
  * - `all`: Full resolution of all spec + profile + config fields. Used by
  *   validators for missing-field detection and constraint-driven validation.
- * - `mapped`: Subset filtered to fields with explicit config mappings. Used
- *   by importSchema for NOT NULL column generation — unmapped spec fields
- *   would cause spurious NOT NULL failures since no data is inserted for them.
+ * - `mapped`: Subset filtered to the fields a dataset actually provides. Used
+ *   for transform output validation and foreign-key inference — the fields the
+ *   dataset maps, distinct from the full spec surface in `all`.
  */
 export interface ResolvedFieldsEntry {
   readonly all: Record<string, WorkspaceFieldMapping>;
@@ -349,10 +349,10 @@ export interface ResolvedFieldsEntry {
 /**
  * Resolve constraints for all datasets in a single pass.
  *
- * This is the single source of truth for constraint resolution — both
- * schema creation (importSchema) and validation (validateDataset) consume
- * the same pre-resolved fields, eliminating duplicated resolution logic
- * and preventing divergence between DDL and validation.
+ * This is the single source of truth for constraint resolution — the
+ * validation path (validateDataset) consumes these pre-resolved fields,
+ * eliminating duplicated resolution logic and keeping every dataset's
+ * constraints derived from one place.
  */
 export function resolveFieldsForDatasets(
   datasets: readonly DatasetConfig[],
@@ -380,4 +380,32 @@ export function resolveFieldsForDatasets(
   }
 
   return result;
+}
+
+/**
+ * Build an identity ResolvedFieldsEntry for a transform output table.
+ *
+ * Transform datasets map Darwin Core target fields directly to SQL expressions;
+ * there is no user file-to-spec mapping and no config constraint tier. `all`
+ * resolves every spec+profile field (for missing-field detection); `mapped` is
+ * the subset the transform actually produces (the keys of `dataset.fields`).
+ */
+export function resolveTransformFields(
+  datasetClass: string,
+  fieldNames: readonly string[],
+  standard: ResolvedStandard,
+): ResolvedFieldsEntry | undefined {
+  const profile = resolveProfile(standard.variant, datasetClass);
+  if (!profile) return undefined;
+
+  const { standard: activeStandard } = resolveActiveStandard(standard);
+  const all = resolveSpecFields(profile, activeStandard, []);
+
+  const wanted = new Set(fieldNames);
+  const mapped: Record<string, WorkspaceFieldMapping> = {};
+  for (const [name, field] of Object.entries(all)) {
+    if (wanted.has(name)) mapped[name] = field;
+  }
+
+  return { all, mapped, resolvedSpec: profile };
 }

@@ -2,7 +2,7 @@
  * Tests for field-resolution.ts — pure function tests for the 3-tier merge pipeline
  */
 
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import type { ResolvedSpec, WorkspaceFieldMapping } from "@dwkit/domain/schemas";
 import type { Constraint, SpecField } from "@dwkit/domain/specs";
 import {
@@ -34,6 +34,7 @@ import {
   resolveActiveStandard,
   resolveFieldsForDatasets,
   resolveSpecFields,
+  resolveTransformFields,
 } from "./field-resolution.ts";
 
 // =============================================================================
@@ -1296,4 +1297,30 @@ Deno.test("resolveFieldsForDatasets - mapped subset matches config fieldMappings
     Object.keys(entry.all).length > Object.keys(entry.mapped).length,
     "all should have more fields than mapped",
   );
+});
+
+// =============================================================================
+// resolveTransformFields Tests
+// =============================================================================
+
+Deno.test("resolveTransformFields - identity-maps the named fields for a class", () => {
+  const entry = resolveTransformFields(
+    "Event",
+    ["eventID", "eventDate"],
+    { base: "darwin-core", variant: "obis" },
+  );
+  assertExists(entry);
+  assertEquals(entry.mapped["eventID"].originName, "eventID");
+  assertEquals(entry.mapped["eventID"].targetName, "eventID");
+  assertEquals(Object.keys(entry.mapped).sort(), ["eventDate", "eventID"]);
+  // `all` covers every spec field, not just the mapped ones.
+  assertEquals(Object.keys(entry.all).length > 2, true);
+});
+
+Deno.test("resolveTransformFields - returns undefined for an unknown class", () => {
+  const entry = resolveTransformFields("NotAClass", ["x"], {
+    base: "darwin-core",
+    variant: "obis",
+  });
+  assertEquals(entry, undefined);
 });

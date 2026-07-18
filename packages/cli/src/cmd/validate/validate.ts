@@ -77,8 +77,8 @@ function renderTableViolationSection(
   Payload.blank();
 }
 
-/** Write the status/summary footer to stderr. */
-function printSummary(results: WorkspaceValidationResult): void {
+/** Write the status/summary footer to stderr. Shared with the `transform` command. */
+export function printSummary(results: WorkspaceValidationResult): void {
   const status = results.overallStatus;
   const writeStatus = Match.value(status).pipe(
     Match.when('fail', () => Output.error),
@@ -359,7 +359,8 @@ async function validate(options: {
   }
 }
 
-function outputTableResults(results: WorkspaceValidationResult) {
+/** Render the per-dataset table + violation sections. Shared with the `transform` command. */
+export function outputTableResults(results: WorkspaceValidationResult) {
   Payload.blank();
   Payload.bold('Workspace validation completed');
   Payload.muted(`Configuration: ${results.configPath}`);
