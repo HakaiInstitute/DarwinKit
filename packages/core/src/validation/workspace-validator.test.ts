@@ -1,12 +1,14 @@
 import type { WorkspaceValidationResult } from "@dwkit/domain/types";
 import {
   isEnumViolation,
+  isForeignKeyViolation,
   isFormatViolation,
   isLengthViolation,
   isPatternViolation,
   isPrimaryKeyViolation,
   isRangeViolation,
   isRequiredFieldViolation,
+  isTypeViolation,
 } from "@dwkit/domain/types";
 import { assert, assertEquals, assertExists, assertRejects } from "@std/assert";
 import { Array } from "effect";
@@ -51,7 +53,7 @@ Deno.test("WorkspaceValidator - Basic Validation Tests", async (t) => {
 
     const result = await validateWorkspace(tempDir);
 
-    // FK violations are caught at INSERT time via DuckDB FK constraints
+    // FK violations are detected by a query-based anti-join across the raw tables
     assertExists(result.datasetResults);
   });
 });
@@ -105,8 +107,8 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
     const result = await validateWorkspace(tempDir);
 
-    // FK violation is caught during insert via DuckDB FK constraint (not cross-dataset validation)
-    // This is more efficient as violations are caught earlier
+    // FK violations are detected by the query-based validateForeignKeyRule
+    // (a NOT EXISTS anti-join against the parent's raw table).
     const occurrenceResult = result.datasetResults.find((r) => r.datasetName === "occurrences");
     assertExists(occurrenceResult);
 
@@ -119,11 +121,61 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
     const violation = fkViolations[0];
     assertEquals(violation.value, "E2");
 
-    // Verify FK violation includes rule context in params
+    // Verify the FK violation references the logical dataset/field (not the raw_ table)
+    assertEquals(violation.referencedTable, "events");
+    assertEquals(violation.referencedField, "eventID");
+
+    // Rule context is also surfaced in params for downstream consumers
     const params = violation.params as { targetDataset?: string; targetField?: string } | undefined;
     assertEquals(params?.targetDataset, "events");
     assertEquals(params?.targetField, "eventID");
   });
+
+  await t.step(
+    "foreignKey rule with unknown target dataset reports a schema violation",
+    async () => {
+      const tempDir = await createTempDir("fk_unknown_target_dataset");
+
+      await writeCSV(tempDir, "occurrences", TEST_DATA.VALID_OCCURRENCES);
+
+      await writeConfig(tempDir, {
+        name: "Test Workspace",
+        validation: {
+          nullValues: [""],
+          datasets: [
+            {
+              name: "occurrences",
+              class: "Occurrence",
+              path: "./occurrences.csv",
+              fieldMappings: [
+                { originName: "eventID", targetName: "eventID" },
+                { originName: "occurrenceID", targetName: "occurrenceID" },
+              ],
+            },
+          ],
+        },
+        datasetRules: [
+          {
+            ruleType: "foreignKey",
+            sourceDataset: "occurrences",
+            sourceField: "eventID",
+            targetDataset: "does_not_exist",
+            targetField: "eventID",
+          },
+        ],
+      });
+
+      // Should NOT throw — the bad target dataset is turned into a clean schema violation.
+      const result = await validateWorkspace(tempDir);
+      const occurrenceResult = result.datasetResults.find((r) => r.datasetName === "occurrences");
+      assertExists(occurrenceResult);
+
+      const ruleErrors = occurrenceResult.schemaViolations.errors.filter(
+        (v) => v.errorMessage.includes("unknown target dataset 'does_not_exist'"),
+      );
+      assertEquals(ruleErrors.length, 1);
+    },
+  );
 
   await t.step("handles missing source fields with warning", async () => {
     const tempDir = await createTempDir("detect_missing_required_fields");
@@ -244,6 +296,82 @@ Deno.test("WorkspaceValidator - Violation Detection Tests", async (t) => {
 
     assertEquals(result.overallStatus, "fail");
     assertPrimaryKeyViolations(result, 2, "E1", { checkDuplicateCount: 2 });
+  });
+
+  await t.step("detects null/empty primary key identifiers", async () => {
+    const tempDir = await createTempDir("detect_null_primary_key");
+
+    // A primary key (eventID) implies NOT NULL — an empty value is a violation.
+    await createSingleDatasetWorkspace(
+      tempDir,
+      "events",
+      [
+        { eventID: "E1", country: "Canada" },
+        { eventID: "", country: "USA" },
+      ],
+      [
+        { originName: "eventID", targetName: "eventID" },
+        { originName: "country", targetName: "country" },
+      ],
+      { class: "Event" },
+    );
+
+    const result = await validateWorkspace(tempDir);
+
+    assertEquals(result.overallStatus, "fail");
+    const pkViolations = Array.filter(
+      result.datasetResults[0].fieldViolations.errors,
+      isPrimaryKeyViolation,
+    );
+    assertEquals(pkViolations.length, 1);
+    assertEquals(pkViolations[0].constraintType, "null");
+    assertEquals(pkViolations[0].rowNumber, 2);
+  });
+
+  await t.step("duplicate foreignKey rules report each orphan only once", async () => {
+    const tempDir = await createTempDir("fk_duplicate_rule");
+    await writeCSV(tempDir, "events", [{ eventID: "E1" }]);
+    await writeCSV(tempDir, "occurrences", [
+      { eventID: "E1", occurrenceID: "O1" },
+      { eventID: "E2", occurrenceID: "O2" },
+    ]);
+    const fkRule = {
+      ruleType: "foreignKey",
+      sourceDataset: "occurrences",
+      sourceField: "eventID",
+      targetDataset: "events",
+      targetField: "eventID",
+    };
+    await writeConfig(tempDir, {
+      name: "Test Workspace",
+      validation: {
+        nullValues: [""],
+        datasets: [
+          {
+            name: "events",
+            class: "Event",
+            path: "./events.csv",
+            fieldMappings: [{ originName: "eventID", targetName: "eventID" }],
+          },
+          {
+            name: "occurrences",
+            class: "Occurrence",
+            path: "./occurrences.csv",
+            fieldMappings: [
+              { originName: "eventID", targetName: "eventID" },
+              { originName: "occurrenceID", targetName: "occurrenceID" },
+            ],
+          },
+        ],
+      },
+      datasetRules: [fkRule, fkRule],
+    });
+
+    const result = await validateWorkspace(tempDir);
+    const occ = result.datasetResults.find((r) => r.datasetName === "occurrences");
+    assertExists(occ);
+    const fkViolations = Array.filter(occ.fieldViolations.errors, isForeignKeyViolation);
+    assertEquals(fkViolations.length, 1); // E2 reported once, not twice
   });
 });
 
@@ -918,15 +1046,15 @@ Deno.test("two Event datasets + an occurrence eventID is a hard error", async ()
   );
 });
 
-Deno.test("WorkspaceValidator - NOT NULL from Resolved Constraints", async (t) => {
+Deno.test("WorkspaceValidator - Required from Resolved Constraints", async (t) => {
   await t.step(
-    "obligation-required mapped field gets NOT NULL obligation at INSERT time",
+    "obligation-required mapped field with an empty value produces a required violation",
     async () => {
       const tempDir = await createTempDir("not_null_obligation");
 
       // eventDate is OBIS-required. Map it but provide empty values.
-      // With resolved constraints, eventDate should be NOT NULL in the schema,
-      // causing insert failures for rows with NULL eventDate.
+      // With resolved constraints, the empty eventDate row is flagged by the
+      // query-based required validator (RequiredFieldViolation).
       await createSingleDatasetWorkspace(
         tempDir,
         "events",
@@ -955,6 +1083,63 @@ Deno.test("WorkspaceValidator - NOT NULL from Resolved Constraints", async (t) =
         eventDateErrors.length >= 1,
         `Expected at least 1 error for required empty eventDate, got ${eventDateErrors.length}`,
       );
+    },
+  );
+});
+
+Deno.test("WorkspaceValidator - Numeric type validity", async (t) => {
+  const intMappings = [
+    { originName: "occurrenceID", targetName: "occurrenceID" },
+    { originName: "individualCount", targetName: "individualCount" },
+  ];
+
+  await t.step("large integer (>INT32) is NOT flagged, decimal IS flagged", async () => {
+    const dir = await createTempDir("numeric_int");
+    await createSingleDatasetWorkspace(
+      dir,
+      "occ",
+      [
+        { occurrenceID: "O1", individualCount: "5" },
+        { occurrenceID: "O2", individualCount: "1.5" },
+        { occurrenceID: "O3", individualCount: "3000000000" },
+      ],
+      intMappings,
+      { class: "Occurrence" },
+    );
+
+    const result = await validateWorkspace(dir);
+    const d = result.datasetResults[0];
+    const numeric = [
+      ...d.fieldViolations.errors,
+      ...d.fieldViolations.warnings,
+      ...d.fieldViolations.info,
+    ]
+      .filter((v) => v.fieldName === "individualCount");
+    assertEquals(numeric.length, 1);
+    assertEquals(numeric[0]._tag, "TypeViolation");
+    assertEquals(numeric[0].value, "1.5");
+    assertEquals(numeric[0].rowNumber, 2);
+  });
+
+  await t.step(
+    "bad value in an OPTIONAL numeric field is info-severity, not a hard error",
+    async () => {
+      const dir = await createTempDir("numeric_optional_sev");
+      // minimumElevationInMeters is an optional decimal field in Darwin Core.
+      await createSingleDatasetWorkspace(dir, "occ", [
+        { occurrenceID: "O1", minimumElevationInMeters: "abc" },
+      ], [
+        { originName: "occurrenceID", targetName: "occurrenceID" },
+        { originName: "minimumElevationInMeters", targetName: "minimumElevationInMeters" },
+      ], { class: "Occurrence" });
+
+      const result = await validateWorkspace(dir);
+      const d = result.datasetResults[0];
+      const typeErrors = Array.filter(d.fieldViolations.errors, isTypeViolation);
+      const typeInfo = Array.filter(d.fieldViolations.info, isTypeViolation);
+      assertEquals(typeErrors.length, 0); // not escalated to error
+      assertEquals(typeInfo.length, 1);
+      assertEquals(typeInfo[0].severity, "info");
     },
   );
 });

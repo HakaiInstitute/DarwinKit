@@ -87,10 +87,6 @@ export class PrimaryKeyViolation
     duplicateCount: S.optional(S.Number),
   }) {}
 
-export class NotNullViolation extends S.TaggedClass<NotNullViolation>()("NotNullViolation", {
-  ...baseViolationFields,
-}) {}
-
 export class EnumViolation extends S.TaggedClass<EnumViolation>()("EnumViolation", {
   ...baseViolationFields,
   enumType: S.String,
@@ -124,6 +120,11 @@ export class RequiredFieldViolation
   extends S.TaggedClass<RequiredFieldViolation>()("RequiredFieldViolation", {
     ...baseViolationFields,
   }) {}
+
+export class TypeViolation extends S.TaggedClass<TypeViolation>()("TypeViolation", {
+  ...baseViolationFields,
+  expectedType: S.String,
+}) {}
 
 export class DependencyViolation
   extends S.TaggedClass<DependencyViolation>()("DependencyViolation", {
@@ -166,13 +167,13 @@ export type FieldViolation =
   | RangeViolation
   | UniquenessViolation
   | PrimaryKeyViolation
-  | NotNullViolation
   | EnumViolation
   | ForeignKeyViolation
   | FormatViolation
   | PatternViolation
   | LengthViolation
   | RequiredFieldViolation
+  | TypeViolation
   | DependencyViolation;
 
 export function isRangeViolation(v: FieldViolation): v is RangeViolation {
@@ -201,6 +202,14 @@ export function isLengthViolation(v: FieldViolation): v is LengthViolation {
 
 export function isRequiredFieldViolation(v: FieldViolation): v is RequiredFieldViolation {
   return v._tag === "RequiredFieldViolation";
+}
+
+export function isTypeViolation(v: FieldViolation): v is TypeViolation {
+  return v._tag === "TypeViolation";
+}
+
+export function isForeignKeyViolation(v: FieldViolation): v is ForeignKeyViolation {
+  return v._tag === "ForeignKeyViolation";
 }
 
 export function requirementToSeverity(requirement: RequirementLevel): Severity {

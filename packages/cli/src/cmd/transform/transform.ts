@@ -4,6 +4,8 @@ import { Output } from '../../utils/output.ts';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
+import * as Match from 'effect/Match';
+import { outputTableResults, printSummary } from '../validate/validate.ts';
 
 async function transform(options: {
   config?: string;
@@ -25,7 +27,34 @@ async function transform(options: {
     Deno.exit(3);
   }
 
-  Output.success('✅ Transformation complete.');
+  const validation = result.value;
+
+  // Reuse validate's renderer: same WorkspaceValidationResult, same one true rendering.
+  outputTableResults(validation);
+  printSummary(validation);
+
+  Output.blank();
+  Match.value(validation.overallStatus).pipe(
+    Match.when(
+      'fail',
+      () =>
+        Output.error(
+          'Export blocked: no output files were written. Fix the errors above and re-run.',
+        ),
+    ),
+    Match.when('warn', () => Output.success('✅ Transformation complete (with warnings).')),
+    Match.when('pass', () => Output.success('✅ Transformation complete.')),
+    Match.exhaustive,
+  );
+
+  const exitCode = Match.value(validation.overallStatus).pipe(
+    Match.when('fail', () => 1),
+    Match.when('warn', () => 0),
+    Match.when('pass', () => 0),
+    Match.exhaustive,
+  );
+
+  Deno.exit(exitCode);
 }
 
 export const transformCommand = new Command()

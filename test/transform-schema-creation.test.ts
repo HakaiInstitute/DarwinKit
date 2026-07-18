@@ -1,39 +1,20 @@
 /**
  * Schema Creation Test
  *
- * Ensures that `createTableFromSchema` correctly generates tables,
- * ENUM types, and constraints from a workspace configuration.
+ * Ensures that `createTableFromSchema` creates plain all-VARCHAR output
+ * tables containing only the mapped fields (plus `_row_number`), with no
+ * enforcement DDL (no ENUM types, no PRIMARY KEY / FOREIGN KEY constraints).
+ * Enforcement now happens as SQL detection over the populated table, matching
+ * the validation path.
  */
 
-import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
+import { DuckDBInstance } from "@duckdb/node-api";
 import { createTableFromSchema } from "@dwkit/core/transform";
 import type { WorkspaceConfig } from "@dwkit/domain/schemas";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import * as Effect from "effect/Effect";
 
-/**
- * Count foreign keys for a table
- *
- * @param connection - DuckDB connection
- * @param tableName - Table to check
- * @returns Number of FK constraints on the table
- */
-async function countForeignKeys(
-  connection: DuckDBConnection,
-  tableName: string,
-): Promise<number> {
-  const query = `
-    SELECT COUNT(*) as fk_count
-    FROM information_schema.table_constraints
-    WHERE constraint_type = 'FOREIGN KEY'
-      AND table_name = '${tableName.toLowerCase()}';
-  `;
-  const result = await connection.runAndReadAll(query);
-  return Number(result.getRowObjects()[0]?.fk_count ?? 0);
-}
-
-Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", async () => {
-  // 1. Setup: Isolated in-memory DuckDB instance and test configuration
+Deno.test("createTableFromSchema - creates all-VARCHAR tables of only the mapped fields plus _row_number", async () => {
   const instance = await DuckDBInstance.create(":memory:");
   const connection = await instance.connect();
 
@@ -46,238 +27,70 @@ Deno.test("createTableFromSchema - creates tables and constraints with ENUMs", a
     updatedAt: new Date(),
     transform: {
       nullValues: [],
-      output: {
-        outputDir: "",
-        exportDB: false,
-      },
+      output: { outputDir: "", exportDB: false },
       inputs: {},
       postImportTransforms: [],
       datasets: [
-        {
-          name: "Event",
-          class: "Event",
-          source: { test: "" },
-          fields: {},
-        },
         {
           name: "Occurrence",
           class: "Occurrence",
           source: { test: "" },
-          fields: {},
+          fields: {
+            occurrenceID: "test.id",
+            basisOfRecord: "test.bor",
+          },
         },
       ],
     },
   };
 
   try {
-    // 2. Execute the function
-    const effect = createTableFromSchema(connection, config);
-    await Effect.runPromise(effect);
+    await Effect.runPromise(createTableFromSchema(connection, config));
 
-    // 3. Verify the results
-    // Verify that ENUMs are created for controlled vocabulary fields
-    const enumsResult = await connection.runAndReadAll(
-      "SELECT type_name FROM duckdb_types() WHERE type_name LIKE 'occurrence_%_enum'",
-    );
-    const enumTypes = enumsResult.getRowObjects().map((r) => r.type_name);
-    assert(
-      enumTypes.includes("occurrence_basisofrecord_enum"),
-      "Should create ENUM for basisOfRecord controlled vocabulary",
-    );
+    const info = (await connection.runAndReadAll("PRAGMA table_info(occurrence);")).getRowObjects();
 
-    // Verify that the occurrence table's basisOfRecord column uses the ENUM type
-    const occTableInfo = await connection.runAndReadAll("PRAGMA table_info(occurrence);");
-    const basisOfRecordColumn = occTableInfo.getRowObjects().find((c) =>
-      c.name === "basisOfRecord"
-    );
-    assertExists(basisOfRecordColumn, "basisOfRecord column should exist in occurrence table");
-    // DuckDB returns the full ENUM definition (e.g., "ENUM('value1', 'value2', ...)")
-    // so we just check that it starts with "ENUM("
-    const typeStr = String(basisOfRecordColumn.type);
-    assert(
-      typeStr.startsWith("ENUM("),
-      `basisOfRecord should use ENUM type, got: ${typeStr}`,
-    );
-
-    // Check Event table schema
-    const eventTableInfo = await connection.runAndReadAll("PRAGMA table_info(event);");
-    const eventColumns = eventTableInfo.getRowObjects().map((c) => ({
-      name: c.name,
-      type: c.type,
-      notnull: c.notnull,
-      pk: c.pk,
-    }));
-
-    const eventIdCol = eventColumns.find((c) => c.name === "eventID");
-    assertExists(eventIdCol, "eventID column should exist in event table");
+    // A mapped controlled-vocabulary field is a plain VARCHAR column (not ENUM).
+    const basisOfRecord = info.find((c) => c.name === "basisOfRecord");
+    assertExists(basisOfRecord, "mapped basisOfRecord column should exist");
     assertEquals(
-      eventIdCol.type,
+      String(basisOfRecord.type),
       "VARCHAR",
-      "eventID should be of type VARCHAR (equivalent to TEXT)",
+      "controlled-vocab field must be VARCHAR, not ENUM",
     );
-    assert(eventIdCol.pk, "eventID should be the primary key");
 
-    const yearCol = eventColumns.find((c) => c.name === "year");
-    assertExists(yearCol, "year column should exist in event table");
-    assertEquals(yearCol.type, "INTEGER", "year should be of type INTEGER");
+    const rowNumber = info.find((c) => c.name === "_row_number");
+    assertExists(rowNumber, "_row_number column should exist");
 
-    // Check Occurrence table schema
-    const occurrenceTableInfo = await connection.runAndReadAll(
-      "PRAGMA table_info(occurrence);",
-    );
-    const occurrenceColumns = occurrenceTableInfo.getRowObjects().map((c) => ({
-      name: c.name,
-      type: c.type,
-      notnull: c.notnull,
-      pk: c.pk,
-    }));
-
-    const occurrenceIdCol = occurrenceColumns.find((c) => c.name === "occurrenceID");
-    assertExists(occurrenceIdCol, "occurrenceID column should exist");
-    assert(occurrenceIdCol.pk, "occurrenceID should be primary key");
-
-    const basisOfRecordCol = occurrenceColumns.find((c) => c.name === "basisOfRecord");
-    assertExists(basisOfRecordCol, "basisOfRecord column should exist");
-    // DuckDB returns the full ENUM definition, so check that it starts with "ENUM("
-    const basisTypeStr = String(basisOfRecordCol.type);
-    assert(
-      basisTypeStr.startsWith("ENUM("),
-      `basisOfRecord should use ENUM type, got: ${basisTypeStr}`,
-    );
-    // NOT NULL is only applied when profile marks field as required
-    // Event/Occurrence base profiles don't mark basisOfRecord as required
-    // (only OBIS profiles do, and this test uses base "Occurrence" profile)
+    // Only mapped fields become columns: an unmapped spec field (e.g.
+    // occurrenceStatus) must NOT be materialized as a placeholder column.
     assertEquals(
-      basisOfRecordCol.notnull,
-      false,
-      "basisOfRecord should not be NOT NULL without profile override",
+      info.find((c) => c.name === "occurrenceStatus"),
+      undefined,
+      "unmapped spec fields must not be materialized as columns",
     );
-
-    // Note: FK constraints are only created when explicit datasetRules are configured.
-    // Transform workflow doesn't use datasetRules, so no FK constraints are created.
-    // This is by design - FK validation happens in the validation workflow, not transform.
-  } finally {
-    // 4. Teardown
-    connection.closeSync();
-    instance.closeSync();
-  }
-});
-
-Deno.test("createTableFromSchema - handles complex schema with multiple tables and FKs", async () => {
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-
-  const config: WorkspaceConfig = {
-    version: "1",
-    standard: { base: "darwin-core", variant: "obis" },
-    name: "",
-    id: "",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    transform: {
-      nullValues: [],
-      inputs: {},
-      postImportTransforms: [],
-      datasets: [
-        { name: "Event", class: "Event", source: { test: "" }, fields: {} },
-        { name: "Occurrence", class: "Occurrence", source: { test: "" }, fields: {} },
-        {
-          name: "MeasurementOrFact",
-          class: "ExtendedMeasurementOrFact",
-          source: { test: "" },
-          fields: {},
-        },
-      ],
-      output: {
-        outputDir: "",
-        exportDB: false,
-      },
-    },
-  };
-
-  try {
-    await Effect.runPromise(createTableFromSchema(connection, config));
-
-    // Verify Event table
-    const eventInfo = await connection.runAndReadAll("PRAGMA table_info(event);");
-    assert(
-      eventInfo.getRowObjects().some((c) => c.name === "eventID" && c.pk),
-      "event.eventID should be PK",
-    );
-
-    // Verify Occurrence table
-    const occInfo = await connection.runAndReadAll("PRAGMA table_info(occurrence);");
-    assert(
-      occInfo.getRowObjects().some((c) => c.name === "occurrenceID" && c.pk),
-      "occurrence.occurrenceID should be PK",
-    );
-    const basisOfRecordCol = occInfo.getRowObjects().find((c) => c.name === "basisOfRecord");
-    assertExists(basisOfRecordCol, "basisOfRecord column should exist");
-    // basisOfRecord is NOT NULL only when profile override marks it as required
-    // Base Occurrence profile doesn't mark it as required
     assertEquals(
-      basisOfRecordCol?.notnull,
-      false,
-      "basisOfRecord should not be NOT NULL in base profile",
+      info.map((c) => c.name).sort(),
+      ["_row_number", "basisOfRecord", "occurrenceID"],
+      "table should contain exactly the mapped fields plus _row_number",
     );
 
-    // Verify MeasurementOrFact table
-    const mofInfo = await connection.runAndReadAll(
-      "PRAGMA table_info(extendedmeasurementorfact);",
-    );
+    // No ENUM types created.
+    const enums = (await connection.runAndReadAll(
+      "SELECT type_name FROM duckdb_types() WHERE type_name LIKE 'occurrence_%_enum'",
+    )).getRowObjects();
+    assertEquals(enums.length, 0, "no ENUM types should be created");
+
+    // No primary-key / foreign-key constraints.
+    const constraints = (await connection.runAndReadAll(
+      "SELECT constraint_type FROM information_schema.table_constraints WHERE table_name = 'occurrence'",
+    )).getRowObjects();
     assert(
-      mofInfo.getRowObjects().some((c) => c.name === "measurementID" && c.pk),
-      "mof.measurementID should be PK",
+      constraints.every((c) =>
+        c.constraint_type !== "PRIMARY KEY" && c.constraint_type !== "FOREIGN KEY"
+      ),
+      "no PK/FK constraints should exist",
     );
-
-    // Note: FK constraints are only created when explicit datasetRules are configured.
-    // Transform workflow doesn't use datasetRules, so no FK constraints are created.
-    // This is by design - FK validation happens in the validation workflow, not transform.
   } finally {
     connection.closeSync();
-    instance.closeSync();
-  }
-});
-
-Deno.test("createTableFromSchema - no FK constraints without datasetRules", async () => {
-  // FK constraints are only created when explicit datasetRules are configured.
-  // Transform workflow doesn't use datasetRules, so no FK constraints should be created.
-  const instance = await DuckDBInstance.create(":memory:");
-  const connection = await instance.connect();
-
-  const config: WorkspaceConfig = {
-    version: "1",
-    standard: { base: "darwin-core", variant: "obis" },
-    name: "",
-    id: "",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    transform: {
-      nullValues: [],
-      inputs: {},
-      postImportTransforms: [],
-      datasets: [
-        { name: "Event", class: "Event", source: { test: "" }, fields: {} },
-        { name: "Occurrence", class: "Occurrence", source: { test: "" }, fields: {} },
-      ],
-      output: {
-        outputDir: "",
-        exportDB: false,
-      },
-    },
-  };
-
-  try {
-    await Effect.runPromise(createTableFromSchema(connection, config));
-
-    // Verify no FKs are created when datasetRules are not configured
-    const occurrenceFKCount = await countForeignKeys(connection, "occurrence");
-    assertEquals(occurrenceFKCount, 0, "Occurrence should have no FKs without datasetRules");
-
-    const eventFKCount = await countForeignKeys(connection, "event");
-    assertEquals(eventFKCount, 0, "Event table should have no foreign keys");
-  } finally {
-    connection.closeSync();
-    instance.closeSync();
   }
 });

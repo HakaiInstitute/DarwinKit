@@ -91,7 +91,9 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
     assertEquals(eventRows.length, 1, "Event table should have one row");
     const eventRow = eventRows[0];
     assertEquals(eventRow.eventID, "evt1");
-    assertEquals(eventRow.year, 2023);
+    // Output tables are all-VARCHAR (no enforcement DDL); year comes back as text
+    // until the persisted-DB export casts it (see exportToPersistentDB).
+    assertEquals(eventRow.year, "2023");
     assertEquals(eventRow.eventDate, "2023-01-15");
 
     // Check Occurrence table data
@@ -113,6 +115,43 @@ Deno.test("populateSchemaFromDataTables - populates schema from source tables", 
     );
   } finally {
     // 5. Teardown
+    connection.closeSync();
+  }
+});
+
+Deno.test("populateSchemaFromDataTables - assigns sequential _row_number values", async () => {
+  const connection = await DuckDBConnection.create();
+  const config: WorkspaceConfig = {
+    version: "1",
+    standard: { base: "darwin-core", variant: "obis" },
+    name: "rownum",
+    id: "rownum",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    transform: {
+      nullValues: [],
+      inputs: {},
+      postImportTransforms: [],
+      datasets: [{
+        name: "Event",
+        class: "Event",
+        source: { source_events: "source_events" },
+        fields: { eventID: "source_events.event_id" },
+      }],
+      output: { outputDir: "/tmp/output", exportDB: false },
+    },
+  };
+  try {
+    await connection.run("CREATE TABLE source_events (event_id TEXT);");
+    await connection.run("INSERT INTO source_events VALUES ('evt1'), ('evt2');");
+    await Effect.runPromise(createTableFromSchema(connection, config));
+    await Effect.runPromise(populateSchemaFromDataTables(connection, config));
+
+    const rows = (await connection.runAndReadAll(
+      "SELECT _row_number FROM event ORDER BY _row_number",
+    )).getRowObjects();
+    assertEquals(rows.map((r) => Number(r._row_number)), [1, 2]);
+  } finally {
     connection.closeSync();
   }
 });

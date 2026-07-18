@@ -6,8 +6,6 @@
  */
 
 import type { DuckDBConnection } from "@duckdb/node-api";
-import { assert, assertEquals } from "@std/assert";
-import * as Effect from "effect/Effect";
 import type { SpecField } from "@dwkit/domain/specs";
 import {
   FormatConstraint,
@@ -17,6 +15,8 @@ import {
   RequiredConstraint,
   UniqueConstraint,
 } from "@dwkit/domain/specs";
+import { assert, assertEquals } from "@std/assert";
+import * as Effect from "effect/Effect";
 import {
   extractViolations,
   makeField,
@@ -28,9 +28,13 @@ import {
   findFormatViolations,
   findLengthViolations,
   findPatternViolations,
+  findPrimaryKeyViolations,
   findRangeViolations,
   findRequiredViolations,
+  findTypeViolations,
   findUniquenessViolations,
+  findVocabularyViolations,
+  validateField,
   validateRequiredConstraints,
 } from "./field-validators.ts";
 
@@ -101,6 +105,21 @@ Deno.test("findRangeViolations", async (t) => {
       });
     });
   }
+});
+
+Deno.test("findRangeViolations - ignores inf/nan (owned by type check)", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "lat VARCHAR", ["1, 'nan'", "2, 'inf'", "3, '200'"]);
+    const field = makeField("lat", []);
+    const constraint = new RangeConstraint({ min: -90, max: 90, inclusive: true });
+    const result = await Effect.runPromiseExit(
+      findRangeViolations(conn, TABLE, "lat", constraint, field),
+    );
+    const violations = extractViolations(result);
+    // only the finite out-of-range value (200) is a range violation
+    assertEquals(violations.length, 1);
+    assertEquals(violations[0].value, "200");
+  });
 });
 
 // =============================================================================
@@ -230,6 +249,82 @@ Deno.test("findFormatViolations", async (t) => {
       assert(result._tag === "Success");
     });
   });
+
+  await t.step("integer format accepts large ints, rejects decimals", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '3000000000'", "2, '1.5'"]);
+      const field = makeField("n", []);
+      const constraint = new FormatConstraint({ format: "integer" });
+      const result = await Effect.runPromiseExit(
+        findFormatViolations(conn, TABLE, "n", constraint, { ...field, constraints: [constraint] }),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "1.5");
+    });
+  });
+
+  await t.step("iso8601 accepts space-separated datetime (Parquet TIMESTAMP render)", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "eventDate VARCHAR", ["1, '2024-01-01 12:30:00'"]);
+      const field = makeField("eventDate", []);
+      const constraint = new FormatConstraint({ format: "iso8601" });
+      const result = await Effect.runPromiseExit(
+        findFormatViolations(conn, TABLE, "eventDate", constraint, {
+          ...field,
+          constraints: [constraint],
+        }),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+});
+
+Deno.test("findFormatViolations - iso8601 datetime and interval forms", async (t) => {
+  const constraint = new FormatConstraint({ format: "iso8601" });
+
+  const accepted: Array<[string, string]> = [
+    ["no-seconds time with Z", "2009-02-20T08:40Z"],
+    ["no-seconds time with numeric offset", "1963-03-08T14:07-06:00"],
+    ["seconds with numeric offset", "2024-01-15T13:45:00-06:00"],
+    ["fractional seconds with Z", "2024-01-15T13:45:00.500Z"],
+    ["year interval", "2024/2025"],
+    ["year-month interval", "2024-01/2024-03"],
+    ["date interval", "2024-01-15/2024-02-20"],
+  ];
+
+  for (const [label, value] of accepted) {
+    await t.step(`accepts ${label} (${value})`, async () => {
+      await withConnection(async (conn) => {
+        await setupTable(conn, "eventDate VARCHAR", [`1, '${value}'`]);
+        const field = makeField("eventDate", [constraint]);
+        const result = await Effect.runPromiseExit(
+          findFormatViolations(conn, TABLE, "eventDate", constraint, field),
+        );
+        assert(result._tag === "Success", `${value} should be valid`);
+      });
+    });
+  }
+
+  const rejected: Array<[string, string]> = [
+    ["interval with calendar-invalid endpoint", "2024-01-15/2024-02-30"],
+    ["calendar-invalid single date", "2024-13-01"],
+  ];
+
+  for (const [label, value] of rejected) {
+    await t.step(`rejects ${label} (${value})`, async () => {
+      await withConnection(async (conn) => {
+        await setupTable(conn, "eventDate VARCHAR", [`1, '${value}'`]);
+        const field = makeField("eventDate", [constraint]);
+        const result = await Effect.runPromiseExit(
+          findFormatViolations(conn, TABLE, "eventDate", constraint, field),
+        );
+        const violations = extractViolations(result);
+        assertEquals(violations.length, 1, `${value} should be invalid`);
+        assertEquals(violations[0].value, value);
+      });
+    });
+  }
 });
 
 // =============================================================================
@@ -504,5 +599,260 @@ Deno.test("Uniqueness constraint violations", async (t) => {
 
       assert(result._tag === "Success");
     });
+  });
+});
+
+// =============================================================================
+// Vocabulary Constraint Tests
+// =============================================================================
+
+Deno.test("findVocabularyViolations", async (t) => {
+  const check = {
+    allowedValues: ["Animalia", "Plantae"],
+    enumType: "taxon_kingdom_enum",
+    severity: "error" as const,
+    enableSuggestions: true,
+  };
+
+  await t.step("member values pass", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "kingdom VARCHAR", ["1, 'Animalia'", "2, 'Plantae'"]);
+      const field = makeField("kingdom", []);
+      const result = await Effect.runPromiseExit(
+        findVocabularyViolations(conn, TABLE, "kingdom", field, check),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("non-member flagged with suggestion", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "kingdom VARCHAR", ["1, 'Animala'", "2, 'Plantae'"]);
+      const field = makeField("kingdom", []);
+      const result = await Effect.runPromiseExit(
+        findVocabularyViolations(conn, TABLE, "kingdom", field, check),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "Animala");
+      assertEquals(violations[0]._tag, "EnumViolation");
+      assertEquals(violations[0].suggestedValue, "Animalia");
+    });
+  });
+
+  await t.step("null/empty values are ignored", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "kingdom VARCHAR", ["1, NULL", "2, ''"]);
+      const field = makeField("kingdom", []);
+      const result = await Effect.runPromiseExit(
+        findVocabularyViolations(conn, TABLE, "kingdom", field, check),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+});
+
+// =============================================================================
+// Type Constraint Tests
+// =============================================================================
+
+Deno.test("findTypeViolations", async (t) => {
+  await t.step("non-numeric value in a DOUBLE field is flagged", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "lat VARCHAR", ["1, '45.0'", "2, 'abc'", "3, ''"]);
+      const field = makeField("lat", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "lat", field, "DOUBLE", "error"),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].value, "abc");
+      assertEquals(violations[0]._tag, "TypeViolation");
+      assertEquals(violations[0].expectedType, "DOUBLE");
+    });
+  });
+
+  await t.step("valid integers pass", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '10'", "2, '-3'"]);
+      const field = makeField("n", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER", "error"),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("decimal value fails INTEGER check", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '1.5'"]);
+      const field = makeField("n", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER", "error"),
+      );
+      assertEquals(extractViolations(result).length, 1);
+    });
+  });
+
+  await t.step("large integer exceeding INT32 passes INTEGER check", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '3000000000'"]);
+      const field = makeField("n", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER", "error"),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("scientific notation and underscores are rejected for INTEGER", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "n VARCHAR", ["1, '1e3'", "2, '1_000'"]);
+      const field = makeField("n", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "n", field, "INTEGER", "error"),
+      );
+      assertEquals(extractViolations(result).length, 2);
+    });
+  });
+
+  await t.step("inf / nan are rejected for DOUBLE", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "x VARCHAR", ["1, 'inf'", "2, 'Infinity'", "3, 'nan'", "4, '4.2'"]);
+      const field = makeField("x", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "x", field, "DOUBLE", "error"),
+      );
+      assertEquals(extractViolations(result).length, 3);
+    });
+  });
+
+  await t.step("severity argument is propagated to the violation", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "x VARCHAR", ["1, 'abc'"]);
+      const field = makeField("x", []);
+      const result = await Effect.runPromiseExit(
+        findTypeViolations(conn, TABLE, "x", field, "DOUBLE", "info"),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 1);
+      assertEquals(violations[0].severity, "info");
+    });
+  });
+});
+
+// =============================================================================
+// Primary Key Constraint Tests
+// =============================================================================
+
+Deno.test("findPrimaryKeyViolations", async (t) => {
+  await t.step("unique non-null keys pass", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "id VARCHAR", ["1, 'A'", "2, 'B'", "3, 'C'"]);
+      const field = makeField("id", []);
+      const result = await Effect.runPromiseExit(
+        findPrimaryKeyViolations(conn, TABLE, "id", field),
+      );
+      assert(result._tag === "Success");
+    });
+  });
+
+  await t.step("duplicates flagged once per affected row", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "id VARCHAR", ["1, 'A'", "2, 'A'", "3, 'B'"]);
+      const field = makeField("id", []);
+      const result = await Effect.runPromiseExit(
+        findPrimaryKeyViolations(conn, TABLE, "id", field),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 2);
+      assertEquals(violations[0]._tag, "PrimaryKeyViolation");
+      assertEquals(violations[0].constraintType, "duplicate");
+      assertEquals(violations[0].value, "A");
+    });
+  });
+
+  await t.step("null and empty keys flagged as constraintType null", async () => {
+    await withConnection(async (conn) => {
+      await setupTable(conn, "id VARCHAR", ["1, 'A'", "2, NULL", "3, ''"]);
+      const field = makeField("id", []);
+      const result = await Effect.runPromiseExit(
+        findPrimaryKeyViolations(conn, TABLE, "id", field),
+      );
+      const violations = extractViolations(result);
+      assertEquals(violations.length, 2);
+      assertEquals(violations.every((v) => v.constraintType === "null"), true);
+    });
+  });
+});
+
+Deno.test("findPrimaryKeyViolations - total violations bounded by maxViolations", async () => {
+  await withConnection(async (conn) => {
+    // 3 nulls + 3 duplicate rows = 6 candidate violations; cap at 4.
+    await setupTable(conn, "id VARCHAR", [
+      "1, NULL",
+      "2, NULL",
+      "3, NULL",
+      "4, 'A'",
+      "5, 'A'",
+      "6, 'A'",
+    ]);
+    const field = makeField("id", []);
+    const result = await Effect.runPromiseExit(
+      findPrimaryKeyViolations(conn, TABLE, "id", field, 4),
+    );
+    assertEquals(extractViolations(result).length, 4);
+  });
+});
+
+// =============================================================================
+// validateField wiring tests
+// =============================================================================
+
+Deno.test("validateField - primary key field routes to PrimaryKeyViolation", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "eventID VARCHAR", ["1, 'E1'", "2, 'E1'", "3, NULL"]);
+    const field = makeField("eventID", []);
+    const result = await Effect.runPromiseExit(
+      validateField(conn, TABLE, "eventID", field, { isDbPrimaryKey: true }),
+    );
+    const violations = extractViolations(result);
+    // 2 duplicate rows (E1 x2) + 1 null row
+    assertEquals(violations.length, 3);
+    assertEquals(violations.every((v) => v._tag === "PrimaryKeyViolation"), true);
+  });
+});
+
+Deno.test("validateField - numericType runs type-validity check", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "lat VARCHAR", ["1, '45.0'", "2, 'abc'"]);
+    const field = makeField("lat", []);
+    const result = await Effect.runPromiseExit(
+      validateField(conn, TABLE, "lat", field, { isDbPrimaryKey: false, numericType: "DOUBLE" }),
+    );
+    const violations = extractViolations(result);
+    assertEquals(violations.length, 1);
+    assertEquals(violations[0]._tag, "TypeViolation");
+  });
+});
+
+Deno.test("validateField - vocabulary check runs when supplied", async () => {
+  await withConnection(async (conn) => {
+    await setupTable(conn, "kingdom VARCHAR", ["1, 'Animalia'", "2, 'Bogus'"]);
+    const field = makeField("kingdom", []);
+    const result = await Effect.runPromiseExit(
+      validateField(conn, TABLE, "kingdom", field, {
+        isDbPrimaryKey: false,
+        vocabulary: {
+          allowedValues: ["Animalia", "Plantae"],
+          enumType: "taxon_kingdom_enum",
+          severity: "error",
+          enableSuggestions: false,
+        },
+      }),
+    );
+    const violations = extractViolations(result);
+    assertEquals(violations.length, 1);
+    assertEquals(violations[0]._tag, "EnumViolation");
   });
 });

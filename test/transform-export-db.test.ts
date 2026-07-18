@@ -45,10 +45,12 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
 
   try {
     // 2. Arrange: Create and populate tables in the in-memory DB
-    await connection.run("CREATE TABLE event (eventID TEXT, year INTEGER);");
-    await connection.run("INSERT INTO event VALUES ('evt1', 2025);");
-    await connection.run("CREATE TABLE occurrence (occurrenceID TEXT, eventID TEXT);");
-    await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1');");
+    await connection.run("CREATE TABLE event (eventID TEXT, year INTEGER, _row_number BIGINT);");
+    await connection.run("INSERT INTO event VALUES ('evt1', 2025, 1);");
+    await connection.run(
+      "CREATE TABLE occurrence (occurrenceID TEXT, eventID TEXT, _row_number BIGINT);",
+    );
+    await connection.run("INSERT INTO occurrence VALUES ('occ1', 'evt1', 1);");
 
     // 3. Act: Execute the export function
     await Effect.runPromise(exportToPersistentDB(connection, config));
@@ -69,6 +71,16 @@ Deno.test("exportToPersistentDB - exports in-memory DB to a file", async () => {
     const occRows = occResult.getRowObjects();
     assertEquals(occRows.length, 1, "Occurrence table should have one row in persistent DB");
     assertEquals(occRows[0].occurrenceID, "occ1");
+
+    // _row_number must not leak into the persisted DB.
+    const eventCols = (await diskConnection.runAndReadAll("PRAGMA table_info(event);"))
+      .getRowObjects().map((c) => String(c.name));
+    assertEquals(eventCols.includes("_row_number"), false, "_row_number must be excluded");
+
+    // year is a spec integer -> INTEGER column in the persisted DB.
+    const yearCol = (await diskConnection.runAndReadAll("PRAGMA table_info(event);"))
+      .getRowObjects().find((c) => c.name === "year");
+    assertEquals(String(yearCol?.column_type ?? yearCol?.type), "INTEGER");
 
     diskConnection.closeSync();
   } finally {

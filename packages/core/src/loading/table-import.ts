@@ -10,7 +10,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { WorkspaceImportError } from "@dwkit/domain/errors";
 import * as Effect from "effect/Effect";
-import { formatNullValues, queryRows, sanitizeTableName } from "./sql.ts";
+import { formatNullValues, sanitizeTableName } from "./sql.ts";
 
 /**
  * Import a data file into a fresh `tableName`, adding a 1-based `_row_number`
@@ -59,11 +59,21 @@ export function importCsv(
   tableName: string,
   csvPath: string,
   nullValues: readonly string[],
+  options?: { allVarchar?: boolean },
 ): Effect.Effect<void, WorkspaceImportError> {
   // nullstr stays a literal list because DuckDB rejects a bound list for that
   // named argument; its values are escaped by formatNullValues.
   const nullStrParam = nullValues.length > 0 ? `, nullstr=[${formatNullValues(nullValues)}]` : "";
-  return importTable(connection, tableName, csvPath, `read_csv_auto(?${nullStrParam})`, "CSV");
+  // all_varchar loads every column as text so the validators can check type
+  // validity themselves rather than letting read_csv_auto silently coerce.
+  const allVarcharParam = options?.allVarchar ? `, all_varchar=true` : "";
+  return importTable(
+    connection,
+    tableName,
+    csvPath,
+    `read_csv_auto(?${nullStrParam}${allVarcharParam})`,
+    "CSV",
+  );
 }
 
 export function importParquet(
@@ -73,27 +83,4 @@ export function importParquet(
 ): Effect.Effect<void, WorkspaceImportError> {
   // No nullstr: Parquet NULLs are native (nullValues is a CSV-only concern).
   return importTable(connection, tableName, parquetPath, `read_parquet(?)`, "Parquet");
-}
-
-export function getTableValue(
-  connection: DuckDBConnection,
-  tableName: string,
-  fieldName: string,
-  rowNumber: number,
-): Effect.Effect<string> {
-  return Effect.gen(function* () {
-    const safeName = sanitizeTableName(tableName);
-    const query = `
-      SELECT "${fieldName}" as value
-      FROM "${safeName}"
-      WHERE _row_number = ${rowNumber}
-    `;
-
-    const rows = yield* queryRows(connection, query);
-    if (rows.length === 0) {
-      return "";
-    }
-
-    return String(rows[0].value ?? "");
-  });
 }

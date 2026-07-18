@@ -8,7 +8,6 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { resolve } from "@std/path";
 import * as Effect from "effect/Effect";
-import * as Result from "effect/Result";
 import type * as Scope from "effect/Scope";
 
 import type { WorkspaceOperationError } from "@dwkit/domain/errors";
@@ -16,7 +15,6 @@ import { WorkspaceImportError, WorkspaceValidationError } from "@dwkit/domain/er
 import type {
   DatasetConfig,
   DatasetRuleConfig,
-  ResolvedSpec,
   ResolvedStandard,
   ValidationSettings,
 } from "@dwkit/domain/schemas";
@@ -26,24 +24,19 @@ import {
   getResolvedSpec,
   getSpecNames,
   inferForeignKeyRules,
-  orderByForeignKeyDependencies,
 } from "@dwkit/domain/specs";
 import type {
   DatasetValidationResult,
-  FieldViolation,
   SchemaViolation,
   WorkspaceValidationResult,
 } from "@dwkit/domain/types";
 import {
   calculateSummary,
   determineOverallStatus,
-  MissingFieldViolation,
   MissingMappingViolation,
   partitionFieldViolations,
   partitionSchemaViolations,
   requirementToSeverity,
-  UnknownFieldViolation,
-  UnknownProfileViolation,
   UnmappedColumnViolation,
 } from "@dwkit/domain/types";
 import { importCsv, importParquet } from "../loading/table-import.ts";
@@ -51,20 +44,10 @@ import { queryRows, sanitizeTableName } from "../loading/sql.ts";
 import { scopedConnection } from "../loading/connection.ts";
 import { Workspace } from "../workspace/workspace.ts";
 
-import { DependencyRule } from "@dwkit/domain/specs";
-import { importSchema } from "../loading/schema.ts";
-import { insertRowByRow } from "./data-loader.ts";
-import { validateDependencyRule } from "./dataset-rule-validators.ts";
-import { validateField } from "./field-validators.ts";
-
-import { findSuggestedValue } from "./string-matching.ts";
 import type { ResolvedFieldsEntry } from "./field-resolution.ts";
-import {
-  applyResolvedConstraints,
-  deriveRequirementFromConstraints,
-  resolveActiveStandard,
-  resolveFieldsForDatasets,
-} from "./field-resolution.ts";
+import { resolveFieldsForDatasets } from "./field-resolution.ts";
+import { getColumns, validateTable } from "./table-validator.ts";
+import { findSuggestedValue } from "./string-matching.ts";
 
 function deduplicateByTypeAndField<T extends { _tag: string; fieldName: string }>(
   arr: readonly T[],
@@ -99,7 +82,6 @@ export class WorkspaceValidator {
           datasets,
           settings,
           basePath,
-          standard,
           resolvedFieldsMap,
           datasetRules,
         );
@@ -143,7 +125,6 @@ export class WorkspaceValidator {
         datasets,
         settings.nullValues,
         basePath,
-        standard,
         resolvedFieldsMap,
         datasetRules,
       );
@@ -209,16 +190,15 @@ function _validateDatasetsCore(
 
     for (const dataset of datasets) {
       const preResolved = resolvedFieldsMap.get(dataset.name);
-      const datasetResolvedSpec = preResolved?.resolvedSpec;
 
       const result = yield* validateDataset(
         connection,
         dataset,
-        datasetResolvedSpec,
         standard,
         settings,
         preResolved,
         datasetRules,
+        resolvedFieldsMap,
       );
 
       datasetResults.push(result);
@@ -265,38 +245,37 @@ function _validateDatasetsCore(
 }
 
 /**
- * Import each dataset's CSV into a `raw_<name>` table and create its typed
- * schema table. Shared by validateDatasetsWithConnection and
- * createWorkspaceFromConfig (which differ only in where nullValues comes from).
+ * Import each dataset's CSV into a `raw_<name>` table as all-VARCHAR so validators
+ * see the original CSV strings (the validation path builds no typed table), then
+ * infer the standard Darwin Core foreign keys and return the full rule set
+ * (user-declared + inferred) for the validation phase to enforce.
  */
 function importDatasets(
   connection: DuckDBConnection,
   datasets: readonly DatasetConfig[],
   nullValues: readonly string[],
   basePath: string,
-  standard: ResolvedStandard,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
   datasetRules?: readonly DatasetRuleConfig[],
 ) {
   return Effect.gen(function* () {
-    // Pass 1: import each raw CSV/Parquet table and collect its mapped fields.
+    // Import each raw CSV/Parquet table and collect the Darwin Core fields it maps.
     const shapes: { name: string; class: string; columns: string[] }[] = [];
     for (const dataset of datasets) {
       const filePath = resolve(basePath, dataset.path);
       const tableName = `raw_${sanitizeTableName(dataset.name)}`;
-
+      // Parquet is self-typed, so type validity is guaranteed by the format and
+      // it loads with native types. CSV loads all-VARCHAR so the validators can
+      // check type validity themselves instead of letting read_csv_auto coerce.
       if (filePath.toLowerCase().endsWith(".parquet")) {
         yield* importParquet(connection, tableName, filePath);
       } else {
-        yield* importCsv(connection, tableName, filePath, nullValues);
+        yield* importCsv(connection, tableName, filePath, nullValues, { allVarchar: true });
       }
 
       // FK inference keys on the Darwin Core fields the dataset actually maps
-      // (the target names populated into the typed table), NOT the raw CSV
-      // headers. Data is inserted per field mapping (origin -> target), so a raw
-      // column named `eventID` that is never mapped is never inserted — a foreign
-      // key on it would be vacuous — while a column mapped `event_id -> eventID`
-      // must still be inferable.
+      // (the mapped target names), NOT the raw CSV headers — so a column mapped
+      // `event_ref -> eventID` is inferable while an unmapped raw `eventID` is not.
       const entry = resolvedFieldsMap.get(dataset.name);
       const columns = entry ? Object.keys(entry.mapped) : [];
       shapes.push({ name: dataset.name, class: dataset.class, columns });
@@ -304,6 +283,8 @@ function importDatasets(
 
     // Infer the standard Darwin Core foreign keys; user-declared rules win and
     // resolve ambiguity. An unresolved ambiguity is a user-fixable config error.
+    // FK integrity is enforced later by a SQL anti-join over the all-VARCHAR
+    // tables (validateForeignKeyRule), so no REFERENCES or table ordering is needed.
     const { rules: inferred, conflicts } = inferForeignKeyRules(
       shapes,
       datasetRules ?? [],
@@ -319,41 +300,11 @@ function importDatasets(
         }),
       );
     }
+
     const allRules: DatasetRuleConfig[] = [
       ...(datasetRules ?? []),
       ...inferred,
     ];
-
-    // Pass 2: create the typed schema tables. FK REFERENCES require the target
-    // table to exist first, so create targets before sources.
-    const byName = new Map(datasets.map((d) => [d.name, d]));
-    const fkEdges = allRules
-      .filter((r) => r.ruleType === "foreignKey")
-      .map((r) => ({
-        sourceDataset: r.sourceDataset,
-        targetDataset: r.targetDataset,
-      }));
-    const order = orderByForeignKeyDependencies(
-      datasets.map((d) => d.name),
-      fkEdges,
-    );
-
-    for (const name of order) {
-      const dataset = byName.get(name)!;
-      const entry = resolvedFieldsMap.get(dataset.name);
-      if (entry) {
-        yield* importSchema(
-          connection,
-          dataset,
-          datasets,
-          standard,
-          entry.resolvedSpec,
-          allRules,
-          entry.mapped,
-        );
-      }
-    }
-
     return allRules;
   });
 }
@@ -362,7 +313,6 @@ function createWorkspaceFromConfig(
   datasets: readonly DatasetConfig[],
   validationSettings: ValidationSettings,
   basePath: string,
-  standard: ResolvedStandard,
   resolvedFieldsMap: Map<string, ResolvedFieldsEntry>,
   datasetRules?: readonly DatasetRuleConfig[],
 ): Effect.Effect<
@@ -380,7 +330,6 @@ function createWorkspaceFromConfig(
       datasets,
       validationSettings.nullValues,
       basePath,
-      standard,
       resolvedFieldsMap,
       datasetRules,
     );
@@ -392,11 +341,11 @@ function createWorkspaceFromConfig(
 function validateDataset(
   connection: DuckDBConnection,
   dataset: DatasetConfig,
-  resolvedSpec: ResolvedSpec | undefined,
   standard: ResolvedStandard,
   validationSettings?: ValidationSettings,
   preResolved?: ResolvedFieldsEntry,
   datasetRules?: readonly DatasetRuleConfig[],
+  resolvedFieldsMap?: Map<string, ResolvedFieldsEntry>,
 ): Effect.Effect<DatasetValidationResult, WorkspaceValidationError> {
   return Effect.gen(function* () {
     const startTime = Date.now();
@@ -406,22 +355,12 @@ function validateDataset(
     // queryRows uses the JSON reader: COUNT(*) (BIGINT) comes back as a string.
     const rowsProcessed = Number(countRows[0].count);
 
-    const originTableColumnsRows = yield* queryRows(
-      connection,
-      `SELECT column_name FROM (DESCRIBE '${tableName}')`,
-    );
-
     // Exclude _row_number; it's only used internally
-    const originTableColumns = originTableColumnsRows
-      .map((row) => String(row.column_name))
+    const originTableColumns = (yield* getColumns(connection, tableName))
       .filter((col) => col !== "_row_number");
 
-    // Use base spec for DuckDB table naming (matches importSchema which uses base specs)
+    // Guard: the dataset's class must resolve to a known base spec.
     const baseProfile = getResolvedSpec(dataset.class);
-
-    const schemaTableName = baseProfile
-      ? sanitizeTableName(baseProfile.name).toLowerCase()
-      : dataset.name.toLowerCase();
     if (baseProfile === undefined) {
       const suggestion = findSuggestedValue(dataset.class, getSpecNames());
       const suggestionMsg = suggestion ? ` Did you mean '${suggestion}'?` : "";
@@ -452,12 +391,7 @@ function validateDataset(
       alternatives: findSuggestedValue(f, mappedOriginFields) || "",
     }));
 
-    const allFieldViolations: FieldViolation[] = [];
     const schemaViolations: SchemaViolation[] = [];
-
-    const validMappings = Object.values(schemaColumnsObj).filter(
-      (mapping) => originTableColumns.includes(mapping.originName),
-    );
 
     for (const mapping of configFieldMappings) {
       if (
@@ -475,45 +409,6 @@ function validateDataset(
               `Unknown preset "${mapping.preset}" for field '${mapping.targetName}'.${suggestionMsg}`,
 
             datasetName: dataset.name,
-          }),
-        );
-      }
-    }
-
-    const targetColumnNames = validMappings.map((field) => `"${field.targetName}"`);
-    const originColumnNames = validMappings.map((field) => `"${field.originName}"`);
-    const columnMappings = validMappings.map((m) => ({
-      origin: m.originName,
-      target: m.targetName,
-    }));
-
-    const insertSQL = `INSERT INTO ${schemaTableName} (${targetColumnNames.join(", ")}) SELECT ${
-      originColumnNames.join(", ")
-    } FROM ${tableName};`;
-
-    // Try bulk INSERT first; fall back to row-by-row on constraint failures
-    const bulkInsertResult = yield* Effect.tryPromise({
-      try: () => connection.run(insertSQL),
-      catch: (error) => error,
-    }).pipe(Effect.result);
-
-    if (Result.isFailure(bulkInsertResult)) {
-      if (resolvedSpec) {
-        const { standard: activeStandard } = resolveActiveStandard(standard);
-        yield* insertRowByRow(
-          connection,
-          tableName,
-          schemaTableName,
-          columnMappings,
-          resolvedSpec,
-          activeStandard,
-          dataset.name,
-          datasetRules ?? [],
-          validationSettings,
-        ).pipe(
-          Effect.catch((violations) => {
-            allFieldViolations.push(...violations);
-            return Effect.succeed(undefined);
           }),
         );
       }
@@ -557,186 +452,21 @@ function validateDataset(
       );
     }
 
-    if (resolvedSpec && schemaColumnsObj && validMappings) {
-      const mappedSpecFields = new Set(
-        validMappings.map((m) => m.targetName),
-      );
-      const configSpecifiedFields = new Set(
-        configFieldMappings.map((m) => m.targetName),
-      );
-
-      for (
-        const [fieldName, fieldMapping] of Object.entries(
-          schemaColumnsObj,
-        )
-      ) {
-        const isMapped = mappedSpecFields.has(fieldName);
-        if (isMapped) continue;
-
-        const isConfigField = configSpecifiedFields.has(fieldName);
-
-        if (isConfigField) {
-          schemaViolations.push(
-            new MissingFieldViolation({
-              severity: requirementToSeverity("required"),
-              fieldName,
-              targetName: fieldName,
-              errorMessage:
-                `Field '${fieldName}' is specified in config fieldMappings but not found in the dataset`,
-
-              reason: "not_mapped",
-            }),
-          );
-          continue;
-        }
-
-        const requirement = deriveRequirementFromConstraints(fieldMapping.constraints);
-        if (!requirement) {
-          continue;
-        }
-
-        const messageVerb = requirement === "required"
-          ? "requires"
-          : requirement === "recommended"
-          ? "strongly recommends"
-          : "recommends";
-
-        schemaViolations.push(
-          new MissingFieldViolation({
-            severity: requirementToSeverity(requirement),
-            fieldName,
-            targetName: fieldName,
-            errorMessage:
-              `Profile '${resolvedSpec.name}' ${messageVerb} field '${fieldName}' but it is not mapped in the dataset`,
-
-            reason: "not_mapped",
-          }),
-        );
-      }
-    }
-
-    const fieldValidationEffects: Effect.Effect<
-      { fieldName: string; status: "valid" },
-      FieldViolation[]
-    >[] = [];
-
-    for (const mapping of validMappings) {
-      if (!resolvedSpec?.specFields) {
-        schemaViolations.push(
-          new UnknownProfileViolation({
-            severity: requirementToSeverity("required"),
-            fieldName: mapping.originName,
-            targetName: mapping.targetName,
-            errorMessage:
-              `No validation profile specified for dataset '${dataset.name}'. Please add a 'class' property to the dataset configuration.`,
-
-            profileId: dataset.class ?? "unknown",
-            reason: "not_found",
-          }),
-        );
-        continue;
-      }
-
-      const baseField = resolvedSpec.specFields?.[mapping.targetName];
-
-      if (!baseField) {
-        schemaViolations.push(
-          new UnknownFieldViolation({
-            severity: requirementToSeverity("required"),
-            fieldName: mapping.originName,
-            targetName: mapping.targetName,
-            errorMessage:
-              `Unknown field '${mapping.targetName}' in profile '${resolvedSpec.name}'. Please confirm the schema definition is up to date and that the fieldMappings in config file are correct.`,
-
-            profileId: resolvedSpec.id,
-          }),
-        );
-        continue;
-      }
-
-      const specField = applyResolvedConstraints(baseField, mapping);
-      const rawField = resolvedSpec.rawFields?.[mapping.targetName];
-      const isDbPrimaryKey = mapping.targetName === schemaTableName + "ID" ||
-        (mapping.targetName.endsWith("ID") && String(rawField?.unique) === "true");
-
-      fieldValidationEffects.push(
-        validateField(
-          connection,
-          tableName,
-          mapping.originName,
-          specField,
-          {
-            isDbPrimaryKey,
-            maxViolations: validationSettings?.maxViolationsPerField,
-          },
-        ),
-      );
-    }
-
-    if (fieldValidationEffects.length > 0) {
-      const results = yield* Effect.all(fieldValidationEffects, {
-        mode: "result",
-        concurrency: "unbounded",
-      });
-
-      for (const result of results) {
-        if (Result.isFailure(result)) {
-          allFieldViolations.push(...result.failure);
-        }
-      }
-    }
-
-    // Collect dependency rules from both profile and config sources
-    const dependencyRules: DependencyRule[] = [];
-
-    if (resolvedSpec?.datasetRules) {
-      for (const rule of resolvedSpec.datasetRules) {
-        if (rule._tag === "dependency") {
-          dependencyRules.push(rule as DependencyRule);
-        }
-      }
-    }
-
-    if (datasetRules) {
-      for (const rule of datasetRules) {
-        if (rule.ruleType !== "dependency") continue;
-        if (rule.sourceDataset !== undefined && rule.sourceDataset !== dataset.name) continue;
-        dependencyRules.push(
-          new DependencyRule({
-            sourceDataset: rule.sourceDataset,
-            when: rule.when,
-            require: rule.require,
-            level: rule.level ?? "required",
-            message: rule.message,
-          }),
-        );
-      }
-    }
-
-    for (const depRule of dependencyRules) {
-      const ruleFields = "oneOf" in depRule.require
-        ? [...depRule.require.oneOf]
-        : [...depRule.require];
-      if (depRule.when !== undefined) {
-        const whenField = typeof depRule.when === "string" ? depRule.when : depRule.when.field;
-        ruleFields.push(whenField);
-      }
-
-      const allFieldsPresent = ruleFields.every((f) => originTableColumns.includes(f));
-      if (allFieldsPresent) {
-        const ruleResult = yield* Effect.result(
-          validateDependencyRule(
-            connection,
-            tableName,
-            depRule,
-            validationSettings?.maxViolationsPerField,
-          ),
-        );
-        if (Result.isFailure(ruleResult)) {
-          allFieldViolations.push(...ruleResult.failure);
-        }
-      }
-    }
+    // `preResolved` is guaranteed defined here: a class that resolves to a base
+    // spec (the guard above) always has a corresponding resolved-fields entry.
+    const core = yield* validateTable(connection, {
+      tableName,
+      entry: preResolved!,
+      standard,
+      datasetName: dataset.name,
+      settings: validationSettings,
+      configRequiredFields: new Set(configFieldMappings.map((m) => m.targetName)),
+      datasetRules,
+      resolvedFieldsMap,
+      physicalTableFor: (name) => `raw_${sanitizeTableName(name)}`,
+    });
+    const allFieldViolations = core.fieldViolations;
+    schemaViolations.push(...core.schemaViolations);
 
     const processingTimeMs = Date.now() - startTime;
 

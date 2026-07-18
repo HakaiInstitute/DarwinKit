@@ -3,7 +3,7 @@ import { assertEquals } from "@std/assert";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { withConnection } from "../../../../test/helpers/duckdb-test-utils.ts";
-import { validateDependencyRule } from "./dataset-rule-validators.ts";
+import { validateDependencyRule, validateForeignKeyRule } from "./dataset-rule-validators.ts";
 
 // --- Unconditional oneOf ---
 
@@ -291,5 +291,84 @@ Deno.test("dependency - Effect.result returns a v4 Result (Success/Failure tags)
     if (Result.isFailure(fail)) {
       assertEquals(fail.failure[0]._tag, "DependencyViolation");
     }
+  });
+});
+
+Deno.test("foreignKey - orphan child values are flagged", async () => {
+  await withConnection(async (conn) => {
+    await conn.run(`
+      CREATE TABLE raw_parent AS SELECT * FROM (VALUES
+        (1, 'EVT-1'), (2, 'EVT-2')
+      ) AS t(_row_number, eventID)
+    `);
+    await conn.run(`
+      CREATE TABLE raw_child AS SELECT * FROM (VALUES
+        (1, 'EVT-1'), (2, 'EVT-3'), (3, NULL), (4, 'EVT-9')
+      ) AS t(_row_number, eventID)
+    `);
+    const result = await Effect.runPromise(
+      Effect.result(
+        validateForeignKeyRule(
+          conn,
+          "raw_child",
+          "eventID",
+          "raw_parent",
+          "eventID",
+          { requirement: "required" },
+        ),
+      ),
+    );
+    assertEquals(Result.isFailure(result), true);
+    if (Result.isFailure(result)) {
+      assertEquals(result.failure.length, 2);
+      assertEquals(result.failure[0]._tag, "ForeignKeyViolation");
+      assertEquals(result.failure[0].rowNumber, 2);
+      assertEquals(result.failure[0].value, "EVT-3");
+      assertEquals(result.failure[1].rowNumber, 4);
+      assertEquals(result.failure[0].severity, "error");
+    }
+  });
+});
+
+Deno.test("foreignKey - whitespace around parent key still matches child", async () => {
+  await withConnection(async (conn) => {
+    await conn.run(`
+      CREATE TABLE raw_parent AS SELECT * FROM (VALUES (1, '  EVT-1  ')) AS t(_row_number, eventID)
+    `);
+    await conn.run(`
+      CREATE TABLE raw_child AS SELECT * FROM (VALUES (1, 'EVT-1')) AS t(_row_number, eventID)
+    `);
+    const result = await Effect.runPromise(
+      Effect.result(
+        validateForeignKeyRule(conn, "raw_child", "eventID", "raw_parent", "eventID", {
+          requirement: "required",
+        }),
+      ),
+    );
+    assertEquals(Result.isSuccess(result), true);
+  });
+});
+
+Deno.test("foreignKey - all child values present passes", async () => {
+  await withConnection(async (conn) => {
+    await conn.run(`
+      CREATE TABLE raw_parent AS SELECT * FROM (VALUES (1, 'EVT-1')) AS t(_row_number, eventID)
+    `);
+    await conn.run(`
+      CREATE TABLE raw_child AS SELECT * FROM (VALUES (1, 'EVT-1'), (2, NULL)) AS t(_row_number, eventID)
+    `);
+    const result = await Effect.runPromise(
+      Effect.result(
+        validateForeignKeyRule(
+          conn,
+          "raw_child",
+          "eventID",
+          "raw_parent",
+          "eventID",
+          { requirement: "required" },
+        ),
+      ),
+    );
+    assertEquals(Result.isSuccess(result), true);
   });
 });
